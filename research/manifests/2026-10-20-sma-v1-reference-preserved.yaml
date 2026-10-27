@@ -1,0 +1,74 @@
+experiment_id: "2026-10-20-sma-v1-reference-preserved"
+created_at_utc: "2026-10-20T18:08:58Z"
+
+code:
+  repository_state: "not-a-git-repository"
+  git_commit: null
+  strategy_file: "user_data/strategies/SmaTrendBaseline.py"
+  strategy_sha256: "0edc921c5e0b507dcf7b9128aeebb54e624d68d6e4f5d13e8874218e6fadebcc"
+  config_sha256_redacted: "a619a6c05502905c124114a48d6f22c92cde37955c343a9505431faa99bb9967"
+  compose_sha256: "3ac6f17b2459a54f3ebf8310b58097987a53972e83cb433af0203d77b2e598a7"
+
+runtime:
+  freqtrade_version: "2026.9"
+  ccxt_version: "4.5.84"
+  docker_image: "freqtradeorg/freqtrade:2026.9"
+  docker_image_digest: "not-recorded-in-preserved-run"
+  host: "Windows 11 / WSL2 Kali Linux"
+  command: "docker compose run --rm freqtrade backtesting --config user_data/config.dryrun.json --strategy SmaTrendBaseline --strategy-path user_data/strategies --timeframe 1h --pairs BTC/USDT --timerange 20251020-20261020 --dry-run-wallet 100 --fee 0.001 --export trades --export-filename user_data/backtest_results/sma-baseline-20251020-20261020.json --backtest-directory user_data/backtest_results --breakdown day month"
+
+market:
+  exchange: "binance"
+  market_type: "spot"
+  pair: "BTC/USDT"
+  timeframe: "1h"
+  candle_type: "spot"
+  timezone: "UTC"
+
+data:
+  path: "user_data/data/binance/BTC_USDT-1h.feather"
+  sha256: "a1e3976eeabd44c7fe98fec3bf7dbeec034ccb83640c1edc2c3af1eefe18b7bf"
+  source: "Binance public OHLCV through Freqtrade download-data"
+  first_candle_utc: "2025-10-20T00:00:00Z"
+  last_complete_candle_utc: "2026-10-20T17:00:00Z"
+  candle_count: 8778
+  gaps: "not independently revalidated in this run"
+  duplicates: "not independently revalidated in this run"
+  incomplete_candle_removed: "not independently revalidated in this run"
+
+backtest:
+  requested_timerange: "20251020-20261020"
+  effective_timerange: "20251028T08:00-20261020T00:00Z"
+  startup_candles: 200
+  strategy: "SmaTrendBaseline"
+  parameters:
+    fast_sma: 20
+    slow_sma: 50
+    regime_sma: 200
+    stoploss: -0.10
+    minimal_roi: {"0": 100.0}
+  fee_rate_per_side: 0.001
+  slippage_rate_per_side: 0.0
+  spread_rate: 0.0
+  initial_wallet: 100.0
+  stake_amount: 100.0
+  max_open_trades: 1
+  order_types:
+    entry: "limit"
+    exit: "limit"
+    stoploss: "market"
+
+validation:
+  lookahead_analysis: "pass: no bias detected; 20 signals"
+  recursive_analysis: "pass: no indicator variance detected"
+  benchmarks: "pending"
+  walk_forward: "pending"
+  final_test_unlocked: false
+  hypotheses_tested_before: 0
+
+result:
+  artifact: "user_data/backtest_results/backtest-result-2026-10-20_18-08-58.zip"
+  trades: 1
+  net_profit_quote: -1.534
+  decision: "inconclusive"
+  notes: "Preserved reference run. One trade is insufficient for statistical inference. Results predate the later safety/configuration hardening and must not be silently relabeled as a rerun."

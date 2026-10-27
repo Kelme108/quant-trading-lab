@@ -1,0 +1,13 @@
+services:
+  freqtrade:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: trading-lab-freqtrade
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    ports:
+      - "127.0.0.1:8080:8080"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json
+      --strategy SmaTrendBaseline
+      --strategy-path /freqtrade/user_data/strategies
