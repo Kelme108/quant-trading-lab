@@ -15,7 +15,16 @@ class SafetyConfigurationTests(unittest.TestCase):
         self.assertEqual(config["exchange"]["secret"], "")
         self.assertFalse(config["api_server"]["enabled"])
         self.assertEqual(config["api_server"]["listen_ip_address"], "127.0.0.1")
-        self.assertEqual(config["api_server"]["jwt_secret_key"], "")
+        # Freqtrade's own config schema requires jwt_secret_key to be at least
+        # 32 characters even when api_server.enabled is false (confirmed by
+        # running backtesting/lookahead-analysis/recursive-analysis against
+        # freqtradeorg/freqtrade:2026.9 with an empty key: all three refuse to
+        # start). A disabled API never serves requests, so this key is never
+        # used for authentication; it only needs to satisfy the schema and
+        # must not be a guessable placeholder string.
+        jwt_secret_key = config["api_server"]["jwt_secret_key"]
+        self.assertGreaterEqual(len(jwt_secret_key), 32)
+        self.assertNotIn("SUBSTITUA", jwt_secret_key)
         self.assertEqual(config["api_server"]["username"], "")
         self.assertEqual(config["api_server"]["password"], "")
         self.assertNotIn("margin_mode", config)

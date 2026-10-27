@@ -1,0 +1,26 @@
+{
+  "_comment": "Chronological split of the available BTC/USDT 1h history. Confirmed via `docker compose run --rm freqtrade list-data --datadir /freqtrade/user_data/data/binance --show-timerange` on 2026-10-27: 8778 candles, 2025-10-20T00:00:00Z to 2026-10-20T17:00:00Z. Split is 60% exploration / 20% validation / 20% final test, computed chronologically on that confirmed range. Do not recompute from a different data pull without re-deriving these boundaries the same way.",
+  "source_data_path": "user_data/data/binance/BTC_USDT-1h.feather",
+  "confirmed_range": {
+    "first_candle_utc": "2025-10-20T00:00:00Z",
+    "last_candle_utc": "2026-10-20T17:00:00Z",
+    "candle_count": 8778
+  },
+  "exploration": {
+    "start_utc": "2025-10-20T00:00:00Z",
+    "end_utc": "2026-05-27T09:00:00Z",
+    "timerange": "20251020-20260527"
+  },
+  "validation": {
+    "start_utc": "2026-05-27T10:00:00Z",
+    "end_utc": "2026-08-08T12:00:00Z",
+    "timerange": "20260527-20260808"
+  },
+  "final_test": {
+    "start_utc": "2026-08-08T13:00:00Z",
+    "end_utc": "2026-10-20T17:00:00Z",
+    "timerange": "20260808-20261020",
+    "final_test_unlocked": false,
+    "_note": "runner.py must refuse to run this split while final_test_unlocked is false. Only the user may flip this flag."
+  }
+}

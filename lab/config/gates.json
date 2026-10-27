@@ -1,0 +1,41 @@
+{
+  "_status": "PROPOSED - not yet approved by the user. Do not treat decisions made with this file as final until the user explicitly approves these numeric thresholds. Once approved, this file is frozen: no further edits without explicit user approval, and gates.py records its SHA-256 with every decision so drift is detectable.",
+  "_source": "research/validation-protocol-v2.md and the task's explicit gate list.",
+  "required_cost_scenarios": ["optimistic", "base", "conservative", "stress"],
+  "lookahead": {
+    "required": true,
+    "rule": "lookahead-analysis must report no detected bias (has_bias == false) for every tested cost scenario and split."
+  },
+  "recursive": {
+    "required": true,
+    "rule": "recursive-analysis must report stable indicators after the strategy's startup_candle_count; any reported instability beyond startup fails this gate."
+  },
+  "minimum_trades": {
+    "value": 30,
+    "rule": "Below this many trades in a split, the decision is 'inconclusive', never 'candidate_for_forward_test', regardless of other metrics."
+  },
+  "net_profit": {
+    "required_positive_in_scenarios": ["base", "conservative"],
+    "rule": "Net profit (quote currency) must be > 0 in both the base and conservative cost scenarios."
+  },
+  "profit_excluding_best_trade": {
+    "required_positive": true,
+    "rule": "Net profit recomputed with the single best trade removed must still be > 0, in at least the base cost scenario, to avoid single-trade dependence."
+  },
+  "max_drawdown": {
+    "max_ratio": 0.25,
+    "rule": "Max drawdown (as a fraction of peak balance) must be <= 25% in every required cost scenario."
+  },
+  "benchmark_comparison": {
+    "required_to_report": true,
+    "required_to_beat": false,
+    "rule": "Must report strategy result against cash (0% return) and buy-and-hold over the same split and period. Beating either is not required, but both comparisons must be present in the metrics before a decision is produced."
+  },
+  "split_progression": {
+    "rule": "A strategy must clear every gate above on the exploration split, and then again independently on the validation split, before the decision can be 'candidate_for_forward_test'. The final_test split is never read by gates.py while splits.json final_test.final_test_unlocked is false."
+  },
+  "decision_values": {
+    "allowed": ["rejected", "inconclusive", "candidate_for_forward_test"],
+    "_note": "There is no 'approved for live' value. This lab never approves live trading."
+  }
+}
