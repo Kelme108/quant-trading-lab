@@ -1,0 +1,25 @@
+{
+  "hypothesis_id": "H-007",
+  "family": "RisingTrendBreakoutGate",
+  "title": "20-day breakout only inside a confirmed, rising multi-month uptrend, with 10-day channel exit",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole balance. REGIME at bar t (all must hold): (a) SMA(1200)(t) > SMA(2400)(t); (b) SMA(2400)(t) > SMA(2400)(t-480) (long mean rising over the last 20 days); (c) close(t) > SMA(1200)(t). ENTRY at close of bar t when REGIME holds AND close(t) > highest high of the prior 480 bars (t-480..t-1, excluding current bar) AND no open position AND cooldown satisfied. EXIT at close of bar t (executed next open) when close(t) < lowest low of the prior 240 bars (t-240..t-1, excluding current bar) OR close(t) < SMA(1200)(t) (regime lost). STOP-LOSS: fixed 6% below entry price (native intrabar stop). COOLDOWN: no re-entry for 120 candles after any exit. No take-profit, no pyramiding, no other filters. Warm-up: 2880 bars (SMA(2400) plus 480-bar slope lag); startup_candle_count should be set to 2880 or a bit more (at most 4500) so recursive analysis is stable.",
+  "parameters": {
+    "sma_fast": 1200,
+    "sma_slow": 2400,
+    "slope_lag": 480,
+    "breakout_lookback": 480,
+    "exit_lookback": 240,
+    "stop_loss_pct": 6,
+    "cooldown_bars": 120,
+    "warmup_bars": 2880
+  },
+  "rationale": "Mechanism: crypto trends persist because of slow-moving capital inflows, underreaction and herding (time-series momentum documented for Bitcoin), so a breakout to a 20-day high is followed by further gains mostly when a multi-month uptrend is already in place; in bear or range phases breakouts are bull-trap bounces that stop out. H-005's worst drawdowns were 8-13 consecutive losses in post-2021 bear/range markets, because its only regime filter was close > SMA(2400), which price repeatedly crosses in ranges. Here the regime requires the 50-day mean above the 100-day mean AND the 100-day mean rising over 20 days AND price above the 50-day mean, which is far harder to satisfy in a range or downtrend, so the loss streak should not be able to form. Further risk controls: a 6% stop (below H-005's 8%), a 120-bar cooldown that spaces out repeated failed breakouts, and an exit when the regime is lost so winners are not given back to the 10-day channel in a falling market. Drawdown arithmetic: 6% stop plus costs is about 6.5% per loss, so 3 consecutive losses are about 18% and 4 about 24%, under the 25% ceiling; the cooldown and the regime gate make long streaks unlikely. Expected trades: roughly 20-40 per pair per year-cluster of trend phases, a few dozen per split; trades are rare enough that the 0.35-0.5% round trip is small against typical winners of 10-30% in trends, though a trade-count below 30 per split is a risk I accept rather than loosen the gate by tuning. Success criteria: the existing gates (positive net at base and conservative cost, max drawdown below 25% in all four cost scenarios, at least 30 trades, same rule on all three pairs). Sourcing note: I found trend-filter evidence (Faber-style MA gating, crypto trend following papers) but no source for these exact lengths; parameters are round numbers fixed ex ante.",
+  "novelty_vs_tried": "Differs from H-005 (volatility squeeze trigger, only price > SMA(2400)) by using no squeeze and a three-part rising-trend regime with slope confirmation, a regime-loss exit and a tighter stop. Differs from H-004 (60-day breakout, 200-day SMA, never evaluated) by shorter lookbacks that are feasible within warm-up limits and the slope/mean-ordering gate. Differs from H-002 Donchian (20/10 bar, no regime, ~800 trades) by using 480/240-bar channels, a regime gate and cooldown, cutting trade count by an order of magnitude. Differs from H-006 pullback entry (SMA4800 warm-up too long) by buying strength, with a 2880-bar warm-up.",
+  "sources": [
+    {"title": "A Decade of Evidence of Trend Following Investing in Cryptocurrencies (arXiv 2009.12155)", "url": "https://ar5iv.labs.arxiv.org/html/2009.12155"},
+    {"title": "Grayscale Research: The Trend Is Your Friend - Managing Bitcoin's Volatility with Momentum Signals", "url": "https://research.grayscale.com/reports/the-trend-is-your-friend-managing-bitcoins-volatility-with-momentum-signals"},
+    {"title": "Quantpedia: How to Design a Simple Multi-Timeframe Trend Strategy on Bitcoin", "url": "https://quantpedia.com/?p=43320"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "BTC, ETH, BNB 1h exploration-period summary results listed in the context file only, through 2026-10-30; no validation results seen"
+}
