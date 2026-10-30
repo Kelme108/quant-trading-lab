@@ -1,0 +1,26 @@
+{
+  "hypothesis_id": "H-006",
+  "family": "RegimeGatedPullbackTrend",
+  "title": "Bull-regime-only pullback re-entry with long-term slope gate and tight fixed stop",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole balance. REGIME at bar t (all must hold): (a) close(t) > SMA(4800) of close; (b) SMA(2400)(t) > SMA(4800)(t); (c) SMA(4800)(t) > SMA(4800)(t-720). ENTRY at close of bar t when REGIME holds AND min(close over bars t-48..t-1) <= 0.95 * max(high over bars t-336..t-1) (a pullback of at least 5% from the 14-day high occurred within the last 48 bars) AND close(t) > SMA(48) of close AND close(t-1) <= SMA(48) at t-1 (fresh recovery cross above the 2-day mean) AND no open position AND cooldown satisfied. EXIT at close of bar t (executed next open) when any of: close(t) >= max(high over bars t-336..t-1) (prior 14-day high retested); close(t) < SMA(4800)(t) (regime lost); 240 bars have elapsed since entry (time stop). STOP-LOSS: fixed 5% below entry price (native intrabar stop). COOLDOWN: no re-entry for 48 candles after any exit. No pyramiding, no other filters. Warm-up: 5520 bars.",
+  "parameters": {
+    "sma_long": 4800,
+    "sma_mid": 2400,
+    "slope_lag": 720,
+    "pullback_window": 48,
+    "high_window": 336,
+    "pullback_pct": 0.05,
+    "recovery_sma": 48,
+    "time_stop_bars": 240,
+    "stop_loss_pct": 0.05,
+    "cooldown_bars": 48
+  },
+  "rationale": "Mechanism: in a confirmed secular bull regime (price above a rising 200-day mean, 100-day mean above 200-day mean) sharp 5%+ dips are largely forced liquidations and panic selling by leveraged and momentum holders; sellers pay a liquidity premium, and buyers who enter after price recovers above its 2-day mean are paid as price reverts to the prior high. Risk control tied to the H-005 failure (8-13 loss streaks in the post-2021 bear/range): the three-part regime gate (level, ordering, slope) keeps the strategy in cash during extended bear and range phases, so stop streaks cannot accumulate there; the 5% stop, 240-bar time stop and 48-bar cooldown cap per-trade loss; 4 consecutive stops cost about 19% before fees, under the 25% ceiling. Expected trades: roughly 5-20 per year per pair, mostly in bull regimes; the target is a return to the 14-day high after a >=5% pullback, a gross gain of roughly 3-6% per winner, well above the 0.35-0.5% round trip (and 0.95% stress). Trade count may be near the 30-per-split inconclusive boundary; accepted risk. Success criteria: existing gates: positive net profit at base and conservative cost, max drawdown below 25% in all four cost scenarios, at least 30 trades per split. No source tests this exact rule; sources are the closest real ones found (hourly BTC mean-reversion thesis, 200-day trend commentary).",
+  "novelty_vs_tried": "Previous families are breakout/trend-following (Donchian, SMA cross, slow momentum, squeeze breakout) or Bollinger mean reversion with only an SMA200 filter. This buys a recovery after a pullback only inside a three-part long-term bull regime (level, ordering, slope), exits on a target at the prior high, a regime-loss exit and a time stop, with a tight stop, so losses are bounded and bear/range phases are skipped. Structurally different: regime-gated, target-based exit, no breakout entry.",
+  "sources": [
+    {"title": "Bitcoin trading performance evaluation: A comparative study of momentum and mean reversion strategies from 2020 to 2025 (Theseus)", "url": "https://www.theseus.fi/handle/10024/902903"},
+    {"title": "Bitcoin beats FTX, COVID-19 crash record dive below 200-day trend line (Cointelegraph)", "url": "https://cointelegraph.com/markets/bitcoin-beats-ftx-covid-19-crash-record-dive-below-200-day-trend-line"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "BTC, ETH, BNB 1h through 2026-10-20; exploration results listed in the context file only"
+}
