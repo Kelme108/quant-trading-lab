@@ -223,6 +223,32 @@ def _latest_zip(directory: Path) -> Path | None:
     return zips[-1] if zips else None
 
 
+def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, str]:
+    """Run a short backtest only to learn whether Freqtrade can load and run a
+    strategy. Nothing is exported or recorded, and the numbers are ignored: the
+    unit tests stub TA-Lib and Freqtrade, so this is what catches a strategy
+    that passes them and still fails in the real engine."""
+    result = run_compose(
+        [
+            "backtesting",
+            "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+            "--strategy", strategy,
+            "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
+            "--timeframe", "1h",
+            "--pairs", pair,
+            "--timerange", timerange,
+            "--dry-run-wallet", "100",
+            "--stake-amount", "unlimited",
+            "--fee", "0.001",
+            "--export", "none",
+            "--cache", "none",
+        ]
+    )
+    output = result.stdout + result.stderr
+    failed = result.returncode != 0 or "Traceback" in output
+    return (not failed), output[-1500:]
+
+
 def _load_strategy_stats(zip_path: Path) -> tuple[dict | None, str]:
     """Open Freqtrade's exported result JSON and return its single strategy's
     stats as (stats, ""), or (None, reason) when the zip has no usable result."""

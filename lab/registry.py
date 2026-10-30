@@ -49,6 +49,20 @@ CREATE TABLE IF NOT EXISTS metrics (
     UNIQUE(experiment_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    hypothesis_id TEXT,
+    purpose TEXT NOT NULL,
+    status TEXT NOT NULL,                -- completed | failed | guard_violation
+    cost_usd REAL,
+    num_turns INTEGER,
+    duration_s REAL,
+    session_id TEXT,
+    result_excerpt TEXT,
+    started_at_utc TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     experiment_id TEXT NOT NULL REFERENCES experiments(id),
@@ -226,6 +240,18 @@ def get_experiment(conn: sqlite3.Connection, experiment_id: str) -> sqlite3.Row 
     ).fetchone()
 
 
+def latest_experiments(
+    conn: sqlite3.Connection, hypothesis_id: str, split: str
+) -> dict[str, sqlite3.Row]:
+    """The latest completed experiment per pair for a hypothesis and split."""
+    rows = conn.execute(
+        "SELECT * FROM experiments WHERE hypothesis_id = ? AND split = ? AND status = 'completed' "
+        "ORDER BY created_at_utc, rowid",
+        (hypothesis_id, split),
+    ).fetchall()
+    return {row["pair"]: row for row in rows}
+
+
 def list_experiments_for_hypothesis(
     conn: sqlite3.Connection, hypothesis_id: str
 ) -> list[sqlite3.Row]:
@@ -312,6 +338,43 @@ def get_latest_decision(conn: sqlite3.Connection, experiment_id: str) -> sqlite3
         "SELECT * FROM decisions WHERE experiment_id = ? ORDER BY id DESC LIMIT 1",
         (experiment_id,),
     ).fetchone()
+
+
+# --- agent runs ----------------------------------------------------------------
+
+def record_agent_run(
+    conn: sqlite3.Connection,
+    *,
+    agent: str,
+    purpose: str,
+    status: str,
+    started_at_utc: str,
+    hypothesis_id: str | None = None,
+    cost_usd: float | None = None,
+    num_turns: int | None = None,
+    duration_s: float | None = None,
+    session_id: str | None = None,
+    result_excerpt: str | None = None,
+) -> None:
+    conn.execute(
+        "INSERT INTO agent_runs (agent, hypothesis_id, purpose, status, cost_usd, num_turns, "
+        "duration_s, session_id, result_excerpt, started_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (agent, hypothesis_id, purpose, status, cost_usd, num_turns, duration_s, session_id,
+         (result_excerpt or "")[:2000], started_at_utc),
+    )
+    conn.commit()
+
+
+def agent_cost_since(conn: sqlite3.Connection, since_utc: str) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM agent_runs WHERE started_at_utc >= ?",
+        (since_utc,),
+    ).fetchone()
+    return float(row["total"])
+
+
+def list_hypotheses(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM hypotheses ORDER BY rowid").fetchall()
 
 
 def list_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:

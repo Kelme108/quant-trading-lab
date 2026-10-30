@@ -158,5 +158,69 @@ class EnforceTests(unittest.TestCase):
                 guard.enforce("research", root)
 
 
+class BaselineTests(unittest.TestCase):
+    """Work that was already uncommitted before an agent step must not be
+    blamed on that step; only what the step itself changed is judged."""
+
+    def test_preexisting_uncommitted_work_is_not_a_violation(self) -> None:
+        with TemporaryGitRepo() as root:
+            (root / "lab" / "config").mkdir(parents=True, exist_ok=True)
+            (root / "lab" / "orchestrator_leftover.py").write_text("x", encoding="utf-8")
+            baseline = guard.snapshot(root)
+            (root / "research" / "proposals" / "H-099.json").write_text("{}", encoding="utf-8")
+            guard.enforce("research", root, baseline)  # must not raise
+
+    def test_without_a_baseline_the_same_leftover_is_a_violation(self) -> None:
+        with TemporaryGitRepo() as root:
+            (root / "lab" / "orchestrator_leftover.py").parent.mkdir(parents=True, exist_ok=True)
+            (root / "lab" / "orchestrator_leftover.py").write_text("x", encoding="utf-8")
+            (root / "research" / "proposals" / "H-099.json").write_text("{}", encoding="utf-8")
+            with self.assertRaises(guard.GuardViolation):
+                guard.enforce("research", root)
+
+    def test_a_step_that_writes_outside_its_paths_is_caught_despite_the_baseline(self) -> None:
+        with TemporaryGitRepo() as root:
+            (root / "lab").mkdir(exist_ok=True)
+            (root / "lab" / "leftover.py").write_text("x", encoding="utf-8")
+            baseline = guard.snapshot(root)
+            (root / "user_data" / "strategies" / "Sneaky.py").write_text("x", encoding="utf-8")
+            with self.assertRaises(guard.GuardViolation):
+                guard.enforce("research", root, baseline)
+
+    def test_editing_an_already_dirty_file_again_counts_as_a_change(self) -> None:
+        with TemporaryGitRepo() as root:
+            target = root / "lab" / "leftover.py"
+            target.parent.mkdir(exist_ok=True)
+            target.write_text("first", encoding="utf-8")
+            baseline = guard.snapshot(root)
+            target.write_text("second", encoding="utf-8")
+            self.assertEqual(guard.changed_since(baseline, root), ["lab/leftover.py"])
+
+    def test_a_dirty_file_reverted_to_head_counts_as_a_change(self) -> None:
+        with TemporaryGitRepo() as root:
+            tracked = root / "tests" / ".gitkeep"
+            tracked.write_text("dirty" + chr(10), encoding="utf-8")
+            baseline = guard.snapshot(root)
+            tracked.write_text("original" + chr(10), encoding="utf-8")
+            self.assertEqual(guard.changed_since(baseline, root), ["tests/.gitkeep"])
+
+    def test_a_step_that_changes_nothing_reports_nothing(self) -> None:
+        with TemporaryGitRepo() as root:
+            baseline = guard.snapshot(root)
+            self.assertEqual(guard.changed_since(baseline, root), [])
+
+    def test_a_brand_new_directory_is_listed_file_by_file(self) -> None:
+        with TemporaryGitRepo() as root:
+            baseline = guard.snapshot(root)
+            new_dir = root / "research" / "experiments" / "H-005-exploration"
+            new_dir.mkdir(parents=True)
+            (new_dir / "quant.md").write_text("report", encoding="utf-8")
+            self.assertEqual(
+                guard.changed_since(baseline, root),
+                ["research/experiments/H-005-exploration/quant.md"],
+            )
+            guard.enforce("quant", root, baseline)  # allowed for quant; must not raise
+
+
 if __name__ == "__main__":
     unittest.main()

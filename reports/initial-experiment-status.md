@@ -1,3 +1,10 @@
+> **INVALIDATED 2026-10-30.** The "one trade" result described below was caused by the test
+> harness, not by the strategy: the backtest used a fixed stake of 100 on a 100 USDT wallet, so after
+> the first losing trade the balance was below the stake and no further trade could open. The same
+> run with `--stake-amount unlimited` makes hundreds of trades. Do not use any number in this file
+> for a decision. See `research/command-log.md` (2026-10-30) and the experiments under
+> `research/manifests/` dated 20261030 or later.
+
 # Primeiro experimento — status em 20/10/2026
 
 ## Escopo congelado

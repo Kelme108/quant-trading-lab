@@ -174,6 +174,25 @@ O `dry_run` continua `true`, `trading_mode` é `spot`, `can_short` é falso e a 
 
 A baseline será considerada apenas uma referência de infraestrutura. Antes de qualquer decisão posterior, compare cronologicamente exploração, validação e teste final; inclua taxas e slippage conservador, benchmarks comprar-e-manter e ficar em caixa, regimes distintos, sensibilidade dos parâmetros/custos e walk-forward. Um resultado negativo ou inconclusivo é aceitável e deve ser preservado.
 
+## Laboratório multiagente (`lab/`)
+
+Um ciclo automatizado de pesquisa e validação: **propor → implementar → testar → decidir → revisar → portfólio**. O fluxo e toda aprovação são código Python determinístico; os agentes (`.claude/agents/`) só escrevem texto: uma proposta, uma estratégia, uma revisão. Nada que um agente diga aprova uma estratégia. O laboratório **nunca aprova operação real**.
+
+```bash
+python -m lab.orchestrator expand-data            # baixa/estende candles dos pares habilitados
+python -m lab.orchestrator cycle --max-experiments 1   # um ciclo completo
+python -m lab.orchestrator status                 # hipóteses, status e gasto com agentes
+python -m lab.orchestrator propose | implement H-004 | run H-004 --split exploration | decide H-004 | review H-004 | portfolio
+```
+
+- **Dados e splits:** BTC/USDT, ETH/USDT e BNB/USDT em 1h (`lab/config/scenarios.json`). Por par, 75% do histórico é exploração e 25% validação, com limites em timestamps exatos (`lab/config/splits.json`). O **teste final** é só dado posterior a 21/10/2026 e está trancado (`final_test_unlocked: false`); só você destranca.
+- **Gates** (`lab/config/gates.json`): lookahead e recursive limpos, mínimo de trades, lucro líquido acima de uma barra que **sobe a cada variante testada na mesma família** (contra overfitting por múltiplos testes), sem depender do melhor trade, drawdown máximo, em 4 cenários de custo. Valores ainda marcados como *propostos*.
+- **Portfólio** (`lab/config/portfolio.json`): entra quem é candidato em todos os pares e splits, com lucro por dia consistente e baixa correlação com os já incluídos. Considerado por ordem de registro, nunca por desempenho. Portfólio vazio é um resultado válido.
+- **Segurança:** cada agente só pode criar os arquivos esperados no passo (`lab/guard.py`, por hash antes/depois); violação para o ciclo e arquivos protegidos voltam do `HEAD`. Código gerado passa por triagem estática (`lab/strategy_check.py`), pela suíte de testes e por um backtest curto no Freqtrade real antes de rodar. Sem chaves, sem ordens reais, `dry_run` sempre ligado.
+- **Custo:** o único custo variável são as chamadas aos agentes. `lab/config/budget.json` limita cada chamada e cada ciclo (hoje US$ 2 por chamada e US$ 12 por ciclo) e o gasto fica em `agent_runs` no banco.
+- **Registro:** `research/lab.sqlite` é a fonte da verdade, **não versionada**: o contador de hipóteses testadas vive nele. Faça backup; perder o arquivo apaga a penalidade por múltiplos testes.
+- **Importante:** resultados anteriores a 30/10/2026 que mostram "1 operação" eram um defeito do ambiente de teste (aposta fixa igual à carteira) e foram invalidados; veja `research/command-log.md`.
+
 ## Fontes oficiais consultadas
 
 - [Freqtrade stable](https://www.freqtrade.io/en/stable/)

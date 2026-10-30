@@ -7,9 +7,9 @@ lab/registry.py instead.
 
 | ID | Proposed UTC | Strategy / family | Ex-ante rule | Data visible at proposal | Prior tests | Decision | Notes |
 |---|---|---|---|---|---:|---|---|
-| H-001 | 2026-10-20T00:00:00Z | SmaTrendBaseline | SMA20/SMA50 cross, close > SMA200, stop -10% | BTC/USDT 1h through 2026-10-20 | 0 | frozen reference | One trade; inconclusive |
-| H-002 | 2026-10-20T00:00:00Z | DonchianBreakoutBaseline | Close > prior 20-candle high; exit below prior 10-candle low; stop -10% | BTC/USDT 1h through 2026-10-20 | 0 | candidate | Do not select by return alone |
-| H-003 | 2026-10-20T00:00:00Z | BollingerMeanReversionBaseline | Lower 20-band, RSI14 < 30, close > SMA200; exit at middle band; stop -10% | BTC/USDT 1h through 2026-10-20 | 0 | candidate | Trend-failure risk |
+| H-001 | 2026-10-20T00:00:00Z | SmaTrendBaseline | SMA20/SMA50 cross, close > SMA200, stop -10% | BTC/USDT 1h through 2026-10-20 | 0 | frozen reference | Original result (1 trade) was a harness artifact: fixed stake equal to wallet. Not yet tested under the corrected harness. |
+| H-002 | 2026-10-20T00:00:00Z | DonchianBreakoutBaseline | Close > prior 20-candle high; exit below prior 10-candle low; stop -10% | BTC/USDT 1h through 2026-10-20 | 5 | rejected at exploration | Corrected harness, exploration on BTC/ETH/BNB: positive only at the optimistic cost, drawdown 60-98%. Do not select by return alone. |
+| H-003 | 2026-10-20T00:00:00Z | BollingerMeanReversionBaseline | Lower 20-band, RSI14 < 30, close > SMA200; exit at middle band; stop -10% | BTC/USDT 1h through 2026-10-20 | 0 | candidate | Not yet tested under the corrected harness. Trend-failure risk. |
 
 ## Rules
 
