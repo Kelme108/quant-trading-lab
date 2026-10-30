@@ -394,6 +394,25 @@ def list_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+# --- backup --------------------------------------------------------------------
+
+DUMP_PATH = Path(__file__).parents[1] / "research" / "registry-dump.sql"
+
+
+def dump_sql(conn: sqlite3.Connection, dump_path: Path = DUMP_PATH) -> Path:
+    """Write the whole registry as a SQL text file.
+
+    research/lab.sqlite is not in git, yet it holds the count of hypotheses
+    tried per family, which the multiple-testing penalty depends on: losing the
+    file would silently reset that count. A text dump can be committed, diffed
+    and restored with any SQLite tool (`sqlite3 lab.sqlite < registry-dump.sql`).
+    """
+    dump_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = list(conn.iterdump())
+    dump_path.write_text(chr(10).join(lines) + chr(10), encoding="utf-8")
+    return dump_path
+
+
 # --- ledger sync -------------------------------------------------------------
 
 LEDGER_PATH = Path(__file__).parents[1] / "research" / "hypothesis-ledger.md"

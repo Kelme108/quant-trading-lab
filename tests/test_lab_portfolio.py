@@ -371,6 +371,21 @@ class SnapshotAndRegistryTests(unittest.TestCase):
         self.assertEqual(registry.count_prior_variants(self.conn, "H-003"), 1)
         self.assertEqual(registry.count_prior_variants(self.conn, "H-004"), 2)
 
+    def test_a_sql_dump_restores_the_hypothesis_count(self) -> None:
+        """The dump is the backup of the multiple-testing counter."""
+        for number in (1, 2, 3):
+            registry.add_hypothesis(
+                self.conn, hypothesis_id=f"H-{number:03d}", family="A", ex_ante_rule="r",
+                proposed_at_utc="2026-01-01T00:00:00Z", data_visible_at_proposal="t",
+            )
+        dump = registry.dump_sql(self.conn, self.root / "dump.sql")
+
+        restored = sqlite3.connect(":memory:")
+        restored.executescript(dump.read_text(encoding="utf-8"))
+        count = restored.execute("SELECT COUNT(*) FROM hypotheses WHERE family = 'A'").fetchone()[0]
+        restored.close()
+        self.assertEqual(count, 3)
+
     def test_database_created_before_the_pair_column_is_migrated(self) -> None:
         legacy_path = self.root / "legacy.sqlite"
         legacy = sqlite3.connect(legacy_path)

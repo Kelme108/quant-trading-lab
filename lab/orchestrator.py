@@ -540,7 +540,11 @@ class Lab:
         path = self.root / "research" / "experiments" / f"cycle-{_stamp()}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(lines), encoding="utf-8")
-        self._commit([self._rel(path), "research/hypothesis-ledger.md"], f"cycle report {path.stem}")
+        dump = registry.dump_sql(self.conn, self.root / "research" / "registry-dump.sql")
+        self._commit(
+            [self._rel(path), "research/hypothesis-ledger.md", self._rel(dump)],
+            f"cycle report {path.stem}",
+        )
         return path
 
 
