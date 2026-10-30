@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel do laboratório</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb;
+  --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10); --wash: rgba(11,11,11,.045);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+  --track: #cde2fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good-text: #0ca30c; --track: #0d366b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19;
+  --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --good-text: #0ca30c; --track: #0d366b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 56px; }
+h1 { font-size: 22px; margin: 0; font-weight: 650; }
+h2 { font-size: 15px; margin: 0; font-weight: 650; }
+.sub { color: var(--ink2); font-size: 13px; }
+.muted { color: var(--muted); }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+.live { display: flex; align-items: center; gap: 10px; color: var(--ink2); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.dot.on { background: var(--good); }
+.dot.off { background: var(--crit); }
+button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+button:hover { background: var(--wash); }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--wash); border-color: var(--axis); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.strip { margin-bottom: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; background: var(--surface); white-space: nowrap; }
+.ic { font-weight: 800; width: 1em; text-align: center; }
+.ic.good { color: var(--good); } .ic.warn { color: var(--warn); } .ic.crit { color: var(--crit); } .ic.info { color: var(--s1); }
+.attn { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.attn li { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; display: flex; gap: 10px; align-items: baseline; }
+.attn .lvl { font-weight: 650; font-size: 12px; min-width: 52px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; margin: 4px 0 16px; }
+.filters .grp { display: flex; align-items: center; gap: 6px; }
+.filters .lab { color: var(--ink2); font-size: 13px; margin-right: 2px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.card header { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.grid { display: grid; gap: 16px; margin-bottom: 16px; }
+.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.kpis { display: grid; gap: 16px; margin-bottom: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+.hero { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
+@media (max-width: 640px) { .hero { grid-column: 1 / -1; } }
+.hero .big { font-size: 56px; line-height: 1.05; font-weight: 600; }
+.tile .val { font-size: 26px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+.tile .lab { color: var(--ink2); font-size: 13px; }
+.tile .note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink2); font-weight: 600; white-space: nowrap; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.nw { white-space: nowrap; }
+td { overflow-wrap: anywhere; }
+tr.pick { cursor: pointer; }
+tr.pick:hover td { background: var(--wash); }
+tr.picked td { background: var(--wash); }
+tr.invalid td { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 6px; font-size: 12px; color: var(--ink2); }
+.key { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--s1); vertical-align: middle; margin-right: 6px; }
+svg { display: block; max-width: 100%; }
+svg text { fill: var(--muted); font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; }
+svg text.ink { fill: var(--ink2); }
+svg text.val { fill: var(--ink); font-weight: 600; }
+.gl { stroke: var(--grid); stroke-width: 1; }
+.ax { stroke: var(--axis); stroke-width: 1; }
+.zero { stroke: var(--ink2); stroke-width: 1; }
+.bar { transition: opacity .1s; }
+.bar:hover, .bar:focus { opacity: .8; outline: none; }
+.meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; margin: 6px 0 2px; }
+.meter > i { display: block; height: 100%; background: var(--s1); }
+.meter > i.full { background: var(--serious); }
+.fam { margin-bottom: 14px; }
+.fam:last-child { margin-bottom: 0; }
+.reasons { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; }
+.reasons li { display: flex; gap: 8px; padding: 2px 0; color: var(--ink2); }
+.reasons li.bad { color: var(--ink); }
+details { margin: 6px 0; } summary { cursor: pointer; color: var(--ink2); }
+.rule { white-space: pre-wrap; background: var(--wash); border-radius: 8px; padding: 10px; font-size: 12px; margin: 6px 0 0; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0,0,0,.2); border-radius: 8px; padding: 8px 10px; font-size: 12px; max-width: 300px; }
+#tip[hidden] { display: none; }
+#tip .t { color: var(--ink2); margin-bottom: 4px; }
+#tip .r { display: flex; align-items: center; gap: 8px; }
+#tip .r b { font-weight: 650; }
+#tip .r span.k { display: inline-block; width: 12px; border-top: 2px solid; }
+#app.stale { opacity: .6; }
+.empty { color: var(--ink2); padding: 12px 0; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap"><div id="app"></div></div>
+<div id="tip" role="tooltip" hidden></div>
+<noscript>Este painel precisa de JavaScript.</noscript>
+<script type="application/json" id="state">__STATE__</script>
+<script__NONCE_ATTR__>
+(() => {
+'use strict';
+const LIVE = __LIVE__;
+const POLL_MS = 15000;
+let state = JSON.parse(document.getElementById('state').textContent);
+const ui = { pair: 'all', split: 'exploration', selected: null, sort: { key: 'id', dir: 1 }, tables: {} };
+const conn = { ok: true, loadedAt: Date.now(), lastKey: '' };
+
+/* ---------- formatting ---------- */
+const nf0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+const dtf = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+const dtShort = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const df = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+const dash = '—';
+const num = (v, f = nf0) => (typeof v === 'number' && isFinite(v)) ? f.format(v) : dash;
+const pct = (v) => (typeof v === 'number' && isFinite(v)) ? (v > 0 ? '+' : '') + nf1.format(v) + '%' : dash;
+const when = (iso) => iso ? dtf.format(new Date(iso)) : dash;
+const day = (iso) => iso ? df.format(new Date(iso)) : dash;
+const short = (pair) => pair.split('/')[0];
+const compact = (v) => { const a = Math.abs(v); if (a > 0 && a < 10) return nf1.format(v); return a >= 1e6 ? nf1.format(v / 1e6).replace(',0', '') + 'M' : a >= 1000 ? nf1.format(v / 1000).replace(',0', '') + 'K' : nf0.format(v); };
+
+/* ---------- dom helpers (strings only ever become text nodes) ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+function attrs(e, a) {
+  if (!a) return;
+  for (const [k, v] of Object.entries(a)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.setAttribute('class', v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : String(v));
+  }
+}
+function kids(e, list) { for (const k of list.flat(Infinity)) { if (k == null || k === false) continue; e.append(k.nodeType ? k : document.createTextNode(String(k))); } }
+const h = (tag, a, ...c) => { const e = document.createElement(tag); attrs(e, a); kids(e, c); return e; };
+const sv = (tag, a, ...c) => { const e = document.createElementNS(NS, tag); attrs(e, a); kids(e, c); return e; };
+
+/* ---------- semantic bits ---------- */
+const STAGE = { exploration: 'exploração', validation: 'validação' };
+function statusPt(s) {
+  if (s === 'frozen reference') return 'referência congelada';
+  if (s === 'candidate') return 'candidata a teste';
+  if (s === 'proposed') return 'proposta';
+  if (s === 'implemented') return 'implementada';
+  if (s === 'failed') return 'falhou';
+  let m = /^rejected at (\w+)$/.exec(s); if (m) return 'rejeitada na ' + (STAGE[m[1]] || m[1]);
+  m = /^inconclusive at (\w+)$/.exec(s); if (m) return 'inconclusiva na ' + (STAGE[m[1]] || m[1]);
+  m = /^(\w+): candidate$/.exec(s); if (m) return 'candidata na ' + (STAGE[m[1]] || m[1]);
+  if (s.startsWith('invalid')) return 'inválida (implementação não seguiu a regra)';
+  return s;
+}
+const DECISION = {
+  candidate_for_portfolio: { icon: '✓', cls: 'good', label: 'candidata' },
+  inconclusive: { icon: '!', cls: 'warn', label: 'inconclusiva' },
+  rejected: { icon: '✕', cls: 'crit', label: 'rejeitada' },
+};
+const GATE = {
+  lookahead: 'Lookahead', recursive: 'Recursive', minimum_trades: 'Mínimo de trades', net_profit: 'Lucro líquido',
+  profit_excluding_best_trade: 'Lucro sem o melhor trade', max_drawdown: 'Drawdown máximo', benchmark_comparison: 'Benchmark',
+};
+const FUNNEL = {
+  registered: 'Hipóteses válidas registradas', explored: 'Testadas na exploração', explore_passed: 'Passaram na exploração (todos os pares)',
+  validation_run: 'Testadas na validação', validation_passed: 'Passaram na validação (todos os pares)', in_portfolio: 'No portfólio',
+};
+const SCENARIOS = [['optimistic', 'otimista'], ['base', 'base'], ['conservative', 'conservador'], ['stress', 'estresse']];
+const chip = (meta, text) => h('span', { class: 'chip' }, h('span', { class: 'ic ' + meta.cls, 'aria-hidden': 'true' }, meta.icon), text ?? meta.label);
+const pairColor = (pair) => { const i = state.pairs.indexOf(pair); return i >= 0 && i < 3 ? `var(--s${i + 1})` : 'var(--muted)'; };
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById('tip');
+function showTip(evt, title, rows) {
+  tip.replaceChildren();
+  if (title) tip.append(h('div', { class: 't' }, title));
+  for (const r of rows) {
+    const line = h('div', { class: 'r' });
+    if (r.color) { const k = h('span', { class: 'k' }); k.style.borderTopColor = r.color; line.append(k); }
+    line.append(h('b', null, r.value), h('span', { class: 'muted' }, r.label || ''));
+    tip.append(line);
+  }
+  tip.hidden = false;
+  const pad = 14, w = tip.offsetWidth, hgt = tip.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + hgt > innerHeight - 8) y = evt.clientY - hgt - pad;
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+const rectCenter = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }; };
+
+/* ---------- chart cards with a table twin ---------- */
+function chartCard({ title, subtitle, legend, draw, table, id }) {
+  const plot = h('div', { class: 'plot' });
+  const tbl = h('div', { class: 'tablewrap', hidden: true }, makeTable(table.head, table.rows, table.numCols || []));
+  const showTable = !!ui.tables[id];
+  const btn = h('button', { type: 'button', 'aria-pressed': showTable ? 'true' : 'false', onclick: () => {
+    ui.tables[id] = !ui.tables[id];
+    const on = ui.tables[id];
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false'); btn.textContent = on ? 'Ver gráfico' : 'Ver tabela';
+    plot.hidden = on; tbl.hidden = !on; hideTip();
+  } }, showTable ? 'Ver gráfico' : 'Ver tabela');
+  plot.hidden = showTable; tbl.hidden = !showTable;
+  const card = h('section', { class: 'card' },
+    h('header', null, h('div', null, h('h2', null, title), subtitle && h('div', { class: 'sub' }, subtitle)), btn),
+    legend && legend.length > 1 && h('div', { class: 'legend' }, legend.map((l) => h('span', null, h('span', { class: 'key', style: `border-top-color:${l.color}` }), l.name))),
+    plot, tbl);
+  queueMicrotask(() => { draw(plot, Math.max(260, plot.clientWidth || card.clientWidth - 32)); });
+  return card;
+}
+function makeTable(head, rows, numCols, wrapCols = []) {
+  const t = h('table', null,
+    h('thead', null, h('tr', null, head.map((c, i) => h('th', { class: numCols.includes(i) ? 'num' : '' }, c)))),
+    h('tbody', null, rows.map((r) => h('tr', null, r.map((c, i) => h('td', { class: (numCols.includes(i) ? 'num ' : '') + (wrapCols.includes(i) ? '' : 'nw') }, c))))));
+  return t;
+}
+
+/* ---------- bar chart (horizontal; label above bar, value at the tip) ---------- */
+function barChart(container, items, width, color) {
+  const rowH = 44, labH = 16, barH = 14, right = 70, r = 4;
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const svg = sv('svg', { width, height: items.length * rowH + 4, role: 'img', 'aria-label': 'Gráfico de barras' });
+  items.forEach((it, idx) => {
+    const y0 = idx * rowH, y = y0 + labH + 4;
+    const w = Math.max(0, (width - right) * it.value / max);
+    svg.append(sv('text', { x: 0, y: y0 + 12, class: 'ink' }, it.label));
+    svg.append(sv('line', { x1: 0, x2: width - right + 8, y1: y + barH + 6, y2: y + barH + 6, class: 'gl' }));
+    const rr = Math.min(r, w / 2);
+    const d = w > 0 ? `M0 ${y}H${w - rr}a${rr} ${rr} 0 0 1 ${rr} ${rr}V${y + barH - rr}a${rr} ${rr} 0 0 1 ${-rr} ${rr}H0Z` : `M0 ${y}h0`;
+    const bar = sv('path', { d, fill: color, class: 'bar', tabindex: '0', 'aria-label': `${it.label}: ${it.value}` });
+    const tipRows = [{ value: String(it.value), label: it.detail || '' }];
+    bar.addEventListener('pointermove', (e) => showTip(e, it.label, tipRows));
+    bar.addEventListener('pointerleave', hideTip);
+    bar.addEventListener('focus', () => showTip(rectCenter(bar), it.label, tipRows));
+    bar.addEventListener('blur', hideTip);
+    svg.append(bar, sv('text', { x: w + 8, y: y + barH - 2, class: 'val' }, String(it.value)));
+  });
+  container.replaceChildren(svg);
+}
+
+/* ---------- line chart (category or time x; linear or log y) ---------- */
+function niceTicks(min, max, count = 5) {
+  const span = (max - min) || 1, mag = 10 ** Math.floor(Math.log10(span / count));
+  // The smallest "nice" step that still gives at most ~6 intervals; rounding the
+  // step up instead would leave a 1045-wide axis with only two labels (0 and 500).
+  const step = ([1, 2, 2.5, 5, 10].map((c) => c * mag).find((s) => span / s <= count + 1.5)) || 10 * mag, out = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(Math.abs(v) < step * 1e-9 ? 0 : Number(v.toPrecision(12)));
+  return out;
+}
+function logTicks(min, max) {
+  const out = [];
+  for (let e = Math.floor(Math.log10(min)); e <= Math.ceil(Math.log10(max)); e++) for (const m of [1, 3]) { const v = m * 10 ** e; if (v >= min && v <= max) out.push(v); }
+  return out;
+}
+function lineChart(container, o) {
+  const { series, width, height = 260, cats, log, fmtY, zero, yLabel } = o;
+  const m = { l: 54, r: 44, t: 10, b: 26 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+  const live = series.filter((s) => s.points.length);
+  if (!live.length) { container.replaceChildren(h('div', { class: 'empty' }, 'Sem dados para o recorte atual.')); return; }
+  const xs = live.flatMap((s) => s.points.map((p) => p[0])), ys = live.flatMap((s) => s.points.map((p) => p[1]));
+  let x0 = cats ? 0 : Math.min(...xs), x1 = cats ? cats.length - 1 : Math.max(...xs);
+  if (x1 === x0) x1 = x0 + 1;
+  let lo = Math.min(...ys, zero ? 0 : Infinity), hi = Math.max(...ys, zero ? 0 : -Infinity);
+  if (log) { lo = Math.max(lo * 0.85, 1e-6); hi *= 1.15; } else { const pad = (hi - lo || 1) * 0.06; lo -= pad; hi += pad; }
+  const X = (v) => m.l + (v - x0) / (x1 - x0) * pw;
+  const Y = log ? (v) => m.t + ph - (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * ph : (v) => m.t + ph - (v - lo) / (hi - lo) * ph;
+  const svg = sv('svg', { width, height, role: 'img', 'aria-label': yLabel });
+  for (const t of (log ? logTicks(lo, hi) : niceTicks(lo, hi))) {
+    svg.append(sv('line', { x1: m.l, x2: m.l + pw, y1: Y(t), y2: Y(t), class: t === 0 && zero ? 'zero' : 'gl' }), sv('text', { x: m.l - 8, y: Y(t) + 4, 'text-anchor': 'end' }, fmtY(t)));
+  }
+  svg.append(sv('line', { x1: m.l, x2: m.l + pw, y1: m.t + ph, y2: m.t + ph, class: 'ax' }));
+  if (cats) cats.forEach((c, i) => svg.append(sv('text', { x: X(i), y: height - 8, 'text-anchor': i === 0 ? 'start' : i === cats.length - 1 ? 'end' : 'middle' }, c)));
+  else {
+    const y0 = new Date(x0).getUTCFullYear(), y1 = new Date(x1).getUTCFullYear(), every = Math.max(1, Math.ceil((y1 - y0 + 1) / 8));
+    for (let y = y0 + 1; y <= y1; y += every) { const tx = Date.UTC(y, 0, 1); if (tx >= x0 && tx <= x1) svg.append(sv('text', { x: X(tx), y: height - 8, 'text-anchor': 'middle' }, String(y))); }
+  }
+  for (const s of live) {
+    const d = s.points.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join('');
+    svg.append(sv('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  }
+  const ends = live.map((s) => ({ s, p: s.points[s.points.length - 1] })).map((e) => ({ ...e, y: Y(e.p[1]) })).sort((a, b) => a.y - b.y);
+  const room = ends.every((e, i) => i === 0 || e.y - ends[i - 1].y >= 13);
+  for (const e of ends) {
+    svg.append(sv('circle', { cx: X(e.p[0]), cy: e.y, r: 4, fill: e.s.color, stroke: 'var(--surface)', 'stroke-width': 2 }));
+    if (room) svg.append(sv('text', { x: X(e.p[0]) + 9, y: e.y + 4, class: 'ink' }, e.s.name));
+  }
+  const cross = sv('line', { y1: m.t, y2: m.t + ph, class: 'ax', visibility: 'hidden' });
+  const dots = live.map((s) => sv('circle', { r: 4, fill: s.color, stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' }));
+  svg.append(cross, ...dots);
+  const hit = sv('rect', { x: m.l, y: m.t, width: pw, height: ph, fill: 'transparent', tabindex: cats ? '0' : null, 'aria-label': yLabel });
+  svg.append(hit);
+  let kb = 0;
+  const at = (clientX, idxOverride) => {
+    let xv;
+    if (idxOverride != null) xv = idxOverride;
+    else { const box = hit.getBoundingClientRect(); const f = Math.min(1, Math.max(0, (clientX - box.left) / box.width)); xv = x0 + f * (x1 - x0); if (cats) xv = Math.round(xv); }
+    const rows = []; let title = cats ? cats[xv] : dtf.format(new Date(xv));
+    live.forEach((s, i) => {
+      let p = null;
+      if (cats) p = s.points.find((q) => q[0] === xv) || null;
+      else for (const q of s.points) { if (q[0] <= xv) p = q; else break; }
+      if (p) { dots[i].setAttribute('cx', X(p[0])); dots[i].setAttribute('cy', Y(p[1])); dots[i].setAttribute('visibility', 'visible'); }
+      else dots[i].setAttribute('visibility', 'hidden');
+      rows.push({ color: s.color, value: p ? fmtY(p[1], true) : dash, label: s.name });
+    });
+    cross.setAttribute('x1', X(xv)); cross.setAttribute('x2', X(xv)); cross.setAttribute('visibility', 'visible');
+    return { title, rows };
+  };
+  const off = () => { cross.setAttribute('visibility', 'hidden'); dots.forEach((d) => d.setAttribute('visibility', 'hidden')); hideTip(); };
+  hit.addEventListener('pointermove', (e) => { const r = at(e.clientX); showTip(e, r.title, r.rows); });
+  hit.addEventListener('pointerleave', off);
+  if (cats) {
+    hit.addEventListener('focus', () => { const r = at(0, kb); showTip(rectCenter(hit), r.title, r.rows); });
+    hit.addEventListener('blur', off);
+    hit.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault(); kb = Math.min(cats.length - 1, Math.max(0, kb + (e.key === 'ArrowRight' ? 1 : -1)));
+      const r = at(0, kb); showTip(rectCenter(hit), r.title, r.rows);
+    });
+  }
+  container.replaceChildren(svg);
+}
+
+/* ---------- sections ---------- */
+function safetyStrip() {
+  const s = state.safety, items = [];
+  const add = (ok, good, bad, level = 'crit') => items.push(chip(ok ? { icon: '✓', cls: 'good' } : { icon: level === 'warn' ? '!' : '✕', cls: level }, ok ? good : bad));
+  add(s.dry_run, 'dry-run ligado', 'dry-run DESLIGADO');
+  add(s.trading_mode === 'spot', 'spot, sem short', 'não é spot');
+  add(s.no_exchange_keys, 'sem chaves de corretora', 'chave de corretora preenchida');
+  add(s.api_disabled, 'API desabilitada', 'API habilitada', 'warn');
+  add(s.final_test_locked, 'teste final trancado', 'teste final destrancado', 'warn');
+  if (s.protected_files_changed === null) items.push(chip({ icon: '!', cls: 'warn' }, 'arquivos protegidos: não verificado'));
+  else add(s.protected_files_changed.length === 0, 'arquivos protegidos íntegros', 'arquivos protegidos alterados');
+  const ft = state.forward_test, trades = ft.open + ft.closed;
+  items.push(chip({ icon: 'i', cls: 'info' }, trades ? `forward test: ${trades} trade(s)` : 'forward test: parado'));
+  return h('div', { class: 'row strip', 'aria-label': 'Estado de segurança' }, items);
+}
+function attention() {
+  if (!state.attention.length) return null;
+  const meta = { critical: { icon: '✕', cls: 'crit', label: 'Crítico' }, warning: { icon: '!', cls: 'warn', label: 'Aviso' } };
+  return h('ul', { class: 'attn', 'aria-label': 'Itens de atenção' }, state.attention.map((a) => {
+    const m = meta[a.level] || meta.warning;
+    return h('li', null, h('span', { class: 'lvl' }, h('span', { class: 'ic ' + m.cls, 'aria-hidden': 'true' }, m.icon + ' '), m.label), h('span', null, a.text));
+  }));
+}
+function filters() {
+  const seg = (label, key, opts) => h('div', { class: 'grp', role: 'group', 'aria-label': label }, h('span', { class: 'lab' }, label),
+    opts.map(([v, t]) => h('button', { type: 'button', 'aria-pressed': ui[key] === v ? 'true' : 'false', onclick: () => { ui[key] = v; render(); } }, t)));
+  return h('div', { class: 'filters' },
+    seg('Etapa', 'split', [['exploration', 'Exploração'], ['validation', 'Validação']]),
+    seg('Par', 'pair', [['all', 'Todos'], ...state.pairs.map((p) => [p, short(p)])]));
+}
+function kpis() {
+  const f = Object.fromEntries(state.funnel.map((x) => [x.key, x.count]));
+  const invalid = state.hypotheses.filter((x) => x.invalid).length;
+  const inPf = f.in_portfolio || 0;
+  const fresh = state.data_health.filter((d) => d.last && !d.stale).length;
+  const maxUsed = Math.max(0, ...state.families.map((x) => x.used));
+  const bar = state.gate_bar.base_threshold_quote * (1 + state.gate_bar.per_variant_increase * maxUsed);
+  const tile = (label, val, note) => h('div', { class: 'card tile' }, h('div', { class: 'lab' }, label), h('div', { class: 'val' }, val), note && h('div', { class: 'note' }, note));
+  return h('div', { class: 'kpis' },
+    h('div', { class: 'card hero' }, h('div', { class: 'big' }, String(inPf)), h('div', null, inPf === 1 ? 'estratégia na carteira' : 'estratégias na carteira'),
+      h('div', { class: 'note muted' }, `de ${f.registered || 0} válidas${invalid ? ` · ${invalid} inválida${invalid > 1 ? 's' : ''} (descartada${invalid > 1 ? 's' : ''})` : ''}`)),
+    tile('Experimentos', num(state.experiments.total), state.experiments.failed ? `${state.experiments.failed} com falha` : 'nenhum com falha'),
+    tile('Lucro mínimo exigido', `${nf2.format(bar)} USDT`, `na família mais testada (${maxUsed} variante${maxUsed === 1 ? '' : 's'}); sobe ${nf0.format(state.gate_bar.per_variant_increase * 100)}% por variante`),
+    tile('Gasto com agentes', `US$ ${nf2.format(state.agents.total_cost_usd)}`, `teto de US$ ${num(state.budget.max_agent_budget_usd_per_cycle)} por ciclo`),
+    tile('Dados atualizados', `${fresh} de ${state.data_health.length}`, state.data_health.some((d) => d.stale) ? 'há par defasado' : 'todos em dia'));
+}
+function funnelCard() {
+  const items = state.funnel.map((x) => ({ label: FUNNEL[x.key] || x.key, value: x.count, detail: 'hipóteses válidas nesta etapa' }));
+  return chartCard({ id: 'funnel', title: 'Funil de pesquisa', subtitle: 'Hipóteses válidas por etapa (não depende do filtro)',
+    draw: (el, w) => barChart(el, items, w, 'var(--s1)'),
+    table: { head: ['Etapa', 'Hipóteses'], rows: items.map((i) => [i.label, i.value]), numCols: [1] } });
+}
+function gatesCard() {
+  const items = state.gate_failures.map((g) => ({ label: GATE[g.gate] || g.gate, value: g.total, detail: `${g.fail} reprovou · ${g.inconclusive} inconclusivo` }));
+  if (!items.length) return h('section', { class: 'card' }, h('h2', null, 'Gates que barram'), h('div', { class: 'empty' }, 'Nenhum gate barrou ainda.'));
+  return chartCard({ id: 'gates', title: 'Gates que barram', subtitle: 'Resultados (hipótese × par × etapa) barrados em cada gate',
+    draw: (el, w) => barChart(el, items, w, 'var(--s1)'),
+    table: { head: ['Gate', 'Barrados', 'Reprovou', 'Inconclusivo'], rows: state.gate_failures.map((g) => [GATE[g.gate] || g.gate, g.total, g.fail, g.inconclusive]), numCols: [1, 2, 3] } });
+}
+function scoped(hyp) { return hyp.cells.filter((c) => (ui.pair === 'all' || c.pair === ui.pair) && c.split === ui.split); }
+const SORT = {
+  id: (r) => Number(r.hyp.id.split('-')[1]), pair: (r) => r.cell ? r.cell.pair : '', decision: (r) => r.cell ? r.cell.decision : '',
+  trades: (r) => r.cell ? r.cell.trades ?? -1 : -1, ret: (r) => r.cell ? r.cell.return_pct ?? -1e9 : -1e9,
+  dd: (r) => r.cell ? r.cell.max_drawdown_pct ?? -1 : -1, bh: (r) => r.cell ? r.cell.buy_and_hold_pct ?? -1e9 : -1e9,
+};
+function hypothesesCard() {
+  const rows = [];
+  for (const hyp of state.hypotheses) { const cs = scoped(hyp); if (cs.length) cs.forEach((cell) => rows.push({ hyp, cell })); else rows.push({ hyp, cell: null }); }
+  const key = SORT[ui.sort.key], dir = ui.sort.dir;
+  rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || SORT.id(a) - SORT.id(b); });
+  const cols = [['id', 'Hipótese'], ['pair', 'Par'], ['decision', 'Decisão'], ['trades', 'Trades', 1], ['ret', 'Retorno', 1], ['dd', 'Drawdown', 1], ['bh', 'Comprar e segurar', 1]];
+  const head = h('tr', null, cols.map(([k, t, n]) => h('th', { class: 'sortable' + (n ? ' num' : ''), tabindex: '0', 'aria-sort': ui.sort.key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none',
+    onclick: () => { ui.sort = { key: k, dir: ui.sort.key === k ? -dir : 1 }; render(); },
+    onkeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } }, t + (ui.sort.key === k ? (dir > 0 ? ' ▴' : ' ▾') : ''))), h('th', null, 'Barrado em'), h('th', null, 'Status'));
+  const body = rows.map(({ hyp, cell }) => {
+    const pick = () => { ui.selected = hyp.id; render(); };
+    const gatesText = cell ? cell.failing_gates.map((g) => GATE[g.gate] || g.gate).join(', ') || dash : dash;
+    return h('tr', { class: 'pick' + (ui.selected === hyp.id ? ' picked' : '') + (hyp.invalid ? ' invalid' : ''), tabindex: '0', onclick: pick, onkeydown: (e) => { if (e.key === 'Enter') pick(); } },
+      h('td', { class: 'nw' }, h('b', null, hyp.id), ' ', hyp.family),
+      h('td', { class: 'nw' }, cell ? h('span', null, h('span', { class: 'key', style: `border-top-color:${pairColor(cell.pair)}` }), short(cell.pair)) : dash),
+      h('td', { class: 'nw' }, cell ? chip(DECISION[cell.decision] || { icon: '?', cls: 'info', label: cell.decision }) : h('span', { class: 'muted' }, 'não testada')),
+      h('td', { class: 'num nw' }, cell ? num(cell.trades) : dash), h('td', { class: 'num nw' }, cell ? pct(cell.return_pct) : dash),
+      h('td', { class: 'num nw' }, cell ? (typeof cell.max_drawdown_pct === 'number' ? nf1.format(cell.max_drawdown_pct) + '%' : dash) : dash),
+      h('td', { class: 'num nw' }, cell ? pct(cell.buy_and_hold_pct) : dash), h('td', null, gatesText),
+      h('td', null, hyp.in_portfolio ? chip({ icon: '✓', cls: 'good' }, 'no portfólio') : hyp.invalid ? chip({ icon: '!', cls: 'warn' }, 'inválida') : statusPt(hyp.status)));
+  });
+  return h('section', { class: 'card' }, h('header', null, h('div', null, h('h2', null, 'Hipóteses testadas'),
+    h('div', { class: 'sub' }, `Etapa: ${ui.split === 'exploration' ? 'exploração' : 'validação'} · retorno com custo base, em % da carteira inicial (${num(state.wallet)} USDT) · clique numa linha para o detalhe`))),
+    state.hypotheses.length ? h('div', { class: 'tablewrap' }, h('table', null, h('thead', null, head), h('tbody', null, body))) : h('div', { class: 'empty' }, 'Nenhuma hipótese registrada ainda. Rode um ciclo: python -m lab.orchestrator cycle --max-experiments 1'));
+}
+const tidy = (text) => text.replace(/\d+\.\d{3,}/g, (m) => nf2.format(Number(m)));
+function reasonLine(text) {
+  text = tidy(text);
+  let icon = { icon: '✓', cls: 'good' }, bad = false;
+  if (/: FAIL/.test(text)) { icon = { icon: '✕', cls: 'crit' }; bad = true; }
+  else if (/: inconclusive/.test(text)) { icon = { icon: '!', cls: 'warn' }; bad = true; }
+  else if (/: reported/.test(text)) icon = { icon: 'i', cls: 'info' };
+  return h('li', { class: bad ? 'bad' : '' }, h('span', { class: 'ic ' + icon.cls, 'aria-hidden': 'true' }, icon.icon), h('span', null, text));
+}
+function detail() {
+  const hyp = state.hypotheses.find((x) => x.id === ui.selected);
+  if (!hyp) return null;
+  const cells = scoped(hyp), wallet = state.wallet;
+  const head = h('section', { class: 'card' }, h('header', null, h('div', null, h('h2', null, `${hyp.id} · ${hyp.family}`), h('div', { class: 'sub' }, `Status: ${statusPt(hyp.status)}`))),
+    hyp.notes && h('div', { class: 'sub' }, hyp.notes),
+    h('details', null, h('summary', null, 'Regra definida antes do teste'), h('div', { class: 'rule' }, hyp.rule)));
+  if (!cells.length) return h('div', null, head, h('div', { class: 'grid' }, h('section', { class: 'card' }, h('div', { class: 'empty' }, 'Esta hipótese ainda não foi testada nesta etapa.'))));
+  const legend = cells.map((c) => ({ name: short(c.pair), color: pairColor(c.pair) }));
+  const costSeries = cells.map((c) => ({ name: short(c.pair), color: pairColor(c.pair),
+    points: SCENARIOS.map(([k], i) => [i, c.profit_by_cost[k]]).filter((p) => typeof p[1] === 'number').map((p) => [p[0], p[1] / wallet * 100]) }));
+  const cost = chartCard({ id: 'cost-' + hyp.id, title: 'Retorno por cenário de custo', subtitle: 'Onde a linha cruza o zero, o custo consome a vantagem', legend,
+    draw: (el, w) => lineChart(el, { series: costSeries, width: w, cats: SCENARIOS.map((s) => s[1]), zero: true, fmtY: (v, t) => (t ? pct(v) : compact(v) + '%'), yLabel: 'Retorno líquido por cenário de custo' }),
+    table: { head: ['Cenário', ...cells.map((c) => short(c.pair))], rows: SCENARIOS.map(([k, name]) => [name, ...cells.map((c) => pct(typeof c.profit_by_cost[k] === 'number' ? c.profit_by_cost[k] / wallet * 100 : null))]), numCols: cells.map((_, i) => i + 1) } });
+  const eqCells = cells.filter((c) => c.equity && c.equity.length);
+  const eq = chartCard({ id: 'eq-' + hyp.id, title: 'Curva de saldo (custo base)', subtitle: 'Saldo em USDT, escala logarítmica, uma posição por vez', legend,
+    draw: (el, w) => lineChart(el, { series: eqCells.map((c) => ({ name: short(c.pair), color: pairColor(c.pair), points: c.equity })), width: w, log: true, fmtY: (v, t) => (t ? nf2.format(v) + ' USDT' : compact(v)), yLabel: 'Saldo em USDT' }),
+    table: { head: ['Par', 'Trades', 'Saldo final', 'Mínimo', 'Máximo'], rows: eqCells.map((c) => { const b = c.equity.map((p) => p[1]); return [short(c.pair), num(c.trades), nf2.format(b[b.length - 1]), nf2.format(Math.min(...b)), nf2.format(Math.max(...b))]; }), numCols: [1, 2, 3, 4] } });
+  const reasons = h('section', { class: 'card' }, h('header', null, h('h2', null, 'Por que esta decisão')),
+    h('div', { class: 'grid three', style: 'margin:0' }, cells.map((c) => h('div', null, h('div', null, h('span', { class: 'key', style: `border-top-color:${pairColor(c.pair)}` }), h('b', null, short(c.pair)), ' ', chip(DECISION[c.decision] || { icon: '?', cls: 'info', label: c.decision })),
+      (() => {
+        const bad = c.reasons.filter((r) => /: (FAIL|inconclusive)/.test(r)), ok = c.reasons.filter((r) => !/: (FAIL|inconclusive)/.test(r));
+        return h('div', null, bad.length ? h('ul', { class: 'reasons' }, bad.map(reasonLine)) : h('div', { class: 'sub' }, 'Nenhum gate barrou.'),
+          h('details', null, h('summary', null, `${ok.length} verificações aprovadas ou informativas`), h('ul', { class: 'reasons' }, ok.map(reasonLine))));
+      })()))));
+  return h('div', null, head, h('div', { class: 'grid two' }, cost, eq), reasons);
+}
+function familiesCard() {
+  const f = state.families;
+  return h('section', { class: 'card' }, h('header', null, h('div', null, h('h2', null, 'Tentativas por família'), h('div', { class: 'sub' }, 'Cada variante testada torna a aprovação mais difícil'))),
+    f.length ? f.map((x) => h('div', { class: 'fam' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', null, x.family), h('span', { class: 'sub' }, `${x.used} de ${x.cap} variantes`)),
+      h('div', { class: 'meter', role: 'meter', 'aria-valuenow': x.used, 'aria-valuemin': 0, 'aria-valuemax': x.cap, 'aria-label': x.family }, h('i', { class: x.used >= x.cap ? 'full' : '', style: `width:${Math.min(100, x.used / x.cap * 100)}%` })),
+      h('div', { class: 'note muted' }, x.used >= x.cap ? '✕ limite atingido: proponha algo estruturalmente diferente' : `próxima variante exige lucro > ${nf2.format(x.next_bar_quote)} USDT`))) : h('div', { class: 'empty' }, 'Nenhuma família ainda.'));
+}
+function agentsCard() {
+  const meta = { completed: { icon: '✓', cls: 'good', label: 'concluída' }, failed: { icon: '✕', cls: 'crit', label: 'falhou' }, guard_violation: { icon: '✕', cls: 'crit', label: 'violação do guard' } };
+  const rows = state.agents.recent.slice(0, 12).map((r) => [dtShort.format(new Date(r.started_at_utc)), r.agent, `${r.hypothesis_id || dash} · ${r.purpose}`, chip(meta[r.status] || { icon: '?', cls: 'info', label: r.status }), r.cost_usd == null ? dash : nf2.format(r.cost_usd)]);
+  return h('section', { class: 'card' }, h('header', null, h('div', null, h('h2', null, 'Agentes'), h('div', { class: 'sub' }, `Total gasto: US$ ${nf2.format(state.agents.total_cost_usd)} · só escrevem texto; quem aprova é código`))),
+    rows.length ? h('div', { class: 'tablewrap' }, makeTable(['Quando', 'Agente', 'Hipótese · etapa', 'Status', 'US$'], rows, [4], [2])) : h('div', { class: 'empty' }, 'Nenhuma chamada registrada.'));
+}
+function cyclesCard() {
+  const rows = state.cycles.map((c) => [when(c.started), c.outcome.startsWith('completed') ? chip({ icon: '✓', cls: 'good' }, 'completo') : chip({ icon: '✕', cls: 'crit' }, 'parou'), c.spend_usd == null ? dash : nf2.format(c.spend_usd), c.outcome.startsWith('completed') ? '' : c.outcome.replace(/^STOPPED - /, '')]);
+  return h('section', { class: 'card' }, h('header', null, h('h2', null, 'Ciclos recentes')),
+    rows.length ? h('div', { class: 'tablewrap' }, makeTable(['Início', 'Resultado', 'US$', 'Motivo'], rows, [2], [3])) : h('div', { class: 'empty' }, 'Nenhum ciclo rodou ainda.'));
+}
+function dataCard() {
+  const rows = state.data_health.map((d) => d.error ? [short(d.pair), d.timeframe, chip({ icon: '✕', cls: 'crit' }, 'erro'), d.error, '', ''] :
+    [short(d.pair), d.timeframe, d.stale ? chip({ icon: '!', cls: 'warn' }, `defasado ${nf0.format(d.age_hours / 24)} d`) : chip({ icon: '✓', cls: 'good' }, 'em dia'), `${day(d.first)} a ${day(d.last)}`, num(d.rows), `${nf0.format(d.largest_gap_hours)} h`]);
+  return h('section', { class: 'card' }, h('header', null, h('div', null, h('h2', null, 'Saúde dos dados'), h('div', { class: 'sub' }, `Defasado = último candle há mais de 48 h`))),
+    h('div', { class: 'tablewrap' }, makeTable(['Par', 'TF', 'Estado', 'Período', 'Candles', 'Maior buraco'], rows, [4, 5], [3])));
+}
+function forwardCard() {
+  const ft = state.forward_test, n = ft.open + ft.closed;
+  return h('section', { class: 'card' }, h('header', null, h('h2', null, 'Forward test (dry-run)')),
+    n ? h('div', null, h('div', null, `${ft.open} trade(s) aberto(s), ${ft.closed} fechado(s)`), h('div', { class: 'sub' }, `Lucro realizado: ${nf2.format(ft.profit_abs)} USDT`))
+      : h('div', { class: 'empty' }, ft.db_found ? 'Nenhum trade registrado. Uma estratégia só chega ao forward test depois de passar nos gates, e hoje nenhuma passou.' : 'Banco do dry-run não encontrado.'),
+    h('div', { class: 'sub' }, `Carteira ${num(state.safety.wallet)} USDT · aposta ${state.safety.stake_amount}. O bot ao vivo é visto no FreqUI (http://127.0.0.1:8080), quando houver um rodando.`));
+}
+
+/* ---------- page ---------- */
+const statusText = h('span', null);
+const statusDot = h('span', { class: 'dot' });
+function updateStatus() {
+  if (!LIVE) { statusDot.className = 'dot'; statusText.textContent = `Instantâneo de ${when(state.generated_at)}. Não atualiza sozinho.`; return; }
+  const secs = Math.round((Date.now() - conn.loadedAt) / 1000);
+  statusDot.className = 'dot ' + (conn.ok ? 'on' : 'off');
+  statusText.textContent = conn.ok ? `Ao vivo · atualizado há ${secs} s` : `Sem conexão com o servidor · último dado há ${secs} s`;
+  document.getElementById('app').classList.toggle('stale', !conn.ok);
+}
+function themeButton() {
+  const cur = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  return h('button', { type: 'button', onclick: () => { document.documentElement.dataset.theme = cur() === 'dark' ? 'light' : 'dark'; render(); } }, 'Tema claro/escuro');
+}
+function render() {
+  const app = document.getElementById('app');
+  if (!state.hypotheses.some((x) => x.id === ui.selected)) {
+    const withCells = state.hypotheses.filter((x) => x.cells.length && !x.invalid);
+    ui.selected = (withCells[withCells.length - 1] || state.hypotheses[state.hypotheses.length - 1] || {}).id || null;
+  }
+  app.replaceChildren(
+    h('header', { class: 'top' }, h('div', null, h('h1', null, 'Laboratório de estratégias'), h('div', { class: 'sub' }, 'Pesquisa e validação automatizadas · spot, long only · nenhuma ordem real é enviada')),
+      h('div', { class: 'live' }, statusDot, statusText, themeButton())),
+    safetyStrip(), attention(), filters(), kpis(),
+    h('div', { class: 'grid two' }, funnelCard(), gatesCard()),
+    hypothesesCard(), h('div', { style: 'height:16px' }), detail(),
+    h('div', { class: 'grid two', style: 'margin-top:16px' }, familiesCard(), agentsCard()),
+    h('div', { class: 'grid three' }, cyclesCard(), dataCard(), forwardCard()),
+    h('div', { class: 'foot' }, 'Somente leitura. Dados de research/lab.sqlite e dos arquivos do projeto. Textos de agentes são exibidos como texto puro.'));
+  updateStatus();
+}
+async function poll() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    const next = await r.json();
+    conn.ok = true; conn.loadedAt = Date.now();
+    const key = JSON.stringify({ ...next, generated_at: 0 });
+    if (key !== conn.lastKey) { conn.lastKey = key; state = next; render(); } else updateStatus();
+  } catch (e) { conn.ok = false; updateStatus(); }
+}
+const forced = new URLSearchParams(location.search).get('theme');
+if (forced === 'dark' || forced === 'light') document.documentElement.dataset.theme = forced;
+conn.lastKey = JSON.stringify({ ...state, generated_at: 0 });
+render();
+let resizeTimer = 0, lastW = innerWidth;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (innerWidth !== lastW) { lastW = innerWidth; render(); } }, 150); });
+if (LIVE) { setInterval(poll, POLL_MS); setInterval(updateStatus, 1000); }
+})();
+</script>
+</body>
+</html>

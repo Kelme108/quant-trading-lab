@@ -193,6 +193,20 @@ python -m lab.orchestrator propose | implement H-004 | run H-004 --split explora
 - **Registro:** `research/lab.sqlite` é a fonte da verdade, **não versionada**: o contador de hipóteses testadas vive nele. Faça backup; perder o arquivo apaga a penalidade por múltiplos testes.
 - **Importante:** resultados anteriores a 30/10/2026 que mostram "1 operação" eram um defeito do ambiente de teste (aposta fixa igual à carteira) e foram invalidados; veja `research/command-log.md`.
 
+## Painel de monitoramento (`lab/dashboard.py`)
+
+```bash
+python -m lab.dashboard serve --open      # http://127.0.0.1:8765, atualiza sozinho a cada 15 s
+python -m lab.dashboard export            # um arquivo HTML autônomo em research/dashboard.html
+```
+
+Mostra o que o FreqUI não mostra: o **funil de pesquisa** (registradas, testadas, aprovadas na exploração e na validação, no portfólio), **quais gates mais barram**, hipóteses por par e etapa com o motivo de cada decisão, retorno por cenário de custo (onde cruza o zero o custo consome a vantagem), curva de saldo, tentativas por família e a barra de lucro que sobe, gasto com agentes, ciclos recentes, saúde e defasagem dos dados, e o estado de segurança. Cada gráfico tem uma visão em tabela.
+
+- **Itens de atenção:** violação do guard, falha de agente, ciclo que parou, dado defasado (mais de 48 h) ou configuração insegura. Um incidente que um ciclo completo posterior superou sai do alerta, mas continua na tabela de agentes.
+- **Segurança:** só leitura. Escuta apenas em `127.0.0.1`, abre o banco com `mode=ro`, responde só GET/HEAD, recusa `Host` desconhecido (contra DNS rebinding) e usa CSP com nonce por requisição. O texto vindo de agentes e da web entra na página como texto puro.
+- **Bot ao vivo:** quando houver forward test, use o FreqUI (`http://127.0.0.1:8080`) para trades e saldo em tempo real. O painel só mostra o resumo do banco do dry-run.
+- **Sem dependência nova:** biblioteca padrão e HTML/JS/SVG inline, sem CDN.
+
 ## Fontes oficiais consultadas
 
 - [Freqtrade stable](https://www.freqtrade.io/en/stable/)
