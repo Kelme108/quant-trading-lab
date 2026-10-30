@@ -1,0 +1,22 @@
+{
+  "hypothesis_id": "H-004",
+  "family": "SlowTimeSeriesMomentum",
+  "title": "Slow 60-day breakout with 200-day regime filter and 30-day trend exit",
+  "ex_ante_rule": "Use closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole balance. ENTRY: close > highest high of the prior 1440 bars (60 days, excluding current bar) AND close > SMA(4800 bars, 200 days) of close AND no open position. EXIT: close < lowest low of the prior 720 bars (30 days, excluding current bar), OR close below entry price by 15% (hard stop, checked on closed bars). After any exit, no re-entry until at least 168 bars (7 days) have passed. No other filters, no pyramiding, no take-profit.",
+  "parameters": {
+    "entry_high_lookback_bars": 1440,
+    "exit_low_lookback_bars": 720,
+    "regime_sma_bars": 4800,
+    "stop_loss_pct": 15,
+    "cooldown_bars": 168,
+    "timeframe": "1h"
+  },
+  "rationale": "Time-series momentum in crypto: price at new multi-month highs inside a long-term uptrend tends to keep drifting because of slow-moving capital inflow, under-reaction to information and trend-chasing by retail, so a trend follower is paid for bearing drawdown risk and for the hedgers/contrarians who sell too early. The prior Donchian 20/10 variant traded about 800 times per pair and was killed by costs and whipsaws; here lookbacks are 60/30 days plus a 7-day cooldown, so I expect roughly 3-8 trades per year per pair. Winning trades in trends historically move +20% to +100%, far above the 0.35-0.5% round-trip cost, while losers are capped near -15% and the 30-day low exit usually cuts them sooner. Edge is not guaranteed; the mechanism is documented in crypto TSMOM literature, but I found no source for these exact lengths, which are round numbers chosen a priori.",
+  "novelty_vs_tried": "Differs from H-002 (Donchian 20/10, ~800 trades) by using 3x/3x longer channels, a 200-day regime filter, and a cooldown, cutting trade count by ~100x so cost drag is minor. Differs from H-001 (SMA crossover) and H-003 (short-horizon mean reversion, opposite premise) by using a slow new-high breakout with a long-low trailing exit rather than crossover or oversold bounce.",
+  "sources": [
+    {"title": "Trend-following and Mean-reversion in Bitcoin (Quantpedia)", "url": "https://quantpedia.com/trend-following-and-mean-reversion-in-bitcoin/"},
+    {"title": "Bitcoin Trend Following Strategies vs. Traditional Indices: A Comparative Study", "url": "https://harbourfrontquant.substack.com/p/bitcoin-trend-following-strategies"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "BTC, ETH, BNB 1h through 2026-10-30; no result data viewed beyond the context file's exploration summaries"
+}
