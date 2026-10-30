@@ -40,6 +40,9 @@ class BacktestStakeTests(unittest.TestCase):
         args = self.run_backtest_capturing_args(stake_amount=50.0)
         self.assertEqual(self.value_of(args, "--stake-amount"), "50.0")
 
+    def test_protections_are_enabled_so_a_declared_cooldown_is_traded(self) -> None:
+        self.assertIn("--enable-protections", self.run_backtest_capturing_args())
+
     def test_the_pair_is_passed_through(self) -> None:
         args = self.run_backtest_capturing_args(pair="ETH/USDT")
         self.assertEqual(self.value_of(args, "--pairs"), "ETH/USDT")

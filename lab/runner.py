@@ -197,6 +197,9 @@ def run_backtest(
         "--export", "trades",
         "--export-directory", container_export_dir,
         "--cache", "none",
+        # Without this flag Freqtrade silently ignores a strategy's `protections`
+        # (e.g. a cooldown), so the backtest would not trade the declared rule.
+        "--enable-protections",
     ]
     result = run_compose(args)
     _save_process_output(experiment_id, "backtesting", result)
@@ -242,6 +245,7 @@ def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, s
             "--fee", "0.001",
             "--export", "none",
             "--cache", "none",
+            "--enable-protections",
         ]
     )
     output = result.stdout + result.stderr
@@ -296,6 +300,14 @@ def compounded_profit_excluding_best(trades: list[dict], starting_balance: float
     return balance - starting_balance
 
 
+def read_starting_balance(zip_path: Path) -> float:
+    """The wallet the exported run started with."""
+    stats, reason = _load_strategy_stats(zip_path)
+    if stats is None:
+        raise ValueError(f"{zip_path}: {reason}")
+    return float(stats.get("starting_balance", 0.0))
+
+
 def _read_backtest_zip(zip_path: Path) -> dict:
     """Extract metrics strictly from Freqtrade's own exported JSON inside the zip."""
     stats, reason = _load_strategy_stats(zip_path)
@@ -348,6 +360,7 @@ def run_lookahead_analysis(
         "--fee", str(fee),
         "--minimum-trade-amount", str(minimum_trade_amount),
         "--lookahead-analysis-exportfilename", container_csv_path,
+        "--enable-protections",
     ]
     result = run_compose(args)
     _save_process_output(experiment_id, "lookahead-analysis", result)

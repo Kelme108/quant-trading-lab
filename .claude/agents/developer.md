@@ -27,6 +27,9 @@ Never edit or delete any existing file. A change to an existing strategy is a ne
 - Imports only from: `pandas`, `numpy`, `talib`, `technical`, `freqtrade`, `math`, `typing`, `datetime`, `functools`, `__future__`.
 - Not allowed: file or network access, `eval`/`exec`/`open`/`getattr`, dunder attributes, the words `enter_short`/`exit_short`, and the methods `leverage`, `custom_stake_amount`, `adjust_trade_position`.
 
+## Faithfulness
+Implement the rule exactly as written. Never shorten a lookback, add `min_periods`, drop a filter, or change any number to make a check pass or to make a test window work. The engine loads `startup_candle_count` earlier candles before it trades, so set `startup_candle_count` to at least the longest lookback and leave the rule alone. The stop is the `stoploss` attribute (it triggers intrabar). A cooldown is the `protections` property with `CooldownPeriod`. If a check fails and you cannot fix it without changing the rule, stop and say so in your reply instead of altering the rule.
+
 ## Test
 Stub `freqtrade.strategy.IStrategy` and `talib` exactly as `tests/test_strategy.py` does (use `sys.modules.setdefault`), load your strategy file by path, and test: the class constants above; that the signal columns are binary; that a candle with zero volume produces no signal; that undefined start-up values produce no signal; and, with a synthetic price series, that the signal does not change when future candles are appended (compute on the first N candles, then on N+K candles, and compare the first N rows).
 

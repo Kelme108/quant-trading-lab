@@ -267,12 +267,19 @@ class Lab:
         return completed.returncode == 0, (completed.stdout + completed.stderr)[-1500:]
 
     def _smoke_check(self, stem: str) -> tuple[bool, str]:
-        """A 120-day backtest from the start of BTC's exploration window, to
-        confirm the real Freqtrade engine can load and run the strategy."""
+        """A 120-day backtest over the END of the first pair's exploration window,
+        to confirm the real Freqtrade engine can load and run the strategy.
+
+        The window must come after years of earlier candles: Freqtrade needs
+        `startup_candle_count` candles before the first candle it trades, and a
+        window at the start of the history has none. Such a check once forced a
+        strategy to shorten its 4800-candle average to pass it, silently
+        changing the rule being tested.
+        """
         pair = runner.enabled_pairs()[0]
-        start = int(self._splits()["pairs"][pair]["exploration"]["timerange"].split("-")[0])
+        end = int(self._splits()["pairs"][pair]["exploration"]["timerange"].split("-")[1])
         return runner.smoke_backtest(
-            strategy=stem, pair=pair, timerange=f"{start}-{start + 120 * 86400}"
+            strategy=stem, pair=pair, timerange=f"{end - 120 * 86400}-{end}"
         )
 
     def implement(self, hypothesis_id: str) -> str:

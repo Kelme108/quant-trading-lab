@@ -89,6 +89,18 @@ class ResearchContextTests(ContextTestCase):
         self.experiment(hypothesis, "validation", "BTC/USDT", {"trades__base": 1})
         self.assertIn("numbers withheld on purpose", self.render())
 
+    def test_an_invalidated_hypothesis_shows_no_numbers(self) -> None:
+        hypothesis = self.hypothesis(1)
+        self.experiment(
+            hypothesis, "exploration", "BTC/USDT",
+            {"trades__base": 4242, "net_profit_quote__base": 1906.5}, decision="rejected",
+        )
+        registry.set_hypothesis_status(self.conn, hypothesis, "invalid: implementation deviated from rule")
+        text = self.render()
+        self.assertIn("Result invalidated", text)
+        for leaked in ("4242", "1906.5"):
+            self.assertNotIn(leaked, text)
+
     def test_families_at_their_cap_are_flagged(self) -> None:
         self.hypothesis(1, "Fam")
         self.hypothesis(2, "Fam")
@@ -106,7 +118,10 @@ class ReviewFactsTests(ContextTestCase):
     def write_zip(self, name: str, trades: list[dict]) -> str:
         path = self.root / name
         with zipfile.ZipFile(path, "w") as archive:
-            archive.writestr("r.json", json.dumps({"strategy": {"S": {"trades": trades}}}))
+            archive.writestr(
+                "r.json",
+                json.dumps({"strategy": {"S": {"trades": trades, "starting_balance": 100.0}}}),
+            )
         return name
 
     def trades(self, profits: list[float]) -> list[dict]:
@@ -121,7 +136,8 @@ class ReviewFactsTests(ContextTestCase):
         artifact = self.write_zip("a.zip", self.trades([5.0, -2.0, 1.0]))
         self.experiment(
             hypothesis, "exploration", "BTC/USDT",
-            {"trades__base": 3, "net_profit_quote__base": 4.0}, decision="rejected", artifact=artifact,
+            {"trades__base": 3, "net_profit_quote__base": 4.0, "net_profit_excl_best_trade__base": -1.02},
+            decision="rejected", artifact=artifact,
         )
         directory = context.write_review_facts(self.conn, hypothesis, "exploration", self.root)
         self.assertEqual(directory.name, "H-001-exploration")
@@ -134,6 +150,8 @@ class ReviewFactsTests(ContextTestCase):
         crosscheck = json.loads((directory / "crosscheck.json").read_text(encoding="utf-8"))
         self.assertTrue(crosscheck["BTC/USDT"]["matches"])
         self.assertEqual(crosscheck["BTC/USDT"]["trades_in_export"], 3)
+        self.assertAlmostEqual(crosscheck["BTC/USDT"]["net_profit_excl_best_recomputed"], -1.02, places=6)
+        self.assertIn("compounded", crosscheck["BTC/USDT"]["excl_best_method"])
         rows = (directory / "trades-btc-usdt.csv").read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(rows), 4)
 
@@ -147,6 +165,19 @@ class ReviewFactsTests(ContextTestCase):
         directory = context.write_review_facts(self.conn, hypothesis, "exploration", self.root)
         crosscheck = json.loads((directory / "crosscheck.json").read_text(encoding="utf-8"))
         self.assertFalse(crosscheck["BTC/USDT"]["matches"])
+
+    def test_a_stored_excl_best_that_disagrees_with_the_recomputation_is_flagged(self) -> None:
+        hypothesis = self.hypothesis(1)
+        artifact = self.write_zip("a.zip", self.trades([5.0, -2.0, 1.0]))
+        self.experiment(
+            hypothesis, "exploration", "BTC/USDT",
+            {"trades__base": 3, "net_profit_quote__base": 4.0, "net_profit_excl_best_trade__base": 3.0},
+            artifact=artifact,
+        )
+        directory = context.write_review_facts(self.conn, hypothesis, "exploration", self.root)
+        crosscheck = json.loads((directory / "crosscheck.json").read_text(encoding="utf-8"))
+        self.assertFalse(crosscheck["BTC/USDT"]["matches"])
+        self.assertAlmostEqual(crosscheck["BTC/USDT"]["net_profit_excl_best_recomputed"], -1.02, places=6)
 
     def test_a_different_trade_count_is_flagged(self) -> None:
         hypothesis = self.hypothesis(1)

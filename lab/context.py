@@ -72,14 +72,20 @@ def research_context(
     entries: list[str] = []
     for hypothesis in registry.list_hypotheses(conn):
         families[hypothesis["family"]] = families.get(hypothesis["family"], 0) + 1
-        summary = _exploration_summary(conn, hypothesis["id"])
+        invalid = str(hypothesis["status"]).startswith("invalid")
+        summary = [] if invalid else _exploration_summary(conn, hypothesis["id"])
         entries.append(
             f"### {hypothesis['id']} - {hypothesis['family']} ({hypothesis['status']})\n"
             f"Rule: {hypothesis['ex_ante_rule']}\n"
             + (
                 "Exploration results (corrected harness):\n" + "\n".join(summary)
                 if summary
-                else "Not tested under the corrected harness (no usable results exist)."
+                else (
+                    "Result invalidated: the implementation that was tested did not match the "
+                    "rule (harness flaw, since fixed). Numbers withheld; the idea itself is untested."
+                    if invalid
+                    else "Not tested under the corrected harness (no usable results exist)."
+                )
             )
             + f"\nValidation: {'run (numbers withheld on purpose)' if _validation_was_run(conn, hypothesis['id']) else 'not run'}"
         )
@@ -158,15 +164,29 @@ def write_review_facts(conn, hypothesis_id: str, split: str, root: Path = ROOT) 
         from_list = sum(float(t["profit_abs"]) for t in trades)
         stored_profit = metrics.get("net_profit_quote__base")
         stored_trades = metrics.get("trades__base")
+        starting_balance = runner.read_starting_balance(artifact)
+        excl_recomputed = runner.compounded_profit_excluding_best(trades, starting_balance)
+        excl_stored = metrics.get("net_profit_excl_best_trade__base")
         crosscheck[pair] = {
             "trades_stored": stored_trades,
             "trades_in_export": len(trades),
             "net_profit_stored": stored_profit,
             "net_profit_from_trade_list": from_list,
+            "net_profit_excl_best_stored": excl_stored,
+            "net_profit_excl_best_recomputed": excl_recomputed,
+            "excl_best_method": (
+                "starting_balance * product(1 + profit_ratio) over every trade except the one "
+                "with the highest profit_ratio, minus starting_balance (compounded; NOT total "
+                "profit minus the best trade's profit_abs, because with a whole-balance stake the "
+                "best trade also enlarges every later trade)"
+            ),
+            "starting_balance": starting_balance,
             "matches": bool(
                 stored_trades == len(trades)
                 and stored_profit is not None
                 and _close(float(stored_profit), from_list)
+                and excl_stored is not None
+                and _close(float(excl_stored), excl_recomputed)
             ),
         }
 
