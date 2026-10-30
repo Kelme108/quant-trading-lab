@@ -1,0 +1,26 @@
+{
+  "hypothesis_id": "H-005",
+  "family": "VolatilitySqueezeBreakout",
+  "title": "Long breakout after a multi-day volatility squeeze in an established uptrend",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole balance. Definitions (all use completed bars): R(t) = (highest high of the 168 bars ending at t - lowest low of the 168 bars ending at t) / close(t). Squeeze(t) is true if R(t) is <= the 20th percentile of R over the 2160 bars ending at t-1 (rolling quantile 0.20, excluding the current bar). ENTRY at close of bar t when ALL hold: (1) Squeeze was true on at least one of the previous 24 bars (t-24..t-1); (2) close(t) > highest high of the prior 168 bars (t-168..t-1, excluding current bar); (3) close(t) > SMA(2400) of close; (4) no open position; (5) cooldown satisfied. EXIT at close of bar t when close(t) < lowest low of the prior 336 bars (t-336..t-1, excluding current), or via the hard stop. STOP-LOSS: fixed 8% below entry price (native intrabar stop). COOLDOWN: no re-entry for 72 candles after any exit. No take-profit, no pyramiding, no other filters. Warm-up: 2400 bars.",
+  "parameters": {
+    "range_lookback": 168,
+    "squeeze_percentile": 0.2,
+    "squeeze_history": 2160,
+    "squeeze_recent_window": 24,
+    "breakout_lookback": 168,
+    "trend_sma": 2400,
+    "exit_low_lookback": 336,
+    "stop_loss_pct": 8,
+    "cooldown_bars": 72,
+    "timeframe": "1h"
+  },
+  "rationale": "Volatility clusters and mean-reverts: after unusually narrow weekly ranges, realized volatility tends to expand. Range compression means many participants hold small positions or sit on the sidelines, with resting stops and breakout orders stacked just outside the range; when price exits upward in a long-term uptrend, stop-covering and momentum chasing produce follow-through that is larger than in ordinary breakouts, while the trend filter removes down-resolutions. The other side is passive range traders and sellers fading the range edge, who get run over. Unlike the already-tried Donchian breakout, entries are gated by a rare compression state, so far fewer low-quality breakouts are taken. Expected ~4-8 trades per pair per year; the target is that winners capture multi-day expansions of 8-20% versus a 0.35-0.50% round-trip cost, with losses capped at 8%. Evidence is only anecdotal commentary; I found no peer-reviewed crypto test, and a critic notes that falling absolute volatility makes narrow bands unremarkable, which is why the squeeze uses a relative percentile over 90 days.",
+  "novelty_vs_tried": "Differs from DonchianBreakoutBaseline (unconditional 20/10 breakout, ~800 trades) by requiring a prior relative-volatility squeeze, using weekly/2-week horizons and a cooldown, so trades are rare. Differs from SlowTimeSeriesMomentum (60-day highs, 200-day SMA) in the shorter 7-day breakout gated by a volatility-regime state rather than pure price momentum. It is unrelated to Bollinger mean reversion (counter-trend) and the SMA cross.",
+  "sources": [
+    {"title": "Pepperstone: Bitcoin price analysis, consolidation and volatility reduced", "url": "https://pepperstone.com/en/analysis/navigating-markets/bitcoin-price-analysis-btc-price-consolidation-volatility-reduced-but-extreme-fear-remains/"},
+    {"title": "Cointelegraph: Bitcoin price gained 50% the last time its volatility fell this low", "url": "https://cointelegraph.com/markets/bitcoin-price-gained-50percent-the-last-time-its-volatility-fell-this-low"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the context file and validation protocol (BTC, ETH, BNB 1h description through 2026-10-30)."
+}
