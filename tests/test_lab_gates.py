@@ -117,9 +117,54 @@ class GatesDecisionTests(unittest.TestCase):
         self.assertNotIn("approved", " ".join(gates_config["decision_values"]["allowed"]).lower())
         self.assertEqual(
             set(gates_config["decision_values"]["allowed"]),
-            {"rejected", "inconclusive", "candidate_for_forward_test"},
+            {"rejected", "inconclusive", "candidate_for_portfolio"},
         )
 
+class MultipleTestingPenaltyTests(unittest.TestCase):
+    def test_required_profit_grows_linearly_with_prior_variants(self) -> None:
+        gates_config = gates.load_gates()
+        base = gates_config["net_profit"]["base_threshold_quote"]
+        step = gates_config["net_profit"]["multiple_testing_penalty"]["per_variant_increase"]
+        self.assertAlmostEqual(gates.required_net_profit(gates_config, 0), base)
+        self.assertAlmostEqual(gates.required_net_profit(gates_config, 5), base * (1 + step * 5))
+        self.assertGreater(
+            gates.required_net_profit(gates_config, 6),
+            gates.required_net_profit(gates_config, 5),
+        )
+
+    def test_same_profit_passes_with_no_prior_variants_but_fails_after_many(self) -> None:
+        gates_config = gates.load_gates()
+        bar_with_none = gates.required_net_profit(gates_config, 0)
+        bar_with_many = gates.required_net_profit(gates_config, 10)
+        between = (bar_with_none + bar_with_many) / 2
+        metrics = make_metrics(
+            **{"net_profit_quote__base": between, "net_profit_quote__conservative": between}
+        )
+
+        decision_fresh, _ = gates.decide(metrics, variants_tested_in_family=0)
+        decision_crowded, reasons = gates.decide(metrics, variants_tested_in_family=10)
+
+        self.assertEqual(decision_fresh, gates.DECISION_CANDIDATE)
+        self.assertEqual(decision_crowded, gates.DECISION_REJECTED)
+        self.assertTrue(any("net_profit[base]" in r and "FAIL" in r for r in reasons))
+        self.assertTrue(any("10 prior variant" in r for r in reasons))
+
+    def test_profit_exactly_at_the_bar_does_not_pass(self) -> None:
+        """The bar is a strict inequality, like the old `> 0` rule."""
+        gates_config = gates.load_gates()
+        bar = gates.required_net_profit(gates_config, 0)
+        metrics = make_metrics(
+            **{"net_profit_quote__base": bar, "net_profit_quote__conservative": bar}
+        )
+        decision, _ = gates.decide(metrics)
+        self.assertEqual(decision, gates.DECISION_REJECTED)
+
+    def test_negative_variant_count_is_an_error(self) -> None:
+        with self.assertRaises(ValueError):
+            gates.required_net_profit(gates.load_gates(), -1)
+
+
+class GatesHashTests(unittest.TestCase):
     def test_gates_sha256_is_stable_for_same_file(self) -> None:
         first = gates.gates_sha256()
         second = gates.gates_sha256()

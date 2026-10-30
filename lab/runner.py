@@ -25,6 +25,43 @@ EXPERIMENTS_DIR = ROOT / "research" / "experiments"
 CONTAINER_USER_DATA = "/freqtrade/user_data"
 
 SPLITS_PATH = Path(__file__).parent / "config" / "splits.json"
+SCENARIOS_PATH = Path(__file__).parent / "config" / "scenarios.json"
+
+
+def load_scenarios(scenarios_path: Path = SCENARIOS_PATH) -> dict:
+    return json.loads(scenarios_path.read_text(encoding="utf-8"))
+
+
+def enabled_pairs(scenarios: dict | None = None) -> list[str]:
+    """Pairs marked enabled in scenarios.json, in file order.
+
+    An empty result is an error, not "nothing to do": a cycle that silently
+    tests no pair would look like a clean run.
+    """
+    if scenarios is None:
+        scenarios = load_scenarios()
+    pairs = [entry["pair"] for entry in scenarios["pairs"] if entry.get("enabled") is True]
+    if not pairs:
+        raise ValueError("no pair is enabled in lab/config/scenarios.json")
+    return pairs
+
+
+def max_gap_hours(scenarios: dict | None = None) -> float:
+    """Gap tolerance (missing hours) for validate_ohlcv; see scenarios.json."""
+    if scenarios is None:
+        scenarios = load_scenarios()
+    return float(scenarios["data_quality"]["max_gap_hours"])
+
+
+def enabled_timeframes(scenarios: dict | None = None) -> list[str]:
+    if scenarios is None:
+        scenarios = load_scenarios()
+    timeframes = [
+        entry["timeframe"] for entry in scenarios["timeframes"] if entry.get("enabled") is True
+    ]
+    if not timeframes:
+        raise ValueError("no timeframe is enabled in lab/config/scenarios.json")
+    return timeframes
 
 
 class FinalTestLockedError(RuntimeError):
@@ -70,26 +107,38 @@ def load_splits(splits_path: Path = SPLITS_PATH) -> dict:
     return json.loads(splits_path.read_text(encoding="utf-8"))
 
 
-def resolve_split_timerange(split_name: str, splits: dict | None = None) -> str:
+def resolve_split_timerange(
+    split_name: str, splits: dict | None = None, pair: str | None = None
+) -> str:
     """Returns the Freqtrade --timerange string for a named split.
 
     Refuses final_test while splits.json marks it locked — this is the
     enforcement point the task requires; nothing downstream can bypass it
     by calling run_compose directly without going through here, since this
     is the only place that turns a split name into a timerange.
+
+    exploration and validation are per pair, so `pair` is required for them.
+    final_test is the same open-ended window for every pair.
     """
     if splits is None:
         splits = load_splits()
     if split_name not in ("exploration", "validation", "final_test"):
         raise ValueError(f"unknown split '{split_name}'")
 
-    split = splits[split_name]
-    if split_name == "final_test" and not split.get("final_test_unlocked", False):
-        raise FinalTestLockedError(
-            "final_test split is locked in lab/config/splits.json "
-            "(final_test_unlocked: false). Only the user may unlock it."
-        )
-    return split["timerange"]
+    if split_name == "final_test":
+        split = splits["final_test"]
+        if not split.get("final_test_unlocked", False):
+            raise FinalTestLockedError(
+                "final_test split is locked in lab/config/splits.json "
+                "(final_test_unlocked: false). Only the user may unlock it."
+            )
+        return split["timerange"]
+
+    if pair is None:
+        raise ValueError(f"split '{split_name}' is per pair: pass pair=")
+    if pair not in splits["pairs"]:
+        raise KeyError(f"splits.json has no boundaries for {pair}")
+    return splits["pairs"][pair][split_name]["timerange"]
 
 
 def raw_dir(experiment_id: str) -> Path:
@@ -114,10 +163,17 @@ def run_backtest(
     pair: str = "BTC/USDT",
     timeframe: str = "1h",
     dry_run_wallet: float = 100.0,
-    stake_amount: float = 100.0,
+    stake_amount: float | str = "unlimited",
 ) -> dict:
     """Runs `backtesting --export trades`, saves raw output + artifacts, and
     returns parsed metrics read from the exported zip (never from stdout text).
+
+    The stake defaults to "unlimited" (the whole available balance, one open
+    trade at a time) on purpose. A fixed stake equal to the wallet (100 on a
+    100 USDT wallet) silently stops all trading after the first losing trade,
+    because the balance then falls below the stake: the same Donchian run on
+    ETH/USDT made 1 trade with a fixed 100 and 284 with "unlimited". Trade
+    counts, and therefore the minimum-trades gate, are meaningless otherwise.
     """
     export_dir_name = f"experiments/{experiment_id}"
     container_export_dir = f"{CONTAINER_USER_DATA}/backtest_results/{export_dir_name}"
@@ -167,31 +223,64 @@ def _latest_zip(directory: Path) -> Path | None:
     return zips[-1] if zips else None
 
 
-def _read_backtest_zip(zip_path: Path) -> dict:
-    """Extract metrics strictly from Freqtrade's own exported JSON inside the zip."""
+def _load_strategy_stats(zip_path: Path) -> tuple[dict | None, str]:
+    """Open Freqtrade's exported result JSON and return its single strategy's
+    stats as (stats, ""), or (None, reason) when the zip has no usable result."""
     with zipfile.ZipFile(zip_path) as archive:
         json_names = [
             name for name in archive.namelist()
             if name.endswith(".json") and not name.endswith("_config.json")
         ]
         if not json_names:
-            return {"status": "failed", "reason": "no result json in export zip"}
+            return None, "no result json in export zip"
         with archive.open(json_names[0]) as handle:
             data = json.load(handle)
 
     strategy_results = data.get("strategy", {})
     if not strategy_results:
-        return {"status": "failed", "reason": "no strategy results in export json"}
-    strategy_key = next(iter(strategy_results))
-    stats = strategy_results[strategy_key]
+        return None, "no strategy results in export json"
+    return strategy_results[next(iter(strategy_results))], ""
+
+
+def read_trades(zip_path: Path) -> list[dict]:
+    """The trade list exactly as Freqtrade exported it (open_date, close_date,
+    profit_ratio, profit_abs, ...). Raises ValueError if the zip has no result."""
+    stats, reason = _load_strategy_stats(zip_path)
+    if stats is None:
+        raise ValueError(f"{zip_path}: {reason}")
+    return list(stats.get("trades", []))
+
+
+def compounded_profit_excluding_best(trades: list[dict], starting_balance: float) -> float:
+    """Net profit (quote) of the same run with its single best trade removed.
+
+    With the default "unlimited" stake every trade uses the whole balance, so
+    profits compound and the best trade also enlarges every later trade.
+    Subtracting its profit_abs from the total would ignore that and punish
+    long, compounding runs. Instead the balance curve is rebuilt without the
+    trade with the highest profit_ratio: starting_balance * prod(1 + r) - starting_balance.
+    Zero trades, or a single trade, gives 0.0.
+    """
+    if not trades:
+        return 0.0
+    ratios = sorted(float(t["profit_ratio"]) for t in trades)[:-1]  # drop the best
+    balance = starting_balance
+    for ratio in ratios:
+        balance *= 1 + ratio
+    return balance - starting_balance
+
+
+def _read_backtest_zip(zip_path: Path) -> dict:
+    """Extract metrics strictly from Freqtrade's own exported JSON inside the zip."""
+    stats, reason = _load_strategy_stats(zip_path)
+    if stats is None:
+        return {"status": "failed", "reason": reason}
 
     trades = stats.get("trades", [])
     net_profit = float(stats.get("profit_total_abs", 0.0))
-    if trades:
-        best_trade_profit = max(t.get("profit_abs", 0.0) for t in trades)
-        net_profit_excl_best = net_profit - best_trade_profit
-    else:
-        net_profit_excl_best = net_profit
+    net_profit_excl_best = compounded_profit_excluding_best(
+        trades, float(stats.get("starting_balance", 0.0))
+    )
 
     return {
         "total_trades": int(stats.get("total_trades", 0)),

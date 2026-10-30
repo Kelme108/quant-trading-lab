@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS experiments (
     strategy_file TEXT NOT NULL,
     strategy_sha256 TEXT NOT NULL,
     cost_scenario TEXT NOT NULL,         -- optimistic | base | conservative | stress
+    pair TEXT NOT NULL DEFAULT 'BTC/USDT',
     split TEXT NOT NULL,                 -- exploration | validation | final_test
     command TEXT NOT NULL,               -- exact argv, space-joined, for the record
     artifact_path TEXT,
@@ -51,7 +52,7 @@ CREATE TABLE IF NOT EXISTS metrics (
 CREATE TABLE IF NOT EXISTS decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     experiment_id TEXT NOT NULL REFERENCES experiments(id),
-    decision TEXT NOT NULL,              -- rejected | inconclusive | candidate_for_forward_test
+    decision TEXT NOT NULL,              -- rejected | inconclusive | candidate_for_portfolio
     reasons_json TEXT NOT NULL,
     gates_sha256 TEXT NOT NULL,
     decided_at_utc TEXT NOT NULL
@@ -65,7 +66,24 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring a database created by an older schema up to date.
+
+    CREATE TABLE IF NOT EXISTS leaves an existing table untouched, so columns
+    added later must be added here. Rows that predate a column get its
+    DEFAULT, which for `pair` is the only pair the lab used before multi-pair
+    support (BTC/USDT).
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(experiments)")}
+    if "pair" not in columns:
+        conn.execute(
+            "ALTER TABLE experiments ADD COLUMN pair TEXT NOT NULL DEFAULT 'BTC/USDT'"
+        )
+        conn.commit()
 
 
 # --- hypotheses -----------------------------------------------------------
@@ -116,6 +134,23 @@ def count_variants_in_family(conn: sqlite3.Connection, family: str) -> int:
     return int(row["n"])
 
 
+def count_prior_variants(conn: sqlite3.Connection, hypothesis_id: str) -> int:
+    """Hypotheses in the same family registered BEFORE `hypothesis_id`.
+
+    This is the `variants_tested_in_family` input to gates.decide(): the
+    multiple-testing penalty counts what was already tried, not the
+    hypothesis being judged. Registration order (rowid) is the order of
+    testing, because a hypothesis is registered before its first test.
+    """
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM hypotheses "
+        "WHERE family = (SELECT family FROM hypotheses WHERE id = ?) "
+        "AND rowid < (SELECT rowid FROM hypotheses WHERE id = ?)",
+        (hypothesis_id, hypothesis_id),
+    ).fetchone()
+    return int(row["n"])
+
+
 def next_hypothesis_id(conn: sqlite3.Connection) -> str:
     rows = conn.execute("SELECT id FROM hypotheses").fetchall()
     max_n = 0
@@ -143,18 +178,20 @@ def add_experiment(
     created_at_utc: str,
     artifact_path: str | None = None,
     status: str = "pending",
+    pair: str = "BTC/USDT",
 ) -> None:
     conn.execute(
         "INSERT INTO experiments ("
-        "  id, hypothesis_id, strategy_file, strategy_sha256, cost_scenario, split,"
+        "  id, hypothesis_id, strategy_file, strategy_sha256, cost_scenario, pair, split,"
         "  command, artifact_path, status, created_at_utc"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             experiment_id,
             hypothesis_id,
             strategy_file,
             strategy_sha256,
             cost_scenario,
+            pair,
             split,
             command,
             artifact_path,
@@ -275,6 +312,23 @@ def get_latest_decision(conn: sqlite3.Connection, experiment_id: str) -> sqlite3
         "SELECT * FROM decisions WHERE experiment_id = ? ORDER BY id DESC LIMIT 1",
         (experiment_id,),
     ).fetchone()
+
+
+def list_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """One row per experiment that has a decision: its latest one.
+
+    Joined with the hypothesis so a caller (portfolio.py) can group by
+    hypothesis, pair and split without issuing a query per experiment.
+    """
+    return conn.execute(
+        "SELECT e.id AS experiment_id, e.hypothesis_id, h.family, e.strategy_file, "
+        "       e.pair, e.split, e.artifact_path, d.decision, d.reasons_json, d.decided_at_utc "
+        "FROM experiments e "
+        "JOIN hypotheses h ON h.id = e.hypothesis_id "
+        "JOIN decisions d ON d.experiment_id = e.id "
+        "WHERE d.id = (SELECT MAX(id) FROM decisions WHERE experiment_id = e.id) "
+        "ORDER BY e.hypothesis_id, e.pair, e.split, e.created_at_utc"
+    ).fetchall()
 
 
 # --- ledger sync -------------------------------------------------------------

@@ -20,6 +20,11 @@ ROOT = Path(__file__).parents[1]
 # rejects every command, not just the webserver, when this key is shorter
 # than 32 characters -- even with the API disabled). See
 # research/command-log.md, 2026-10-27 entries.
+#
+# Updated 2026-10-30 with the user's explicit approval: the config hash changed
+# because stake_amount went from 100 to "unlimited". A fixed stake equal to the
+# 100 USDT wallet stops all trading after the first losing trade (1 trade
+# instead of 284 in the same backtest). Nothing else in the file changed.
 PROTECTED_SHA256 = {
     "user_data/strategies/SmaTrendBaseline.py": (
         "0edc921c5e0b507dcf7b9128aeebb54e624d68d6e4f5d13e8874218e6fadebcc"
@@ -31,7 +36,7 @@ PROTECTED_SHA256 = {
         "da38ebf7d4db29c44a2a6b1d3f146ac3b07cf5dda2ca6ddcc6478375a873c75a"
     ),
     "user_data/config.dryrun.json": (
-        "65f4e6cd3094a71bc0832dff36d68df628a48d55846e7ea1a8fa1a290b4db0c5"
+        "e496bce2145a7079ce9168b7a7b8b787e99714d92745b5a7dd7fb4e42170ba23"
     ),
     "docker-compose.yml": (
         "3ac6f17b2459a54f3ebf8310b58097987a53972e83cb433af0203d77b2e598a7"

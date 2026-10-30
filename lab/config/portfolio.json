@@ -1,0 +1,23 @@
+{
+  "_status": "PROPOSED - not yet approved by the user. Every number below is a risk decision, not a technical fact. Once approved this file is frozen; portfolio.py records its SHA-256 in every snapshot so drift is detectable.",
+  "_principle": "A strategy enters the portfolio for being consistent across pairs and splits and for adding diversification, never for having the best return. Nothing in this file ranks by performance.",
+  "required_decision": "candidate_for_portfolio",
+  "required_splits": ["exploration", "validation"],
+  "_coverage_rule": "A hypothesis is eligible only if its latest decision is required_decision in EVERY (enabled pair, required split) cell of lab/config/scenarios.json. A missing cell, or any other decision in a cell, excludes it. The final_test split is never read by portfolio.py.",
+  "consistency": {
+    "metric": "min_over_max",
+    "min_ratio": 0.25,
+    "_rule": "Take net_profit_quote__base divided by the cell's length in days for every (pair, required split) cell. The smallest value must be at least min_ratio times the largest. Profit per day, not total profit, because the exploration split is three times longer than the validation split. A strategy that is great on one pair and barely positive on another has a ratio near 0 and is excluded. Any non-positive cell gives a ratio of 0."
+  },
+  "correlation": {
+    "max_abs_correlation": 0.7,
+    "min_overlap_days": 30,
+    "series": "Daily return per (pair, UTC calendar day) across every required cell: each trade's profit_ratio from the Freqtrade export (base cost scenario) is spread evenly over the calendar days from open_date to close_date inclusive; days with no open trade are 0. Spread over the holding period, not booked on the close day, so two strategies that hold the same rally are seen as co-moving even if they close on different days.",
+    "on_violation": "exclude",
+    "_rule": "A candidate is compared with every strategy already included. If the absolute Pearson correlation with any of them exceeds max_abs_correlation, the candidate is excluded; there is no reduced-weight option. If the correlation is undefined (a constant series, fewer than min_overlap_days shared days, or no exported trades to read), the candidate is excluded too: fail closed."
+  },
+  "order_of_consideration": "hypothesis id ascending (registration order). Never by return, Sharpe or any performance measure, so the greedy correlation rule cannot favor whichever backtest looks best.",
+  "weighting": "equal",
+  "_weighting_note": "Included strategies share the portfolio equally. Equal weights are chosen because any optimized weighting would be one more thing fitted to the same history.",
+  "frozen_by_final_test": "Once splits.json final_test.final_test_unlocked is true, portfolio.py refuses to create a new snapshot, so the composition cannot be adjusted after the final test has been observed."
+}

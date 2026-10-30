@@ -4,8 +4,11 @@ decide() takes metrics (as stored in the registry) plus the frozen
 lab/config/gates.json and returns one of:
   - "rejected"
   - "inconclusive"
-  - "candidate_for_forward_test"
+  - "candidate_for_portfolio"
 There is no "approved for live" value; this lab never produces one.
+
+A candidate is only eligible for portfolio.py; passing these per-experiment
+gates is necessary, not sufficient, for inclusion in a portfolio.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ GATES_PATH = Path(__file__).parent / "config" / "gates.json"
 
 DECISION_REJECTED = "rejected"
 DECISION_INCONCLUSIVE = "inconclusive"
-DECISION_CANDIDATE = "candidate_for_forward_test"
+DECISION_CANDIDATE = "candidate_for_portfolio"
 
 
 def gates_sha256(gates_path: Path = GATES_PATH) -> str:
@@ -29,7 +32,25 @@ def load_gates(gates_path: Path = GATES_PATH) -> dict:
     return json.loads(gates_path.read_text(encoding="utf-8"))
 
 
-def decide(metrics: dict, gates: dict | None = None) -> tuple[str, list[str]]:
+def required_net_profit(gates: dict, variants_tested_in_family: int) -> float:
+    """Net profit (quote currency) a scenario must strictly exceed.
+
+    base_threshold_quote * (1 + per_variant_increase * variants_tested_in_family),
+    so every earlier variant in the same family makes approval harder. See the
+    `_rationale` field in gates.json for why.
+    """
+    if variants_tested_in_family < 0:
+        raise ValueError("variants_tested_in_family cannot be negative")
+    net_profit = gates["net_profit"]
+    increase = net_profit["multiple_testing_penalty"]["per_variant_increase"]
+    return net_profit["base_threshold_quote"] * (1 + increase * variants_tested_in_family)
+
+
+def decide(
+    metrics: dict,
+    gates: dict | None = None,
+    variants_tested_in_family: int = 0,
+) -> tuple[str, list[str]]:
     """Evaluate one split's metrics against the gates.
 
     `metrics` is expected to carry, per required cost scenario (see
@@ -46,6 +67,10 @@ def decide(metrics: dict, gates: dict | None = None) -> tuple[str, list[str]]:
     Returns (decision, reasons). `reasons` always lists every gate that was
     checked and whether it passed, so a rejection or an inconclusive result
     is traceable without re-deriving it from the raw metrics.
+
+    `variants_tested_in_family` is the number of hypotheses in the same
+    family registered before this one (registry.count_prior_variants); it
+    raises the net-profit bar per gates.json's multiple_testing_penalty.
     """
     if gates is None:
         gates = load_gates()
@@ -90,16 +115,19 @@ def decide(metrics: dict, gates: dict | None = None) -> tuple[str, list[str]]:
         else:
             reasons.append(f"minimum_trades[{scenario}]: pass ({trades} >= {min_trades})")
 
-    # --- net profit positive in base and conservative ---
+    # --- net profit above the penalized bar in base and conservative ---
+    required_profit = required_net_profit(gates, variants_tested_in_family)
     for scenario in gates["net_profit"]["required_positive_in_scenarios"]:
         net_profit = metrics.get(f"net_profit_quote__{scenario}")
         if net_profit is None:
             reasons.append(f"net_profit[{scenario}]: FAIL (no net profit recorded)")
             passed = False
             continue
-        ok = net_profit > 0
+        ok = net_profit > required_profit
         reasons.append(
-            f"net_profit[{scenario}]: {'pass' if ok else 'FAIL'} (net_profit_quote={net_profit})"
+            f"net_profit[{scenario}]: {'pass' if ok else 'FAIL'} "
+            f"(net_profit_quote={net_profit} > required {required_profit:.4f}, "
+            f"after {variants_tested_in_family} prior variant(s) in family)"
         )
         if not ok:
             passed = False

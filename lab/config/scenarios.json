@@ -1,0 +1,44 @@
+{
+  "_status": "PROPOSED. orchestrator.py only runs what is marked enabled: true here. Enabling an axis is a decision about scope, not a code change: every enabled pair multiplies the number of tests, and each extra test raises the bar through gates.json's multiple_testing_penalty and portfolio.json's all-pairs requirement.",
+  "_expansion_order": "1) more BTC/USDT 1h history, 2) ETH/USDT and a third pair, 3) other timeframes and synthetic resampling (out of scope for the current task). Steps 1 and 2 are done (data downloaded 2026-10-30, per-pair splits in splits.json). Do not enable step 3 before it has data and splits.",
+  "data_quality": {
+    "max_gap_hours": 48,
+    "_note": "Tolerance passed to research/validate_ohlcv.py. The BTC/USDT 1h history has 28 gaps between 2017-09 and 2023-03 (largest 33 missing hours, consistent with exchange downtime). They are tolerated, counted in the manifest's data.gaps and never filled or interpolated. A gap longer than this makes the data invalid."
+  },
+  "pairs": [
+    {
+      "pair": "BTC/USDT",
+      "enabled": true
+    },
+    {
+      "pair": "ETH/USDT",
+      "enabled": true,
+      "_note": "Measured daily-return correlation with BTC: 0.787 over all common days, 0.906 over the last 365 days."
+    },
+    {
+      "pair": "BNB/USDT",
+      "enabled": true,
+      "_note": "Third pair, chosen for the lowest measured correlation with BTC among the candidates tried: 0.635 over all common days, 0.813 over the last 365 days. Still high: three pairs are not three independent samples."
+    }
+  ],
+  "timeframes": [
+    {
+      "timeframe": "1h",
+      "enabled": true
+    },
+    {
+      "timeframe": "4h",
+      "enabled": false,
+      "_note": "Out of scope for the current task; prepared so it can be enabled later."
+    },
+    {
+      "timeframe": "1d",
+      "enabled": false,
+      "_note": "Out of scope for the current task; prepared so it can be enabled later."
+    }
+  ],
+  "synthetic_resampling": {
+    "enabled": false,
+    "_note": "Not implemented. Reserved for a later task (e.g. block bootstrap of returns)."
+  }
+}

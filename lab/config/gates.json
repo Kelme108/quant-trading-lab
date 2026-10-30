@@ -12,11 +12,17 @@
   },
   "minimum_trades": {
     "value": 30,
-    "rule": "Below this many trades in a split, the decision is 'inconclusive', never 'candidate_for_forward_test', regardless of other metrics."
+    "rule": "Below this many trades in a split, the decision is 'inconclusive', never 'candidate_for_portfolio', regardless of other metrics."
   },
   "net_profit": {
     "required_positive_in_scenarios": ["base", "conservative"],
-    "rule": "Net profit (quote currency) must be > 0 in both the base and conservative cost scenarios."
+    "base_threshold_quote": 1.0,
+    "multiple_testing_penalty": {
+      "per_variant_increase": 0.1,
+      "formula": "required_net_profit_quote = base_threshold_quote * (1 + per_variant_increase * variants_tested_in_family)",
+      "_rationale": "Each extra variant tested in the same family is another draw from the same noisy history, so the best of N draws looks better by chance alone (multiple comparisons / backtest overfitting; see Bailey and Lopez de Prado, 'The Deflated Sharpe Ratio', Journal of Portfolio Management 2014, and Bailey, Borwein, Lopez de Prado and Zhu, 'Pseudo-Mathematics and Financial Charlatanism', Notices of the AMS 2014). This linear rule is a deliberately simple stand-in, NOT a formal deflated Sharpe ratio: it only makes the bar rise as the family grows. variants_tested_in_family counts hypotheses registered in the same family BEFORE the one being decided, as given by registry.count_prior_variants()."
+    },
+    "rule": "Net profit (quote currency) must be strictly greater than required_net_profit_quote in both the base and conservative cost scenarios. With zero prior variants the bar is base_threshold_quote; it rises with every earlier variant in the family. base_threshold_quote is in the stake currency of the 100 USDT dry-run wallet (1.0 = 1% of the wallet) and is a PROPOSED value."
   },
   "profit_excluding_best_trade": {
     "required_positive": true,
@@ -32,10 +38,10 @@
     "rule": "Must report strategy result against cash (0% return) and buy-and-hold over the same split and period. Beating either is not required, but both comparisons must be present in the metrics before a decision is produced."
   },
   "split_progression": {
-    "rule": "A strategy must clear every gate above on the exploration split, and then again independently on the validation split, before the decision can be 'candidate_for_forward_test'. The final_test split is never read by gates.py while splits.json final_test.final_test_unlocked is false."
+    "rule": "A strategy must clear every gate above on the exploration split, and then again independently on the validation split, before the decision can be 'candidate_for_portfolio'. A candidate must additionally clear the consistency and correlation criteria in lab/config/portfolio.json before it is included in a portfolio. The final_test split is never read by gates.py while splits.json final_test.final_test_unlocked is false."
   },
   "decision_values": {
-    "allowed": ["rejected", "inconclusive", "candidate_for_forward_test"],
+    "allowed": ["rejected", "inconclusive", "candidate_for_portfolio"],
     "_note": "There is no 'approved for live' value. This lab never approves live trading."
   }
 }

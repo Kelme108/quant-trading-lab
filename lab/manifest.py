@@ -185,7 +185,7 @@ def default_manifest_skeleton() -> dict:
             "slippage_rate_per_side": 0.0,
             "spread_rate": 0.0,
             "initial_wallet": 100.0,
-            "stake_amount": 100.0,
+            "stake_amount": "unlimited",
             "max_open_trades": 1,
             "order_types": {"entry": "", "exit": "", "stoploss": ""},
         },
