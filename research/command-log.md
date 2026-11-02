@@ -97,3 +97,10 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - Gap tolerance: `validate_ohlcv.py` gained an optional `max_gap_hours` (default strict). `scenarios.json` sets 48 h; the 28 BTC gaps (largest 33 h) are tolerated, still counted in `gaps`, never filled.
 - ETH/USDT and BNB/USDT enabled in `scenarios.json` (BNB: lowest measured correlation with BTC, 0.635 overall / 0.813 last year).
 - An end-to-end run started before the stake fix was stopped; its experiment row `20261030T125953Z-donchian-h002-explore-btc-usdt` is marked `failed` and its partial raw files are kept for traceability. No manifest was written for it.
+
+## 2026-11-02 — recursive-analysis parser fix and re-decision
+
+- BUG: `runner._parse_recursive_stdout` scanned the whole stdout+stderr stream for `\d+.\d+%`, so log lines such as `Using fee 0.1000%` and `Price jump ... of 23.53%` were counted as recursive instability. Fix: only table rows (lines starting with `│`) are read. Regression tests: `tests/test_lab_runner_recursive.py`.
+- Re-parsed the stored raw output of every experiment. Only 5 changed (False -> True): H-003 BTC/ETH/BNB, H-007 BTC/BNB. H-004 stays unstable (real table cells of 9-16%). H-002, H-005 and H-007 ETH were already stable.
+- The 5 experiments were re-decided through `decide_experiment`: a new row in `decisions` (latest wins; earlier rows kept) and the previous `decision.json` kept as `decision.superseded-20261102T223636Z.json`. The `recursive_is_stable` metric was overwritten in `metrics`; its old value remains in the earlier decision's reasons.
+- Outcome unchanged: all 5 stay `rejected` (H-003: profit and drawdown; H-007: drawdown, trades < 30, and lookahead on BNB). `H-007-exploration/facts.json`, `quant.md`, `risk.md` and `validator.md` were generated before this fix and still show the old recursive result for BTC and BNB.

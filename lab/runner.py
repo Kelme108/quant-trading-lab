@@ -455,7 +455,11 @@ def _parse_recursive_stdout(combined_output: str) -> dict:
             "recursive_raw_stdout_excerpt": combined_output[-2000:],
         }
 
-    percent_cells = re.findall(r"(-?\d+\.\d+)%", combined_output)
+    # Only the table rows count. Log lines such as "Using fee 0.1000%" or
+    # "Price jump ... of 23.53%" also contain percentages and are not
+    # recursive-bias evidence.
+    table_rows = [line for line in combined_output.splitlines() if line.lstrip().startswith("│")]
+    percent_cells = re.findall(r"(-?\d+\.\d+)%", "\n".join(table_rows))
     if not percent_cells:
         return {
             "recursive_is_stable": None,
