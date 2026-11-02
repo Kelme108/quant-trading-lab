@@ -58,7 +58,7 @@ def decide(
       trades__<scenario>
       net_profit_quote__<scenario>
       net_profit_excl_best_trade__<scenario>
-      max_drawdown_pct__<scenario>
+      max_relative_drawdown_pct__<scenario>
     plus scenario-independent keys:
       lookahead_has_bias (bool)
       recursive_is_stable (bool)
@@ -150,7 +150,10 @@ def decide(
     # --- max drawdown ceiling per scenario ---
     max_dd_ratio = gates["max_drawdown"]["max_ratio"]
     for scenario in required_scenarios:
-        drawdown_pct = metrics.get(f"max_drawdown_pct__{scenario}")
+        # Worst peak-to-trough fall of the account, not Freqtrade's max_drawdown_account:
+        # that one is taken at the point of largest ABSOLUTE loss and understates a
+        # compounding whole-balance run (H-007 BNB: 25.1% vs 51.3%).
+        drawdown_pct = metrics.get(f"max_relative_drawdown_pct__{scenario}")
         if drawdown_pct is None:
             reasons.append(f"max_drawdown[{scenario}]: FAIL (not recorded)")
             passed = False

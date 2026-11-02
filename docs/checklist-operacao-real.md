@@ -12,6 +12,9 @@ Gerado a partir da auditoria de 2026-11-02. Nada aqui autoriza operação real: 
 
 ## B. Pesquisa e validação estatística
 
+- [x] Motor de backtest conferido contra simulador independente (H-001; `research/engine-crosscheck-2026-11-02.md`).
+- [x] Gate de drawdown passou a usar o drawdown relativo (pico a vale).
+
 - [x] Reavaliar H-001 e as baselines no harness corrigido (stake `unlimited`).
 - [ ] Investigar o sinal de lookahead da H-007 (lógica não reproduz o viés localmente; falta resolver no analisador) em BNB/USDT e o salto de preço de 23,5% nos dados da BNB.
 - [ ] Pelo menos uma hipótese com `candidate_for_portfolio` na exploração, nos 3 pares.

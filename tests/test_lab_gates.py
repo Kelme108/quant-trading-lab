@@ -15,6 +15,7 @@ def make_metrics(**overrides) -> dict:
         metrics[f"trades__{scenario}"] = 40
         metrics[f"net_profit_quote__{scenario}"] = 10.0
         metrics[f"max_drawdown_pct__{scenario}"] = 5.0
+        metrics[f"max_relative_drawdown_pct__{scenario}"] = 5.0
     metrics["net_profit_excl_best_trade__base"] = 4.0
     metrics.update(overrides)
     return metrics
@@ -87,12 +88,12 @@ class GatesDecisionTests(unittest.TestCase):
         )
 
     def test_drawdown_over_ceiling_rejects(self) -> None:
-        decision, reasons = gates.decide(make_metrics(**{"max_drawdown_pct__base": 30.0}))
+        decision, reasons = gates.decide(make_metrics(**{"max_relative_drawdown_pct__base": 30.0}))
         self.assertEqual(decision, gates.DECISION_REJECTED)
         self.assertTrue(any("max_drawdown[base]" in r and "FAIL" in r for r in reasons))
 
     def test_drawdown_exactly_at_ceiling_passes(self) -> None:
-        decision, _ = gates.decide(make_metrics(**{"max_drawdown_pct__base": 25.0}))
+        decision, _ = gates.decide(make_metrics(**{"max_relative_drawdown_pct__base": 25.0}))
         self.assertEqual(decision, gates.DECISION_CANDIDATE)
 
     def test_missing_benchmark_rejects(self) -> None:
