@@ -325,6 +325,10 @@ def _read_backtest_zip(zip_path: Path) -> dict:
         "net_profit_quote": net_profit,
         "net_profit_excl_best_trade": net_profit_excl_best,
         "max_drawdown_pct": float(stats.get("max_drawdown_account", 0.0)) * 100,
+        # max_drawdown_account is the drawdown at the point of largest ABSOLUTE loss, so for a
+        # compounding whole-balance strategy it understates the worst RELATIVE fall (H-007 BNB: 25.1%
+        # vs 51.3%). Recorded alongside; the gate still reads max_drawdown_pct until the user decides.
+        "max_relative_drawdown_pct": float(stats.get("max_relative_drawdown", 0.0)) * 100,
         "starting_balance": float(stats.get("starting_balance", 0.0)),
         "final_balance": float(stats.get("final_balance", 0.0)),
         "winrate": float(stats.get("winrate", 0.0)),

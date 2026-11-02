@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -47,6 +48,35 @@ def freqtrade_version() -> str:
         if "freqtrade" in line.lower():
             return line.strip()
     return "unknown"
+
+
+def compose_image() -> str:
+    """The image name pinned in docker-compose.yml (the tag is never `stable`)."""
+    match = re.search(r"^\s*image:\s*(\S+)", (ROOT / "docker-compose.yml").read_text(encoding="utf-8"), re.M)
+    return match.group(1) if match else ""
+
+
+def runtime_fingerprint(run=subprocess.run) -> dict:
+    """Image digest and ccxt version for the manifest. Best effort: a value that
+    cannot be read stays empty and never fails an experiment."""
+    image = compose_image()
+    out = {"docker_image_digest": "", "ccxt_version": ""}
+    if not image:
+        return out
+    try:
+        inspect = run(
+            ["docker", "image", "inspect", image, "--format", "{{.Id}} {{join .RepoDigests \",\"}}"],
+            capture_output=True, text=True, check=True,
+        )
+        out["docker_image_digest"] = inspect.stdout.strip()
+        ccxt = run(
+            ["docker", "run", "--rm", "--entrypoint", "python", image, "-c", "import ccxt;print(ccxt.__version__)"],
+            capture_output=True, text=True, check=True,
+        )
+        out["ccxt_version"] = ccxt.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return out
 
 
 def feather_path(pair: str, timeframe: str = "1h") -> Path:
@@ -118,6 +148,7 @@ def run_experiment(
         all_metrics[f"net_profit_quote__{scenario.name}"] = bt["net_profit_quote"]
         all_metrics[f"net_profit_excl_best_trade__{scenario.name}"] = bt["net_profit_excl_best_trade"]
         all_metrics[f"max_drawdown_pct__{scenario.name}"] = bt["max_drawdown_pct"]
+        all_metrics[f"max_relative_drawdown_pct__{scenario.name}"] = bt["max_relative_drawdown_pct"]
         print(
             f"  {scenario.name:12s} trades={bt['total_trades']:5d} "
             f"net_profit={bt['net_profit_quote']:10.2f} max_dd%={bt['max_drawdown_pct']:6.1f}"
@@ -164,6 +195,7 @@ def run_experiment(
     data["code"]["strategy_sha256"] = sha256_file(ROOT / strategy_file)
     data["code"]["config_sha256_redacted"] = sha256_file(ROOT / "user_data" / "config.dryrun.json")
     data["runtime"]["freqtrade_version"] = version
+    data["runtime"].update(runtime_fingerprint())
     data["runtime"]["host"] = "Windows 11 / Docker Desktop"
     data["runtime"]["command"] = " | ".join(commands)
     data["market"]["pair"] = pair

@@ -12,15 +12,15 @@ Gerado a partir da auditoria de 2026-11-02. Nada aqui autoriza operação real: 
 
 ## B. Pesquisa e validação estatística
 
-- [ ] Reavaliar H-001 e as baselines no harness corrigido (stake `unlimited`).
-- [ ] Investigar o sinal de lookahead da H-007 em BNB/USDT e o salto de preço de 23,5% nos dados da BNB.
+- [x] Reavaliar H-001 e as baselines no harness corrigido (stake `unlimited`).
+- [ ] Investigar o sinal de lookahead da H-007 (lógica não reproduz o viés localmente; falta resolver no analisador) em BNB/USDT e o salto de preço de 23,5% nos dados da BNB.
 - [ ] Pelo menos uma hipótese com `candidate_for_portfolio` na exploração, nos 3 pares.
 - [ ] A mesma hipótese em `candidate_for_portfolio` na validação, nos 3 pares.
-- [ ] Bootstrap de blocos / Monte Carlo da sequência de trades (drawdown P95 dentro do limite).
+- [ ] Bootstrap de blocos / Monte Carlo (ferramenta pronta em `lab/bootstrap.py`; falta rodar numa candidata, H-005/H-007 deram P95 de 51% a 76%).
 - [ ] Sensibilidade de parâmetros na vizinhança do valor escolhido.
 - [ ] Walk-forward e leave-one-pair-out.
 - [ ] Comparação com buy-and-hold e com uma baseline simples.
-- [ ] Preencher `docker_image_digest` e `ccxt_version` nos manifestos.
+- [ ] Preencher `docker_image_digest` e `ccxt_version` nos manifestos (código pronto e testado com mock; falta confirmar num experimento real).
 
 ## C. Forward test (dry-run)
 
@@ -36,7 +36,7 @@ Gerado a partir da auditoria de 2026-11-02. Nada aqui autoriza operação real: 
 - [ ] `protections` de portfólio (`StoplossGuard`, `MaxDrawdown`) e limite de perda diária.
 - [ ] Alertas (Telegram ou equivalente) e kill switch documentado.
 - [ ] Chave de API sem permissão de saque, restrita por IP, fora do repositório (variável de ambiente ou secret).
-- [ ] Config live separada da config de dry-run, protegida por hash e por teste.
+- [x] Gabarito inerte em `docs/config.production.example.json`, com teste. Falta a config real, protegida por hash, depois das decisões do bloco A.
 
 ## E. Final test e piloto
 
