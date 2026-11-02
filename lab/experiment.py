@@ -103,6 +103,7 @@ def run_experiment(
     splits: dict,
     version: str,
     notes: str = "",
+    exposure: float = 1.0,
 ) -> str:
     """Run the experiment and return its id. Raises ExperimentFailed on a failed
     backtest, after marking the experiment row `failed`."""
@@ -126,7 +127,7 @@ def run_experiment(
     )
     registry.set_experiment_status(conn, experiment_id, "running")
 
-    all_metrics: dict = {}
+    all_metrics: dict = {"exposure": exposure}
     commands: list[str] = []
     base_bt: dict = {}
 
@@ -137,6 +138,7 @@ def run_experiment(
             timerange=timerange,
             fee=scenario.effective_fee_per_side,
             pair=pair,
+            exposure=exposure,
         )
         commands.append(bt.get("command", ""))
         if bt.get("status") != "completed":

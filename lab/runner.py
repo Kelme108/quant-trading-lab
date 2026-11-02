@@ -164,6 +164,7 @@ def run_backtest(
     timeframe: str = "1h",
     dry_run_wallet: float = 100.0,
     stake_amount: float | str = "unlimited",
+    exposure: float = 1.0,
 ) -> dict:
     """Runs `backtesting --export trades`, saves raw output + artifacts, and
     returns parsed metrics read from the exported zip (never from stdout text).
@@ -174,7 +175,14 @@ def run_backtest(
     because the balance then falls below the stake: the same Donchian run on
     ETH/USDT made 1 trade with a fixed 100 and 284 with "unlimited". Trade
     counts, and therefore the minimum-trades gate, are meaningless otherwise.
+
+    `exposure` is the share of the account one trade may use (Freqtrade's
+    tradable_balance_ratio). 1.0 changes nothing. Below 1.0 a small overlay config
+    is written next to the export and passed as a second --config; the idle part
+    of the account stays in cash, so the reported drawdown is the account's.
     """
+    if not 0.0 < exposure <= 1.0:
+        raise ValueError(f"exposure must be in (0, 1], got {exposure}")
     export_dir_name = f"experiments/{experiment_id}"
     container_export_dir = f"{CONTAINER_USER_DATA}/backtest_results/{export_dir_name}"
     host_export_dir = USER_DATA / "backtest_results" / export_dir_name
@@ -201,6 +209,13 @@ def run_backtest(
         # (e.g. a cooldown), so the backtest would not trade the declared rule.
         "--enable-protections",
     ]
+    if exposure < 1.0:
+        (host_export_dir / "exposure.json").write_text(
+            json.dumps({"tradable_balance_ratio": exposure}), encoding="utf-8"
+        )
+        args[args.index("--config") + 2:args.index("--config") + 2] = [
+            "--config", f"{container_export_dir}/exposure.json"
+        ]
     result = run_compose(args)
     _save_process_output(experiment_id, "backtesting", result)
 
@@ -288,15 +303,29 @@ def compounded_profit_excluding_best(trades: list[dict], starting_balance: float
     profits compound and the best trade also enlarges every later trade.
     Subtracting its profit_abs from the total would ignore that and punish
     long, compounding runs. Instead the balance curve is rebuilt without the
-    trade with the highest profit_ratio: starting_balance * prod(1 + r) - starting_balance.
-    Zero trades, or a single trade, gives 0.0.
+    trade with the highest profit_ratio.
+
+    When a trade used only part of the account (exposure below 1), each trade's
+    share of the balance is taken from the export (stake_amount over the balance
+    just before it) and kept for the trades that remain, so the rebuilt curve
+    scales the same way the run did. A trade without a stake_amount counts as
+    the whole balance. Zero trades, or a single trade, gives 0.0.
     """
     if not trades:
         return 0.0
-    ratios = sorted(float(t["profit_ratio"]) for t in trades)[:-1]  # drop the best
+    ordered = sorted(trades, key=lambda t: str(t.get("open_date", "")))
+    shares: list[float] = []
     balance = starting_balance
-    for ratio in ratios:
-        balance *= 1 + ratio
+    for trade in ordered:
+        stake = trade.get("stake_amount")
+        share = min(1.0, float(stake) / balance) if stake and balance > 0 else 1.0
+        shares.append(1.0 if share > 0.999 else share)
+        balance += float(trade.get("profit_abs", 0.0))
+    best = max(range(len(ordered)), key=lambda i: float(ordered[i]["profit_ratio"]))
+    balance = starting_balance
+    for i, trade in enumerate(ordered):
+        if i != best:
+            balance *= 1 + shares[i] * float(trade["profit_ratio"])
     return balance - starting_balance
 
 
