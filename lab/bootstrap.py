@@ -96,6 +96,33 @@ def block_bootstrap(
     }
 
 
+EXPOSURE_GRID = tuple(round(0.05 * step, 2) for step in range(20, 0, -1))  # 1.00 down to 0.05
+
+
+def choose_exposure(
+    ratios_by_pair: dict[str, list[float]],
+    *,
+    dd_limit: float = 0.25,
+    block_size: int = 3,
+    n_resamples: int = 4000,
+    seed: int = 1,
+) -> dict:
+    """Largest exposure on the 5% grid whose bootstrap 95th-percentile closed-trade
+    drawdown stays within dd_limit on EVERY pair at once. One number for all pairs,
+    computed from exploration trades only. Returns exposure None when even 5% fails."""
+    for exposure in EXPOSURE_GRID:
+        p95 = {
+            pair: block_bootstrap(
+                [r * exposure for r in ratios], block_size=block_size, n_resamples=n_resamples,
+                seed=seed, dd_limit=dd_limit,
+            )["drawdown_p95"]
+            for pair, ratios in ratios_by_pair.items()
+        }
+        if all(value <= dd_limit for value in p95.values()):
+            return {"exposure": exposure, "p95_by_pair": p95}
+    return {"exposure": None, "p95_by_pair": {}}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("trades_csv", nargs="+", type=Path)
