@@ -9,7 +9,16 @@ const sx = ui.sx = { pair: 'all' };
 const MIN_TRADES = () => (state.gate_bar && state.gate_bar.minimum_trades) || 30;
 
 /* ---------- data access ---------- */
-const strat = () => state.strategies || [];
+/* By default only candidates are shown; the toggle in the header (or ui.showAll) brings back rejected/dropped/archived ones.
+   Nothing is deleted: the data is the same, only the view is filtered. */
+const LS_SHOWALL = 'lab-dashboard-show-all-v1';
+ui.showAll = (() => { try { return localStorage.getItem(LS_SHOWALL) === '1'; } catch (e) { return false; } })();
+/* A server that does not send the flag (older code still running) must not hide everything: no flag, no filter. */
+const hasFlag = () => (state.strategies || []).some((r) => 'candidate' in r);
+const visibleHy = (hy) => ui.showAll || !hasFlag() || hy.candidate;
+const strat = () => (state.strategies || []).filter((r) => ui.showAll || !hasFlag() || r.candidate);
+const hiddenCount = () => (hasFlag() ? new Set((state.strategies || []).filter((r) => !r.candidate).map((r) => r.id)).size : 0);
+const toggleShowAll = () => { ui.showAll = !ui.showAll; try { localStorage.setItem(LS_SHOWALL, ui.showAll ? '1' : '0'); } catch (e) { /* só nesta sessão */ } };
 const sRows = (stage) => strat().filter((r) => r.stage === stage);
 const sRow = (id, stage) => strat().find((r) => r.id === id && r.stage === stage);
 const sIds = () => [...new Set(strat().map((r) => r.id))];
@@ -346,7 +355,7 @@ function pageCompare() {
 const bt = ui.bt = { hyp: 'all', stage: 'all', pair: 'all', origin: 'backtest' };
 function btRuns() {
   const out = [];
-  for (const hy of state.hypotheses) { if (hy.invalid) continue; for (const c of hy.cells) { const a = c.analytics; if (!a) continue; out.push({ hy, c, a }); } }
+  for (const hy of state.hypotheses) { if (hy.invalid || !visibleHy(hy)) continue; for (const c of hy.cells) { const a = c.analytics; if (!a) continue; out.push({ hy, c, a }); } }
   return out;
 }
 function pageBacktests() {
@@ -428,7 +437,11 @@ function pageOverviewPortal() {
     table: { head: ['Estratégia', 'Lucro acumulado final'], rows: topN.map((r) => [r.id, pct(r.curve && r.curve.length ? r.curve[r.curve.length - 1][1] : null)]), numCols: [1] } });
   const mini = card('Top 5 por evidência', 'Ranking completo em Ranking', h('div', { class: 'tablewrap' }, simpleTable(['#', 'Estratégia', 'Evidência', 'ROI', 'Queda'], topN.map((r, i) => [String(i + 1), h('a', { href: `#/strategy/${r.id}?stage=${stage}`, title: r.family }, h('b', null, r.id)), scoreMeter(r), pct(r.roi_pct), plain(r.max_dd_pct)]), [3, 4])),
     h('div', { style: 'margin-top:8px' }, h('a', { href: `#/leaderboard?stage=${stage}`, 'data-fkey': 'ov-rank' }, 'Abrir o ranking completo →')));
-  const summary = h('section', { class: 'card brief', 'aria-label': 'Resumo' }, h('p', null, summaryParts().join(' ')), h('p', { class: 'sub' }, h('b', null, 'Próximo passo: '), nextStep()));
+  const parts = summaryParts(), notes = parts.filter((p) => !p.startsWith('Atenção')), nOpen = openItems().length;
+  const summary = h('section', { class: 'brief', 'aria-label': 'Resumo' }, h('p', { class: 'lead' }, notes[0]),
+    notes.length > 1 && h('p', { class: 'sub' }, notes.slice(1).join(' ')),
+    nOpen > 0 && h('p', { class: 'sub' }, `${nOpen} ${plural(nOpen, 'alerta aberto', 'alertas abertos')}: detalhes em Estado do sistema, mais abaixo.`),
+    h('p', { class: 'next' }, h('b', null, 'Próximo passo: '), nextStep()));
   return h('div', null, summary, stageSwitch, kp, h('div', { class: 'grid g21' }, h('div', { class: 'vstack' }, featured, evol), h('div', { class: 'vstack' }, answersCard(stage), mini)),
     sectionTitle('Estado do sistema'), systemTiles(), h('div', { style: 'height:12px' }),
     h('div', { class: 'grid g2' }, alertPanel(state.attention || []), activityFeed(8)),
@@ -468,3 +481,29 @@ function paletteOpen() {
   palette.el.hidden = false; palette.input.value = ''; palette.idx = 0; paletteRender(); palette.input.focus();
 }
 addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); paletteOpen(); } });
+
+/* ==================== Dry-run (evidence collection) and idea intake ==================== */
+function pageDryrun() {
+  const ft = state.forward_test || {}, hy = ft.hypotheses || [], intake = ft.intake || {};
+  const p3 = (v) => (v == null ? dash : (v * 100).toFixed(3) + '%');
+  const mins = (v) => (v == null ? dash : v.toFixed(1) + ' min');
+  const states = [['new', 'Coletadas'], ['triaged', 'Triadas'], ['queued', 'Na fila'], ['registered', 'Registradas'], ['dropped', 'Descartadas']];
+  const intakeTotal = states.reduce((a, [k]) => a + (intake[k] || 0), 0);
+  const intakeCard = card('Esteira de ideias', 'Coleta (scout) e triagem; nada aqui é resultado de backtest', intakeTotal
+    ? h('div', { class: 'tablewrap' }, simpleTable(['Estado', 'Ideias'], states.map(([k, t]) => [t, nf0.format(intake[k] || 0)]), [1]))
+    : emptyState('Nenhuma ideia coletada ainda.', 'O scout roda no ciclo semanal.'));
+  const label = hy.length ? hy[0].label : 'Dry-run como coleta de evidência: NÃO validada; não é aprovação, não é holdout.';
+  const banner = h('p', { class: 'sub' }, h('b', null, 'Aviso: '), label);
+  if (!hy.length) return h('div', null, banner, emptyState('Nenhuma estratégia congelada para dry-run.', 'Aprove com approve.py --stage dryrun e congele com forward_freeze.py.'), h('div', { style: 'height:12px' }), intakeCard);
+  const blocks = hy.map((x) => {
+    const rows = Object.entries(x.pairs).map(([pair, q]) => q.error ? [pair, q.error, '', '', '', '', ''] : [pair, `${nf0.format(q.open)} / ${nf0.format(q.closed)}`, `${nf0.format(q.entry_orders_not_filled)} de ${nf0.format(q.entry_orders)}`,
+      p3(q.entry_slippage_mean), p3(q.exit_slippage_mean), mins(q.fill_latency_minutes_mean), `${p3(q.observed_entry_cost_per_side_mean)} (assumido ${p3(q.assumed_cost_per_side)})`]);
+    const total = Object.values(x.pairs).reduce((a, q) => a + (q.trades || 0), 0);
+    return card(`${x.id}: bots em dry-run`, `congelada em ${x.frozen_at ? x.frozen_at.slice(0, 16).replace('T', ' ') : dash} UTC · commit ${x.commit}`, h('div', null,
+      h('div', { class: 'row', style: 'margin-bottom:8px' }, badge(x.freeze_ok ? ST.good : ST.bad, x.freeze_ok ? 'Congelamento íntegro' : 'ARQUIVO ALTERADO'), h('span', { class: 'sub' }, `${nf0.format(total)} trades até agora`)),
+      x.problems.length ? h('pre', null, x.problems.join(String.fromCharCode(10))) : null,
+      total ? null : h('p', { class: 'sub' }, 'Sem trades ainda: a H-009 faz poucos trades por ano por par; as tabelas enchem com o tempo.'),
+      h('div', { class: 'tablewrap' }, simpleTable(['Par', 'Abertos / fechados', 'Entradas não preenchidas', 'Slippage entrada', 'Slippage saída', 'Latência', 'Custo observado'], rows, [1, 2, 3, 4, 5, 6]))));
+  });
+  return h('div', null, banner, h('p', { class: 'sub' }, 'Só qualidade de execução. O retorno do dry-run não é mostrado: a avaliação formal é o holdout (a partir de 2027-04-21).'), ...blocks, h('div', { style: 'height:12px' }), intakeCard);
+}

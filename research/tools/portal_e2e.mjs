@@ -35,7 +35,17 @@ let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`); if (!ok) failed++; };
 const rowsIds = () => js(`[...document.querySelectorAll('table.lb tbody tr')].map((r) => r.dataset.key)`);
 
+// Default view: only candidates. The toggle in the header brings back the rest; the other checks run with everything visible.
 await open('#/leaderboard');
+const onlyCand = await rowsIds();
+check('by default only candidates are listed', onlyCand.length >= 1 && onlyCand.every((k) => k.startsWith('H-009')), onlyCand.join(','));
+const hiddenLabel = await js(`document.querySelector('[data-fkey="showall"]').textContent`);
+check('header offers to show the non-candidates', /Mostrar não candidatas \(\d+\)/.test(hiddenLabel), hiddenLabel);
+await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
+check('toggle shows every strategy', (await rowsIds()).length >= 5);
+await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
+check('toggle hides them again', (await rowsIds()).length === onlyCand.length);
+await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
 let ids = await rowsIds();
 check('ranking lists strategies', ids.length >= 5, `${ids.length} rows`);
 check('default sort is by evidence (desc)', JSON.stringify(await js(`[...document.querySelectorAll('table.lb tbody tr .score-n')].map((e) => Number(e.textContent))`)) === JSON.stringify((await js(`[...document.querySelectorAll('table.lb tbody tr .score-n')].map((e) => Number(e.textContent)).sort((a, b) => b - a)`))));
@@ -92,6 +102,8 @@ await open('#/overview');
 check('overview shows the featured strategy and quick answers', await js(`document.body.textContent.includes('Em destaque') && document.body.textContent.includes('Respostas rápidas')`));
 await open('#/data');
 check('system page shows the status tiles', await js(`document.querySelectorAll('.tile').length >= 5`));
+await open('#/dryrun');
+check('dry-run page shows the fixed label, the freeze status and no profit', await js(`(() => { const t = document.querySelector('#page').textContent; return t.includes('NÃO validada') && t.includes('Congelamento') && t.includes('Esteira de ideias') && !t.includes('Lucro'); })()`));
 await open('#/trades');
 check('trades page still works', await js(`document.body.textContent.includes('Operações de backtest')`));
 
@@ -105,7 +117,7 @@ await js(`document.querySelector('[data-fkey="density"]').click()`); await sleep
 check('density toggle switches to compact', await js(`document.documentElement.dataset.density === 'compact'`));
 await js(`document.querySelector('[data-fkey="theme"]').click()`); await sleep(300);
 check('theme toggle works', await js(`['light', 'dark'].includes(document.documentElement.dataset.theme)`));
-for (const route of ['overview', 'leaderboard', 'strategy/H-005', 'compare?ids=H-005,H-009', 'backtests', 'trades', 'experiments', 'research', 'strategies', 'risk', 'data']) {
+for (const route of ['overview', 'leaderboard', 'strategy/H-005', 'compare?ids=H-005,H-009', 'backtests', 'trades', 'experiments', 'research', 'strategies', 'risk', 'data', 'dryrun']) {
   await go('#/' + route); await sleep(300);
   const bad = await js(`document.querySelector('#page .empty b') && document.querySelector('#page').textContent.includes('Erro ao desenhar')`);
   check(`route /${route} renders without a page error`, !bad);

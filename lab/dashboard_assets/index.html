@@ -440,6 +440,80 @@ table.cmp td.best { font-weight: 700; color: var(--good); background: var(--good
 .palette-box li { display: flex; justify-content: space-between; gap: 14px; padding: 9px 12px; border-radius: 8px; cursor: pointer; } .palette-box li span { color: var(--muted); font-size: var(--p-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-box li.on { background: var(--accent-bg); } .palette-box li.none { color: var(--muted); cursor: default; }
 .palette-foot { border-top: 1px solid var(--line); padding: 8px 14px; color: var(--muted); font-size: var(--p-fs-xs); }
+
+/* ==================== 7. refinement layer ====================
+   Design review (frontend-design + Impeccable): removed the generic "AI dashboard" tells -
+   tracked ALL-CAPS labels, coloured side-stripe borders, gradient accent bars, chips repeated on every card,
+   a row of identical bordered cards, cards nested in cards, and neon-accent active states.
+   Hierarchy now comes from size, weight and spacing; colour is kept for meaning (gain / loss / caution). */
+:root { --radius: 8px; --card-radius: 12px; --p-fs-xs: 12px; }
+html { text-size-adjust: 100%; }
+h1, h2, h3, .sxtitle h2 { text-wrap: balance; } p, .sub, .lbnote { text-wrap: pretty; }
+h1 { font-size: 24px; letter-spacing: -.02em; }
+
+/* labels: sentence case, quiet weight (no tracked caps) */
+.kpi .lab, .metric .lab, .tile .lab, .answers dt, .eyebrow, .navlabel, thead th, .origin, .sim, .section h2, .part { text-transform: none; letter-spacing: 0; }
+.kpi .lab, .metric .lab, .tile .lab, .answers dt { font-size: 12.5px; font-weight: 550; color: var(--muted); }
+thead th { font-size: 12.5px; font-weight: 600; letter-spacing: 0; }
+table.lb thead th { letter-spacing: 0; }
+.eyebrow { font-size: 13px; font-weight: 550; letter-spacing: 0; }
+.navlabel { font-size: 12px; font-weight: 600; padding: 10px 10px 4px; }
+.origin { font: 550 11.5px var(--sans); border-color: var(--line2); color: var(--ink2); }
+.sim { font: 500 12px var(--sans); color: var(--muted); border: 0; padding: 0; border-radius: 0; }
+.sim::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--info); margin-right: 6px; vertical-align: 1px; }
+.section { margin: 30px 0 12px; }
+.section h2 { font-size: 16px; font-weight: 650; color: var(--ink); }
+.answers dt { padding-top: 12px; }
+
+/* no coloured side stripes: tinted surface + leading icon carry the status instead */
+.nav[aria-current="page"] { background: var(--raised); border-color: transparent; font-weight: 600; }
+.nav[aria-current="page"]::before { content: none; }
+.attn li, .flags li, .banner { border-left-width: 1px; }
+.attn li { border-left-color: var(--line); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 28%, var(--line)); }
+.attn li.error { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 32%, var(--line)); } .attn li.done { background: var(--panel2); border-color: var(--line); }
+.flags li { background: var(--panel2); }
+.flags li.bad { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+.flags li.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 28%, var(--line)); }
+.flags li.good { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 24%, var(--line)); }
+.flags li.info { background: var(--info-bg); border-color: color-mix(in srgb, var(--info) 24%, var(--line)); }
+.banner { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+
+/* metric strips: one surface with hairline dividers instead of a row of identical bordered cards */
+.kpis, .metrics { gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--card-radius); overflow: hidden; box-shadow: none; }
+.kpis > .kpi, .metrics > .metric { border: 0; border-radius: 0; box-shadow: none; background: var(--panel); }
+.kpi::before { content: none; }
+.kpi { padding: 14px 18px; }
+.kpi .val { font-size: calc(var(--kpi-val) + 2px); font-weight: 600; letter-spacing: -.025em; }
+.metric .val { font-weight: 600; }
+.metrics.sm { gap: 1px; margin-bottom: 10px; }
+.metrics.sm .metric { background: var(--panel2); }
+.card .metrics:not(.sm) > .metric { background: var(--panel2); }
+.kpis { margin-bottom: calc(var(--gap) + 4px); }
+
+/* cards: elevation by surface, not by shadow */
+.card, .tile, .minis { box-shadow: none; }
+.attn li { box-shadow: none; }
+.card > header h2, .card > header h3 { font-size: 15px; letter-spacing: -.01em; }
+
+/* overview brief: a lead sentence and a next step, not a wall of text */
+.brief { padding: 2px 0 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line); max-width: 96ch; }
+.brief .lead { font-size: 17px; line-height: 1.45; font-weight: 550; letter-spacing: -.01em; }
+.brief .sub { margin-top: 6px; font-size: 13.5px; }
+.brief .next { margin-top: 10px; color: var(--ink2); }
+.brief .next b { color: var(--ink); font-weight: 650; }
+
+/* one orchestrated moment: the page eases in when you navigate (not on the 15 s data refresh) */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#page.enter > div > * { animation: rise 380ms var(--p-ease) both; }
+#page.enter > div > *:nth-child(2) { animation-delay: 40ms; } #page.enter > div > *:nth-child(3) { animation-delay: 80ms; }
+#page.enter > div > *:nth-child(4) { animation-delay: 120ms; } #page.enter > div > *:nth-child(n+5) { animation-delay: 160ms; }
+
+/* controls: consistent radius, neutral pressed state (accent is for primary action and focus) */
+button[aria-pressed="true"] { background: var(--raised); border-color: var(--ink2); }
+.chip.on { background: var(--raised); border-color: var(--ink2); }
+.palette-box { border-radius: var(--card-radius); }
+.tab.on { border-bottom-color: var(--ink); }
+.brand { font-size: 15px; letter-spacing: -.01em; }
 </style>
 </head>
 <body>
@@ -531,6 +605,7 @@ const ICONS = {
   overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
   research: ['M6 6h12v12H6z', 'M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3'],
   experiments: ['M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3'],
+  dryrun: ['M12 3a9 9 0 1 0 9 9', 'M12 7v5l3 2'],
   strategies: ['M12 3l9 5-9 5-9-5z', 'M3 13l9 5 9-5'],
   portfolio: ['M3 7h15a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7V6a2 2 0 0 1 2-2h11', 'M16 14h2'],
   risk: ['M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'],
@@ -1715,6 +1790,7 @@ const ROUTES = [
   { id: 'compare', group: 'Análise', title: 'Comparar', ctx: 'Estratégias lado a lado', page: () => pageCompare() },
   { id: 'backtests', group: 'Execução', title: 'Backtests', ctx: 'Execuções, capital, custos e as três origens de resultado', page: () => pageBacktests() },
   { id: 'trades', group: 'Execução', title: 'Operações', ctx: 'Candles e operações de cada backtest', page: (r) => pageTrades(r) },
+  { id: 'dryrun', group: 'Execução', title: 'Dry-run', ctx: 'Bots congelados em dry-run: qualidade de execução e esteira de ideias', page: () => pageDryrun() },
   { id: 'experiments', group: 'Execução', title: 'Experimentos', ctx: 'Cada execução de backtest e a decisão dos gates', page: (r) => r.arg ? pageExperiment(r.arg) : pageExperiments() },
   { id: 'research', group: 'Laboratório', title: 'Pesquisa com IA', ctx: 'Agentes, pipeline e relatórios dos revisores', page: () => pageResearch() },
   { id: 'strategies', group: 'Laboratório', title: 'Hipóteses', ctx: 'Hipóteses, famílias e comparação lado a lado', page: () => pageStrategies() },
@@ -1748,9 +1824,10 @@ function buildShell() {
   els.title = h('h1', null), els.ctx = h('div', { class: 'ctx' });
   els.theme = h('button', { type: 'button', 'data-fkey': 'theme', 'aria-label': 'Alternar tema claro e escuro', onclick: () => { const t = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; try { localStorage.setItem(LS_THEME, t); } catch (e) { /* tema só nesta sessão */ } render(); } }, icon('theme', 15), ' Tema');
   els.density = h('button', { type: 'button', 'data-fkey': 'density', 'aria-label': 'Alternar densidade: confortável ou compacta', 'aria-pressed': document.documentElement.dataset.density === 'compact' ? 'true' : 'false', onclick: () => { const c = document.documentElement.dataset.density === 'compact' ? 'comfortable' : 'compact'; document.documentElement.dataset.density = c; els.density.setAttribute('aria-pressed', c === 'compact' ? 'true' : 'false'); try { localStorage.setItem(LS_DENSITY, c); } catch (e) { /* densidade só nesta sessão */ } } }, 'Compacto');
+  els.showall = h('button', { type: 'button', 'data-fkey': 'showall', 'aria-label': 'Mostrar ou ocultar estratégias que não são candidatas', onclick: () => { toggleShowAll(); render(); } });
   els.search = h('button', { type: 'button', class: 'searchbtn', 'data-fkey': 'search', 'aria-label': 'Buscar página ou estratégia (Ctrl K)', onclick: () => paletteOpen() }, icon('search', 14), h('span', null, 'Buscar'), h('kbd', null, 'Ctrl K'));
   els.stateAt = h('span', { class: 'item' });
-  els.top = h('header', { class: 'top' }, h('div', null, els.title, els.ctx), h('div', { class: 'live' }, h('span', { class: 'item' }, statusIcon, statusText), els.stateAt, els.search, els.density, els.theme));
+  els.top = h('header', { class: 'top' }, h('div', null, els.title, els.ctx), h('div', { class: 'live' }, h('span', { class: 'item' }, statusIcon, statusText), els.stateAt, els.search, els.showall, els.density, els.theme));
   els.banner = h('div', { id: 'banner' }); els.stale = h('div', { id: 'stale-banner' });
   els.page = h('main', { id: 'page', tabindex: '-1' });
   els.foot = h('div', { class: 'foot', style: 'padding:0 20px 24px' });
@@ -1795,11 +1872,14 @@ function render(opts = {}) {
   const active = document.activeElement, fk = active && els.page.contains(active) && active.dataset ? active.dataset.fkey : null;
   const y = scrollY, same = shownKey === route.key && !opts.top;
   hideDef(); hideTip(); qn = 0;
+  { const n = typeof hiddenCount === 'function' ? hiddenCount() : 0; els.showall.textContent = ui.showAll ? 'Só candidatas' : `Mostrar não candidatas (${n})`; els.showall.setAttribute('aria-pressed', ui.showAll ? 'true' : 'false'); els.showall.hidden = n === 0 && !ui.showAll; }
   if (!state.hypotheses.some((x) => x.id === ui.selected)) ui.selected = null;
   refreshChrome();
   let node;
   try { node = route.def.page(route); } catch (err) { node = emptyState('Erro ao desenhar esta página.', `${err && err.message ? err.message : err}. Os dados continuam sendo lidos; recarregue a página.`); console.error(err); }
   els.page.replaceChildren(node);
+  els.page.classList.remove('enter');
+  if (!same) { void els.page.offsetWidth; els.page.classList.add('enter'); }
   shownKey = route.key;
   queueMicrotask(() => {
     if (same) scrollTo(0, y);

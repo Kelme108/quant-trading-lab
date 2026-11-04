@@ -379,9 +379,56 @@ def _cycles(root: Path, limit: int = 8) -> list[dict]:
     return list(reversed(rows))
 
 
+def _dryrun(root: Path) -> list[dict]:
+    """One entry per frozen hypothesis (research/forward/*-freeze.json): freeze check and execution quality per pair.
+    Read-only. No profit is aggregated here: the dry-run result is monitoring, not an evaluation."""
+    from lab import forward  # local import: the dashboard stays importable without the forward harness
+
+    out = []
+    for record in sorted((root / "research" / "forward").glob("H-*-freeze.json")):
+        frozen = _read_json(record)
+        if not isinstance(frozen, dict):
+            continue
+        hid = record.name.removesuffix("-freeze.json")
+        try:
+            problems = forward.check_freeze(hid, root)
+        except Exception as error:  # a broken git or file must show as a problem, not hide the card
+            problems = [f"check failed: {str(error)[:120]}"]
+        pairs = {}
+        for pair, db in (frozen.get("databases") or {}).items():
+            try:
+                trades, orders = forward.read_database(root / db)
+                quality = forward.execution_quality(trades, orders)
+                quality["last_open_date"] = max((str(t["open_date"]) for t in trades), default=None)
+                pairs[pair] = quality
+            except Exception as error:
+                pairs[pair] = {"error": str(error)[:160]}
+        out.append({"id": hid, "frozen_at": frozen.get("frozen_at_utc"), "commit": str(frozen.get("git_commit") or "")[:10],
+                    "freeze_ok": not problems, "problems": problems[:5], "pairs": pairs, "label": forward.LABEL})
+    return out
+
+
+def _intake(root: Path) -> dict:
+    """Ideas by state (F0-F2 of the funnel), read-only from the registry."""
+    path = root / "research" / "lab.sqlite"
+    counts: dict = {}
+    conn = None
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        if _table_exists(conn, "ideas"):
+            counts = {state: int(n) for state, n in conn.execute("SELECT state, COUNT(*) FROM ideas GROUP BY state")}
+    except sqlite3.Error:
+        pass
+    finally:
+        if conn is not None:
+            conn.close()
+    return counts
+
+
 def _forward_test(root: Path) -> dict:
     path = root / "user_data" / "tradesv3.dryrun.sqlite"
-    info: dict = {"db_found": path.is_file(), "open": 0, "closed": 0, "profit_abs": 0.0}
+    info: dict = {"db_found": path.is_file(), "open": 0, "closed": 0, "profit_abs": 0.0,
+                  "hypotheses": _dryrun(root), "intake": _intake(root)}
     conn = None
     try:
         conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
