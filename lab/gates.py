@@ -126,7 +126,7 @@ def decide(
         ok = net_profit > required_profit
         reasons.append(
             f"net_profit[{scenario}]: {'pass' if ok else 'FAIL'} "
-            f"(net_profit_quote={net_profit} > required {required_profit:.4f}, "
+            f"(net_profit_quote={net_profit} {'>' if ok else '<='} required {required_profit:.4f}, "
             f"after {variants_tested_in_family} prior variant(s) in family)"
         )
         if not ok:
@@ -161,7 +161,7 @@ def decide(
         ok = (drawdown_pct / 100.0) <= max_dd_ratio
         reasons.append(
             f"max_drawdown[{scenario}]: {'pass' if ok else 'FAIL'} "
-            f"({drawdown_pct}% <= {max_dd_ratio * 100}%)"
+            f"({drawdown_pct}% {'<=' if ok else '>'} {max_dd_ratio * 100}%)"
         )
         if not ok:
             passed = False

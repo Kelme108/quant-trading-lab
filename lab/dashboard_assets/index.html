@@ -1173,10 +1173,10 @@ function humanize(raw) {
   else if (gate === 'recursive') body = /True/.test(det1) ? 'indicadores estáveis' : 'indicadores instáveis ou análise ausente';
   else if (gate === 'minimum_trades') body = (r = /^(\d+)\s*(?:>=|<)\s*(\d+)/.exec(det1)) ? `${nf0.format(+r[1])} trades; mínimo ${nf0.format(+r[2])}` : 'sem contagem de trades registrada';
   else if (gate === 'net_profit') {
-    r = new RegExp(`net_profit_quote=${NUM}\\s*>\\s*required\\s*${NUM},\\s*after\\s*(\\d+)`).exec(det1);
+    r = new RegExp(`net_profit_quote=${NUM}\\s*(?:<=|>)\\s*required\\s*${NUM},\\s*after\\s*(\\d+)`).exec(det1);
     body = r ? `${usdt(+r[1])}; exigido mais de ${usdt(+r[2])} (${+r[3] === 0 ? 'nenhuma variante anterior' : `${r[3]} ${plural(+r[3], 'variante anterior', 'variantes anteriores')}`} na família)` : 'sem lucro registrado';
   } else if (gate === 'profit_excluding_best_trade') body = (r = new RegExp(`value=${NUM}`).exec(det1)) ? `${usdt(+r[1])}; precisa ser maior que 0 USDT` : 'sem valor registrado';
-  else if (gate === 'max_drawdown') body = (r = new RegExp(`${NUM}%\\s*<=\\s*${NUM}%`).exec(det1)) ? `${nfv.format(+r[1])}%; limite ${nfv.format(+r[2])}%` : 'sem valor registrado';
+  else if (gate === 'max_drawdown') body = (r = new RegExp(`${NUM}%\\s*(?:<=|>)\\s*${NUM}%`).exec(det1)) ? `${nfv.format(+r[1])}%; limite ${nfv.format(+r[2])}%` : 'sem valor registrado';
   else if (gate === 'benchmark_comparison') body = (r = new RegExp(`cash=${NUM}%.*buy_and_hold=${NUM}%`).exec(det1)) ? `carteira parada ${pct(+r[1])}; comprar e segurar ${pct(+r[2])} no mesmo período. Vencê-los não é exigido` : 'sem valor registrado';
   else body = 'sem tradução; veja o texto cru';
   return { st, gate, bench: gate === 'benchmark_comparison', text: `${GATE[gate] || gate}${sc ? ', cenário ' + scPt(sc) : ''}: ${word}. ${body[0].toUpperCase() + body.slice(1)}` };

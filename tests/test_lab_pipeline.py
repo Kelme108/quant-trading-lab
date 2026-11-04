@@ -160,6 +160,58 @@ class FailingIdeaTests(PipelineTestCase):
         self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "failed: implementation")
         self.assertIn("completed", text)
 
+    def test_a_rejected_implementation_is_set_aside_so_the_next_idea_is_not_blocked_by_its_test(self) -> None:
+        queue_idea(self.conn, 1, score=4.0)
+        queue_idea(self.conn, 2, score=3.0)
+        tests_dir = self.root / "tests"
+        # the suite fails exactly while H-001's broken test sits in tests/ (as a real failing test would)
+        self.lab._run_test_suite = lambda: (not list(tests_dir.glob("test_*_h001_v1.py")), "H-001 test fails")
+        self.run_weekly()
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "failed: implementation")
+        self.assertNotEqual(registry.get_hypothesis(self.conn, "H-002")["status"], "failed: implementation")
+        self.assertFalse(list((self.root / "user_data" / "strategies").glob("*_H001_v1.py")))
+        self.assertFalse(list(tests_dir.glob("test_*_h001_v1.py")))
+        kept = sorted(p.name for p in (self.root / "research" / "rejected" / "H-001").iterdir())
+        self.assertEqual(len(kept), 2)
+        self.assertTrue(all(name.endswith(".py.rejected") for name in kept))
+
+    def test_an_unexpected_exploration_error_fails_that_hypothesis_and_the_run_goes_on(self) -> None:
+        queue_idea(self.conn, 1, score=4.0)
+        queue_idea(self.conn, 2, score=3.0)
+        original = self.fake_explore
+
+        def crash_first(conn, hid, **kwargs):
+            if hid == "H-001":
+                raise RuntimeError("docker is not running")
+            return original(conn, hid, **kwargs)
+
+        self.pipe.explore = crash_first
+        text = self.run_weekly()
+        self.assertIn("completed", text)
+        self.assertIn("exploration failed", text)
+        self.assertIn("docker is not running", text)
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "failed: exploration")
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-002")["status"], "exploration: candidate")
+        self.assertEqual(len(registry.list_archived_strategies(self.conn)), 1)  # H-001 left the strategy path
+
+    def test_the_report_names_the_pair_and_gate_that_rejected(self) -> None:
+        self.pipe.explore = lambda conn, hid, **kw: (
+            registry.set_hypothesis_status(conn, hid, "rejected at exploration"),
+            {"outcome": "explored", "counts": {p: 50 for p in PAIRS}, "exposure": 0.2, "status": "rejected at exploration",
+             "failed_gates": {"ETH/USDT": ["net_profit[base]", "net_profit[conservative]"]}},
+        )[1]
+        queue_idea(self.conn, 1)
+        text = self.run_weekly()
+        self.assertIn("failed gates: ETH/USDT net_profit[base], net_profit[conservative]", text)
+
+    def test_an_unexpected_error_outside_a_hypothesis_still_writes_the_report(self) -> None:
+        def broken_triage():
+            raise KeyError("malformed idea row")
+
+        self.lab.triage_ideas = broken_triage
+        text = self.run_weekly()
+        self.assertIn("STOPPED - KeyError", text)
+
 
 class StoppingTests(PipelineTestCase):
     def test_a_guard_violation_stops_the_whole_run_and_says_so(self) -> None:
@@ -285,6 +337,16 @@ class CalibrateTests(unittest.TestCase):
     def test_a_rejected_decision_sets_the_matching_status(self) -> None:
         self.run_calibration(60, FakeExplorer("rejected"))
         self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "rejected at exploration")
+
+    def test_the_failing_gates_are_returned_per_pair(self) -> None:
+        explorer = FakeExplorer("rejected")
+        explorer.decide_experiment = lambda conn, eid, hid: ("rejected", [
+            "lookahead: pass (has_bias=False)",
+            "net_profit[base]: FAIL (net_profit_quote=-0.1 <= required 1.0000, after 0 prior variant(s) in family)",
+            "minimum_trades[stress]: inconclusive (20 < 30)",
+        ])
+        result = self.run_calibration(60, explorer)
+        self.assertEqual(result["failed_gates"], {p: ["net_profit[base]", "minimum_trades[stress]"] for p in PAIRS})
 
     def test_a_failed_calibration_backtest_is_reported(self) -> None:
         result = calibrate.calibrate_and_explore(

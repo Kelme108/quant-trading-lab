@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -336,6 +337,26 @@ class Lab:
             f"tests/test_{data['family'].lower()}_h{number:03d}_v1.py",
         )
 
+    def _set_aside_rejected(self, hypothesis_id: str, paths: list[str]) -> str:
+        """Move a rejected implementation out of the strategy path and out of test discovery, so a broken test
+        cannot fail every later implementation's suite run. Nothing is deleted: the files go to
+        research/rejected/<H-ID>/ with a `.rejected` suffix (neither pytest nor Freqtrade picks them up) and are
+        committed as the record. Returns the folder, or "" when there was nothing to move."""
+        target = self.root / "research" / "rejected" / hypothesis_id
+        moved: list[str] = []
+        for rel in paths:
+            source = self.root / rel
+            if not source.is_file():
+                continue
+            target.mkdir(parents=True, exist_ok=True)
+            destination = target / (source.name + ".rejected")
+            shutil.move(str(source), str(destination))
+            moved.append(self._rel(destination))
+        if not moved:
+            return ""
+        self._commit(moved, f"exp({hypothesis_id}): rejected implementation set aside")
+        return self._rel(target)
+
     def _run_test_suite(self) -> tuple[bool, str]:
         completed = subprocess.run(
             [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
@@ -412,7 +433,11 @@ class Lab:
                 "two files:\n- " + "\n- ".join(problems)
             )
         else:
-            raise StepFailed(f"{hypothesis_id}: implementation rejected after a retry: {problems}")
+            kept = self._set_aside_rejected(hypothesis_id, [strategy_file, test_file])
+            raise StepFailed(
+                f"{hypothesis_id}: implementation rejected after a retry: {problems}"
+                + (f" (rejected files kept in {kept})" if kept else "")
+            )
 
         registry.set_hypothesis_status(self.conn, hypothesis_id, "implemented")
         self._sync_ledger()

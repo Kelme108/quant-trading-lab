@@ -92,6 +92,15 @@ class GatesDecisionTests(unittest.TestCase):
         self.assertEqual(decision, gates.DECISION_REJECTED)
         self.assertTrue(any("max_drawdown[base]" in r and "FAIL" in r for r in reasons))
 
+    def test_the_recorded_comparison_reads_true_for_both_pass_and_fail(self) -> None:
+        """A FAIL must not be written with the passing operator (e.g. '-0.1 > required 1.0')."""
+        _, reasons = gates.decide(make_metrics(**{"net_profit_quote__base": -1.0, "max_relative_drawdown_pct__base": 30.0}))
+        by_gate = {r.split(":", 1)[0]: r for r in reasons}
+        self.assertIn("net_profit_quote=-1.0 <= required", by_gate["net_profit[base]"])
+        self.assertIn("30.0% > 25.0%", by_gate["max_drawdown[base]"])
+        self.assertIn("> required", by_gate["net_profit[conservative]"])  # passing cells keep the passing operator
+        self.assertIn("<= 25.0%", by_gate["max_drawdown[optimistic]"])
+
     def test_drawdown_exactly_at_ceiling_passes(self) -> None:
         decision, _ = gates.decide(make_metrics(**{"max_relative_drawdown_pct__base": 25.0}))
         self.assertEqual(decision, gates.DECISION_CANDIDATE)

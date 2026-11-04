@@ -87,11 +87,19 @@ class Pipeline:
             timeframe = orchestrator.strategy_timeframe(self.root / strategy_file)
         except (GuardAbort, BudgetExhausted):
             raise
-        except StepFailed as error:
+        except Exception as error:  # StepFailed, or a strategy file that cannot be read: this hypothesis only
             registry.set_hypothesis_status(self.conn, hid, "failed: implementation")
-            return {**row, "outcome": "implementation failed", "detail": str(error)[:200]}
+            outcome = "implementation failed"
+            self._record(hid, None, [], outcome)
+            return {**row, "outcome": outcome, "detail": str(error)[:200], "status": "failed: implementation"}
 
-        outcome, detail = self._check_and_explore(hid, name, strategy_file, timeframe)
+        try:
+            outcome, detail = self._check_and_explore(hid, name, strategy_file, timeframe)
+        except (GuardAbort, BudgetExhausted):
+            raise
+        except Exception as error:  # Docker down, a malformed export, a broken check: fail this one, keep the run going
+            registry.set_hypothesis_status(self.conn, hid, "failed: exploration")
+            outcome, detail = "exploration failed", f"{type(error).__name__}: {error}"[:200]
         status = registry.get_hypothesis(self.conn, hid)["status"]
         archived = {"archived": False, "paths": [], "reason": ""}
         if status == CANDIDATE_STATUS:
@@ -100,18 +108,25 @@ class Pipeline:
                 lab.review(hid, "exploration")
             except (GuardAbort, BudgetExhausted):
                 raise
-            except StepFailed as error:
+            except Exception as error:
                 detail += f"; agent review failed: {str(error)[:120]}"
         else:
-            archived = self.archive_one(self.conn, hid, root=self.root)
+            try:
+                archived = self.archive_one(self.conn, hid, root=self.root)
+            except Exception as error:
+                archived = {"archived": False, "paths": [], "reason": f"{type(error).__name__}: {error}"[:120]}
             detail += "; archived" if archived["archived"] else f"; not archived ({archived['reason']})"
-        lab._sync_ledger()
+        self._record(hid, name, archived["paths"], outcome)
+        return {**row, "outcome": outcome, "detail": detail, "status": status}
+
+    def _record(self, hid: str, name: str | None, extra_paths: list[str], outcome: str) -> None:
+        """Regenerate the ledger and the SQL dump and commit this hypothesis's files, whatever its outcome."""
+        self.lab._sync_ledger()
         registry.dump_sql(self.conn, self.root / "research" / "registry-dump.sql")
         self._commit(
-            self._hypothesis_paths(hid, name) + archived["paths"] + ["research/hypothesis-ledger.md", "research/registry-dump.sql"],
+            self._hypothesis_paths(hid, name) + extra_paths + ["research/hypothesis-ledger.md", "research/registry-dump.sql"],
             f"pipeline({hid}): {outcome}",
         )
-        return {**row, "outcome": outcome, "detail": detail, "status": status}
 
     def _check_and_explore(self, hid: str, name: str, strategy_file: str, timeframe: str) -> tuple[str, str]:
         result = self.run_checks(name, timeframe=timeframe, root=self.root)
@@ -129,7 +144,11 @@ class Pipeline:
             self.write_review(self.conn, hid, root=self.root)
         except ValueError:
             pass
-        return cal["status"], f"exposure {cal['exposure']}; calibration trades {cal['counts']}"
+        detail = f"exposure {cal['exposure']}; calibration trades {cal['counts']}"
+        failed = cal.get("failed_gates") or {}
+        if failed:
+            detail += "; failed gates: " + "; ".join(f"{pair} {', '.join(gates)}" for pair, gates in failed.items())
+        return cal["status"], detail
 
     # -- the weekly run ---------------------------------------------------------------
 
@@ -146,7 +165,7 @@ class Pipeline:
             limit = min(max_new or lab.budget["max_hypotheses_per_cycle"], lab.budget["max_hypotheses_per_cycle"])
             for idea in triage.pick(self.conn, limit):
                 rows.append(self.process_idea(idea))
-        except (GuardAbort, BudgetExhausted, StepFailed) as error:
+        except Exception as error:  # guard, budget, or anything unexpected: stop, and still write why
             stopped = f"{type(error).__name__}: {error}"
         return self.write_report(rows, scouted, triaged, stopped)
 

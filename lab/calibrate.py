@@ -70,10 +70,13 @@ def calibrate_and_explore(
         )
         for pair in pairs
     ]
-    decisions = {}
-    for experiment_id in ids:
-        decision, _reasons = experiments.decide_experiment(conn, experiment_id, hypothesis_id)
+    decisions, failed_gates = {}, {}
+    for pair, experiment_id in zip(pairs, ids):
+        decision, reasons = experiments.decide_experiment(conn, experiment_id, hypothesis_id)
         decisions[experiment_id] = decision
+        failing = [r.split(":", 1)[0] for r in reasons if ": FAIL" in r or ": inconclusive" in r]
+        if failing:
+            failed_gates[pair] = failing
     values = set(decisions.values())
     status = (
         "exploration: candidate" if values == {"candidate_for_portfolio"}
@@ -81,7 +84,8 @@ def calibrate_and_explore(
     )
     registry.set_hypothesis_status(conn, hypothesis_id, status)
     _append_note(conn, hypothesis_id, f"Calibrated exposure: {exposure} (p95 by pair {chosen['p95_by_pair']}). Calibration trades: {counts}.")
-    return {"outcome": "explored", "counts": counts, "exposure": exposure, "status": status, "decisions": decisions}
+    return {"outcome": "explored", "counts": counts, "exposure": exposure, "status": status, "decisions": decisions,
+            "failed_gates": failed_gates}
 
 
 def _append_note(conn, hypothesis_id: str, note: str) -> None:
