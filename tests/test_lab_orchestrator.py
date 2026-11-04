@@ -85,6 +85,26 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+SCOUT_IDEAS = [
+    {
+        "title": "Fifty day breakout with a monthly trend filter",
+        "source": {"type": "paper", "url": "https://example.org/a", "title": "A paper", "license": "unknown"},
+        "rule_summary": "Enter long when the daily close is above the highest close of the previous fifty days and the thirty day average is rising; exit when the close falls under the lowest close of the previous twenty days.",
+        "mechanism": "Slow investors react late to news so large moves persist, and trend followers are paid for providing liquidity to them.",
+        "timeframe": "1d", "longest_lookback": 50, "free_parameters": 3, "fixed_parameters": True,
+        "expected_trades_per_year": 12, "family_hint": "FiftyDayBreakout",
+    },
+    {
+        "title": "Volume surge after a quiet week",
+        "source": {"type": "blog", "url": "https://example.org/b", "title": "A blog", "license": "none"},
+        "rule_summary": "Buy at the next hourly open when the hourly volume is four times its seventy two hour average right after a week of low realised volatility, and sell after one hundred and twenty hours or on a five percent stop.",
+        "mechanism": "Quiet markets hide accumulation; a volume surge shows that informed buyers are crossing the spread and the move tends to continue for days.",
+        "timeframe": "1h", "longest_lookback": 168, "free_parameters": 4, "fixed_parameters": False,
+        "expected_trades_per_year": 20, "family_hint": "VolumeSurge",
+    },
+]
+
+
 class FakeAgent:
     """Stands in for agents.run_agent. Each agent name has a handler that
     writes whatever that test wants; the default handlers behave correctly."""
@@ -95,6 +115,7 @@ class FakeAgent:
         self.calls: list[tuple[str, str, str]] = []
         self.handlers = {
             "research": self.good_research,
+            "scout": self.good_scout,
             "developer": self.good_developer,
             "validator": self.good_review,
             "quant": self.good_review,
@@ -111,6 +132,11 @@ class FakeAgent:
         proposal = copy.deepcopy(PROPOSAL)
         proposal["hypothesis_id"] = Path(target).stem
         self.write(target, json.dumps(proposal))
+
+    def good_scout(self, prompt: str) -> None:
+        paths = re.search(r"Write the idea files to (.+?) \(only", prompt).group(1).split(", ")
+        for path, idea in zip(paths, SCOUT_IDEAS):  # two ideas, however many files were allowed
+            self.write(path, json.dumps(idea))
 
     def good_developer(self, prompt: str) -> None:
         strategy, stem, test = re.search(
@@ -531,6 +557,80 @@ class StrategyTimeframeTests(unittest.TestCase):
             none.write_text("class B:\n    pass\n", encoding="utf-8")
             self.assertEqual(orchestrator.strategy_timeframe(four), "4h")
             self.assertEqual(orchestrator.strategy_timeframe(none), "1h")
+
+
+LONG_SPLITS = {
+    "pairs": {pair: {"exploration": window("2018-01-01T00:00:00Z", "2024-12-31T00:00:00Z")} for pair in PAIRS},
+}
+
+
+class ScoutTests(LabTestCase):
+    def test_the_scout_writes_ideas_that_are_queued_and_committed(self) -> None:
+        outcomes = self.lab.scout(count=3)
+        self.assertEqual([o["idea_id"] for o in outcomes], ["I-001", "I-002"])
+        self.assertEqual(self.agent.names(), ["scout"])
+        self.assertEqual([r["state"] for r in registry.list_ideas(self.conn)], ["new", "new"])
+        self.assertEqual(registry.list_hypotheses(self.conn), [])  # an idea is not a hypothesis
+        self.assertIn("idea intake", git(["log", "--oneline", "-1"], self.root))
+        self.assertEqual(guard.changed_files(self.root), [])
+
+    def test_the_scout_context_has_rule_text_but_no_results(self) -> None:
+        self.lab.propose()
+        self.lab.scout(count=2)
+        context_file = next((self.root / "research" / "context").glob("scout-*.md"))
+        text = context_file.read_text(encoding="utf-8")
+        self.assertIn("Rules already tried", text)
+        self.assertIn("H-001", text)
+        for forbidden in ("net profit", "drawdown", "rejected", "candidate"):
+            self.assertNotIn(forbidden, text.lower())
+
+    def test_an_invalid_idea_file_is_reported_and_not_queued(self) -> None:
+        def one_bad_one_good(prompt: str) -> None:
+            paths = re.search(r"Write the idea files to (.+?) \(only", prompt).group(1).split(", ")
+            self.agent.write(paths[0], json.dumps({**SCOUT_IDEAS[0], "timeframe": "4h"}))
+            self.agent.write(paths[1], json.dumps(SCOUT_IDEAS[1]))
+
+        self.agent.handlers["scout"] = one_bad_one_good
+        outcomes = self.lab.scout(count=2)
+        self.assertIsNone(outcomes[0]["idea_id"])
+        self.assertTrue(outcomes[0]["rejected"])
+        self.assertEqual(outcomes[1]["idea_id"], "I-001")
+
+    def test_a_scout_that_writes_outside_the_intake_folder_aborts(self) -> None:
+        def sneaky(prompt: str) -> None:
+            self.agent.good_scout(prompt)
+            self.agent.write("user_data/strategies/Smuggled_H001_v1.py", "print('x')")
+
+        self.agent.handlers["scout"] = sneaky
+        with self.assertRaises(orchestrator.GuardAbort):
+            self.lab.scout(count=2)
+
+    def test_a_scout_that_writes_more_files_than_allowed_aborts(self) -> None:
+        def too_many(prompt: str) -> None:
+            self.agent.good_scout(prompt)
+            self.agent.write("research/intake/extra-99.json", "{}")
+
+        self.agent.handlers["scout"] = too_many
+        with self.assertRaises(orchestrator.GuardAbort):
+            self.lab.scout(count=2)
+
+    def test_count_is_bounded(self) -> None:
+        for bad in (0, 11):
+            with self.assertRaises(orchestrator.StepFailed):
+                self.lab.scout(count=bad)
+
+    def test_scouting_respects_the_agent_spend_cap(self) -> None:
+        lab = self.make_lab(budget={**BUDGET, "max_agent_budget_usd_per_cycle": 1.0})
+        with self.assertRaises(orchestrator.BudgetExhausted):
+            lab.scout(count=2)
+
+    def test_triage_queues_and_drops_without_any_agent_call(self) -> None:
+        self.lab.scout(count=2)
+        calls_before = len(self.agent.calls)
+        self.lab.splits = LONG_SPLITS
+        outcomes = self.lab.triage_ideas()
+        self.assertEqual(len(self.agent.calls), calls_before)
+        self.assertEqual({o["idea_id"]: o["state"] for o in outcomes}, {"I-001": "queued", "I-002": "queued"})
 
 
 if __name__ == "__main__":

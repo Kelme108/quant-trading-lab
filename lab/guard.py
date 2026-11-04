@@ -31,6 +31,7 @@ PROTECTED_FILES = (
 # Allowed write paths per agent, as glob patterns relative to the repo root.
 AGENT_ALLOWED_PATHS = {
     "research": ("research/proposals/*",),
+    "scout": ("research/intake/*",),
     "developer": ("user_data/strategies/*", "tests/*"),
     "quant": ("research/experiments/*/quant.md",),
     "risk": ("research/experiments/*/risk.md",),

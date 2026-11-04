@@ -128,6 +128,49 @@ def research_context(
     )
 
 
+def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: int, years: float) -> str:
+    """Markdown the scout agent reads before collecting ideas. Rule text and counts only: no result of any kind."""
+    from lab import triage  # local import: triage imports runner, keep context light
+
+    cap = budget["max_variants_per_family"]
+    families: dict[str, int] = {}
+    tried: list[str] = []
+    for hypothesis in registry.list_hypotheses(conn):
+        families[hypothesis["family"]] = families.get(hypothesis["family"], 0) + 1
+        tried.append(f"- {hypothesis['id']} ({hypothesis['family']}): {str(hypothesis['ex_ante_rule'])[:600]}")
+    family_lines = [
+        f"- {family}: {n} of {cap} variants used" + (" (CAP REACHED: do not reuse)" if n >= cap else "")
+        for family, n in sorted(families.items())
+    ] or ["- none yet"]
+    collected = [f"- {row['id']}: {row['title']} ({row['source_url']})" for row in registry.list_ideas(conn)]
+    needed = triage.required_trades_per_year(min_trades, years)
+    return chr(10).join([
+        f"# Scouting context for run {run_id}",
+        "",
+        "## What you are asked for",
+        f"- At most {count} ideas, each a separate file `research/intake/{run_id}-<k>.json` (k from 1). Fewer, or none, is fine.",
+        "",
+        "## Hard limits (deterministic triage drops anything outside them)",
+        "- Pairs BTC/USDT, ETH/USDT, BNB/USDT. Spot, long only, one position per pair, the whole allowed balance per trade.",
+        "- Timeframe `1h`, or `1d` (signals from closed daily candles, executed on 1h).",
+        f"- Longest lookback: at most {triage.MAX_LOOKBACK['1h']} bars on 1h, or {triage.MAX_LOOKBACK['1d']} days on 1d.",
+        "- No short selling, leverage, margin, derivatives, martingale, pyramiding or position sizing.",
+        f"- Enough trades: at least {min_trades} per pair in about {years:.1f} years of history, so at least "
+        f"{needed:.1f} expected trades per year per pair after a safety margin. A rule that trades a few times a year is useless here.",
+        "- The cost of a round trip is 0.35% at the base scenario and 0.95% at stress; the average winning move must be well above it.",
+        "",
+        "## Families already used (variant cap)",
+        *family_lines,
+        "",
+        "## Rules already tried (do not repeat them or a close variation)",
+        *(tried or ["none"]),
+        "",
+        "## Ideas already collected (do not collect them again)",
+        *(collected or ["none"]),
+        "",
+    ])
+
+
 def _write_trades_csv(trades: list[dict], path: Path) -> None:
     fields = ["open_date", "close_date", "trade_duration", "profit_ratio", "profit_abs", "exit_reason"]
     with path.open("w", newline="", encoding="utf-8") as handle:

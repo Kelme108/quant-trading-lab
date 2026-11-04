@@ -54,10 +54,16 @@ class BuildArgvTests(unittest.TestCase):
             else:
                 self.assertFalse({"Bash", "Edit"} & tools, name)
 
-    def test_only_research_can_use_the_web(self) -> None:
+    def test_only_research_and_scout_can_use_the_web(self) -> None:
         for name, spec in agents.AGENT_SPECS.items():
             has_web = bool({"WebSearch", "WebFetch"} & set(spec["tools"]))
-            self.assertEqual(has_web, name == "research", name)
+            self.assertEqual(has_web, name in ("research", "scout"), name)
+
+    def test_the_scout_is_denied_every_kind_of_result(self) -> None:
+        deny = self.after(self.argv("scout"), "--disallowedTools")
+        for blocked in ("Read(./research/experiments/**)", "Read(./research/audit/**)", "Read(./research/lab.sqlite)",
+                        "Read(./research/grids/**)", "Read(./research/dossiers/**)", "Read(./research/baselines/**)"):
+            self.assertIn(blocked, deny)
 
     def test_the_research_agent_is_denied_experiment_results(self) -> None:
         deny = self.after(self.argv("research"), "--disallowedTools")

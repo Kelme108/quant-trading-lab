@@ -83,6 +83,33 @@ CREATE TABLE IF NOT EXISTS decisions (
     gates_sha256 TEXT NOT NULL,
     decided_at_utc TEXT NOT NULL
 );
+
+-- Strategy ideas collected by the scout agent (web, papers, repositories). An idea is a RULE described in words, never
+-- third-party code. It enters as 'new', is triaged deterministically to 'queued' or 'dropped', and becomes a
+-- hypothesis only when the pipeline picks it ('registered', hypothesis_id set). Nothing is deleted.
+CREATE TABLE IF NOT EXISTS ideas (
+    id TEXT PRIMARY KEY,                 -- e.g. "I-001"
+    run_id TEXT NOT NULL,                -- the scout call that produced it
+    title TEXT NOT NULL,
+    source_type TEXT NOT NULL,           -- paper | blog | repo
+    source_url TEXT NOT NULL,
+    source_title TEXT NOT NULL,
+    license TEXT NOT NULL,               -- of the source, kept for attribution; the rule is reimplemented from scratch
+    rule_summary TEXT NOT NULL,
+    mechanism TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    longest_lookback INTEGER NOT NULL,   -- in bars of `timeframe`
+    free_parameters INTEGER NOT NULL,
+    fixed_parameters INTEGER NOT NULL,   -- 1 when the numbers are textbook values fixed before any test
+    expected_trades_per_year REAL NOT NULL,  -- the scout's design estimate per pair, NOT a result
+    family_hint TEXT NOT NULL,
+    rule_hash TEXT NOT NULL,
+    state TEXT NOT NULL,                 -- new | queued | dropped | registered
+    state_reason TEXT NOT NULL DEFAULT '',
+    score REAL,
+    hypothesis_id TEXT REFERENCES hypotheses(id),
+    created_at_utc TEXT NOT NULL
+);
 """
 
 
@@ -110,6 +137,54 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE experiments ADD COLUMN pair TEXT NOT NULL DEFAULT 'BTC/USDT'"
         )
         conn.commit()
+
+
+# --- ideas -----------------------------------------------------------------
+
+IDEA_STATES = ("new", "queued", "dropped", "registered")
+
+
+def next_idea_id(conn: sqlite3.Connection) -> str:
+    row = conn.execute("SELECT MAX(CAST(SUBSTR(id, 3) AS INTEGER)) AS n FROM ideas").fetchone()
+    return f"I-{(row['n'] or 0) + 1:03d}"
+
+
+def add_idea(conn: sqlite3.Connection, *, idea_id: str, run_id: str, idea: dict, rule_hash: str, created_at_utc: str) -> None:
+    source = idea["source"]
+    conn.execute(
+        "INSERT INTO ideas (id, run_id, title, source_type, source_url, source_title, license, rule_summary, mechanism, "
+        "timeframe, longest_lookback, free_parameters, fixed_parameters, expected_trades_per_year, family_hint, "
+        "rule_hash, state, created_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)",
+        (idea_id, run_id, idea["title"], source["type"], source["url"], source["title"], source["license"],
+         idea["rule_summary"], idea["mechanism"], idea["timeframe"], int(idea["longest_lookback"]),
+         int(idea["free_parameters"]), int(bool(idea["fixed_parameters"])), float(idea["expected_trades_per_year"]),
+         idea["family_hint"], rule_hash, created_at_utc),
+    )
+    conn.commit()
+
+
+def get_idea(conn: sqlite3.Connection, idea_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM ideas WHERE id = ?", (idea_id,)).fetchone()
+
+
+def list_ideas(conn: sqlite3.Connection, state: str | None = None) -> list[sqlite3.Row]:
+    if state is None:
+        return conn.execute("SELECT * FROM ideas ORDER BY id").fetchall()
+    return conn.execute("SELECT * FROM ideas WHERE state = ? ORDER BY id", (state,)).fetchall()
+
+
+def set_idea_state(
+    conn: sqlite3.Connection, idea_id: str, state: str, reason: str = "", score: float | None = None,
+    hypothesis_id: str | None = None,
+) -> None:
+    if state not in IDEA_STATES:
+        raise ValueError(f"unknown idea state '{state}'")
+    conn.execute(
+        "UPDATE ideas SET state = ?, state_reason = ?, score = COALESCE(?, score), "
+        "hypothesis_id = COALESCE(?, hypothesis_id) WHERE id = ?",
+        (state, reason, score, hypothesis_id, idea_id),
+    )
+    conn.commit()
 
 
 # --- archive ---------------------------------------------------------------

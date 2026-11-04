@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import agents, context, experiment, guard, portfolio, proposals, registry, runner, strategy_check
+from lab import agents, context, experiment, guard, intake, portfolio, proposals, registry, runner, strategy_check, triage
 
 ROOT = Path(__file__).parents[1]
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
@@ -179,6 +179,45 @@ class Lab:
         """Optional owner direction for the research agent; empty when the file is absent."""
         path = self.root / "research" / "guidance.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    # -- scouting and triage (the front of the pipeline) -----------------------
+
+    def scout(self, count: int = 5) -> list[dict]:
+        """Ask the scout agent for up to `count` strategy ideas (rules in words) and queue the valid ones as 'new'.
+
+        The scout sees no result of any kind and may write only research/intake/<run>-<k>.json. Idea files that fail
+        the schema stay on disk, with the reasons returned here; nothing is registered as a hypothesis yet."""
+        if not 1 <= count <= 10:
+            raise StepFailed("count must be between 1 and 10")
+        run_id = "S" + _stamp()
+        intake_dir = self.root / "research" / "intake"
+        intake_dir.mkdir(parents=True, exist_ok=True)
+        context_path = self.root / "research" / "context" / f"scout-{run_id}.md"
+        context_path.parent.mkdir(parents=True, exist_ok=True)
+        context_path.write_text(
+            context.scout_context(
+                self.conn, run_id=run_id, budget=self.budget, count=count,
+                min_trades=triage.minimum_trades(), years=triage.exploration_years(self.splits),
+            ),
+            encoding="utf-8",
+        )
+        paths = [f"research/intake/{run_id}-{k}.json" for k in range(1, count + 1)]
+        self.agent_step(
+            "scout",
+            f"Collect up to {count} strategy ideas. Read {self._rel(context_path)} first, then follow your instructions. "
+            f"Write the idea files to {', '.join(paths)} (only as many as you have).",
+            purpose="scout",
+            hypothesis_id=None,
+            expected_paths=set(paths),
+        )
+        outcomes = intake.ingest_run(self.conn, [self.root / p for p in paths], run_id, _now)
+        written = [p for p in paths if (self.root / p).exists()] + [self._rel(context_path)]
+        self._commit(written, f"idea intake {run_id}: {sum(1 for o in outcomes if o['idea_id'])} idea(s) collected")
+        return outcomes
+
+    def triage_ideas(self) -> list[dict]:
+        """Deterministic triage of every idea in state 'new' (no agent, no backtest)."""
+        return triage.run_triage(self.conn, self.budget, self.splits)
 
     def _audit_diagnosis(self) -> str:
         """Optional exploration-only diagnosis written by the audit; empty when the file is absent."""
@@ -622,6 +661,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("expand-data", help="download/extend candles and validate them")
     sub.add_parser("propose", help="ask the research agent for one hypothesis")
+    scout_cmd = sub.add_parser("scout", help="ask the scout agent for strategy ideas (rules in words)")
+    scout_cmd.add_argument("--count", type=int, default=5)
+    sub.add_parser("triage", help="triage the collected ideas deterministically")
+    sub.add_parser("queue", help="show the ideas and their state")
     for name, help_text in (
         ("implement", "have the developer agent write a strategy"),
         ("run", "run a hypothesis on a split for every enabled pair"),
@@ -645,6 +688,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "propose":
             print(lab.propose())
+        elif args.command == "scout":
+            print(json.dumps(lab.scout(args.count), indent=2))
+        elif args.command == "triage":
+            print(json.dumps(lab.triage_ideas(), indent=2))
+        elif args.command == "queue":
+            for row in registry.list_ideas(lab.conn):
+                score = "-" if row["score"] is None else f"{row['score']:.2f}"
+                print(f"{row['id']} {row['state']:10s} {score:>5s} {row['family_hint']:24s} {row['title'][:60]}  {row['state_reason'][:80]}")
         elif args.command == "implement":
             print(lab.implement(args.hypothesis))
         elif args.command == "run":

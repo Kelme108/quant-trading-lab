@@ -49,6 +49,28 @@ AGENT_SPECS: dict[str, dict[str, list[str]]] = {
             "Read(./research/validation-protocol.md)",
         ],
     },
+    # The scout collects strategy ideas (rules in words) from the web. It sees no result of any kind: not the
+    # experiments, not the audit reports, dossiers, grids or baselines. It writes only research/intake/*.json.
+    "scout": {
+        "tools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Write"],
+        "allow": ["WebSearch", "WebFetch", "Write"],
+        "deny": [
+            "Read(./research/experiments/**)",
+            "Read(./research/portfolio/**)",
+            "Read(./research/audit/**)",
+            "Read(./research/dossiers/**)",
+            "Read(./research/baselines/**)",
+            "Read(./research/grids/**)",
+            "Read(./research/pipeline/**)",
+            "Read(./user_data/backtest_results/**)",
+            "Read(./reports/**)",
+            "Read(./research/lab.sqlite)",
+            "Read(./research/manifests/**)",
+            "Read(./research/command-log.md)",
+            "Read(./research/validation-run-*.md)",
+            "Read(./docs/relatorio-*.md)",
+        ],
+    },
     "developer": {
         "tools": ["Read", "Grep", "Glob", "Write", "Edit", "Bash"],
         "allow": ["Write", "Edit", "Bash(python -m unittest *)"],

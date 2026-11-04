@@ -104,7 +104,7 @@ Regras do forward (valem desde já):
 | Protocolo, gates, registro, exploração, validação única, arquivamento | **Existem** |
 | Revisão de trades (`lab/tradereview.py`, `research/tools/trade_review.py`) | **Implementada (Fase 1)** |
 | Este procedimento | **Escrito (Fase 1)** |
-| Agente `scout`, fila de ideias, triagem determinística | A fazer (Fase 2) |
+| Agente `scout`, fila de ideias (`ideas`), triagem determinística (`lab/intake.py`, `lab/triage.py`; comandos `scout`, `triage`, `queue`) | **Implementados (Fase 2)**; ainda sem execução real do scout |
 | Pipeline semanal e portão de aprovação (hoje `Orchestrator.test_hypothesis` lê a validação sozinho assim que a exploração passa) | A fazer (Fase 3) |
 | Dry-run congelado com hash e relatório de qualidade de execução | A fazer (Fase 4) |
 | Funil e aba de dry-run no portal; agendamento semanal | A fazer (Fase 5) |
