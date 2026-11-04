@@ -144,3 +144,56 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - H-009: calibration 58 / 81 / 80 trades; exposure 25% (p95 drawdown 12 / 22 / 23%). Exploration at 25%: `candidate_for_portfolio` on BTC, ETH, BNB. Base net profit +113.8 / +61.8 / +133.6 on 100, drawdown 7.2 / 18.5 / 14.5% (stress 8.7 / 23.7 / 17.9%; ETH stress is close to the 25% limit), lookahead and recursive pass.
 - H-010: calibration 145 / 187 / 173 trades, negative net profit on all three at full exposure (-35.7 / -73.0 / -44.2) with drawdown 61-84%. Exposure rule gave 10%. Exploration: `rejected`, net profit at base -1.7 / -9.1 / -1.6. No edge; the rule is not retried.
 - Validation of H-009 NOT read yet. Trades per year in exploration are about 8 (BTC), 12 (ETH), 12 (BNB), so the 2.3-year validation split would hold roughly 19 / 27 / 28 trades against a gate of 30: an inconclusive count is likely whatever the profit does.
+
+## 2026-11-03 — H-011..H-014 (TripleBottomReversal, EMASnapbackATR; 1h and 4h) and cleanup
+
+- Registered H-011..H-014 in the ledger before any run (`research/tools/register_h011_h014.py`). Calibration + official run: `research/tools/calibrate_and_run.py`.
+- H-011/H-013/H-014 dropped by the pre-registered rule (< 30 calibration trades on some pair; not retuned). H-012 rejected on BTC, ETH, BNB (negative net profit at base cost, recursive unstable). Validation and final test not read. Results and limitations: `docs/estrategias-h011-h014.md`; dossiers in `research/dossiers/`.
+- Lab: `timeframe` threaded through `experiment.run_experiment` / `orchestrator.run_split` (read from the strategy file, default 1h). 4h candles downloaded for BTC/ETH/BNB; `scenarios.json` unchanged.
+- Removed flawed, never-valid strategy files H-004 and H-006 (and their tests); recoverable from git (544a3d5).
+
+## 2026-11-03 — Phase 0 of the 5-strategy plan (harness)
+
+- Downloaded 1d candles; verified against 1h aggregates (0 mismatches) and the informative merge on the real engine (`research/tools/check_informative.py`: causal, 0 leaks). `startup_candle_count` applies to every timeframe used, so SMA(200) on 1d needs 200, not 4800.
+- Cost scenario `base_2x` (exactly 2x the base total cost); fee accounting verified against exported trades (no double counting).
+- New: `lab/{stats,returns,cycles,walkforward,causality,dataquality}.py`, `lab/config/holdout.json`, baseline `Sma200Baseline` (frozen by SHA), `research/baselines/sma200-cycles.json`. Prospective holdout = data from 2026-10-21; semi-contaminated window = last 12 months. No hypothesis registered, no validation/final-test read for any strategy. Details: `docs/harness-fase0.md`.
+
+## 2026-11-03 — Step 0 (hygiene): archive and known defects
+
+- `python -m pytest tests -q` before: 417 passed; after: 432 passed. Working tree not committed (user declined for now).
+- Archived (moved, not edited) to `user_data/strategies/_archive/`: H-005, H-007, H-008, H-010, H-011, H-012, H-013, H-014 (8 files; tests to `tests/archive/`, paths adjusted, 49 tests still run). Kept in the strategy path: H-001/002/003 baselines, H-009, `Sma200Baseline`.
+- Verified in the container (`docker compose run --rm freqtrade list-strategies`): `_archive/` is NOT loaded by default; `--recursive-strategy-search` would load it (and duplicate names), so the default is kept.
+- Registry: new table `archived_strategies` (hypothesis, class, original/archive path, SHA-256, SHA source, UTC time). `hypotheses.status` and every decision are untouched; the ledger shows `[code archived]` after the status. Recorded with `research/tools/register_archive.py`. SHA source: manifest (H-005/007/008/010/012) or file at archive time (H-011/013/014 never had a manifest).
+- `research/tools/rerun_archived.py`: `verify` (SHA vs registry and manifests) and `rerun <H-id>` (temporary copy into the strategy path, exploration only, validation/final_test refused, copy removed). Real check: H-010 BTC/USDT base reran with 145 trades, identical to the original record (`20261103T234059Z-rerun-h-010-btc-usdt`).
+- H-007 BNB lookahead: reproduced and traced to an 11 h data gap (2019-05-15 03:00-12:00) plus the analyzer's truncation, not to the code. See `research/h007-bnb-lookahead-2026-11-03.md`. The 23.53% price jump is BNB's 2nd candle ever (2017-11-06) and unrelated. Ledger note appended; decision unchanged.
+- `lab/strategy_check.py`: `warmup_warnings` (EMA/RSI/ATR/ewm(span) of period P needs `startup_candle_count >= max(400, 3*P)`); warning only, also `python -m lab.strategy_check <files>`. On existing strategies it flags only `BollingerMeanReversionBaseline` (RSI14, startup 200).
+
+## 2026-11-03 - Step 1 (regime filter and controlled imports)
+
+- `lab/strategy_check.py`: `ALLOWED_LOCAL_MODULES = {"regime_filter"}` (only `import regime_filter` / `from regime_filter import ...`; relative imports, `lab`, `os`, any other module still rejected); AST screen extracted to `_screen_tree`, reused by `check_helper_module_source` (regime_filter.py itself passes it).
+- `user_data/strategies/regime_filter.py`: `vol_regime(window=30, ratio=1.5)`, `trend_regime(sma_days=200)`, `regime_on(...)`; pure, causal; 3 numeric parameters.
+- Tests: `tests/test_regime_filter.py` (screen, behaviour, `lab.causality` prefix/corruption per function), `tests/test_regime_informative_container.py` (runs `research/tools/check_regime_informative.py` in the container: 4 generated strategies, real `merge_informative_pair`; prefix invariance, future corruption, visible-day check: all OK).
+- Freqtrade imports the sibling module (backtests of the 4 ablation strategies ran, trades > 0); `list-strategies` is unaffected by `regime_filter.py`.
+- Ablation 1.4 (`research/tools/ablation_regime.py`, IS only): no benefit under the pre-registered criterion, so `vol_regime` is OFF by default. Details: `research/regime-filter-ablation.md`.
+
+## 2026-11-04 - Step 2, family 1: TSMOM (H-015 grid, H-016 chosen configuration)
+
+- H-015 registered BEFORE any run (grid N x regime = 10, DSR N = 10, criteria fixed). Strategy, 9 tests, screen, lookahead/recursive clean on BTC/ETH/BNB. Grid explored on the IS with `research/tools/grid_explore.py` (reusable for later families): DSR 0.999, PBO 0.31, plateau, beats B&H and Sma200Baseline at base_2x, 89-96 trades per pair.
+- H-016 (the selected cell, N=30 no regime) registered, then calibration (exposure 0.15) and official exploration experiment: `candidate_for_portfolio` on 3 pairs, all gates clear.
+- Validation read ONCE via `research/tools/validate_once.py` (refuses a second read): BTC rejected, ETH candidate, BNB rejected; profit without the best trade negative on BTC and BNB. H-016 not approved. Family rejected, code archived (`_archive/`, tests in `tests/archive/`), registry and ledger updated. Report: `research/grids/H-015-report.md`.
+- Tools added: `analysis_checks.py` (smoke + lookahead + recursive), `grid_explore.py`, `validate_once.py`, `register_h015.py`, `register_h016.py`.
+
+## 2026-11-04 - Dashboard visual overhaul (skills ui-ux-pro-max, design-system, ui-styling)
+
+- Skills read: nextlevelbuilder/ui-ux-pro-max-skill (`ui-ux-pro-max`, `design-system`, `ui-styling`). Their stack (React/Tailwind/shadcn) was NOT adopted: the portal stays plain HTML/JS, no build, strict CSP, read-only. Principles applied: 3-layer tokens (primitive -> semantic -> component), accessibility first (focus ring, 44px touch targets on coarse pointers, reduced motion, high-contrast mode, skip link), dense-dashboard density dial, consistent type scale, print styles.
+- `lab/dashboard_assets/index.html` only: tokens re-layered (class names unchanged), polished cards/KPIs/nav/tables/buttons, comfortable|compact density toggle (localStorage), pt-BR menu names, readable measure for free-text table cells, sortable headers inherit header style.
+- Bug fixed: opening the portal without a hash showed "Página não encontrada (#/undefined)"; it now opens on Visão geral.
+- Verified: 68 dashboard tests, headless-Chrome screenshots of all 8 routes (dark and light). Mobile layout not verified visually (headless Chrome has a minimum window width); the media queries were left as they were.
+
+## 2026-11-04 - Portal rebuilt (docs/portal-redesign.md)
+
+- Audit of the existing portal and data (docs/portal-redesign.md). Kept backend, DB, gates, runner and the stdlib server; no new dependencies.
+- New `lab/analytics.py` (win rate with Wilson CI, profit factor, expectancy, payoff, streaks, histogram, monthly returns, evidence score, signals) and a `strategies` block in the dashboard state (one row per strategy and stage, pooled over pairs; invalid hypotheses excluded). The evidence score is capped at 40 for small samples and at 60 when the gates rejected; win rate is not an input.
+- New front-end `lab/dashboard_assets/portal.js` plus design tokens and components in `index.html`: Visao geral, Ranking, Explorador, Comparar, Backtests (backtest / dry-run / real kept apart), Sistema, Ctrl+K search. Old overview code removed; the summary sentence was corrected (it said validated hypotheses were still awaiting validation).
+- Bugs found while building: CSS class `.stack` collided with `table.stack` (every table became a grid), empty-hash route, and `strategies` missing from the empty-state contract (caught by the contract test).
+- Verified: 20 analytics tests, 9 portal-state tests, 68 dashboard tests, and `node research/tools/portal_e2e.mjs` (40 checks in real Chrome, no console errors). Mobile layout not verified visually.

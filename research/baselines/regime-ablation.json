@@ -1,0 +1,1312 @@
+{
+  "criterion": "Step 1.4: does vol_regime help? Ablation on the exploration (IS) window only, costs base and base_2x.\n\nReads only each pair's exploration split (never validation, never the holdout). Strategies come from\nregime_strategies.py (written to the strategy path for the run and removed). The equity curve is rebuilt from the\nexported trades (lab/returns.py), marked on the 1h closes.\n\nCriterion fixed BEFORE running (docs/prompt-proxima-etapa.md, step 1.4), per family:\n  a pair \"benefits\" if, at base_2x over the IS window, Sharpe(with) > Sharpe(without) AND maxDD(with) < maxDD(without),\n  and Sharpe(with) < Sharpe(without) in at most 2 of the 5 cycles;\n  the family shows benefit if >= 2 of 3 pairs benefit. vol_regime is switched on by default only if BOTH families do.\nFairness: vol_regime needs ~395 daily candles, so for every pair all windows start no earlier than the first day the\nfilter is defined; both arms are always compared on the identical window. Windows under 90 days are not scored.\nCycles are clipped to the IS end (2023+ ends at the IS end, not at the cut-off).\n",
+  "pairs": {
+    "BTC/USDT": {
+      "sma200|base|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.567043146605734,
+          "max_drawdown": 0.45384446854690486,
+          "sharpe_annualised": 1.0882035431250217,
+          "days": 365
+        },
+        "with": {
+          "return": 0.6442891154579897,
+          "max_drawdown": 0.40292104207474677,
+          "sharpe_annualised": 1.3376395360600974,
+          "days": 365
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.1278537892097118,
+          "max_drawdown": 0.6508794331233347,
+          "sharpe_annualised": 0.9317121401022411,
+          "days": 731
+        },
+        "with": {
+          "return": 0.3509675194170889,
+          "max_drawdown": 0.65470493794757,
+          "sharpe_annualised": 0.5496118451105765,
+          "days": 731
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 365
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 365
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 1.6573588953208516,
+          "max_drawdown": 0.2268544599662804,
+          "sharpe_annualised": 1.6293599640630965,
+          "days": 551
+        },
+        "with": {
+          "return": 1.7095948658335374,
+          "max_drawdown": 0.21740843715487823,
+          "sharpe_annualised": 1.7479627804658882,
+          "days": 551
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 7.860800333331991,
+          "max_drawdown": 0.6568813595239837,
+          "sharpe_annualised": 1.0231019131254044,
+          "days": 2119
+        },
+        "with": {
+          "return": 5.019043060749308,
+          "max_drawdown": 0.6606410979609625,
+          "sharpe_annualised": 0.9413785017704,
+          "days": 2119
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.5561120698718445,
+          "max_drawdown": 0.4567067876958606,
+          "sharpe_annualised": 1.075644935090069,
+          "days": 365
+        },
+        "with": {
+          "return": 0.6214292965994592,
+          "max_drawdown": 0.40812544850702825,
+          "sharpe_annualised": 1.3063875755972025,
+          "days": 365
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.0403340835895034,
+          "max_drawdown": 0.6622984575193287,
+          "sharpe_annualised": 0.8961968612585869,
+          "days": 731
+        },
+        "with": {
+          "return": 0.2908755275281991,
+          "max_drawdown": 0.667165806872875,
+          "sharpe_annualised": 0.5068052632562694,
+          "days": 731
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 365
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 365
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 1.629602405163963,
+          "max_drawdown": 0.2268544599662805,
+          "sharpe_annualised": 1.614141965903992,
+          "days": 551
+        },
+        "with": {
+          "return": 1.671924575839733,
+          "max_drawdown": 0.21740843715487823,
+          "sharpe_annualised": 1.7262394044342306,
+          "days": 551
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "sma200|base_2x|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 7.348957380307418,
+          "max_drawdown": 0.6686828652019066,
+          "sharpe_annualised": 1.0015882765381494,
+          "days": 2119
+        },
+        "with": {
+          "return": 4.592507533503305,
+          "max_drawdown": 0.6734581950095003,
+          "sharpe_annualised": 0.9114572045612838,
+          "days": 2119
+        },
+        "trades_without": 19,
+        "trades_with": 21
+      },
+      "donchian|base|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.09345593570093658,
+          "max_drawdown": 0.16237877996253514,
+          "sharpe_annualised": -0.8478726436543421,
+          "days": 107
+        },
+        "with": {
+          "return": -0.05576093166703433,
+          "max_drawdown": 0.15628473949733168,
+          "sharpe_annualised": -0.44649995405368437,
+          "days": 107
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.5539414517590386,
+          "max_drawdown": 0.3929424314312777,
+          "sharpe_annualised": 1.1654248837929757,
+          "days": 365
+        },
+        "with": {
+          "return": 0.7172367043722723,
+          "max_drawdown": 0.2816460105178181,
+          "sharpe_annualised": 1.4463067141657502,
+          "days": 365
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 2.1521766540960563,
+          "max_drawdown": 0.39572596138965177,
+          "sharpe_annualised": 1.4001679876348945,
+          "days": 731
+        },
+        "with": {
+          "return": 2.1637222220695915,
+          "max_drawdown": 0.3252351371672334,
+          "sharpe_annualised": 1.5722169055827693,
+          "days": 731
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.41124003866549663,
+          "max_drawdown": 0.4260045859873408,
+          "sharpe_annualised": -1.611858668459649,
+          "days": 365
+        },
+        "with": {
+          "return": -0.41124003866549674,
+          "max_drawdown": 0.4260045859873409,
+          "sharpe_annualised": -1.6118586684596512,
+          "days": 365
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 1.118648357545366,
+          "max_drawdown": 0.25111177905589277,
+          "sharpe_annualised": 1.630037848782926,
+          "days": 551
+        },
+        "with": {
+          "return": 1.165309874483461,
+          "max_drawdown": 0.25111177905589255,
+          "sharpe_annualised": 1.68589537785507,
+          "days": 551
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 4.5389987536286736,
+          "max_drawdown": 0.5725362241903937,
+          "sharpe_annualised": 0.911596330620739,
+          "days": 2119
+        },
+        "with": {
+          "return": 5.539865214727802,
+          "max_drawdown": 0.5254070422927967,
+          "sharpe_annualised": 1.037225135449984,
+          "days": 2119
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.11385120035711904,
+          "max_drawdown": 0.17835267151034973,
+          "sharpe_annualised": -1.0663707744386781,
+          "days": 107
+        },
+        "with": {
+          "return": -0.07538333595239055,
+          "max_drawdown": 0.16947306377794058,
+          "sharpe_annualised": -0.6582001750805127,
+          "days": 107
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.4138180760624788,
+          "max_drawdown": 0.40107448875093177,
+          "sharpe_annualised": 0.9621016106274484,
+          "days": 365
+        },
+        "with": {
+          "return": 0.5844159544766321,
+          "max_drawdown": 0.3014810771454073,
+          "sharpe_annualised": 1.257262506957442,
+          "days": 365
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.5820709994607252,
+          "max_drawdown": 0.43164459656806964,
+          "sharpe_annualised": 1.194526135475459,
+          "days": 731
+        },
+        "with": {
+          "return": 1.7026914971906582,
+          "max_drawdown": 0.35918729305232555,
+          "sharpe_annualised": 1.3790364276112534,
+          "days": 731
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.46806684159953094,
+          "max_drawdown": 0.480500369034208,
+          "sharpe_annualised": -1.922601707406429,
+          "days": 365
+        },
+        "with": {
+          "return": -0.46806684159953105,
+          "max_drawdown": 0.4805003690342081,
+          "sharpe_annualised": -1.9226017074064288,
+          "days": 365
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 0.8162559605541442,
+          "max_drawdown": 0.2805098402045826,
+          "sharpe_annualised": 1.3221018845543555,
+          "days": 551
+        },
+        "with": {
+          "return": 0.8692970102849658,
+          "max_drawdown": 0.2805098402045827,
+          "sharpe_annualised": 1.388543695290665,
+          "days": 551
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      },
+      "donchian|base_2x|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-04 19:00:00+00:00",
+        "without": {
+          "return": 2.1253774847460867,
+          "max_drawdown": 0.6446104596235473,
+          "sharpe_annualised": 0.6739849014018511,
+          "days": 2119
+        },
+        "with": {
+          "return": 2.9369760528229216,
+          "max_drawdown": 0.5993033020987197,
+          "sharpe_annualised": 0.8046481123476267,
+          "days": 2119
+        },
+        "trades_without": 190,
+        "trades_with": 145
+      }
+    },
+    "ETH/USDT": {
+      "sma200|base|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.06703661932733218,
+          "max_drawdown": 0.5123532773467134,
+          "sharpe_annualised": 0.3897332224057505,
+          "days": 365
+        },
+        "with": {
+          "return": 0.0670366193273324,
+          "max_drawdown": 0.5123532773467133,
+          "sharpe_annualised": 0.38973322240575176,
+          "days": 365
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 7.4170593364714,
+          "max_drawdown": 0.6800188680233119,
+          "sharpe_annualised": 1.6093740971676977,
+          "days": 731
+        },
+        "with": {
+          "return": 9.798108444752433,
+          "max_drawdown": 0.5020569961116024,
+          "sharpe_annualised": 1.8869206286852602,
+          "days": 731
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.17322470244975585,
+          "max_drawdown": 0.20571678774211788,
+          "sharpe_annualised": -1.7604357462816331,
+          "days": 365
+        },
+        "with": {
+          "return": -0.17322470244975585,
+          "max_drawdown": 0.205716787742118,
+          "sharpe_annualised": -1.76043574628163,
+          "days": 365
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 0.9967410111668893,
+          "max_drawdown": 0.2962788147864073,
+          "sharpe_annualised": 1.1441676724885965,
+          "days": 552
+        },
+        "with": {
+          "return": 0.976823078809083,
+          "max_drawdown": 0.3063006166436081,
+          "sharpe_annualised": 1.187081740047025,
+          "days": 552
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 14.0156442561258,
+          "max_drawdown": 0.7588511422140107,
+          "sharpe_annualised": 1.0457891943441968,
+          "days": 2120
+        },
+        "with": {
+          "return": 18.07116972807308,
+          "max_drawdown": 0.5360981148770875,
+          "sharpe_annualised": 1.1707592506704798,
+          "days": 2120
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "with": {
+          "return": 0.0,
+          "max_drawdown": 0.0,
+          "sharpe_annualised": 0.0,
+          "days": 107
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.05589127066044797,
+          "max_drawdown": 0.5166038236209891,
+          "sharpe_annualised": 0.3700459415353708,
+          "days": 365
+        },
+        "with": {
+          "return": 0.05589127066044797,
+          "max_drawdown": 0.5166038236209891,
+          "sharpe_annualised": 0.3700459415353714,
+          "days": 365
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 7.227769448323198,
+          "max_drawdown": 0.6844674231140006,
+          "sharpe_annualised": 1.5975339568175326,
+          "days": 731
+        },
+        "with": {
+          "return": 9.518392389982672,
+          "max_drawdown": 0.5072580813359036,
+          "sharpe_annualised": 1.8704572232826455,
+          "days": 731
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.17755770766489165,
+          "max_drawdown": 0.20987950681609846,
+          "sharpe_annualised": -1.8083602668256165,
+          "days": 365
+        },
+        "with": {
+          "return": -0.17755770766489165,
+          "max_drawdown": 0.20987950681609846,
+          "sharpe_annualised": -1.8083602668256191,
+          "days": 365
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 0.9758847684064935,
+          "max_drawdown": 0.2962788147864073,
+          "sharpe_annualised": 1.1306361999378218,
+          "days": 552
+        },
+        "with": {
+          "return": 0.9357423578837176,
+          "max_drawdown": 0.31113959073704334,
+          "sharpe_annualised": 1.1575163740901748,
+          "days": 552
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "sma200|base_2x|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 13.297608104659199,
+          "max_drawdown": 0.764687543084295,
+          "sharpe_annualised": 1.0330529007261706,
+          "days": 2120
+        },
+        "with": {
+          "return": 16.906742290333003,
+          "max_drawdown": 0.544145832460709,
+          "sharpe_annualised": 1.1518248563138032,
+          "days": 2120
+        },
+        "trades_without": 18,
+        "trades_with": 18
+      },
+      "donchian|base|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.16064324686888942,
+          "max_drawdown": 0.21214640077821012,
+          "sharpe_annualised": 1.1484082085162224,
+          "days": 107
+        },
+        "with": {
+          "return": 0.244574919727516,
+          "max_drawdown": 0.21214640077821012,
+          "sharpe_annualised": 1.5764864336911737,
+          "days": 107
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.5402481403097288,
+          "max_drawdown": 0.3102958672443349,
+          "sharpe_annualised": 1.0831340653725805,
+          "days": 365
+        },
+        "with": {
+          "return": 0.5402481403097292,
+          "max_drawdown": 0.31029586724433467,
+          "sharpe_annualised": 1.0831340653725812,
+          "days": 365
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.8233002957302737,
+          "max_drawdown": 0.526142724177973,
+          "sharpe_annualised": 1.1053388474576173,
+          "days": 731
+        },
+        "with": {
+          "return": 2.7881169741916505,
+          "max_drawdown": 0.4550125068449702,
+          "sharpe_annualised": 1.411426861012801,
+          "days": 731
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.31892981961073386,
+          "max_drawdown": 0.373278589862728,
+          "sharpe_annualised": -0.6944966883156183,
+          "days": 365
+        },
+        "with": {
+          "return": -0.2974049529844809,
+          "max_drawdown": 0.35903257130387356,
+          "sharpe_annualised": -0.6260099011817486,
+          "days": 365
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 0.11738474425604206,
+          "max_drawdown": 0.351789990396822,
+          "sharpe_annualised": 0.38172748749548613,
+          "days": 552
+        },
+        "with": {
+          "return": 0.19860096138139371,
+          "max_drawdown": 0.351789990396822,
+          "sharpe_annualised": 0.515279336743001,
+          "days": 552
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 2.8409718027714437,
+          "max_drawdown": 0.7136685102441161,
+          "sharpe_annualised": 0.6963263914298025,
+          "days": 2120
+        },
+        "with": {
+          "return": 5.115258569354079,
+          "max_drawdown": 0.6602798451094348,
+          "sharpe_annualised": 0.8697565828886096,
+          "days": 2120
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|cycle 2018": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.13850914984785523,
+          "max_drawdown": 0.21352756160830055,
+          "sharpe_annualised": 1.0361820065397926,
+          "days": 107
+        },
+        "with": {
+          "return": 0.222984174384949,
+          "max_drawdown": 0.21352756160830078,
+          "sharpe_annualised": 1.4722261621094779,
+          "days": 107
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.411203530799777,
+          "max_drawdown": 0.3444282497088883,
+          "sharpe_annualised": 0.9140315047944134,
+          "days": 365
+        },
+        "with": {
+          "return": 0.41120353079977634,
+          "max_drawdown": 0.3444282497088885,
+          "sharpe_annualised": 0.9140315047944119,
+          "days": 365
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.1943913472589127,
+          "max_drawdown": 0.5873290315861762,
+          "sharpe_annualised": 0.9138063324504571,
+          "days": 731
+        },
+        "with": {
+          "return": 2.0598550005415994,
+          "max_drawdown": 0.4746797956783807,
+          "sharpe_annualised": 1.227352580470021,
+          "days": 731
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.39109360360049195,
+          "max_drawdown": 0.4278906729364186,
+          "sharpe_annualised": -0.9448963753429598,
+          "days": 365
+        },
+        "with": {
+          "return": -0.37184943560171013,
+          "max_drawdown": 0.4098094570569618,
+          "sharpe_annualised": -0.8781084331142697,
+          "days": 365
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": -0.04209837618423673,
+          "max_drawdown": 0.40192620012617597,
+          "sharpe_annualised": 0.10477012294011813,
+          "days": 552
+        },
+        "with": {
+          "return": 0.042012574278087245,
+          "max_drawdown": 0.4019262001261765,
+          "sharpe_annualised": 0.25208832851648433,
+          "days": 552
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      },
+      "donchian|base_2x|IS (from filter start)": {
+        "start": "2018-09-16 00:00:00+00:00",
+        "end": "2024-07-05 00:00:00+00:00",
+        "without": {
+          "return": 1.0564194718151825,
+          "max_drawdown": 0.7946639677783454,
+          "sharpe_annualised": 0.49400898612222083,
+          "days": 2120
+        },
+        "with": {
+          "return": 2.456591458649588,
+          "max_drawdown": 0.7303511507657283,
+          "sharpe_annualised": 0.6713325034462237,
+          "days": 2120
+        },
+        "trades_without": 206,
+        "trades_with": 163
+      }
+    },
+    "BNB/USDT": {
+      "sma200|base|cycle 2018": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": null,
+        "with": null,
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.615060185276433,
+          "max_drawdown": 0.40896512995906453,
+          "sharpe_annualised": 1.759221756453425,
+          "days": 365
+        },
+        "with": {
+          "return": 1.615060185276433,
+          "max_drawdown": 0.40896512995906453,
+          "sharpe_annualised": 1.759221756453425,
+          "days": 365
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 11.19065425795932,
+          "max_drawdown": 0.6724445353833564,
+          "sharpe_annualised": 1.630602800409053,
+          "days": 731
+        },
+        "with": {
+          "return": 2.546902319851913,
+          "max_drawdown": 0.5439468810634351,
+          "sharpe_annualised": 1.3308366262188165,
+          "days": 731
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.37618089673424593,
+          "max_drawdown": 0.3974671489021212,
+          "sharpe_annualised": -1.6011469082615695,
+          "days": 365
+        },
+        "with": {
+          "return": -0.34827147862239094,
+          "max_drawdown": 0.370510069230493,
+          "sharpe_annualised": -1.5143085714399558,
+          "days": 365
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 0.7993002709042929,
+          "max_drawdown": 0.3858659087021937,
+          "sharpe_annualised": 1.0301188981780334,
+          "days": 572
+        },
+        "with": {
+          "return": 0.5189756270716777,
+          "max_drawdown": 0.3858659087021937,
+          "sharpe_annualised": 0.8625649251204636,
+          "days": 572
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base|IS (from filter start)": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 35.19534937364592,
+          "max_drawdown": 0.7691125257506902,
+          "sharpe_annualised": 1.183218128947986,
+          "days": 2059
+        },
+        "with": {
+          "return": 8.288171041056916,
+          "max_drawdown": 0.6472895933123997,
+          "sharpe_annualised": 1.015612946807633,
+          "days": 2059
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|cycle 2018": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": null,
+        "with": null,
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 1.6059234080253946,
+          "max_drawdown": 0.40896512995906475,
+          "sharpe_annualised": 1.754081333415124,
+          "days": 365
+        },
+        "with": {
+          "return": 1.6059234080253946,
+          "max_drawdown": 0.40896512995906475,
+          "sharpe_annualised": 1.7540813334151248,
+          "days": 365
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 10.587464240878216,
+          "max_drawdown": 0.6724445353833562,
+          "sharpe_annualised": 1.6082063200387884,
+          "days": 731
+        },
+        "with": {
+          "return": 2.347885048688355,
+          "max_drawdown": 0.5596327483922916,
+          "sharpe_annualised": 1.2842210081054608,
+          "days": 731
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": -0.38593196917710504,
+          "max_drawdown": 0.4045764555445832,
+          "sharpe_annualised": -1.6605044936025166,
+          "days": 365
+        },
+        "with": {
+          "return": -0.3584588101609112,
+          "max_drawdown": 0.37793744341934943,
+          "sharpe_annualised": -1.5763674130701932,
+          "days": 365
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 0.7557527386313905,
+          "max_drawdown": 0.39862834125663216,
+          "sharpe_annualised": 0.9966483105307915,
+          "days": 572
+        },
+        "with": {
+          "return": 0.4667307258251472,
+          "max_drawdown": 0.39862834125663227,
+          "sharpe_annualised": 0.8069084639740188,
+          "days": 572
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "sma200|base_2x|IS (from filter start)": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 31.931510486401862,
+          "max_drawdown": 0.7809215045702336,
+          "sharpe_annualised": 1.1618050384325609,
+          "days": 2059
+        },
+        "with": {
+          "return": 7.30402933588981,
+          "max_drawdown": 0.660610957465164,
+          "sharpe_annualised": 0.9776204266914384,
+          "days": 2059
+        },
+        "trades_without": 31,
+        "trades_with": 32
+      },
+      "donchian|base|cycle 2018": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": null,
+        "with": null,
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.5362549537212651,
+          "max_drawdown": 0.4726266993797392,
+          "sharpe_annualised": 1.0015750063949618,
+          "days": 365
+        },
+        "with": {
+          "return": 0.5362549537212649,
+          "max_drawdown": 0.47262669937973956,
+          "sharpe_annualised": 1.0015750063949616,
+          "days": 365
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 8.755720658855463,
+          "max_drawdown": 0.47143064350803954,
+          "sharpe_annualised": 1.636022473085177,
+          "days": 731
+        },
+        "with": {
+          "return": 2.4491098117874324,
+          "max_drawdown": 0.3361872796381772,
+          "sharpe_annualised": 1.5020892441489146,
+          "days": 731
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.19742521210767827,
+          "max_drawdown": 0.2825482204505714,
+          "sharpe_annualised": 0.7153884213243498,
+          "days": 365
+        },
+        "with": {
+          "return": 0.10337616303430397,
+          "max_drawdown": 0.2825482204505716,
+          "sharpe_annualised": 0.4717427320770777,
+          "days": 365
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 0.3433822991643283,
+          "max_drawdown": 0.357365396780161,
+          "sharpe_annualised": 0.6930699300746289,
+          "days": 572
+        },
+        "with": {
+          "return": 0.32339884506615935,
+          "max_drawdown": 0.35736539678016066,
+          "sharpe_annualised": 0.7294602390165639,
+          "days": 572
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base|IS (from filter start)": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 23.78062837992865,
+          "max_drawdown": 0.5206076813559518,
+          "sharpe_annualised": 1.1627159859789669,
+          "days": 2059
+        },
+        "with": {
+          "return": 7.715554864622355,
+          "max_drawdown": 0.4820837838293862,
+          "sharpe_annualised": 1.0751664762295947,
+          "days": 2059
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2018": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2018-12-31 23:59:59+00:00",
+        "without": null,
+        "with": null,
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2019": {
+        "start": "2019-01-01 00:00:00+00:00",
+        "end": "2019-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.3758782091852624,
+          "max_drawdown": 0.5082806396824525,
+          "sharpe_annualised": 0.8189342470153266,
+          "days": 365
+        },
+        "with": {
+          "return": 0.3758782091852626,
+          "max_drawdown": 0.5082806396824525,
+          "sharpe_annualised": 0.8189342470153255,
+          "days": 365
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2020-21": {
+        "start": "2020-01-01 00:00:00+00:00",
+        "end": "2021-12-31 23:59:59+00:00",
+        "without": {
+          "return": 6.825223290302702,
+          "max_drawdown": 0.4860254095381932,
+          "sharpe_annualised": 1.516158140033402,
+          "days": 731
+        },
+        "with": {
+          "return": 1.925937659550967,
+          "max_drawdown": 0.3810654315585076,
+          "sharpe_annualised": 1.3289208980127063,
+          "days": 731
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2022": {
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2022-12-31 23:59:59+00:00",
+        "without": {
+          "return": 0.09518965700209381,
+          "max_drawdown": 0.30722484903082603,
+          "sharpe_annualised": 0.43945578190911544,
+          "days": 365
+        },
+        "with": {
+          "return": 0.01625949444458019,
+          "max_drawdown": 0.3072248490308265,
+          "sharpe_annualised": 0.20718145948907316,
+          "days": 365
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|cycle 2023+": {
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 0.14560720427069662,
+          "max_drawdown": 0.42533939544109856,
+          "sharpe_annualised": 0.41596834865202303,
+          "days": 572
+        },
+        "with": {
+          "return": 0.14447690165601723,
+          "max_drawdown": 0.4153136095912995,
+          "sharpe_annualised": 0.43007443600289225,
+          "days": 572
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      },
+      "donchian|base_2x|IS (from filter start)": {
+        "start": "2018-12-06 00:00:00+00:00",
+        "end": "2024-07-25 06:00:00+00:00",
+        "without": {
+          "return": 12.788066217186593,
+          "max_drawdown": 0.5788376563909845,
+          "sharpe_annualised": 1.0043921768619812,
+          "days": 2059
+        },
+        "with": {
+          "return": 4.246733634786492,
+          "max_drawdown": 0.515405233288879,
+          "sharpe_annualised": 0.8715001713939478,
+          "days": 2059
+        },
+        "trades_without": 194,
+        "trades_with": 145
+      }
+    }
+  },
+  "validation_read": false,
+  "holdout_read": false,
+  "verdict": {
+    "sma200": {
+      "pairs": {
+        "BTC/USDT": {
+          "benefit": false,
+          "cycles_scored": 5,
+          "cycles_sharpe_worse": 1
+        },
+        "ETH/USDT": {
+          "benefit": true,
+          "cycles_scored": 5,
+          "cycles_sharpe_worse": 1
+        },
+        "BNB/USDT": {
+          "benefit": false,
+          "cycles_scored": 4,
+          "cycles_sharpe_worse": 2
+        }
+      },
+      "family_benefit": false
+    },
+    "donchian": {
+      "pairs": {
+        "BTC/USDT": {
+          "benefit": true,
+          "cycles_scored": 5,
+          "cycles_sharpe_worse": 0
+        },
+        "ETH/USDT": {
+          "benefit": true,
+          "cycles_scored": 5,
+          "cycles_sharpe_worse": 1
+        },
+        "BNB/USDT": {
+          "benefit": false,
+          "cycles_scored": 4,
+          "cycles_sharpe_worse": 3
+        }
+      },
+      "family_benefit": true
+    },
+    "vol_regime_on_by_default": false
+  }
+}
