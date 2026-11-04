@@ -40,8 +40,8 @@ if not hasattr(_host, "merge_informative_pair"):
     _host.merge_informative_pair = merge_informative_pair
 MERGE = _host.merge_informative_pair
 
-ROOT = Path(__file__).parents[1]
-path = ROOT / "user_data" / "strategies" / "DailyRSI2Dip_H019_v1.py"
+ROOT = Path(__file__).parents[2]
+path = ROOT / "user_data" / "strategies" / "_archive" / "DailyRSI2Dip_H019_v1.py"
 spec = importlib.util.spec_from_file_location("DailyRSI2Dip_H019_v1", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
