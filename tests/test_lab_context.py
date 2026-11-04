@@ -66,6 +66,14 @@ class ResearchContextTests(ContextTestCase):
         self.assertIn("Focus on drawdown.", text)
         self.assertIn("does not change any gate or limit", text)
 
+    def test_audit_diagnosis_is_included_only_when_given(self) -> None:
+        self.assertNotIn("Audit diagnosis", self.render())
+        text = context.research_context(
+            self.conn, hypothesis_id="H-009", budget=BUDGET, hypotheses_proposed_this_cycle=0, audit_diagnosis="Losses cluster in 2022."
+        )
+        self.assertIn("## Audit diagnosis", text)
+        self.assertIn("Losses cluster in 2022.", text)
+
     def test_cost_facts_come_from_the_cost_module(self) -> None:
         text = self.render()
         self.assertIn("| base | 0.175% | 0.350% |", text)

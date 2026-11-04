@@ -63,6 +63,7 @@ def research_context(
     budget: dict,
     hypotheses_proposed_this_cycle: int,
     guidance: str = "",
+    audit_diagnosis: str = "",
 ) -> str:
     """Markdown the research agent reads before proposing `hypothesis_id`.
 
@@ -119,6 +120,7 @@ def research_context(
             *family_lines,
             "",
             *(["## Direction from the owner (steers the search; does not change any gate or limit)", guidance.strip(), ""] if guidance.strip() else []),
+            *(["## Audit diagnosis (exploration-only facts; deterministic code produced every number)", audit_diagnosis.strip(), ""] if audit_diagnosis.strip() else []),
             "## Hypotheses already tried",
             *(entries or ["none"]),
             "",

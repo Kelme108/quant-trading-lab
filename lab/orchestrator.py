@@ -180,6 +180,11 @@ class Lab:
         path = self.root / "research" / "guidance.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
+    def _audit_diagnosis(self) -> str:
+        """Optional exploration-only diagnosis written by the audit; empty when the file is absent."""
+        path = self.root / "research" / "audit" / "research-diagnosis.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
     def propose(self) -> str:
         """Ask the research agent for one hypothesis; register it before any test."""
         if self.proposed_this_cycle >= self.budget["max_hypotheses_per_cycle"]:
@@ -195,6 +200,7 @@ class Lab:
                 budget=self.budget,
                 hypotheses_proposed_this_cycle=self.proposed_this_cycle,
                 guidance=self._guidance(),
+                audit_diagnosis=self._audit_diagnosis(),
             ),
             encoding="utf-8",
         )

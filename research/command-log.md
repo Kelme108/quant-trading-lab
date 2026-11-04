@@ -212,3 +212,18 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - Nothing to archive: the only active strategies are the protected baselines (H-001/H-002/H-003, Sma200Baseline) and H-009 (candidate at exploration). `rerun_archived.py verify`: 10 files OK.
 - Registry notes appended (never overwritten) for H-003 (outdated "not yet tested" remark corrected), H-004 and H-006 (invalid; not in `_archive/`, documented exception), H-008 and H-016 (IS->OOS drop), H-009 (audit caveats). Ledger and `registry-dump.sql` regenerated via `lab/registry.py`.
 - The user decided the mark-to-market drawdown stays informative only; gates unchanged.
+
+## 2026-11-04 - Live execution layer, steps 0 and 1 (docs/prompt-execucao-tempo-real.md)
+
+- Step 0: user decisions recorded in `live/DECISIONS.md` (day-trade, long only, daily loss R$ 300, weekly R$ 900, 2 contracts, 10 entries/day, log + `live/STOP` file). `live/.venv` created with `MetaTrader5==5.0.6231` (wheel exists for Python 3.14). `live/tools/probe_mt5.py` (read-only) failed with `Authorization failed`: the terminal at `C:\Program Files\MetaTrader 5` was not logged in. Broker, server and account type are still unconfirmed.
+- Step 1: new package `live/` (no network, no MT5 import): `core/` (models, broker Protocol, clock/calendars, append-only SQLite journal, RiskManager, kill switch, engine, real-mode gate) and `brokers/paper.py`. No file under `lab/`, `user_data/` or the protected list was touched; `.gitignore` extended for `live/` runtime files.
+- Tests: `tests/live` (69). Full suite: 555 passed. Mutation check on the safety properties: using the forming candle, reprocessing a bar, non-persistent lockout, disabled safe mode and a mutable journal each make tests fail.
+- Limits: the session times in `SessionConfig` are placeholders until confirmed with the broker; PaperBroker fills one order per symbol, long only.
+
+## 2026-11-04 - Strategy audit, phase 4 (H-017, improvement of H-009)
+
+- `lab/context.py` / `lab/orchestrator.py`: optional "Audit diagnosis" section in the research context, read from `research/audit/research-diagnosis.md` (exploration-only facts about H-009; no validation data). Test added. `research/guidance.md` (the owner's file) was not edited.
+- `orchestrator propose` -> H-017 (family WeeklyBreakoutRegime, variant 2 of 3): H-009 plus "SMA(2160) rising over 720 bars". Single-cell grid by design. Registered before any run (commit b225250). `orchestrator implement` -> `WeeklyBreakoutRegime_H017_v1`; rule fidelity checked by diff against H-009 (only the slope condition added).
+- `analysis_checks.py`: smoke, lookahead and recursive clean on BTC, ETH, BNB. `calibrate_and_run.py`: exposure 0.3 by rule; exploration only. Decisions: BTC candidate, BNB candidate, ETH rejected (max drawdown at stress 25.5% > 25%). Not retuned.
+- Paired audit vs H-009 (`audit_exploration.py`, same window and costs, H-009 also at exposure 0.3): daily-return correlation 0.86 / 0.89 / 0.98 and no Sharpe gain; H-017 judged redundant. Validation not read. `grid_explore` and agent reviews skipped: single cell, already rejected.
+- H-017 archived (strategy -> `_archive/`, test -> `tests/archive/`, `archived_strategies` row, SHA verified: 11 files OK). `tests/test_rerun_archived.py` EXPECTED set updated to include H-017.
