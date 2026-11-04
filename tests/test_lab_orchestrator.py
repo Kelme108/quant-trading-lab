@@ -447,6 +447,13 @@ class RunAndDecideTests(LabTestCase):
             ("TrendFilter_H001_v1", "user_data/strategies/TrendFilter_H001_v1.py"),
         )
 
+    def test_find_strategy_falls_back_to_the_archive(self) -> None:
+        archive = self.lab.root / "user_data" / "strategies" / "_archive"
+        archive.mkdir(parents=True, exist_ok=True)
+        (archive / "Gone_H077_v1.py").write_text("# archived", encoding="utf-8")
+        self.assertEqual(self.lab.find_strategy("H-077"),
+                         ("Gone_H077_v1", "user_data/strategies/_archive/Gone_H077_v1.py"))
+
     def test_an_unknown_hypothesis_has_no_strategy(self) -> None:
         with self.assertRaises(orchestrator.StepFailed):
             self.lab.find_strategy("H-099")

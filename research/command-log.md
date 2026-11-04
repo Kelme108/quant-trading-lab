@@ -197,3 +197,12 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - New front-end `lab/dashboard_assets/portal.js` plus design tokens and components in `index.html`: Visao geral, Ranking, Explorador, Comparar, Backtests (backtest / dry-run / real kept apart), Sistema, Ctrl+K search. Old overview code removed; the summary sentence was corrected (it said validated hypotheses were still awaiting validation).
 - Bugs found while building: CSS class `.stack` collided with `table.stack` (every table became a grid), empty-hash route, and `strategies` missing from the empty-state contract (caught by the contract test).
 - Verified: 20 analytics tests, 9 portal-state tests, 68 dashboard tests, and `node research/tools/portal_e2e.mjs` (40 checks in real Chrome, no console errors). Mobile layout not verified visually.
+
+## 2026-11-04 - Strategy audit, phases 0-2 (research/audit/fase2-diagnostico.md)
+
+- Phase 0: 485 tests passed; `rerun_archived.py verify` OK for 10 archived files; tree committed by theme (5 commits, no push). gates.json/portfolio.json remain PROPOSED, so every audit decision is labelled provisional (user's choice).
+- Phase 1: read-only inventory of H-001..H-016, Sma200Baseline and the `sens-*` runs. H-004 and H-006 files were removed from the strategy path without going to `_archive/` (recoverable from git 544a3d5); documented as an exception (user's choice).
+- Phase 2: `orchestrator review` (validator, quant, risk) for H-009, H-008, H-016, exploration only. A first H-016 attempt was aborted by the write guard because a metrics batch was writing `research/audit/` in parallel; it was re-run alone.
+- `lab/orchestrator.py`: `find_strategy` now falls back to `user_data/strategies/_archive` (needed to review archived hypotheses); test added.
+- New `research/tools/audit_exploration.py`: standard metrics on the exploration window only (base and base_2x, Sma200Baseline and buy-and-hold references, cycles clipped to exploration, bootstrap CI). Output in `research/audit/H-<id>-exploration-metrics.json` for H-001,002,003,005,007,008,009,010,012,016. Validation and the prospective holdout were not read.
+- Finding: the gate drawdown (`max_drawdown_account`) is computed on closed trades; the mark-to-market drawdown is larger (H-009 BNB 14.5% vs 32%; H-016 BNB 9.7% vs 48%). Gate not changed; decision left to the user.

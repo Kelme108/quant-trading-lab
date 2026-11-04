@@ -367,6 +367,9 @@ class Lab:
             baseline = self.root / "user_data" / "strategies" / f"{hypothesis['family']}.py"
             if baseline.is_file():
                 return baseline.stem, self._rel(baseline)
+        archived = sorted((self.root / "user_data" / "strategies" / "_archive").glob(f"*_H{number:03d}_v*.py"))
+        if archived:
+            return archived[-1].stem, self._rel(archived[-1])
         raise StepFailed(f"{hypothesis_id}: no strategy file found")
 
     def run_split(self, hypothesis_id: str, split: str) -> list[str]:
