@@ -258,3 +258,9 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - `lab/orchestrator.py`: `Lab.scout(count)` (context file with rule text and counts only, guard-checked, ideas ingested and committed), `Lab.triage_ideas()`, CLI `scout`, `triage`, `queue`. `lab/context.py`: `scout_context`.
 - Tests: `tests/test_lab_intake_triage.py` (21), scout cases in `tests/test_lab_orchestrator.py` (8: queued and committed, context has no results, invalid file reported, write outside intake aborts, extra file aborts, count bounds, spend cap, triage makes no agent call) and the agent tests now expect the web tools on research and scout. Full suite: 544 passed (tests/live excluded; it belongs to another session).
 - Not run: a real scout call (it spends agent budget and makes web requests). Pending the user's go-ahead.
+
+## 2026-11-04 - First real scout run and a triage fix
+
+- `orchestrator scout --count 3`: 1 idea written (I-001, daily RSI(2) dip buy inside a 200-day uptrend; source: a blog page, license unknown), schema valid, cost US$ 0.14 over 8 turns. The scout returned fewer ideas than allowed, which the design permits.
+- The triage first dropped I-001 as "position scaling": a false positive on the text "no pyramiding". `lab/triage.py` now ignores a forbidden word that is negated just before it (no, not, never, without, sem...), with the negation scope cut at "but/however/except/then". Test added, including a mixed case ("No leverage, but pyramid ...") that must still be dropped. I-001 was reopened as 'new' with the reason recorded and re-triaged: queued, score 2.94.
+- Flag for the user: I-001 is the RSI(2) family that docs/prompt-proxima-etapa.md lists as pending and not to enter without explicit approval. It stays queued; it is not registered as a hypothesis.

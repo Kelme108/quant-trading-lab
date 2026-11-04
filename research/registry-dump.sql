@@ -281,6 +281,15 @@ I took `startup_candle_count = 400` from the proposal''s 400-daily-bar warm-up. 
 
 - `user_data/strategies/DonchianEnsemble_H018_v1.py`
 - `tests/test_donchianensemble_h018_v1.py`','2026-11-04T18:26:48.154368+00:00');
+INSERT INTO "agent_runs" VALUES(33,'scout',NULL,'scout','completed',1.390022000000000202e-01,8,5.476197779999347404e+01,'4d8870bc-0321-4b3e-bc4d-2f03f5a1a43f','I wrote 1 file. I didn''t find a second or third idea with a source I could open and verify, so I stopped there.
+
+The idea is a daily RSI(2) dip buy. It enters when RSI(2) closes below 10 and the daily close is above the 200-day SMA. It exits on the first close above the 5-day SMA, or on a close below the 200-day SMA. The source is a blog page, therighttrader.com''s RSI 2 Strategy page, which I opened.
+
+Two other leads didn''t work out:
+- **IBS (internal bar strength) rule:** the Quantified Strategies page was blocked by a bot check, so I couldn''t read it.
+- **Bitcoin intraday momentum:** the arXiv PDF came back unreadable, and the idea would trade about daily, so costs would eat it anyway.
+
+The file is research/intake/S20261104T205946Z-1.json.','2026-11-04T20:59:46.365504+00:00');
 CREATE TABLE archived_strategies (
     hypothesis_id TEXT PRIMARY KEY REFERENCES hypotheses(id),
     strategy_class TEXT NOT NULL,
@@ -496,6 +505,7 @@ CREATE TABLE ideas (
     hypothesis_id TEXT REFERENCES hypotheses(id),
     created_at_utc TEXT NOT NULL
 );
+INSERT INTO "ideas" VALUES('I-001','S20261104T205946Z','Daily RSI(2) oversold dip buy in 200-day uptrend, exit above 5-day SMA','blog','https://therighttrader.com/learn/trading-strategies/rsi-2-strategy','RSI 2 Strategy (therighttrader.com)','unknown','Signals from closed DAILY candles built from the 1h data, executed at the next 1h open. RSI(2) uses Wilder smoothing on daily closes. ENTRY: daily close > SMA(200 days) of daily close AND RSI(2) < 10 AND no open position. EXIT: first daily close above SMA(5 days) of daily close, OR daily close below SMA(200 days). No profit target, no pyramiding. Optional protective stop (not part of the published exit): none in the base rule; a developer may add a fixed percentage stop below entry. Free numbers: RSI length 2, threshold 10, exit average 5, trend average 200.','Very short-term sell-offs inside an established uptrend are often forced or impatient selling (liquidations, panic sellers) that overshoots; liquidity takers pay a concession to dip buyers, and price snaps back toward its short mean. The source gives only a brief rationale (extreme readings flag dips; the 200-day filter avoids downtrends); the liquidity-overshoot story is the closest honest mechanism.','1d',200,4,1,9.0,'DailyRSI2Dip','89cdd0d318c9fa83fc961babbf54823dd6a77b3395b6d4a6aca0d21b74512381','queued','',2.9379,NULL,'2026-11-04T21:00:41.983635+00:00');
 CREATE TABLE metrics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     experiment_id TEXT NOT NULL REFERENCES experiments(id),
@@ -1588,5 +1598,5 @@ INSERT INTO "metrics" VALUES(1170,'20261104T135024Z-h-017-exploration-bnb-usdt',
 DELETE FROM "sqlite_sequence";
 INSERT INTO "sqlite_sequence" VALUES('metrics',1170);
 INSERT INTO "sqlite_sequence" VALUES('decisions',77);
-INSERT INTO "sqlite_sequence" VALUES('agent_runs',32);
+INSERT INTO "sqlite_sequence" VALUES('agent_runs',33);
 COMMIT;

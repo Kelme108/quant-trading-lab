@@ -57,10 +57,23 @@ def exploration_years(splits: dict | None = None) -> float:
     return sum(spans) / len(spans)
 
 
+# A forbidden word that is itself ruled out ("no pyramiding", "without leverage", "long only, never short selling")
+# describes a rule that is fine. Look a few words back for a negation within the same clause.
+NEGATION = re.compile(r"\b(no|not|never|without|nor|neither|non|sem|nunca|nao|n\u00e3o)\b(?:(?!\b(?:but|however|except|then|mas|porem)\b)[^.;:]){0,25}$", re.I)
+
+
+def _asserted(pattern: re.Pattern, text: str) -> bool:
+    """True when the forbidden pattern appears in `text` at least once without a negation just before it."""
+    for match in pattern.finditer(text):
+        if not NEGATION.search(text[max(0, match.start() - 30):match.start()]):
+            return True
+    return False
+
+
 def forbidden_topics(*texts: str) -> list[str]:
     found = []
     for pattern, label in FORBIDDEN_PATTERNS:
-        if any(pattern.search(text) for text in texts) and label not in found:
+        if any(_asserted(pattern, text) for text in texts) and label not in found:
             found.append(label)
     return found
 

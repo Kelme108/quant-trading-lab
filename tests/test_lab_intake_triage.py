@@ -167,6 +167,15 @@ class TriageTests(unittest.TestCase):
                 "using a short lookback of ten days and a long one of fifty days.")
         self.assertEqual(self.run_one(self.row(rule_summary=text))["state"], "queued")
 
+    def test_a_negated_forbidden_word_is_not_a_violation(self) -> None:
+        for text in ("Buy when the daily close is above the two hundred day average and the two period RSI is under ten; "
+                     "sell above the five day average. No profit target, no pyramiding, no leverage.",
+                     "Long only, without leverage or margin, never short selling: buy the fifty day high breakout of the close."):
+            self.assertEqual(self.run_one(self.row(rule_summary=text))["state"], "queued", text)
+        # an asserted one in the same text still counts, even next to a negated one
+        mixed = "No leverage, but pyramid into the position after each new fifty day high of the closing price series."
+        self.assertEqual(self.run_one(self.row(rule_summary=mixed))["state"], "dropped")
+
     def test_a_repeated_rule_or_a_capped_family_is_dropped(self) -> None:
         repeat = self.run_one(self.row(), tried=[("H-099", IDEA["rule_summary"])])
         self.assertEqual(repeat["state"], "dropped")
