@@ -206,3 +206,9 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - `lab/orchestrator.py`: `find_strategy` now falls back to `user_data/strategies/_archive` (needed to review archived hypotheses); test added.
 - New `research/tools/audit_exploration.py`: standard metrics on the exploration window only (base and base_2x, Sma200Baseline and buy-and-hold references, cycles clipped to exploration, bootstrap CI). Output in `research/audit/H-<id>-exploration-metrics.json` for H-001,002,003,005,007,008,009,010,012,016. Validation and the prospective holdout were not read.
 - Finding: the gate drawdown (`max_drawdown_account`) is computed on closed trades; the mark-to-market drawdown is larger (H-009 BNB 14.5% vs 32%; H-016 BNB 9.7% vs 48%). Gate not changed; decision left to the user.
+
+## 2026-11-04 - Strategy audit, phase 3 (triage)
+
+- Nothing to archive: the only active strategies are the protected baselines (H-001/H-002/H-003, Sma200Baseline) and H-009 (candidate at exploration). `rerun_archived.py verify`: 10 files OK.
+- Registry notes appended (never overwritten) for H-003 (outdated "not yet tested" remark corrected), H-004 and H-006 (invalid; not in `_archive/`, documented exception), H-008 and H-016 (IS->OOS drop), H-009 (audit caveats). Ledger and `registry-dump.sql` regenerated via `lab/registry.py`.
+- The user decided the mark-to-market drawdown stays informative only; gates unchanged.
