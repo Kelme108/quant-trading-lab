@@ -227,3 +227,8 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - `analysis_checks.py`: smoke, lookahead and recursive clean on BTC, ETH, BNB. `calibrate_and_run.py`: exposure 0.3 by rule; exploration only. Decisions: BTC candidate, BNB candidate, ETH rejected (max drawdown at stress 25.5% > 25%). Not retuned.
 - Paired audit vs H-009 (`audit_exploration.py`, same window and costs, H-009 also at exposure 0.3): daily-return correlation 0.86 / 0.89 / 0.98 and no Sharpe gain; H-017 judged redundant. Validation not read. `grid_explore` and agent reviews skipped: single cell, already rejected.
 - H-017 archived (strategy -> `_archive/`, test -> `tests/archive/`, `archived_strategies` row, SHA verified: 11 files OK). `tests/test_rerun_archived.py` EXPECTED set updated to include H-017.
+
+## 2026-11-04 - Strategy audit, phase 5 (docs/relatorio-auditoria-estrategias.md)
+
+- `orchestrator portfolio` -> `research/portfolio/20261104T152035Z.json`: empty portfolio (no hypothesis has `candidate_for_portfolio` in every pair x split).
+- Final report written: inventory, standard metrics (exploration only; base and base_2x; cycles; bootstrap CIs), IS->OOS for H-008/H-016, paired H-009 vs H-017 table, configuration count (~47 distinct rules), limitations. Every decision is provisional (gates.json/portfolio.json PROPOSED). No strategy qualifies for a frozen dry-run; validation and the prospective holdout were not read for any new result.
