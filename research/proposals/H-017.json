@@ -1,0 +1,26 @@
+{
+  "hypothesis_id": "H-017",
+  "family": "WeeklyBreakoutRegime",
+  "title": "Weekly breakout gated by a rising 90-day mean to avoid post-peak failed breakouts",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole allowed balance (same exposure rule as H-009). Identical to H-009 except for ONE added regime condition. REGIME at bar t: SMA(720)(t) > SMA(2160)(t) AND close(t) > SMA(720)(t) AND SMA(2160)(t) > SMA(2160)(t-720) (the 90-day mean is higher than it was 30 days ago, i.e. the slow trend is rising). ENTRY at close of bar t when REGIME holds AND close(t) > highest high of the prior 168 bars (t-168..t-1, excluding current bar) AND no open position AND cooldown satisfied. EXIT at close of bar t (executed next open) when close(t) < lowest low of the prior 72 bars (excluding current bar) OR close(t) < SMA(720)(t). STOP-LOSS: fixed 6% below entry price (native intrabar stop). COOLDOWN: no re-entry for 24 candles after any exit. No take-profit, no pyramiding, no other filters. The slope lag of 720 bars is fixed ex ante (30 days); no other value is run, the grid is the single cell {720}, with H-009 (no slope condition) as the reference. Warm-up: 2880 bars.",
+  "parameters": {
+    "sma_fast": 720,
+    "sma_slow": 2160,
+    "slope_lag_bars": 720,
+    "breakout_lookback": 168,
+    "exit_lookback": 72,
+    "stop_loss_pct": 6,
+    "cooldown_bars": 24,
+    "warmup_bars": 2880,
+    "exposure_rule": "same as H-009"
+  },
+  "rationale": "Mechanism fixed: audit item 3, long losing streaks after the 2021 peak (9/14/11 consecutive losses; ETH and BNB streaks of 14-17 months) made of breakouts that fail within hours and are re-entered. In those phases SMA720 is still above SMA2160 and price pokes above SMA720, so the H-009 regime stays on, but the 90-day mean has stopped rising or is falling: this is a range/distribution phase where breakouts of a 7-day high are bought by trend-followers and sold into by range traders (stops of breakout buyers sit just below). Requiring the slow mean to be rising demands that the trend be persistent at the 1-3 month horizon, the horizon where time-series momentum is documented (Moskowitz, Ooi, Pedersen), where speculators earn from hedgers/late sellers' slow reaction. Expected risk reduction: fewer entries in non-trending phases, so fewer consecutive stop-outs (each about -6.3% at stop) and shorter losing streaks; the filter should remove trades mainly after peaks (2022 onward) while keeping most 2019-2021 trades. Expected trades: roughly 40-70 per pair over the exploration window (about 5-12 per year), fewer than H-009's 58/81/80 but still above 30; average winning trade needs to exceed the 0.35-0.5% round trip cost by a wide margin, which trend breakouts held for days to weeks do. Success criteria: existing gates (max drawdown < 25%, positive net at base and conservative cost, >= 30 trades per pair), plus in-sample DSR >= 0.95, PBO <= 0.5, plateau, and Sharpe above buy-and-hold and Sma200Baseline at 2x costs. Honest caveat: no source tests this specific filter; the sources support trend persistence and moving-average rules in Bitcoin generally.",
+  "novelty_vs_tried": "Child of H-009, not a parameter re-tune: it adds one structural condition (slope of the slow mean) aimed at the documented post-peak failed-breakout streaks. H-007 used a similar slope condition on SMA2400 with a 480-day-bar breakout, a 20-day slope and a 120-bar cooldown, with far fewer trades (23-36); this uses H-009's faster 168-bar breakout and 72-bar exit with a 30-day slope on the 90-day mean, keeping trade count higher. Only one cell is run, so it spends one of the family's three variants with no grid.",
+  "sources": [
+    {"title": "Time Series Momentum (Moskowitz, Ooi, Pedersen, JFE 2012) - SSRN", "url": "https://papers.ssrn.com/abstract=2089463"},
+    {"title": "Time series momentum - EconPapers record, J. Financial Economics 104(2)", "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:104:y:2012:i:2:p:228-250"},
+    {"title": "CXO Advisory: Timing Bitcoin with SMAs (summary of Detzel et al.)", "url": "https://www.cxoadvisory.com/currency-trading/timing-bitcoin-with-smas/"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Context file research/context/H-017.md with exploration-only audit facts for H-009; no price data, validation or final test results were viewed."
+}
