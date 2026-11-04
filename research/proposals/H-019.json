@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-019",
+  "family": "DailyRSI2Dip",
+  "title": "Daily RSI(2) oversold dip buy inside a 200-day uptrend, exit above 5-day SMA",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (Freqtrade informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position, whole allowed balance, no pyramiding, no profit target, no sizing hooks. Indicators on daily closes: RSI(2) with Wilder smoothing (alpha = 1/2, seeded with the simple average of the first 2 changes); SMA(200 days); SMA(5 days). ENTRY when a daily candle closes with: daily close > SMA(200) AND RSI(2) < 10 AND no open position. EXIT when a daily candle closes with: daily close > SMA(5) OR daily close < SMA(200). STOP-LOSS: none in the rule (published exit only); the strategy sets stoploss = -0.99 only to satisfy the engine contract, never a binding stop. No cooldown. No other filters. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). All numbers fixed ex ante from the published rule: RSI length 2, threshold 10, exit average 5 days, trend average 200 days; no grid. Warm-up: 400 bars (daily candles on the informative frame: 200 for SMA(200) plus 200 for Wilder RSI to stabilise; the 1h startup_candle_count is set to 400 as in H-015/H-018, well under the 4500 limit).",
+  "parameters": {
+    "signal_timeframe": "1d",
+    "execution_timeframe": "1h",
+    "rsi_length": 2,
+    "rsi_smoothing": "wilder",
+    "rsi_entry_threshold": 10,
+    "trend_sma_days": 200,
+    "exit_sma_days": 5,
+    "stoploss_engine_contract": -0.99,
+    "cooldown_candles": 0,
+    "warmup_bars": 400,
+    "exposure_step_pct": 5,
+    "exposure_max_p95_dd_pct": 25
+  },
+  "rationale": "Mechanism (honest, not proven by the source): very short sell-offs inside an established uptrend are often forced or impatient selling (liquidations, panic market sells) that overshoots; liquidity takers pay a concession to dip buyers and price snaps back toward its short mean, which the exit above the 5-day SMA captures. The 200-day filter keeps the strategy out of persistent downtrends where dips are real repricing, and the exit below the 200-day mean ends trades when the regime fails. Risk reduction tied to the owner's drawdown concern: the strategy is in the market only briefly (holds of a few days), only after a 200-day uptrend is confirmed, and trades are many small mean-reversion payoffs rather than long breakout streaks of 6-8% stop losses; exposure is capped by the bootstrap rule so a loss streak stays under 25%. Expected trades: roughly 4-10 per pair per year, i.e. about 40-80 per pair in exploration; average gross move per trade is a few percent (rebound to the 5-day mean after RSI(2)<10) versus 0.35% base and 0.50% conservative round-trip cost, so costs are modest relative to the move but the edge is not guaranteed. Main risk: no stop, so a dip that keeps falling is held until the close below the 200-day SMA; this is a deliberate fidelity to the published rule. Success criteria: existing gates, positive net at base and conservative cost, >= 30 trades per pair, DSR/PBO/plateau as required (single cell, no grid). The Connors-style source cites no verified crypto performance.",
+  "novelty_vs_tried": "All prior families are breakouts/trend followers (Donchian, SMA cross, squeeze, weekly breakout, momentum) or 1h/4h mean reversion (Bollinger RSI14, EMA snapback ATR). This is a daily-timeframe, very-short-lookback RSI(2) oversold dip with a slow-trend filter and a mean-based exit (close above 5-day SMA) instead of a stop or channel low. Unlike H-003 (RSI14<30 on 1h Bollinger) it uses closed daily signals, an extreme 2-bar oscillator and a 5-day mean exit; unlike H-012/H-014 it has no ATR z-score and no recovery confirmation.",
+  "sources": [
+    {"title": "RSI 2 Strategy (therighttrader.com)", "url": "https://therighttrader.com/learn/trading-strategies/rsi-2-strategy"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only research/context/H-019.md exploration-level summaries and the protocol; BTC, ETH, BNB 1h through 2026-11-04 exist but were not inspected."
+}
