@@ -14,7 +14,7 @@ _spec = importlib.util.spec_from_file_location("rerun_archived", ROOT / "researc
 rerun_archived = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rerun_archived)
 
-EXPECTED = {"H-005", "H-007", "H-008", "H-010", "H-011", "H-012", "H-013", "H-014", "H-015", "H-016", "H-017"}
+EXPECTED = {"H-005", "H-007", "H-008", "H-010", "H-011", "H-012", "H-013", "H-014", "H-015", "H-016", "H-017", "H-018"}
 KEPT = {"SmaTrendBaseline", "DonchianBreakoutBaseline", "BollingerMeanReversionBaseline",
         "WeeklyBreakoutRegime_H009_v1", "Sma200Baseline"}
 

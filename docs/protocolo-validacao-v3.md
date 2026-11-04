@@ -2,7 +2,7 @@
 
 Versão: rascunho 2, 2026-11-04. Incorpora as revisões independentes de `research/protocol-review/validator.md`, `quant.md` e `risk.md` (as respostas estão no §13).
 
-Status: **proposta, aguardando aprovação do usuário. Nada aqui foi implementado ou executado.**
+Status: **aprovado pelo usuário em 2026-11-04 com as propostas do §11** ("pode usar todas suas propostas"). Isso fixa D-1 (sizing só como overlay teórico), D-2 (gate de 30 trades mantido), D-3 (sem stop), D-4, D-5, D-6, D-8, D-9 e D-10 (só relatar). **D-7 continua pendente:** `gates.json` e `portfolio.json` seguem PROPOSED, então toda decisão é provisória. Mudanças posteriores só por nova versão do protocolo.
 
 Este protocolo complementa `research/validation-protocol-v2.md`, `lab/config/gates.json`, `splits.json`, `holdout.json`, `portfolio.json` e `budget.json`, e não altera nenhum deles. Todo limite novo aparece como **decisão pendente (D-n)**. Um limite só passa a valer depois de duas coisas: o usuário aprova e o critério é pré-registrado em `lab/registry.py`, antes de qualquer execução da hipótese.
 

@@ -232,3 +232,12 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 
 - `orchestrator portfolio` -> `research/portfolio/20261104T152035Z.json`: empty portfolio (no hypothesis has `candidate_for_portfolio` in every pair x split).
 - Final report written: inventory, standard metrics (exploration only; base and base_2x; cycles; bootstrap CIs), IS->OOS for H-008/H-016, paired H-009 vs H-017 table, configuration count (~47 distinct rules), limitations. Every decision is provisional (gates.json/portfolio.json PROPOSED). No strategy qualifies for a frozen dry-run; validation and the prospective holdout were not read for any new result.
+
+## 2026-11-04 - Protocol v3 approved (docs/protocolo-validacao-v3.md); H-018 Donchian Ensemble
+
+- User approved all proposals of section 11 ("usa todas as propostas"): D-1 sizing only as theoretical overlay, D-2 30-trade gate kept, D-3 no stop, D-4/D-5/D-6, D-8 TSMOM with descriptive validation, D-9 Sma200Baseline reference in dry-run and extended holdout evaluation for slow rules, D-10 report-only. D-7 (gates.json/portfolio.json PROPOSED) remains pending, so every decision is provisional.
+- Pre-registration check (no returns involved): the daily Donchian latch state at the first day of a split equals the full-history state for warm-ups of 400, 600 and 900 days on BTC, ETH and BNB (probes 2020-01-01 and 2021-06-01); warm-up fixed at 400 daily bars.
+- `research/tools/register_h018.py`: H-018 (family DonchianEnsemble, vote >= 2 of 4 daily channels (20,10),(55,20),(100,50),(200,100), no stop) registered with `research/proposals/H-018.json` before any run. Sources found by web search: SFI RP 25-80 (Zarattini et al.), AQR century of trend following, SSRN time-series momentum; none read in full.
+- `orchestrator implement H-018` -> `DonchianEnsemble_H018_v1`, checked against the rule by reading. Smoke, lookahead and recursive clean on all three pairs.
+- `calibrate_and_run.py H-018`: calibration trades BTC 17, ETH 14, BNB 16 (< 30). DROPPED by the pre-registered rule; not retuned; no sensitivity, validation or holdout read. Archived (strategy -> `_archive/`, test -> `tests/archive/`, `archived_strategies`, SHA verified: 12 files OK). `tests/test_rerun_archived.py` EXPECTED updated.
+- Consequence: under D-2 the daily Donchian vote cannot reach a gate decision (the slow members trade 14-17 times per pair in the exploration window). Changing that rule is the user's decision and cannot be justified by this result.
