@@ -1,0 +1,19 @@
+{
+  "_status": "Defined 2026-11-03 following the user's decision (option C, phase-0 approval). Only the user may change it.",
+  "_why": "A clean 12-month holdout does not exist: 2025-10..2026-10 was already backtested by the baselines and the H-002 end-to-end run, and the validation window (2024-07..2026-10) was read once for H-008. So the last 12 months are reported as SEMI-CONTAMINATED, and the only truly unseen data is what is published after the cut-off below.",
+  "semi_contaminated_window": {
+    "start_utc": "2025-10-21T00:00:00Z",
+    "end_utc": "2026-10-20T23:59:59Z",
+    "label": "last 12 months of the historical data (semi-contaminated: already seen by earlier experiments)"
+  },
+  "prospective_holdout": {
+    "start_utc": "2026-10-21T00:00:00Z",
+    "label": "true prospective holdout: never used for selection, parameters or thresholds",
+    "use": "evaluation only; no optimisation of any kind may read it",
+    "earliest_evaluation_utc": "2027-04-21T00:00:00Z",
+    "preferred_evaluation_utc": "2027-10-21T00:00:00Z",
+    "min_closed_trades": 30,
+    "_evaluation_rule": "Evaluate no earlier than earliest_evaluation_utc AND only when the strategy has at least min_closed_trades closed trades in the holdout (pooled over the tested pairs). If the trade count is lower at preferred_evaluation_utc, the evaluation is reported as inconclusive with bootstrap intervals, never as success or failure. One evaluation per frozen strategy.",
+    "unlock": "lab/config/splits.json final_test.final_test_unlocked stays false until the user decides; runner.py refuses the split while it is false."
+  }
+}

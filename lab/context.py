@@ -62,8 +62,12 @@ def research_context(
     hypothesis_id: str,
     budget: dict,
     hypotheses_proposed_this_cycle: int,
+    guidance: str = "",
 ) -> str:
-    """Markdown the research agent reads before proposing `hypothesis_id`."""
+    """Markdown the research agent reads before proposing `hypothesis_id`.
+
+    `guidance` is the owner's free-text research direction (research/guidance.md). It steers
+    WHAT to look for; it never changes a gate, a limit or the protocol."""
     pairs = ", ".join(runner.enabled_pairs())
     timeframes = ", ".join(runner.enabled_timeframes())
     cap = budget["max_variants_per_family"]
@@ -114,6 +118,7 @@ def research_context(
             "## Families and their variant caps",
             *family_lines,
             "",
+            *(["## Direction from the owner (steers the search; does not change any gate or limit)", guidance.strip(), ""] if guidance.strip() else []),
             "## Hypotheses already tried",
             *(entries or ["none"]),
             "",

@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Callable
 
+from lab.strategy_check import MAX_STARTUP_CANDLES
+
 ROOT = Path(__file__).parents[1]
 PROPOSALS_DIR = ROOT / "research" / "proposals"
 
@@ -30,6 +32,7 @@ REQUIRED_KEYS = (
     "data_visible_at_proposal",
 )
 
+WARMUP = re.compile(r"warm-?up\s*:?\s*(\d[\d,._]*)\s*(?:bars|candles)", re.IGNORECASE)
 FAMILY = re.compile(r"^[A-Za-z][A-Za-z0-9]{2,39}$")
 HYPOTHESIS_ID = re.compile(r"^H-\d{3}$")
 HTTPS_URL = re.compile(r"^https://[A-Za-z0-9.-]+(:\d+)?(/[^\s]*)?$")
@@ -108,6 +111,19 @@ def validate_proposal(
                 errors.append(f"parameter '{name}' must be a number, a boolean or a short string")
             elif isinstance(value, str) and len(value) > 60:
                 errors.append(f"parameter '{name}' string value is too long")
+
+    # Feasibility BEFORE registration: a lookback the engine cannot load would otherwise be
+    # registered, consume a variant, and fail at the first backtest (H-006).
+    rule = proposal["ex_ante_rule"] if isinstance(proposal["ex_ante_rule"], str) else ""
+    stated = WARMUP.search(rule)
+    if not stated:
+        errors.append("ex_ante_rule must state the warm-up as 'Warm-up: N bars' (the longest lookback including slope lags)")
+    elif int(re.sub(r"[,._]", "", stated.group(1))) > MAX_STARTUP_CANDLES:
+        errors.append(f"warm-up above {MAX_STARTUP_CANDLES} bars is not loadable by Freqtrade on 1h; shorten the lookbacks")
+    if isinstance(parameters, dict):
+        for name, value in parameters.items():
+            if isinstance(value, int) and not isinstance(value, bool) and value > MAX_STARTUP_CANDLES:
+                errors.append(f"parameter '{name}' = {value} is above {MAX_STARTUP_CANDLES} bars; Freqtrade cannot load that much 1h history")
 
     if proposal["timeframe"] not in enabled_timeframes:
         errors.append(f"timeframe must be one of {enabled_timeframes}")

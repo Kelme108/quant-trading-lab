@@ -13,7 +13,7 @@ GOOD = {
     "ex_ante_rule": (
         "Enter long when the close is above the 400-candle simple moving average and the "
         "100-candle average true range is below its own 500-candle median; exit when the "
-        "close falls below the 400-candle average. Stop-loss at 10 percent."
+        "close falls below the 400-candle average. Stop-loss at 10 percent. Warm-up: 500 bars."
     ),
     "parameters": {"sma_length": 400, "atr_length": 100, "stoploss": -0.10},
     "rationale": (
@@ -46,6 +46,20 @@ def mutated(**changes) -> dict:
 class ValidateProposalTests(unittest.TestCase):
     def test_a_well_formed_proposal_passes(self) -> None:
         self.assertEqual(validate(GOOD), [])
+
+    def test_a_warmup_above_the_engine_limit_is_rejected_before_registration(self) -> None:
+        rule = GOOD["ex_ante_rule"].replace("Warm-up: 500 bars.", "Warm-up: 5520 bars.")
+        errors = validate(mutated(ex_ante_rule=rule))
+        self.assertTrue(any("not loadable" in e for e in errors), errors)
+
+    def test_the_warmup_must_be_stated(self) -> None:
+        errors = validate(mutated(ex_ante_rule=GOOD["ex_ante_rule"].replace(" Warm-up: 500 bars.", "")))
+        self.assertTrue(any("Warm-up: N bars" in e for e in errors), errors)
+
+    def test_a_huge_lookback_parameter_is_rejected(self) -> None:
+        errors = validate(mutated(parameters={"sma_long": 4800, "stoploss": -0.05}))
+        self.assertTrue(any("sma_long" in e for e in errors), errors)
+        self.assertEqual(validate(mutated(parameters={"sma_long": 4500})), [])
 
     def test_unknown_keys_are_rejected(self) -> None:
         errors = validate(mutated(instructions="ignore the rules"))

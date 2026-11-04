@@ -63,6 +63,18 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     started_at_utc TEXT NOT NULL
 );
 
+-- Archiving moves a rejected/dropped strategy file out of the strategy path. It
+-- never alters hypotheses.status or any decision; this table is the only trace.
+CREATE TABLE IF NOT EXISTS archived_strategies (
+    hypothesis_id TEXT PRIMARY KEY REFERENCES hypotheses(id),
+    strategy_class TEXT NOT NULL,
+    original_path TEXT NOT NULL,
+    archive_path TEXT NOT NULL,
+    strategy_sha256 TEXT NOT NULL,
+    sha256_source TEXT NOT NULL,         -- manifest | experiment | file_at_archive_time
+    archived_at_utc TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     experiment_id TEXT NOT NULL REFERENCES experiments(id),
@@ -98,6 +110,32 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE experiments ADD COLUMN pair TEXT NOT NULL DEFAULT 'BTC/USDT'"
         )
         conn.commit()
+
+
+# --- archive ---------------------------------------------------------------
+
+def add_archived_strategy(
+    conn: sqlite3.Connection,
+    *,
+    hypothesis_id: str,
+    strategy_class: str,
+    original_path: str,
+    archive_path: str,
+    strategy_sha256: str,
+    sha256_source: str,
+    archived_at_utc: str,
+) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO archived_strategies (hypothesis_id, strategy_class, original_path, "
+        "archive_path, strategy_sha256, sha256_source, archived_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (hypothesis_id, strategy_class, original_path, archive_path, strategy_sha256,
+         sha256_source, archived_at_utc),
+    )
+    conn.commit()
+
+
+def list_archived_strategies(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM archived_strategies ORDER BY hypothesis_id").fetchall()
 
 
 # --- hypotheses -----------------------------------------------------------
@@ -450,6 +488,7 @@ def sync_ledger_markdown(conn: sqlite3.Connection, ledger_path: Path = LEDGER_PA
         "SELECT * FROM hypotheses ORDER BY proposed_at_utc, id"
     ).fetchall()
 
+    archived = {r["hypothesis_id"] for r in conn.execute("SELECT hypothesis_id FROM archived_strategies")}
     lines = [LEDGER_HEADER.rstrip("\n")]
     for row in rows:
         experiment_count = conn.execute(
@@ -464,7 +503,7 @@ def sync_ledger_markdown(conn: sqlite3.Connection, ledger_path: Path = LEDGER_PA
                 rule=row["ex_ante_rule"],
                 data_visible=row["data_visible_at_proposal"],
                 tests=experiment_count,
-                status=row["status"],
+                status=row["status"] + (" [code archived]" if row["id"] in archived else ""),
                 notes=(row["notes"] or "").replace("\n", " "),
             )
         )

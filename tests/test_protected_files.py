@@ -41,6 +41,10 @@ PROTECTED_SHA256 = {
     "docker-compose.yml": (
         "3ac6f17b2459a54f3ebf8310b58097987a53972e83cb433af0203d77b2e598a7"
     ),
+    # Added 2026-11-03 (phase 0 of the 5-strategy plan): reference baseline, frozen when it passed lookahead and recursive analysis.
+    "user_data/strategies/Sma200Baseline.py": (
+        "2989c882a9519ae2a0d76219f484b51930ee358efdbcd61890e23a4114c5d2dc"
+    ),
 }
 
 

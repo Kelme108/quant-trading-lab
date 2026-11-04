@@ -104,6 +104,7 @@ def run_experiment(
     version: str,
     notes: str = "",
     exposure: float = 1.0,
+    timeframe: str = "1h",
 ) -> str:
     """Run the experiment and return its id. Raises ExperimentFailed on a failed
     backtest, after marking the experiment row `failed`."""
@@ -139,6 +140,7 @@ def run_experiment(
             fee=scenario.effective_fee_per_side,
             pair=pair,
             exposure=exposure,
+            timeframe=timeframe,
         )
         commands.append(bt.get("command", ""))
         if bt.get("status") != "completed":
@@ -163,10 +165,12 @@ def run_experiment(
         timerange=timerange,
         fee=base_scenario.effective_fee_per_side,
         pair=pair,
+        timeframe=timeframe,
     )
     all_metrics["lookahead_has_bias"] = lookahead.get("lookahead_has_bias")
     recursive = runner.run_recursive_analysis(
-        experiment_id=experiment_id, strategy=strategy_name, timerange=timerange, pair=pair
+        experiment_id=experiment_id, strategy=strategy_name, timerange=timerange, pair=pair,
+        timeframe=timeframe,
     )
     all_metrics["recursive_is_stable"] = recursive.get("recursive_is_stable")
     print(
@@ -174,7 +178,7 @@ def run_experiment(
         f"recursive stable={all_metrics['recursive_is_stable']}"
     )
 
-    data_path = feather_path(pair)
+    data_path = feather_path(pair, timeframe)
     bench = benchmarks.compute_benchmarks(data_path, split["start_utc"], split["end_utc"])
     all_metrics["benchmark_cash_return_pct"] = bench["cash"]["return_pct"]
     all_metrics["benchmark_buy_and_hold_return_pct"] = bench["buy_and_hold"]["return_pct"]
@@ -186,7 +190,7 @@ def run_experiment(
     )
 
     gap_tolerance = runner.max_gap_hours()
-    ohlcv = validate_ohlcv.validate(data_path, timeframe="1h", max_gap_hours=gap_tolerance)
+    ohlcv = validate_ohlcv.validate(data_path, timeframe=timeframe, max_gap_hours=gap_tolerance)
     prior = registry.count_prior_variants(conn, hypothesis_id)
 
     data = manifest.default_manifest_skeleton()
@@ -201,6 +205,7 @@ def run_experiment(
     data["runtime"]["host"] = "Windows 11 / Docker Desktop"
     data["runtime"]["command"] = " | ".join(commands)
     data["market"]["pair"] = pair
+    data["market"]["timeframe"] = timeframe
     data["backtest"]["requested_timerange"] = timerange
     data["backtest"]["effective_timerange"] = (
         f"{base_bt.get('backtest_start', '')} -> {base_bt.get('backtest_end', '')}"

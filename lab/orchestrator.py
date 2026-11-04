@@ -20,6 +20,7 @@ Safety rules enforced here:
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import subprocess
 import sys
@@ -55,6 +56,12 @@ def _now() -> str:
 
 def _stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def strategy_timeframe(strategy_file: Path) -> str:
+    """The `timeframe = "..."` constant a strategy file declares (1h when absent)."""
+    found = re.search(r'^\s*timeframe\s*=\s*"([0-9]+[mhdw])"', strategy_file.read_text(encoding="utf-8"), re.M)
+    return found.group(1) if found else "1h"
 
 
 def _hypothesis_number(hypothesis_id: str) -> int:
@@ -168,6 +175,11 @@ class Lab:
 
     # -- propose -------------------------------------------------------------
 
+    def _guidance(self) -> str:
+        """Optional owner direction for the research agent; empty when the file is absent."""
+        path = self.root / "research" / "guidance.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
     def propose(self) -> str:
         """Ask the research agent for one hypothesis; register it before any test."""
         if self.proposed_this_cycle >= self.budget["max_hypotheses_per_cycle"]:
@@ -182,6 +194,7 @@ class Lab:
                 hypothesis_id=hypothesis_id,
                 budget=self.budget,
                 hypotheses_proposed_this_cycle=self.proposed_this_cycle,
+                guidance=self._guidance(),
             ),
             encoding="utf-8",
         )
@@ -366,6 +379,7 @@ class Lab:
                 f"{hypothesis_id}: validation needs exploration to pass on every enabled pair first"
             )
         name, strategy_file = self.find_strategy(hypothesis_id)
+        timeframe = strategy_timeframe(self.root / strategy_file)
         stamp = _stamp()
         version = self.experiments.freqtrade_version()
         ids = []
@@ -382,6 +396,7 @@ class Lab:
                         timestamp=stamp,
                         splits=self._splits(),
                         version=version,
+                        timeframe=timeframe,
                     )
                 )
         except self.experiments.ExperimentFailed as error:

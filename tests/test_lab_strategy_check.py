@@ -54,6 +54,15 @@ class StrategyCheckTests(unittest.TestCase):
             self.assertEqual(len(problems), 1, problems)
             self.assertIn("must look like", problems[0])
 
+    def test_a_warmup_freqtrade_cannot_load_is_rejected(self) -> None:
+        problems = self.check(GOOD.replace("startup_candle_count = 400", "startup_candle_count = 5520"))
+        self.assertTrue(any("5520" in p and "4500" in p for p in problems), problems)
+        self.assertEqual(self.check(GOOD.replace("startup_candle_count = 400", "startup_candle_count = 4500")), [])
+
+    def test_the_warmup_must_be_a_plain_integer(self) -> None:
+        problems = self.check(GOOD.replace("    startup_candle_count = 400\n", ""))
+        self.assertTrue(any("startup_candle_count" in p for p in problems), problems)
+
     def test_dangerous_imports_are_rejected(self) -> None:
         for statement in ("import os", "import subprocess", "import socket",
                           "import requests", "from urllib.request import urlopen",
@@ -117,3 +126,62 @@ class StrategyCheckTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WarmupWarningTests(unittest.TestCase):
+    ROOT = Path(__file__).parents[1]
+
+    def warnings(self, source: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "S_H001_v1.py"
+            path.write_text(textwrap.dedent(source), encoding="utf-8")
+            return strategy_check.warmup_warnings(path)
+
+    def body(self, startup: int, indicators: str, header: str = "") -> str:
+        return (
+            "import talib.abstract as ta\n" + header +
+            "class S_H001_v1(IStrategy):\n"
+            f"    startup_candle_count = {startup}\n"
+            "    def populate_indicators(self, dataframe, metadata):\n"
+            f"        {indicators}\n"
+            "        return dataframe\n"
+        )
+
+    def test_rsi_with_short_warmup_warns_and_the_minimum_is_400(self):
+        out = self.warnings(self.body(200, 'dataframe["r"] = ta.RSI(dataframe, timeperiod=14)'))
+        self.assertEqual(len(out), 1)
+        self.assertIn("< 400", out[0])
+        self.assertEqual(self.warnings(self.body(400, 'dataframe["r"] = ta.RSI(dataframe, timeperiod=14)')), [])
+
+    def test_three_times_the_period_is_required_for_long_periods(self):
+        code = 'dataframe["e"] = ta.EMA(dataframe, timeperiod=200)'
+        self.assertEqual(len(self.warnings(self.body(599, code))), 1)
+        self.assertEqual(self.warnings(self.body(600, code)), [])
+
+    def test_period_from_module_constant_and_positional_argument(self):
+        out = self.warnings(self.body(500, 'dataframe["e"] = ta.EMA(dataframe, TREND)', header="TREND = 200\n"))
+        self.assertIn("< 600", out[0])
+
+    def test_talib_default_period_is_used_when_omitted(self):
+        self.assertEqual(self.warnings(self.body(400, 'dataframe["a"] = ta.ATR(dataframe)')), [])
+
+    def test_pandas_ewm_span_is_checked(self):
+        out = self.warnings(self.body(300, 'dataframe["e"] = dataframe["close"].ewm(span=200).mean()'))
+        self.assertEqual(len(out), 1)
+
+    def test_non_constant_period_is_reported_not_guessed(self):
+        out = self.warnings(self.body(800, 'dataframe["e"] = ta.EMA(dataframe, timeperiod=self.n)'))
+        self.assertIn("not a constant", out[0])
+
+    def test_sma_only_strategy_has_no_warning(self):
+        self.assertEqual(self.warnings(self.body(210, 'dataframe["s"] = ta.SMA(dataframe, timeperiod=200)')), [])
+
+    def test_existing_strategies(self):
+        strategies = self.ROOT / "user_data" / "strategies"
+        expected_warning = {"BollingerMeanReversionBaseline.py"}  # RSI(14) with startup 200
+        for path in sorted(strategies.glob("*.py")) + sorted((strategies / "_archive").glob("*.py")):
+            found = strategy_check.warmup_warnings(path)
+            if path.name in expected_warning:
+                self.assertEqual(len(found), 1, (path.name, found))
+            else:
+                self.assertEqual(found, [], (path.name, found))

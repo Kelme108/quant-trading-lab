@@ -56,6 +56,16 @@ class ResearchContextTests(ContextTestCase):
             self.conn, hypothesis_id=hypothesis_id, budget=BUDGET, hypotheses_proposed_this_cycle=0
         )
 
+    def test_owner_guidance_is_included_only_when_given(self) -> None:
+        plain = self.render()
+        self.assertNotIn("Direction from the owner", plain)
+        text = context.research_context(
+            self.conn, hypothesis_id="H-009", budget=BUDGET, hypotheses_proposed_this_cycle=0, guidance="Focus on drawdown."
+        )
+        self.assertIn("## Direction from the owner", text)
+        self.assertIn("Focus on drawdown.", text)
+        self.assertIn("does not change any gate or limit", text)
+
     def test_cost_facts_come_from_the_cost_module(self) -> None:
         text = self.render()
         self.assertIn("| base | 0.175% | 0.350% |", text)

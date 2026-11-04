@@ -75,6 +75,16 @@ SCENARIOS: dict[str, CostScenario] = {
     ),
 }
 
+# Not part of the four required gate scenarios. The protocol's "conservative" scenario costs 0.25% per side, only
+# 1.43x the base (0.175% per side), so it is NOT a doubling. "base_2x" doubles every component of the base scenario,
+# so its effective per-side cost (0.35%) and round-trip cost are exactly twice the base's.
+SCENARIOS["base_2x"] = CostScenario(
+    name="base_2x",
+    fee_per_side=0.0020,
+    slippage_per_side=0.0010,
+    spread_total=0.0010,
+)
+
 REQUIRED_SCENARIO_NAMES = ("optimistic", "base", "conservative", "stress")
 
 
@@ -89,3 +99,30 @@ def get_scenario(name: str) -> CostScenario:
 
 def all_required_scenarios() -> list[CostScenario]:
     return [SCENARIOS[name] for name in REQUIRED_SCENARIO_NAMES]
+
+
+def round_trip_cost(scenario: CostScenario) -> float:
+    """Fraction of the stake lost to costs by a trade with zero price change: 1 - (1-f)/(1+f), f per side.
+
+    This is how Freqtrade applies --fee (entry cost = stake*(1+f), exit proceeds = value*(1-f)); verified against
+    exported trades to 1e-10 (docs/harness-fase0.md)."""
+    f = scenario.effective_fee_per_side
+    return 1.0 - (1.0 - f) / (1.0 + f)
+
+
+def cost_table() -> list[dict]:
+    """Per-side and round-trip cost of every scenario, with its multiple of the base scenario."""
+    base = SCENARIOS["base"]
+    rows = []
+    for name in (*REQUIRED_SCENARIO_NAMES, "base_2x"):
+        scenario = SCENARIOS[name]
+        rows.append({
+            "scenario": name,
+            "fee": scenario.fee_per_side,
+            "slippage_per_side": scenario.slippage_per_side,
+            "spread_total": scenario.spread_total,
+            "effective_per_side": scenario.effective_fee_per_side,
+            "round_trip": round_trip_cost(scenario),
+            "x_base": scenario.effective_fee_per_side / base.effective_fee_per_side,
+        })
+    return rows

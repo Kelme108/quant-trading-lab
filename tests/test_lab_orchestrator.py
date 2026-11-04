@@ -17,7 +17,7 @@ PROPOSAL = {
     "title": "Slow trend filter with volatility gate",
     "ex_ante_rule": (
         "Enter long when the close is above the 400-candle simple moving average; exit when the "
-        "close falls below it. Stop-loss at 10 percent. Evaluated on closed candles only."
+        "close falls below it. Stop-loss at 10 percent. Evaluated on closed candles only. Warm-up: 400 bars."
     ),
     "parameters": {"sma_length": 400, "stoploss": -0.10},
     "rationale": (
@@ -150,7 +150,7 @@ class FakeExperiments:
         return "fake"
 
     def run_experiment(self, conn, *, hypothesis_id, strategy_name, strategy_file, pair,
-                       split_name, timestamp, splits, version, notes=""):
+                       split_name, timestamp, splits, version, notes="", timeframe="1h"):
         if self.fail:
             raise self.ExperimentFailed("backtest exploded")
         experiment_id = f"{timestamp}-{hypothesis_id.lower()}-{split_name}-{pair.replace('/', '-').lower()}"
@@ -509,6 +509,21 @@ class CycleTests(LabTestCase):
         text = self.lab.cycle(2).read_text(encoding="utf-8")
         for hypothesis in ("H-001", "H-002"):
             self.assertIn(hypothesis, text)
+
+
+
+class StrategyTimeframeTests(unittest.TestCase):
+    def test_reads_the_declared_timeframe_and_defaults_to_1h(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            four = Path(directory) / "A_H900_v1.py"
+            four.write_text('class A:\n    timeframe = "4h"\n', encoding="utf-8")
+            none = Path(directory) / "B_H901_v1.py"
+            none.write_text("class B:\n    pass\n", encoding="utf-8")
+            self.assertEqual(orchestrator.strategy_timeframe(four), "4h")
+            self.assertEqual(orchestrator.strategy_timeframe(none), "1h")
 
 
 if __name__ == "__main__":

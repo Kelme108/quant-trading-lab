@@ -287,6 +287,15 @@ def _load_strategy_stats(zip_path: Path) -> tuple[dict | None, str]:
     return strategy_results[next(iter(strategy_results))], ""
 
 
+def read_strategy_stats(zip_path: Path) -> dict:
+    """Freqtrade's own stats block for the run (sharpe, profit_factor, trades, ...).
+    Raises ValueError if the zip has no result."""
+    stats, reason = _load_strategy_stats(zip_path)
+    if stats is None:
+        raise ValueError(f"{zip_path}: {reason}")
+    return stats
+
+
 def read_trades(zip_path: Path) -> list[dict]:
     """The trade list exactly as Freqtrade exported it (open_date, close_date,
     profit_ratio, profit_abs, ...). Raises ValueError if the zip has no result."""
