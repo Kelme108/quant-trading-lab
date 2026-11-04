@@ -290,6 +290,15 @@ Two other leads didn''t work out:
 - **Bitcoin intraday momentum:** the arXiv PDF came back unreadable, and the idea would trade about daily, so costs would eat it anyway.
 
 The file is research/intake/S20261104T205946Z-1.json.','2026-11-04T20:59:46.365504+00:00');
+CREATE TABLE approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hypothesis_id TEXT NOT NULL REFERENCES hypotheses(id),
+    stage TEXT NOT NULL,                 -- validation | dryrun
+    approved_by TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at_utc TEXT NOT NULL,
+    UNIQUE(hypothesis_id, stage)
+);
 CREATE TABLE archived_strategies (
     hypothesis_id TEXT PRIMARY KEY REFERENCES hypotheses(id),
     strategy_class TEXT NOT NULL,

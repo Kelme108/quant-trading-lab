@@ -28,7 +28,8 @@ class ArchiveRecordTests(unittest.TestCase):
 
     def test_all_rejected_families_are_archived(self):
         rows = registry.list_archived_strategies(self.conn)
-        self.assertEqual({r["hypothesis_id"] for r in rows}, EXPECTED)
+        # The pipeline archives new failures automatically, so the set only grows: the known ones must stay archived.
+        self.assertTrue(EXPECTED <= {r["hypothesis_id"] for r in rows})
 
     def test_recorded_sha_matches_file_and_manifests_for_every_archived_strategy(self):
         self.assertEqual(rerun_archived.verify_all(self.conn), [])

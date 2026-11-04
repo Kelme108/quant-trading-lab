@@ -26,6 +26,10 @@ def main() -> int:
     if not all(latest.get(p) == "candidate_for_portfolio" for p in pairs):
         print("exploration is not a candidate on every pair; validation not read:", latest)
         return 3
+    if not registry.has_approval(conn, hid, "validation"):
+        print(f"{hid}: the validation split is read once and only with the user's approval; none is recorded. "
+              f"Run: python research/tools/approve.py {hid} --stage validation")
+        return 5
     already = conn.execute("select count(*) n from experiments where hypothesis_id=? and split='validation'", (hid,)).fetchone()["n"]
     if already:
         print(f"{hid}: validation was already read ({already} experiments); not reading it again.")

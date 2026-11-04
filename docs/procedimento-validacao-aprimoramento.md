@@ -105,8 +105,8 @@ Regras do forward (valem desde já):
 | Revisão de trades (`lab/tradereview.py`, `research/tools/trade_review.py`) | **Implementada (Fase 1)** |
 | Este procedimento | **Escrito (Fase 1)** |
 | Agente `scout`, fila de ideias (`ideas`), triagem determinística (`lab/intake.py`, `lab/triage.py`; comandos `scout`, `triage`, `queue`) | **Implementados (Fase 2)**; ainda sem execução real do scout |
-| Pipeline semanal e portão de aprovação (hoje `Orchestrator.test_hypothesis` lê a validação sozinho assim que a exploração passa) | A fazer (Fase 3) |
+| Pipeline semanal (`python -m lab.pipeline weekly`) e portão de aprovação (`research/tools/approve.py`; a validação é recusada sem o registro, tanto no orquestrador quanto em `validate_once.py`) | **Implementados (Fase 3)**; ainda sem execução real do pipeline completo |
 | Dry-run congelado com hash e relatório de qualidade de execução | A fazer (Fase 4) |
 | Funil e aba de dry-run no portal; agendamento semanal | A fazer (Fase 5) |
 
-Até a Fase 3 estar pronta, **os portões humanos são mantidos à mão**: não rodar `orchestrator cycle` esperando que a validação seja poupada.
+O portão humano da validação **está em vigor**: `Orchestrator.run_split("validation")` e `research/tools/validate_once.py` recusam a leitura sem uma aprovação registrada. Quem aprova é só o usuário, com `python research/tools/approve.py <H-ID> --stage validation`, e a ferramenta recusa se a exploração não passou ou se a validação já foi lida. O portão do dry-run (`--stage dryrun`) existe no registro e será exigido pela Fase 4.

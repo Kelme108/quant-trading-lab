@@ -4,6 +4,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -485,7 +486,58 @@ class RunAndDecideTests(LabTestCase):
             self.lab.find_strategy("H-099")
 
 
+class ValidationGateTests(LabTestCase):
+    """The validation split can be read only once and only with the user's recorded approval."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.lab.propose()
+        self.lab.implement("H-001")
+        self.lab.run_split("H-001", "exploration")
+        self.lab.decide_split("H-001", "exploration")
+
+    def test_validation_is_refused_without_an_approval(self) -> None:
+        with self.assertRaises(orchestrator.ApprovalRequired):
+            self.lab.run_split("H-001", "validation")
+        self.assertNotIn("validation", {s for _, s, _ in self.experiments.ran})
+
+    def test_an_approval_for_another_stage_or_hypothesis_does_not_count(self) -> None:
+        registry.add_approval(self.conn, hypothesis_id="H-001", stage="dryrun", approved_by="u", note="", created_at_utc=now())
+        with self.assertRaises(orchestrator.ApprovalRequired):
+            self.lab.run_split("H-001", "validation")
+
+    def test_with_the_approval_validation_runs(self) -> None:
+        registry.add_approval(self.conn, hypothesis_id="H-001", stage="validation", approved_by="u", note="", created_at_utc=now())
+        self.assertEqual(len(self.lab.run_split("H-001", "validation")), 3)
+
+    def test_an_approval_is_recorded_once(self) -> None:
+        kwargs = dict(hypothesis_id="H-001", stage="validation", approved_by="u", note="", created_at_utc=now())
+        self.assertTrue(registry.add_approval(self.conn, **kwargs))
+        self.assertFalse(registry.add_approval(self.conn, **kwargs))
+        with self.assertRaises(ValueError):
+            registry.add_approval(self.conn, **{**kwargs, "stage": "live"})
+
+    def test_test_hypothesis_stops_before_validation_and_says_so(self) -> None:
+        row = self.lab.test_hypothesis("H-001")
+        self.assertEqual(row["validation"], "awaiting the user's approval")
+        self.assertNotIn("validation", {s for _, s, _ in self.experiments.ran})
+
+
 class CycleTests(LabTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        patcher = mock.patch.object(registry, "has_approval", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_cycle_without_the_users_approval_never_reads_the_validation(self) -> None:
+        with mock.patch.object(registry, "has_approval", return_value=False):
+            text = self.lab.cycle(1).read_text(encoding="utf-8")
+        self.assertIn("awaiting the user's approval", text)
+        self.assertIn("completed", text)
+        self.assertEqual({s for _, s, _ in self.experiments.ran}, {"exploration"})
+        self.assertEqual(self.agent.names().count("validator"), 1)
+
     def test_a_full_cycle_runs_both_splits_reviews_and_builds_a_portfolio(self) -> None:
         report = self.lab.cycle(1)
         text = report.read_text(encoding="utf-8")

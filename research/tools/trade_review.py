@@ -5,18 +5,15 @@ each pair (lab/registry.py), so the numbers are the very ones the gates saw. The
 holdout are not accepted by this tool.
 
 usage: python research/tools/trade_review.py H-009
-Writes research/audit/trade-review/<H>-exploration.json and .md
+Writes research/audit/trade-review/<H>-exploration.json and .md (the work is lab/tradereport.py).
 """
 import argparse
-import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(ROOT))
-from lab import registry, runner, tradereview  # noqa: E402
-
-OUT = ROOT / "research" / "audit" / "trade-review"
+from lab import registry, tradereport  # noqa: E402
 
 
 def main() -> int:
@@ -24,32 +21,12 @@ def main() -> int:
     parser.add_argument("hypothesis_id")
     parser.add_argument("--split", choices=["exploration"], default="exploration")
     args = parser.parse_args()
-    conn = registry.connect()
-    if registry.get_hypothesis(conn, args.hypothesis_id) is None:
-        print(f"{args.hypothesis_id} is not registered")
+    try:
+        paths = tradereport.write_report(registry.connect(), args.hypothesis_id)
+    except ValueError as error:
+        print(error)
         return 2
-    experiments = registry.latest_experiments(conn, args.hypothesis_id, "exploration")
-    if not experiments:
-        print(f"{args.hypothesis_id} has no completed exploration experiment")
-        return 2
-    by_pair, sources = {}, {}
-    for pair in runner.enabled_pairs():
-        row = experiments.get(pair)
-        if row is None:
-            continue
-        zip_path = ROOT / row["artifact_path"]
-        by_pair[pair] = tradereview.review(runner.read_trades(zip_path))
-        sources[pair] = row["artifact_path"]
-    OUT.mkdir(parents=True, exist_ok=True)
-    payload = {"hypothesis": args.hypothesis_id, "split": "exploration", "cost_scenario": "base",
-               "validation_read": False, "holdout_read": False, "sources": sources, "pairs": by_pair}
-    (OUT / f"{args.hypothesis_id}-exploration.json").write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-    markdown = tradereview.render_markdown(
-        f"Revisão de trades: {args.hypothesis_id} (exploração)", "; ".join(f"`{p}`" for p in sources.values()), by_pair)
-    (OUT / f"{args.hypothesis_id}-exploration.md").write_text(markdown, encoding="utf-8")
-    print(f"wrote {OUT / (args.hypothesis_id + '-exploration.md')}")
-    for pair, rv in by_pair.items():
-        print(pair, "trades", rv.get("trades"), "net", round(rv.get("net_profit_abs", 0.0), 2))
+    print("wrote", paths[1])
     return 0
 
 

@@ -42,6 +42,10 @@ class BudgetExhausted(StepFailed):
     """A hypothesis, variant or spending limit would be exceeded."""
 
 
+class ApprovalRequired(StepFailed):
+    """An irreversible step (reading the validation split) was asked for without the user's recorded approval."""
+
+
 class GuardAbort(StepFailed):
     """An agent touched something it should not have. Never retried."""
 
@@ -224,10 +228,18 @@ class Lab:
         path = self.root / "research" / "audit" / "research-diagnosis.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
-    def propose(self) -> str:
-        """Ask the research agent for one hypothesis; register it before any test."""
+    def propose(self, idea_id: str | None = None) -> str:
+        """Ask the research agent for one hypothesis; register it before any test.
+
+        With `idea_id` the agent formalises that queued idea (fixes every number, states the warm-up) instead of
+        searching for its own; the idea is then marked 'registered' and linked to the new hypothesis."""
         if self.proposed_this_cycle >= self.budget["max_hypotheses_per_cycle"]:
             raise BudgetExhausted("max_hypotheses_per_cycle reached")
+        idea = None
+        if idea_id is not None:
+            idea = registry.get_idea(self.conn, idea_id)
+            if idea is None or idea["state"] != "queued":
+                raise StepFailed(f"{idea_id}: only a queued idea can be formalised")
 
         hypothesis_id = registry.next_hypothesis_id(self.conn)
         context_path = self.root / "research" / "context" / f"{hypothesis_id}.md"
@@ -240,16 +252,24 @@ class Lab:
                 hypotheses_proposed_this_cycle=self.proposed_this_cycle,
                 guidance=self._guidance(),
                 audit_diagnosis=self._audit_diagnosis(),
+                idea_block=context.idea_block(idea) if idea is not None else "",
             ),
             encoding="utf-8",
         )
 
         proposal_file = proposals.proposal_path(hypothesis_id, self.root / "research" / "proposals")
         proposal_rel = self._rel(proposal_file)
-        prompt = (
-            f"Propose hypothesis {hypothesis_id}. Read {self._rel(context_path)} first, then follow "
-            f"your instructions. Write the proposal to {proposal_rel}."
-        )
+        if idea is None:
+            prompt = (
+                f"Propose hypothesis {hypothesis_id}. Read {self._rel(context_path)} first, then follow "
+                f"your instructions. Write the proposal to {proposal_rel}."
+            )
+        else:
+            prompt = (
+                f"Formalise idea {idea['id']} as hypothesis {hypothesis_id}; do not look for another idea. Read "
+                f"{self._rel(context_path)} first (section 'Idea to formalise'), keep the rule's meaning, fix every "
+                f"number and state the warm-up. Write the proposal to {proposal_rel}."
+            )
         feedback = ""
         for attempt in (1, 2):
             self.agent_step(
@@ -287,6 +307,10 @@ class Lab:
             status="proposed",
             notes=data["title"],
         )
+        if idea is not None:
+            registry.set_idea_state(
+                self.conn, idea["id"], "registered", f"formalised as {hypothesis_id}", hypothesis_id=hypothesis_id
+            )
         self._sync_ledger()
         self.proposed_this_cycle += 1
         self._commit(
@@ -426,6 +450,11 @@ class Lab:
             raise StepFailed(
                 f"{hypothesis_id}: validation needs exploration to pass on every enabled pair first"
             )
+        if split == "validation" and not registry.has_approval(self.conn, hypothesis_id, "validation"):
+            raise ApprovalRequired(
+                f"{hypothesis_id}: the validation split can be read only once and only with the user's approval; "
+                f"record it with: python research/tools/approve.py {hypothesis_id} --stage validation"
+            )
         name, strategy_file = self.find_strategy(hypothesis_id)
         timeframe = strategy_timeframe(self.root / strategy_file)
         stamp = _stamp()
@@ -535,6 +564,9 @@ class Lab:
         row["exploration"] = self.decide_split(hypothesis_id, "exploration")
         self.review(hypothesis_id, "exploration")
         if self.exploration_passed(hypothesis_id):
+            if not registry.has_approval(self.conn, hypothesis_id, "validation"):
+                row["validation"] = "awaiting the user's approval"
+                return row
             self.run_split(hypothesis_id, "validation")
             row["validation"] = self.decide_split(hypothesis_id, "validation")
             self.review(hypothesis_id, "validation")
@@ -583,11 +615,12 @@ class Lab:
             hypothesis = registry.get_hypothesis(self.conn, row["id"])
             family = hypothesis["family"] if hypothesis else "?"
             explore = "; ".join(f"{p}: {d}" for p, d in row.get("exploration", {}).items()) or "not run"
-            validate = (
-                "; ".join(f"{p}: {d}" for p, d in row["validation"].items())
-                if row.get("validation")
-                else "not run"
-            )
+            if isinstance(row.get("validation"), str):
+                validate = row["validation"]  # e.g. awaiting the user's approval
+            elif row.get("validation"):
+                validate = "; ".join(f"{p}: {d}" for p, d in row["validation"].items())
+            else:
+                validate = "not run"
             lines.append(f"| {row['id']} | {family} | {explore} | {validate} |")
         if not rows:
             lines.append("| none | | | |")

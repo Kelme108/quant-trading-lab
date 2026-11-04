@@ -84,6 +84,18 @@ CREATE TABLE IF NOT EXISTS decisions (
     decided_at_utc TEXT NOT NULL
 );
 
+-- Human approvals for the irreversible steps: reading the validation split (once) and freezing in dry-run. Only the
+-- user records one (research/tools/approve.py); the pipeline and the orchestrator only check that it exists.
+CREATE TABLE IF NOT EXISTS approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hypothesis_id TEXT NOT NULL REFERENCES hypotheses(id),
+    stage TEXT NOT NULL,                 -- validation | dryrun
+    approved_by TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at_utc TEXT NOT NULL,
+    UNIQUE(hypothesis_id, stage)
+);
+
 -- Strategy ideas collected by the scout agent (web, papers, repositories). An idea is a RULE described in words, never
 -- third-party code. It enters as 'new', is triaged deterministically to 'queued' or 'dropped', and becomes a
 -- hypothesis only when the pipeline picks it ('registered', hypothesis_id set). Nothing is deleted.
@@ -137,6 +149,33 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE experiments ADD COLUMN pair TEXT NOT NULL DEFAULT 'BTC/USDT'"
         )
         conn.commit()
+
+
+# --- approvals -------------------------------------------------------------
+
+APPROVAL_STAGES = ("validation", "dryrun")
+
+
+def add_approval(conn: sqlite3.Connection, *, hypothesis_id: str, stage: str, approved_by: str, note: str, created_at_utc: str) -> bool:
+    """Record an approval; False when the same stage was already approved for this hypothesis."""
+    if stage not in APPROVAL_STAGES:
+        raise ValueError(f"unknown approval stage '{stage}'")
+    cursor = conn.execute(
+        "INSERT OR IGNORE INTO approvals (hypothesis_id, stage, approved_by, note, created_at_utc) VALUES (?, ?, ?, ?, ?)",
+        (hypothesis_id, stage, approved_by, note, created_at_utc),
+    )
+    conn.commit()
+    return cursor.rowcount == 1
+
+
+def has_approval(conn: sqlite3.Connection, hypothesis_id: str, stage: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM approvals WHERE hypothesis_id = ? AND stage = ?", (hypothesis_id, stage)
+    ).fetchone() is not None
+
+
+def list_approvals(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM approvals ORDER BY id").fetchall()
 
 
 # --- ideas -----------------------------------------------------------------
