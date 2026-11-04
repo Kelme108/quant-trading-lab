@@ -587,6 +587,16 @@ def _cell_analytics(root: Path, row, wallet: float, run_trades: dict) -> dict | 
     return metrics
 
 
+def is_candidate(status: str, in_portfolio: bool) -> bool:
+    """True for a hypothesis still alive as a candidate (passed a stage, or in the portfolio). Rejected, dropped,
+    failed, invalid, 'not approved' and inconclusive hypotheses are not candidates: the portal hides them by default."""
+    text = str(status).lower()
+    if in_portfolio:
+        return True
+    dead = ("reject", "drop", "fail", "invalid", "not approved", "inconclusive")
+    return "candidate" in text and not any(word in text for word in dead)
+
+
 def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], wallet: float) -> list[dict]:
     """One row per (strategy, stage), pooled over the pairs: what the leaderboard, comparison and explorer read.
 
@@ -626,6 +636,7 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
             capital = wallet * len(cells)
             row = {
                 "key": f"{hy['id']}:{split}", "id": hy["id"], "family": hy["family"], "status": hy["status"], "stage": split,
+                "candidate": is_candidate(hy["status"], hy["in_portfolio"]),
                 "in_portfolio": hy["in_portfolio"], "n_pairs": len(cells), "pairs": [p["pair"] for p in per_pair],
                 "trades": pooled["trades"], "min_trades_pair": min(p["trades"] for p in per_pair),
                 "winrate": pooled.get("winrate"), "winrate_ci": pooled.get("winrate_ci"),
@@ -773,6 +784,7 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
                 "status": status,
                 "invalid": invalid,
                 "in_portfolio": hid in in_portfolio,
+                "candidate": is_candidate(status, hid in in_portfolio),
                 "rule": hypothesis["ex_ante_rule"],
                 "notes": hypothesis["notes"] or "",
                 "proposed_at_utc": hypothesis["proposed_at_utc"],

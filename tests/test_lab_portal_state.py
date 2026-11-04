@@ -109,3 +109,14 @@ class PageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CandidateFlagTests(unittest.TestCase):
+    def test_only_live_candidates_are_flagged(self) -> None:
+        from lab import dashboard
+        self.assertTrue(dashboard.is_candidate("candidate at exploration", False))
+        self.assertTrue(dashboard.is_candidate("rejected at exploration", True))
+        for status in ("rejected at exploration", "not approved at validation", "dropped: fewer than 30 trades",
+                       "invalid: implementation deviated from rule", "failed", "frozen reference",
+                       "rejected (family): configuration H-016 not approved at validation"):
+            self.assertFalse(dashboard.is_candidate(status, False), status)
