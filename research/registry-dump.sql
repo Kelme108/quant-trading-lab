@@ -299,6 +299,7 @@ CREATE TABLE approvals (
     created_at_utc TEXT NOT NULL,
     UNIQUE(hypothesis_id, stage)
 );
+INSERT INTO "approvals" VALUES(1,'H-009','dryrun','Bhakt','coleta de evidência, não validada; aprovado pelo usuário em 2026-11-04 (''faca os tres'')','2026-11-04T21:39:23.541304+00:00');
 CREATE TABLE archived_strategies (
     hypothesis_id TEXT PRIMARY KEY REFERENCES hypotheses(id),
     strategy_class TEXT NOT NULL,
@@ -1608,4 +1609,5 @@ DELETE FROM "sqlite_sequence";
 INSERT INTO "sqlite_sequence" VALUES('metrics',1170);
 INSERT INTO "sqlite_sequence" VALUES('decisions',77);
 INSERT INTO "sqlite_sequence" VALUES('agent_runs',33);
+INSERT INTO "sqlite_sequence" VALUES('approvals',1);
 COMMIT;
