@@ -283,3 +283,8 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - Deferred on purpose: a signal-by-signal comparison with a backtest over the bot's days, because that backtest would read the prospective holdout (lab/config/holdout.json). It belongs to the formal evaluation from 2027-04-21.
 - Tests: 18 in `tests/test_lab_forward.py` (freeze in a temporary git repo: every file hashed, one changed byte fails the check, uncommitted files refused; read-only access; slippage sign; unfilled entries and latency; report label; the real overlays, compose and strategy files). Smoke of the tools with no approval and no freeze: freeze refuses (exit 5), check fails (1), report refuses (3).
 - Nothing was frozen and no bot was started: the real freeze needs the user's approval and a commit, and starting the bots is the user's action (steps in section 9 of the procedure).
+
+## 2026-11-04 - dry-run H-009 started, first real weekly cycle, phase 5
+- approve.py H-009 --stage dryrun (user: "faca os tres"); forward_freeze.py H-009; docker compose -f docker-compose.forward.yml up -d (3 bots, dry-run).
+- python -m lab.pipeline weekly --no-scout --max-new 1: I-001 -> H-019 rejected at exploration; cycle-20261104T222235Z.md.
+- Portal: Dry-run page + idea intake; e2e and 598-test suite pass. Weekly scheduling documented (docs §10), NOT installed.

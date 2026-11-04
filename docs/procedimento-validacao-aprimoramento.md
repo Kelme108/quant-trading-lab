@@ -124,3 +124,18 @@ Os arquivos já existem e foram validados (o `show-config` do Freqtrade aceita o
 
 Para parar: `docker compose -f docker-compose.forward.yml down`. Os bancos `user_data/tradesv3.forward.h009.<par>.sqlite` ficam (nunca apagar nem reutilizar para outra estratégia).
 
+
+## 10. Agendamento semanal (não instalado)
+
+Para rodar o ciclo toda segunda-feira às 09:00 (precisa do Docker ligado; gasta até o teto de US$ 5 de agentes por ciclo), registre no Windows, em PowerShell:
+
+```
+schtasks /Create /TN "TradingLab-WeeklyPipeline" /SC WEEKLY /D MON /ST 09:00 /TR "cmd /c cd /d D:\Trade-Initial && python -m lab.pipeline weekly --max-new 3 >> research\pipeline\scheduler.log 2>&1"
+```
+
+Remover: `schtasks /Delete /TN "TradingLab-WeeklyPipeline" /F`. O ciclo para na exploração; validação e dry-run continuam exigindo a sua aprovação.
+
+## 11. Estado em 2026-11-04
+
+- Ciclo semanal real executado (`--no-scout --max-new 1`): I-001 → H-019 (RSI(2) diária) rejeitada na exploração (ETH negativo no custo base), arquivada automaticamente. N do DSR: 49. Validação não lida.
+- Dry-run da H-009: aprovação registrada, freeze commitado, 3 bots no ar (`docker-compose.forward.yml`). Sem retorno aggregado: ver a aba "Dry-run" do portal ou `forward_report.py`.
