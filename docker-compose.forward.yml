@@ -1,0 +1,34 @@
+# Dry-run evidence collection (docs/procedimento-validacao-aprimoramento.md, section 6).
+# One bot per pair, each with its own 100 USDT wallet and its own database, as the backtests run one pair at a time.
+# The base docker-compose.yml and user_data/config.dryrun.json are protected and are NOT edited: the base config is
+# read first and forward/config.<h>.<pair>.json overrides only the bot name, strategy, database, exposure and pair.
+# No API server, no exchange keys. Start deliberately:  docker compose -f docker-compose.forward.yml up -d
+# Check the freeze first:  python research/tools/forward_freeze.py H-009 --check
+name: trading-lab-forward
+
+x-forward: &forward
+  image: freqtradeorg/freqtrade:2026.9
+  restart: "no"
+  volumes:
+    - "./user_data:/freqtrade/user_data"
+    - "./forward:/freqtrade/forward:ro"
+
+services:
+  forward-h009-btc:
+    <<: *forward
+    container_name: forward-h009-btc
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h009.btc.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h009-btc.log
+  forward-h009-eth:
+    <<: *forward
+    container_name: forward-h009-eth
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h009.eth.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h009-eth.log
+  forward-h009-bnb:
+    <<: *forward
+    container_name: forward-h009-bnb
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h009.bnb.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h009-bnb.log

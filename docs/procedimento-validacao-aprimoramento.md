@@ -106,7 +106,21 @@ Regras do forward (valem desde já):
 | Este procedimento | **Escrito (Fase 1)** |
 | Agente `scout`, fila de ideias (`ideas`), triagem determinística (`lab/intake.py`, `lab/triage.py`; comandos `scout`, `triage`, `queue`) | **Implementados (Fase 2)**; ainda sem execução real do scout |
 | Pipeline semanal (`python -m lab.pipeline weekly`) e portão de aprovação (`research/tools/approve.py`; a validação é recusada sem o registro, tanto no orquestrador quanto em `validate_once.py`) | **Implementados (Fase 3)**; ainda sem execução real do pipeline completo |
-| Dry-run congelado com hash e relatório de qualidade de execução | A fazer (Fase 4) |
+| Dry-run congelado com hash e relatório de qualidade de execução (`docker-compose.forward.yml`, `forward/`, `lab/forward.py`, `forward_freeze.py`, `forward_report.py`) | **Arquivos prontos (Fase 4)**; o congelamento real e a subida dos bots dependem de você (passos abaixo) |
 | Funil e aba de dry-run no portal; agendamento semanal | A fazer (Fase 5) |
 
 O portão humano da validação **está em vigor**: `Orchestrator.run_split("validation")` e `research/tools/validate_once.py` recusam a leitura sem uma aprovação registrada. Quem aprova é só o usuário, com `python research/tools/approve.py <H-ID> --stage validation`, e a ferramenta recusa se a exploração não passou ou se a validação já foi lida. O portão do dry-run (`--stage dryrun`) existe no registro e será exigido pela Fase 4.
+
+## 9. Como iniciar o dry-run da H-009 (passos do usuário)
+
+Os arquivos já existem e foram validados (o `show-config` do Freqtrade aceita o overlay: `dry_run` ligado, banco próprio, exposição 0,25, API desligada). Falta o que é decisão sua:
+
+1. Registrar a aprovação (exceção da H-009, seção 6): `python research/tools/approve.py H-009 --stage dryrun --note "coleta de evidência, não validada"`.
+2. Commitar `docker-compose.forward.yml`, `forward/` e o código novo (o congelamento recusa arquivos não commitados).
+3. Congelar: `python research/tools/forward_freeze.py H-009`, e commitar `research/forward/H-009-freeze.json`.
+4. Subir os três bots: `docker compose -f docker-compose.forward.yml up -d`.
+5. Ver a qualidade de execução quando houver ordens: `python research/tools/forward_report.py H-009` (acrescente `--returns` só se quiser ver o lucro, que é monitoramento e não avaliação).
+6. Conferir a integridade a qualquer momento: `python research/tools/forward_freeze.py H-009 --check`.
+
+Para parar: `docker compose -f docker-compose.forward.yml down`. Os bancos `user_data/tradesv3.forward.h009.<par>.sqlite` ficam (nunca apagar nem reutilizar para outra estratégia).
+
