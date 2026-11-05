@@ -181,6 +181,10 @@ class FakeExperiments:
         if self.fail:
             raise self.ExperimentFailed("backtest exploded")
         experiment_id = f"{timestamp}-{hypothesis_id.lower()}-{split_name}-{pair.replace('/', '-').lower()}"
+        # A real backtest takes minutes, so two runs never share a second; the fake runs instantly,
+        # so a re-run inside the same second needs its own suffix to keep experiments.id unique.
+        if conn.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,)).fetchone():
+            experiment_id += f"-r{len(self.ran)}"
         registry.add_experiment(
             conn, experiment_id=experiment_id, hypothesis_id=hypothesis_id,
             strategy_file=strategy_file, strategy_sha256="0" * 64, cost_scenario="multi",
