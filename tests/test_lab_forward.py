@@ -51,6 +51,26 @@ class FreezeTests(unittest.TestCase):
         path.write_text(json.dumps(frozen), encoding="utf-8")
         return frozen
 
+    def test_a_hypothesis_on_one_pair_with_its_own_compose_freezes_only_that_pair(self) -> None:
+        extra = {
+            "user_data/strategies/Mom_H016_v1.py": "# strategy\n",
+            "docker-compose.forward.h016.yml": "services:\n  b:\n    image: freqtradeorg/freqtrade:2026.9\n",
+            forward.overlay_path("H-016", "eth"): json.dumps({"tradable_balance_ratio": 0.15}),
+        }
+        for name, text in extra.items():
+            (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / name).write_text(text, encoding="utf-8")
+        git(["add", "-A"], self.root)
+        git(["commit", "-q", "-m", "h016"], self.root)
+        frozen = forward.build_freeze("H-016", self.root, now="2026-11-05T00:00:00+00:00")
+        self.assertEqual(frozen["exposure_by_pair"], {"ETH/USDT": 0.15})
+        self.assertEqual(set(frozen["databases"]), {"ETH/USDT"})
+        self.assertIn("docker-compose.forward.h016.yml", frozen["files"])
+        self.assertNotIn("docker-compose.forward.yml", frozen["files"])
+        # the H-009 freeze keeps the shared compose and all three pairs
+        self.assertIn("docker-compose.forward.yml", forward.tracked_files("H-009", self.root))
+        self.assertEqual(forward.pair_keys("H-009", self.root), ["btc", "eth", "bnb"])
+
     def test_the_freeze_records_every_file_the_image_commit_and_the_exposure(self) -> None:
         frozen = self.freeze()
         self.assertEqual(frozen["image"], "freqtradeorg/freqtrade:2026.9")

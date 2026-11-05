@@ -1,0 +1,20 @@
+# Dry-run evidence collection for H-016 (TimeSeriesMomentum, N=30 days), ETH/USDT only: the one pair where its single
+# validation read was a candidate (BTC and BNB were rejected). Same rules as docker-compose.forward.yml: the base
+# config is read first, forward/config.h016.eth.json overrides only bot name, strategy, database, exposure and pair.
+# Exposure 0.15 is the calibrated exposure recorded in the H-016 notes. No API server, no exchange keys.
+# Its own compose file so this freeze never changes the bytes the H-009 freeze hashed.
+# Check the freeze first:  python research/tools/forward_freeze.py H-016 --check
+# Start:                   docker compose -f docker-compose.forward.h016.yml up -d
+name: trading-lab-forward-h016
+
+services:
+  forward-h016-eth:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: forward-h016-eth
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./forward:/freqtrade/forward:ro"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h016.eth.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h016-eth.log

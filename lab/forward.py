@@ -55,6 +55,21 @@ def database_path(hypothesis_id: str, key: str) -> str:
     return f"user_data/tradesv3.forward.{tag(hypothesis_id)}.{key}.sqlite"
 
 
+def compose_path(hypothesis_id: str, root: Path = ROOT) -> str:
+    """docker-compose.forward.<tag>.yml when the hypothesis has its own file, else the shared one (H-009).
+
+    One compose per hypothesis keeps the freezes independent: adding bots for a new hypothesis never changes the
+    bytes of a file an older freeze hashed."""
+    own = f"docker-compose.forward.{tag(hypothesis_id)}.yml"
+    return own if (root / own).is_file() else COMPOSE
+
+
+def pair_keys(hypothesis_id: str, root: Path = ROOT) -> list[str]:
+    """The pairs this hypothesis runs on: those with an overlay file (all three when none exists yet)."""
+    present = [key for key in PAIR_KEYS if (root / overlay_path(hypothesis_id, key)).is_file()]
+    return present or list(PAIR_KEYS)
+
+
 def find_strategy(hypothesis_id: str, root: Path = ROOT) -> Path:
     number = int(hypothesis_id.split("-")[1])
     found = sorted((root / "user_data" / "strategies").glob(f"*_H{number:03d}_v*.py"))
@@ -65,8 +80,9 @@ def find_strategy(hypothesis_id: str, root: Path = ROOT) -> Path:
 
 def tracked_files(hypothesis_id: str, root: Path = ROOT) -> list[str]:
     """Every file whose bytes decide what the bots do."""
-    files = [str(find_strategy(hypothesis_id, root).relative_to(root)).replace("\\", "/"), COMPOSE, *BASE_FILES]
-    files += [overlay_path(hypothesis_id, key) for key in PAIR_KEYS]
+    files = [str(find_strategy(hypothesis_id, root).relative_to(root)).replace("\\", "/"),
+             compose_path(hypothesis_id, root), *BASE_FILES]
+    files += [overlay_path(hypothesis_id, key) for key in pair_keys(hypothesis_id, root)]
     return files
 
 
@@ -74,11 +90,11 @@ def _git(args: list[str], root: Path) -> str:
     return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def image_tag(root: Path = ROOT) -> str:
-    for line in (root / COMPOSE).read_text(encoding="utf-8").splitlines():
+def image_tag(root: Path = ROOT, compose: str = COMPOSE) -> str:
+    for line in (root / compose).read_text(encoding="utf-8").splitlines():
         if line.strip().startswith("image:"):
             return line.split(":", 1)[1].strip()
-    raise ValueError(f"no image in {COMPOSE}")
+    raise ValueError(f"no image in {compose}")
 
 
 def build_freeze(hypothesis_id: str, root: Path = ROOT, now: str | None = None) -> dict:
@@ -92,14 +108,14 @@ def build_freeze(hypothesis_id: str, root: Path = ROOT, now: str | None = None) 
         raise ValueError("these files are not committed, so the freeze would not match a commit:\n" + dirty)
     strategy_file = files[0]
     exposures = {key: json.loads((root / overlay_path(hypothesis_id, key)).read_text(encoding="utf-8"))["tradable_balance_ratio"]
-                 for key in PAIR_KEYS}
+                 for key in pair_keys(hypothesis_id, root)}
     return {
         "hypothesis": hypothesis_id, "label": LABEL, "rules": list(RULES),
         "frozen_at_utc": now or datetime.now(timezone.utc).isoformat(),
-        "git_commit": _git(["rev-parse", "HEAD"], root), "image": image_tag(root),
+        "git_commit": _git(["rev-parse", "HEAD"], root), "image": image_tag(root, compose_path(hypothesis_id, root)),
         "strategy": {"class": Path(strategy_file).stem, "file": strategy_file, "sha256": sha256_file(root / strategy_file)},
         "exposure_by_pair": {PAIR_KEYS[k]: v for k, v in exposures.items()},
-        "databases": {PAIR_KEYS[k]: database_path(hypothesis_id, k) for k in PAIR_KEYS},
+        "databases": {PAIR_KEYS[k]: database_path(hypothesis_id, k) for k in pair_keys(hypothesis_id, root)},
         "files": {f: sha256_file(root / f) for f in files},
     }
 
