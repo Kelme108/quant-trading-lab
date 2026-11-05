@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-023",
+  "family": "DailyR3Streak",
+  "title": "Daily R3: three falling RSI(2) days ending below 10 in a 200-day uptrend",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (Freqtrade informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no profit target, no time exit, no sizing hooks, no cooldown, no other filters. Indicators on daily closes: RSI(2) with Wilder smoothing (alpha = 1/2, seeded with the simple average of the first 2 changes); SMA(200 days) including the just-closed day. Let RSI(0) be the RSI of the just-closed day d, RSI(1), RSI(2), RSI(3) the values 1, 2, 3 days earlier. ENTRY when a daily candle closes with: close(d) > SMA200(d) AND RSI(0) < RSI(1) AND RSI(1) < RSI(2) AND RSI(2) < RSI(3) (strict, three consecutive falls) AND RSI(3) < 60 AND RSI(0) < 10 AND no open position. EXIT when a daily candle closes with RSI(0) > 70. STOP-LOSS: none in the published rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, never a binding stop. No cooldown. All numbers fixed ex ante from the published rule, no grid: RSI length 2, entry threshold 10, prior-reading cap 60, exit threshold 70, 3 falling days, trend mean 200 days. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 400 bars (daily candles on the informative frame: 200 for SMA(200) plus 200 for the Wilder RSI to stabilise; the 1h startup_candle_count is set to 400 as in H-015/H-019/H-020, well under the 4500 limit).",
+  "parameters": {
+    "rsi_length": 2,
+    "rsi_smoothing": "Wilder",
+    "trend_sma_days": 200,
+    "falling_days": 3,
+    "rsi_three_days_ago_max": 60,
+    "rsi_entry_below": 10,
+    "rsi_exit_above": 70,
+    "stoploss_engine_only": -0.99,
+    "cooldown_candles": 0,
+    "warmup_bars": 400,
+    "signal_timeframe": "1d closed candles",
+    "execution": "next 1h open"
+  },
+  "rationale": "A multi-day one-way slide that ends in extreme short-term oversold (RSI(2) < 10) inside a long-term uptrend is typically forced or panicked selling (liquidations, stop runs). Dip buyers and liquidity providers on the other side collect the usual partial snap-back as forced flow is absorbed. Compared with the single-day RSI2<10 trigger (H-019), the three-falling-days requirement selects only sustained, orderly slides, which is a stricter and rarer signal. The source gives no mechanism beyond the ETF mean-reversion claim; this is the closest honest one and it is not proven for crypto. Expected trades: the condition is rarer than H-019 (53-57 per pair), so perhaps 15-35 per pair across the whole history, roughly 2-5 per year per pair; the fewer-than-30 rule may drop it, and that is accepted, not retuned. Each trade must gain well above the 0.35-0.50% round trip: mean-reversion bounces from RSI<10 to RSI>70 usually span several percent, but with no stop a single failed dip can lose heavily; risk is bounded by the 200-day filter and by the fixed exposure share chosen by the lab drawdown rule (target max drawdown below 25%). Success criteria are the existing gates.",
+  "novelty_vs_tried": "H-019 (DailyRSI2Dip) enters on RSI(2)<10 in the 200-day uptrend and exits on close>SMA5 or SMA200 loss. This rule instead requires a three-day strictly falling RSI streak with the earlier reading below 60 (a persistent slide, not a one-day spike) and exits on RSI(2)>70, a much later exit that holds longer for a larger snap-back per trade, with no SMA200 safety exit. Double7ChannelDip, DailyIBSDip and ThreeDayLowerRangeDip use price-channel, IBS or range patterns rather than an RSI streak.",
+  "sources": [
+    {"title": "R3 ETF Strategy (TradingView open-source script, after Connors and Alvarez)", "url": "https://in.tradingview.com/script/5CDSns2I-R3-ETF-Strategy"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the context file's exploration summaries of earlier hypotheses (BTC, ETH, BNB 1h, exploration split) through 2026-11-05."
+}
