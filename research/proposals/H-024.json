@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-024",
+  "family": "DailyMaxJumpMomentum",
+  "title": "Daily lottery-jump (MAX) persistence gate with 20-day mean exit",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no profit target, no other filters. Definitions on daily closes C(d), d = just-closed day: r(d) = C(d)/C(d-1) - 1. MAX(d) = largest r over the 30 most recent daily returns r(d-29..d), including the just-closed day. Jump regime is ON when MAX(d) >= median of the 150 values MAX(d-150..d-1) (excluding today). SMA50 = mean of the last 50 daily closes including d; SMA20 = mean of the last 20 daily closes including d. ENTRY when a daily candle closes with: jump regime ON AND C(d) > SMA50(d) AND C(d) > highest daily close of the 10 days d-10..d-1 (excluding d) AND no open position AND cooldown satisfied. EXIT when a daily candle closes with C(d) < SMA20(d), or via the hard stop. STOP-LOSS: one fixed 12% below the entry price (native intrabar stop, not a closed-bar check). COOLDOWN: no re-entry for 72 candles (3 days) after any exit. No grid; all numbers fixed ex ante: 30-day MAX window, 150-day median window, median threshold, 50-day trend mean, 10-day breakout, 20-day exit mean, 12% stop, 3-day cooldown. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 4400 bars (longest daily chain is 1 return + 29 more for MAX plus 150 for the median = about 180 days = 4320 hourly bars, plus one partial day of margin; startup_candle_count 4400, under the 4500 limit).",
+  "parameters": {
+    "signal_timeframe": "1d",
+    "max_window_days": 30,
+    "median_window_days": 150,
+    "regime_threshold": "MAX >= median of previous 150 MAX values",
+    "trend_sma_days": 50,
+    "breakout_days": 10,
+    "exit_sma_days": 20,
+    "stoploss_pct": 12,
+    "cooldown_candles_1h": 72,
+    "execution": "next 1h open after daily close",
+    "warmup_bars": 4400,
+    "exposure_rule": "lab choose_exposure, 5% grid, p95 DD <= 25%"
+  },
+  "rationale": "Mechanism: crypto payoffs are lottery-like and positively skewed; assets that recently printed an unusually large daily jump attract speculative attention and keep earning (MAX momentum, Birmingham paper). Counterparties are contrarians and late sellers who treat the spike as overreaction and sell into persistent attention-driven demand. The source is cross-sectional (sorts coins); this single-asset version is my adaptation: it compares an asset's MAX to its own history, so it only trades when the attention state is above its own median, combined with a trend and 10-day breakout confirmation. Risk control (owner direction): the jump regime plus SMA50 filter keeps entries out of quiet or declining phases, where failed breakouts produced long losing streaks in H-009; the 12% stop caps single losses and the 20-day mean exit is slow, so trades are few. Expected frequency: roughly 8-15 trades per pair per year on daily signals, i.e. about 60-100 over the exploration window, below the cost-dominated regime of H-002 (about 800). Trend-following winners on daily bars typically gain 10-30% against a 0.35-0.5% round-trip cost, but hit rate is probably under 50%, so profit depends on a few large moves; this is a known risk. No source gives the single-asset rule, so the adaptation is untested by the paper. Success criteria are the existing gates (positive net at base and conservative cost, drawdown <= 25%, >= 30 trades per pair) plus DSR, PBO, plateau and Sharpe above buy-and-hold and Sma200Baseline at 2x costs.",
+  "novelty_vs_tried": "No tried family uses a jump or MAX statistic. Prior daily families (RSI2, IBS, R3, Double7, 3-day range) are mean-reversion dips; TimeSeriesMomentum uses N-day return sign; Donchian and WeeklyBreakoutRegime use price channels on 1h or daily highs. Here the gate is a relative attention state (largest daily return of 30 days versus its own 150-day median), which is an extreme-return conditioning that none of them have, combined with a short breakout and a slow SMA20 exit.",
+  "sources": [
+    {
+      "title": "MAX momentum in cryptocurrency markets (University of Birmingham research portal)",
+      "url": "https://research.birmingham.ac.uk/en/publications/max-momentum-in-cryptocurrency-markets/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-024.md with exploration-split summary results of earlier hypotheses (BTC, ETH, BNB 1h, exploration only; validation and final test not read)."
+}
