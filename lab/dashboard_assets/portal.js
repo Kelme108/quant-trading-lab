@@ -204,14 +204,14 @@ function lbTable(rows, cols) {
   const sel = new Set(idList(route.q.ids));
   const toggle = (r) => { const s = new Set(sel); s.has(r.id) ? s.delete(r.id) : s.add(r.id); lbSelect([...s]); };
   const head = h('tr', null, h('th', { class: 'nosort' }, h('span', { class: 'sr' }, 'Comparar')), h('th', { class: 'rank' }, '#'), h('th', null, 'Estratégia'),
-    cols.map((c) => h('th', { class: c.num ? 'num' : '', title: c.term && glossary()[c.term] ? glossary()[c.term][1] : null, 'aria-sort': c.val ? (st.key === c.key ? (st.dir > 0 ? 'ascending' : 'descending') : 'none') : null },
+    cols.map((c) => h('th', { class: (c.num ? 'num ' : '') + 'c-' + c.key, title: c.term && glossary()[c.term] ? glossary()[c.term][1] : null, 'aria-sort': c.val ? (st.key === c.key ? (st.dir > 0 ? 'ascending' : 'descending') : 'none') : null },
       c.val ? h('button', { type: 'button', class: 'sortbtn', 'data-fkey': 'lbth:' + c.key, onclick: () => { lb.sort = { key: c.key, dir: st.key === c.key ? -st.dir : (c.key === 'dd' ? 1 : -1) }; render(); } }, c.label + (st.key === c.key ? (st.dir > 0 ? ' ▴' : ' ▾') : '')) : c.label)));
   const body = sorted.map((r, i) => h('tr', { class: sel.has(r.id) ? 'picked' : '', 'data-key': r.key },
     h('td', { class: 'nw' }, h('input', { type: 'checkbox', checked: sel.has(r.id), 'aria-label': `Comparar ${r.id}`, 'data-fkey': 'lbsel:' + r.id, onchange: () => toggle(r) })),
     h('td', { class: 'rank num' }, String(i + 1)),
     h('td', { class: 'sname' }, h('a', { href: `#/strategy/${r.id}?stage=${r.stage}`, 'data-fkey': 'lbrow:' + r.key }, h('b', null, r.id), h('span', { class: 'fam block' }, r.family)), r.in_portfolio ? badge(ST.good, 'no portfólio') : null),
     cols.map((c) => h('td', { class: (c.num ? 'num' : '') + ' c-' + c.key, 'data-label': c.label }, c.cell(r)))));
-  return h('div', { class: 'tablewrap lbwrap' }, h('table', { class: 'lb', 'aria-label': 'Ranking de estratégias' }, h('thead', null, head), h('tbody', null, body)));
+  return h('div', { class: 'tablewrap lbwrap' }, h('table', { class: 'lb stack', 'aria-label': 'Ranking de estratégias' }, h('thead', null, head), h('tbody', null, body)));
 }
 function lbSelect(ids) { go(`#/leaderboard?stage=${lb.stage}${ids.length ? '&ids=' + ids.join(',') : ''}`); }
 function pageLeaderboard() {
@@ -414,38 +414,137 @@ function systemTiles() {
     tile('Último ciclo', lc ? (cycleDone(lc) ? 'Completo' : 'Parou') : 'Nenhum', lc ? (cycleDone(lc) ? ST.good : ST.bad) : ST.na, lc ? whenShort(lc.started) : 'ainda não rodou'),
     tile('Alertas abertos', String(att.length), att.length ? (att.some((a) => a.level === 'critical') ? ST.bad : ST.warn) : ST.good, att.length ? 'veja em Sistema' : 'nada precisa de atenção'));
 }
+/* ---------- overview (v3 "Observatório"): bento grid, size = importance ---------- */
+const REDUCED = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* count a number up to its final text once, when the page is entered (never on the 15 s refresh) */
+function countUp(el, value, format) {
+  queueMicrotask(() => {
+    if (!ok(value) || REDUCED() || !els.page.classList.contains('enter')) return;
+    const t0 = performance.now(), dur = 1100, final = el.textContent;
+    const step = (t) => { const p = Math.min(1, (t - t0) / dur); el.textContent = p >= 1 ? final : format(value * (1 - Math.pow(2, -10 * p))); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+  return el;
+}
+function ring(score, size = 38) {
+  const r = size / 2 - 4, c = 2 * Math.PI * r, t = tier(score), col = `var(--${t.cls === 'info' ? 'accent' : t.cls})`;
+  return sv('svg', { class: 'ring', width: size, height: size, viewBox: `0 0 ${size} ${size}`, role: 'img', 'aria-label': `Evidência ${nf0.format(score)} de 100 (${t.label})` },
+    sv('circle', { class: 'bgc', cx: size / 2, cy: size / 2, r }),
+    sv('circle', { cx: size / 2, cy: size / 2, r, stroke: col, 'stroke-linecap': 'round', 'stroke-dasharray': `${(c * Math.max(2, score) / 100).toFixed(1)} ${c.toFixed(1)}`, transform: `rotate(-90 ${size / 2} ${size / 2})` }),
+    sv('text', { x: size / 2, y: size / 2 + 4, 'text-anchor': 'middle' }, nf0.format(score)));
+}
+/* area sparkline for the featured card: drawn once the card has a width */
+function heroArea(points, positive) {
+  const box = h('div', { class: 'hero-plot' });
+  if (!points || points.length < 2) return box;
+  queueMicrotask(() => {
+    const w = Math.max(240, box.clientWidth || 600), hgt = 128, pad = 6, col = positive ? 'var(--good)' : 'var(--bad)';
+    const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), span = (hi - lo) || 1;
+    const X = (v) => pad + (v - x0) / ((x1 - x0) || 1) * (w - pad * 2), Y = (v) => hgt - pad - (v - lo) / span * (hgt - pad * 2);
+    const d = points.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(''), last = points[points.length - 1];
+    const gid = 'hg' + Math.random().toString(36).slice(2, 8);
+    box.replaceChildren(sv('svg', { width: w, height: hgt, role: 'img', 'aria-label': `Lucro acumulado: ${plain(last[1])} do capital` },
+      sv('defs', null, sv('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 }, sv('stop', { offset: '0', 'stop-color': col, 'stop-opacity': 0.32 }), sv('stop', { offset: '1', 'stop-color': col, 'stop-opacity': 0 }))),
+      sv('line', { x1: pad, x2: w - pad, y1: Y(0), y2: Y(0), class: 'spark-zero' }),
+      sv('path', { d: `${d}L${X(last[0]).toFixed(1)} ${hgt}L${X(points[0][0]).toFixed(1)} ${hgt}Z`, fill: `url(#${gid})` }),
+      sv('path', { d, class: 'ln', pathLength: 1, stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round' }),
+      sv('circle', { cx: X(last[0]), cy: Y(last[1]), r: 9, fill: col, class: 'end-halo' }), sv('circle', { cx: X(last[0]), cy: Y(last[1]), r: 3.5, fill: col })));
+  });
+  return box;
+}
+function featuredCard(best, stage) {
+  const lim = state.gate_bar.max_drawdown_pct, ddShare = ok(best.max_dd_pct) && lim ? Math.min(100, best.max_dd_pct / lim * 100) : 0;
+  const ddTone = ddShare >= 100 ? 'bad' : ddShare >= 70 ? 'warn' : '';
+  const roiEl = countUp(h('div', { class: 'hero-big ' + tone(best.roi_pct) }, pct(best.roi_pct)), best.roi_pct, pct);
+  const cell = (label, value, note, cls = '', extra = null) => h('div', null, h('span', { class: 'l' }, label), h('span', { class: 'v ' + cls }, value), note ? h('span', { class: 'n' }, note) : null, extra);
+  return h('section', { class: 'card hero beam b-7 b-r2', id: 'sec-destaque', 'aria-labelledby': 'ov-hero-t' },
+    h('div', { class: 'chiprow' }, h('span', { class: 'badge accent' }, 'Em destaque · maior evidência'), gateBadge(best), h('span', { class: 'badge ' + tier(best.score).cls }, `Evidência ${nf0.format(best.score)} · ${tier(best.score).label}`), origin()),
+    h('div', { class: 'hero-title' }, h('b', { id: 'ov-hero-t' }, best.id), h('span', { class: 'fam' }, best.family)),
+    h('div', { class: 'hero-row' }, roiEl, h('div', { class: 'sub' }, h('div', null, 'ROI médio dos pares · ', STAGE_CAP[stage]), h('div', { class: 'num' }, periodText(best)))),
+    h('div', { class: 'hstrip' },
+      cell(term('winrate', 'Win rate'), winPct(best.winrate), best.winrate_ci ? `IC 95%: ${winPct(best.winrate_ci[0])} a ${winPct(best.winrate_ci[1])}` : null),
+      cell(term('pf', 'Profit factor'), ok(best.profit_factor) ? nf2.format(best.profit_factor) : dash, best.profit_factor_note || (ok(best.profit_factor) ? `ganhos ${nf0.format(best.gross_profit_abs || 0)} / perdas ${nf0.format(Math.abs(best.gross_loss_abs || 0))} USDT` : null), ok(best.profit_factor) ? (best.profit_factor >= 1 ? 'pos' : 'neg') : ''),
+      h('div', { title: `Queda máxima relativa calculada pelo Freqtrade, cenário de custo base, em cada par; mostra o pior par. Limite do gate: ${nf0.format(lim)}%.` },
+        h('span', { class: 'l' }, 'Queda máxima'), h('span', { class: 'v' }, plain(best.max_dd_pct)), h('span', { class: 'n' }, `pior par · limite ${nf0.format(lim)}%`),
+        h('div', { class: 'gauge ' + ddTone, role: 'img', 'aria-label': `${plain(best.max_dd_pct)} de ${nf0.format(lim)}% permitidos` }, h('i', { style: `width:${ddShare.toFixed(1)}%` }))),
+      cell('Trades', nf0.format(best.trades), `mín. ${nf0.format(best.min_trades_pair)} por par`)),
+    heroArea(best.curve, (best.roi_pct || 0) >= 0),
+    flagList(best.flags.filter((f) => f.level !== 'info').slice(0, 3)),
+    h('a', { class: 'open', href: `#/strategy/${best.id}?stage=${stage}`, 'data-fkey': 'ov-open' }, 'Abrir análise completa →'));
+}
+function funnelBento() {
+  const f = Object.fromEntries(state.funnel.map((x) => [x.key, x.count])), top = Math.max(1, f[FUNNEL[0][0]] || 0);
+  const passed = f.explore_passed || 0, read = f.validation_run || 0, waiting = Math.max(0, passed - read), approved = f.validation_passed || 0;
+  const rows = FUNNEL.map(([k, label, def], i) => {
+    const v = f[k] ?? 0, prev = i ? (f[FUNNEL[i - 1][0]] ?? 0) : null;
+    return h('div', { class: 'fn-row', title: def },
+      h('span', { class: 'lbl' }, label), h('span', { class: 'fn-bar' + (v ? '' : ' zero') }, v ? h('i', { style: `width:${(v / top * 100).toFixed(1)}%;animation-delay:${(i * 70)}ms` }) : null),
+      h('span', { class: 'n' }, nf0.format(v), prev ? h('small', null, `${nf0.format(v / prev * 100)}%`) : null));
+  });
+  return h('section', { class: 'card b-5', id: 'sec-funil' }, h('header', null, h('div', null, h('h2', null, 'Funil de pesquisa'), h('div', { class: 'sub' }, 'Hipóteses válidas por etapa; à direita, a fração da etapa anterior.'))),
+    h('div', { class: 'fn-sum' }, h('span', { class: 'badge info' }, `${nf0.format(passed)} passaram na exploração`), h('span', { class: 'badge warn' }, `${nf0.format(waiting)} aguardam validação`), h('span', { class: 'badge ' + (approved ? 'good' : 'na') }, `${nf0.format(approved)} de ${nf0.format(read)} aprovadas na validação`)),
+    h('div', { class: 'fn', role: 'list', 'aria-label': 'Funil de pesquisa' }, rows),
+    det('ov-funnel-rule', 'Como é contado', h('div', { class: 'sub' }, funnelRule())));
+}
+function healthBento() {
+  const s = state.safety, wd = worstData(), lc = lastCycle(), open = openItems(), crit = criticalItems(), act = (state.activity || [])[0];
+  const since = act ? (Date.now() - new Date(act.at).getTime()) / 1000 : null;
+  const item = (cls, title, note, href, fkey) => h(href ? 'a' : 'div', { class: 'hi', href, 'data-fkey': fkey }, h('span', { class: 'hdot ' + cls, 'aria-hidden': 'true' }), h('div', null, h('b', null, title), h('span', null, note)));
+  return h('section', { class: 'card b-5', id: 'sec-sistema' },
+    h('header', null, h('div', null, h('h2', null, 'Sistema agora'), h('div', { class: 'sub' }, `gasto com agentes US$ ${nf2.format(state.agents.total_cost_usd || 0)}`)), h('a', { href: '#/data', 'data-fkey': 'ov-sys' }, 'Abrir Sistema →')),
+    h('div', { class: 'health' },
+      item(since != null && since < 1800 ? 'info' : 'na', since == null ? 'Sem atividade registrada' : `Última atividade há ${ago(since)}`, act ? `${act.kind === 'agent' ? `agente ${act.agent}` : act.kind === 'hypothesis' ? 'hipótese registrada' : act.kind === 'experiment' ? 'experimento' : act.kind === 'decision' ? 'decisão dos gates' : 'ciclo'}${act.hypothesis_id ? ` · ${act.hypothesis_id}` : ''}` : 'o feed aparece depois do primeiro ciclo', '#/data?at=sec-atividade', 'ov-h-act'),
+      item(s.dry_run && s.no_exchange_keys ? 'good' : 'bad', s.dry_run ? `Dry-run · ${s.trading_mode || dash}` : 'Dry-run DESLIGADO', `sem chaves: ${s.no_exchange_keys ? 'sim' : 'NÃO'} · API ${s.api_disabled ? 'desligada' : 'LIGADA'}`, null),
+      item(wd.meta.cls === 'good' ? 'good' : wd.meta.cls === 'warn' ? 'warn' : 'bad', `Dados: ${wd.value.toLowerCase()}`, wd.note, '#/data?at=sec-dados', 'ov-h-data'),
+      item(lc ? (cycleDone(lc) ? 'good' : 'bad') : 'na', lc ? (cycleDone(lc) ? 'Último ciclo completo' : 'Último ciclo parou') : 'Nenhum ciclo ainda', lc ? whenShort(lc.started) : 'ainda não rodou', '#/data?at=sec-ciclos', 'ov-h-cyc'),
+      item(crit.length ? 'bad' : open.length ? 'warn' : 'good', open.length ? `${nf0.format(open.length)} ${plural(open.length, 'alerta aberto', 'alertas abertos')}` : 'Nenhum alerta aberto', crit.length ? `${nf0.format(crit.length)} ${plural(crit.length, 'crítico', 'críticos')}` : 'nada exige atenção', '#/data?at=sec-alertas', 'ov-h-att'),
+      item('good', usdt(state.wallet), 'carteira virtual · sem posições abertas', '#/dryrun', 'ov-h-wallet')));
+}
+function rankBento(rows, stage) {
+  const head = h('div', { class: 'rk-row rk-head', 'aria-hidden': 'true' }, h('span', null, '#'), h('span', null, 'Evid.'), h('span', null, 'Estratégia'), h('span', { class: 'v' }, 'ROI'), h('span', { class: 'v c-wr' }, 'Win rate'), h('span', { class: 'v c-pf' }, 'PF'), h('span', { class: 'v c-dd' }, 'Queda'), h('span', { class: 'c-sp' }, 'Curva'));
+  const list = rows.map((r, i) => h('a', { class: 'rk-row', href: `#/strategy/${r.id}?stage=${stage}`, 'data-fkey': 'ov-rk:' + r.id, 'aria-label': `${i + 1}º ${r.id}, evidência ${nf0.format(r.score)}, ROI ${pct(r.roi_pct)}` },
+    h('span', { class: 'pos-n' }, String(i + 1)), ring(r.score), h('span', { class: 'nm' }, h('b', null, r.id), h('span', null, r.family)),
+    h('span', { class: 'v ' + tone(r.roi_pct) }, pct(r.roi_pct)), h('span', { class: 'v c-wr' }, winPct(r.winrate)), h('span', { class: 'v c-pf' }, ok(r.profit_factor) ? nf2.format(r.profit_factor) : dash), h('span', { class: 'v c-dd' }, plain(r.max_dd_pct)), h('span', { class: 'c-sp' }, spark(r.curve, 96, 28))));
+  const n = hiddenCount();
+  return h('section', { class: 'card b-7', id: 'sec-top' }, h('header', null, h('div', null, h('h2', null, 'Ranking por evidência'), h('div', { class: 'sub' }, `${STAGE_CAP[stage]} · evidência 0 a 100, não é win rate`)), h('a', { href: `#/leaderboard?stage=${stage}`, 'data-fkey': 'ov-rank' }, 'Abrir o ranking completo →')),
+    h('div', { class: 'rk' }, head, list),
+    n || ui.showAll ? h('div', { class: 'rk-foot' }, h('span', null, ui.showAll ? 'Mostrando também as não candidatas.' : `+ ${nf0.format(n)} não ${plural(n, 'candidata oculta', 'candidatas ocultas')} (reprovadas, descartadas ou inválidas)`),
+      h('button', { type: 'button', class: 'link', 'data-fkey': 'ov-showall', onclick: () => { toggleShowAll(); render(); } }, ui.showAll ? 'Só candidatas' : 'Mostrar')) : null);
+}
+function yearsBento(rows) {
+  const years = [...new Set(rows.flatMap((r) => Object.keys(r.years || {})))].sort();
+  if (!years.length) return null;
+  const vals = rows.flatMap((r) => Object.values(r.years || {}).map(Math.abs)).sort((a, b) => a - b), cap = vals[Math.floor(vals.length * 0.9)] || vals[vals.length - 1] || 1;
+  const grid = h('div', { class: 'yh', role: 'table', 'aria-label': 'Resultado por ano, % do capital', style: `grid-template-columns:52px repeat(${years.length}, minmax(0, 1fr))` },
+    h('span', { role: 'columnheader' }), years.map((y) => h('span', { class: 'yl', role: 'columnheader' }, `'${y.slice(2)}`)),
+    rows.map((r) => [h('a', { class: 'sl', role: 'rowheader', href: `#/strategy/${r.id}` }, r.id), years.map((y) => {
+      const v = (r.years || {})[y];
+      if (!ok(v)) return h('span', { class: 'cell na', role: 'cell', title: `${r.id} · ${y}: sem trades` });
+      const k = Math.min(1, Math.abs(v) / cap);
+      return h('span', { class: 'cell', role: 'cell', title: `${r.id} · ${y}: ${plain(v)} do capital`, style: `background:color-mix(in srgb, var(${v >= 0 ? '--good' : '--bad'}) ${Math.round(12 + k * 68)}%, var(--track))` }, sgn((v >= 0 ? '+' : '') + nf0.format(v)));
+    })]));
+  return h('section', { class: 'card b-5', id: 'sec-anos' }, h('header', null, h('div', null, h('h2', null, 'Resultado por ano'), h('div', { class: 'sub' }, '% do capital somado dos pares · backtest'))),
+    grid, h('div', { class: 'yh-scale', 'aria-hidden': 'true' }, h('span', null, sgn('-' + nf0.format(cap)) + '%'), h('i'), h('span', null, '+' + nf0.format(cap) + '%')));
+}
 function pageOverviewPortal() {
   const stage = lb.stage;
   const rows = sRows(stage), best = rows.length ? (rows.filter(eligible).sort((a, b) => b.score - a.score)[0] || topRow(stage)) : null;
-  const stageSwitch = h('div', { class: 'filters toolbar' }, segmented('Etapa', 'ov-stage', stage, [['exploration', 'Exploração'], ['validation', 'Validação']], (v) => { lb.stage = v; render(); }), origin(), h('span', { class: 'sub' }, `${rows.length} estratégias com resultado`));
-  const approved = strat().filter((r) => r.stage === 'exploration' && r.gates_all_pass).map((r) => r.id), validated = strat().filter((r) => r.stage === 'validation' && r.gates_all_pass).map((r) => r.id);
-  const ft = state.forward_test || {};
-  const kp = h('div', { class: 'kpis' },
-    kpi('Estratégias avaliadas', nf0.format(sIds().length), 'com resultado de backtest'),
-    kpi('Passaram na exploração', nf0.format(approved.length), approved.slice(0, 4).join(', ') || 'nenhuma'),
-    kpi('Passaram na validação', nf0.format(validated.length), validated.length ? validated.join(', ') : 'nenhuma até agora', ),
-    kpi('Em dry-run', nf0.format((ft.open || 0) + (ft.closed || 0)), 'trades na carteira virtual'),
-    kpi('Carteira virtual', usdt(state.wallet), 'patrimônio inicial; sem posições abertas'));
-  if (!best) return h('div', null, stageSwitch, emptyState('Nenhuma estratégia com resultado nesta etapa.', 'O resumo aparece quando houver backtests concluídos.'), h('div', { style: 'height:12px' }), systemTiles());
-  const featured = card(`Em destaque: ${best.id}`, `${best.family} · maior evidência entre as com amostra suficiente · ${STAGE_CAP[stage]}`, h('div', null,
-    h('div', { class: 'row', style: 'margin-bottom:8px' }, gateBadge(best), h('span', { class: 'badge ' + tier(best.score).cls }, `Evidência ${nf0.format(best.score)}`), h('a', { href: `#/strategy/${best.id}?stage=${stage}`, 'data-fkey': 'ov-open' }, 'Abrir análise completa →')),
-    h('div', { class: 'metrics sm' }, bigKpi('ROI', pct(best.roi_pct), 'média dos pares', tone(best.roi_pct)), bigKpi('Win rate', winPct(best.winrate), null), bigKpi('Profit factor', ok(best.profit_factor) ? nf2.format(best.profit_factor) : dash), bigKpi('Queda máx.', plain(best.max_dd_pct), `limite ${nf0.format(state.gate_bar.max_drawdown_pct)}%`), bigKpi('Trades', nf0.format(best.trades), `mín. ${best.min_trades_pair}/par`)),
-    flagList(best.flags.filter((f) => f.level !== 'info').slice(0, 4))), { id: 'sec-destaque' });
+  const stageSwitch = h('div', { class: 'filters toolbar' }, segmented('Etapa', 'ov-stage', stage, [['exploration', 'Exploração'], ['validation', 'Validação']], (v) => { lb.stage = v; render(); }), h('span', { class: 'sub' }, `${rows.length} ${plural(rows.length, 'estratégia', 'estratégias')} com resultado`));
+  const parts = summaryParts(), notes = parts.filter((p) => !p.startsWith('Atenção'));
+  const head = h('div', { class: 'ob-head' }, h('section', { 'aria-label': 'Resumo' }, h('p', { class: 'lead' }, notes[0]), h('p', { class: 'next' }, h('b', null, 'Próximo passo: '), nextStep())), stageSwitch);
+  if (!best) return h('div', null, head, emptyState('Nenhuma estratégia com resultado nesta etapa.', 'O resumo aparece quando houver backtests concluídos.'), h('div', { style: 'height:12px' }), h('div', { class: 'bento' }, funnelBento(), healthBento()));
   const topN = rows.slice().sort((a, b) => b.score - a.score).slice(0, 5);
-  const evol = chartCard({ id: 'ov-evol', title: 'Evolução do lucro acumulado', sim: true, subtitle: `As ${topN.length} de maior evidência · ${STAGE_CAP[stage]} · % do capital`, legend: topN.map((r, i) => ({ name: r.id, color: `var(--s${i + 1})` })), hasData: topN.some((r) => r.curve && r.curve.length > 1),
-    draw: (el, w) => lineChart(el, { series: topN.map((r, i) => ({ name: r.id, color: `var(--s${i + 1})`, points: r.curve || [] })), width: w, height: 300, zero: true, yLabel: 'Lucro acumulado em % do capital', fmtY: (val, t) => (t ? pct(val) : sgn(nfv.format(val)) + '%') }),
+  const evol = chartCard({ id: 'ov-evol', title: 'Evolução do lucro acumulado', sim: true, subtitle: `As ${topN.length} de maior evidência · ${STAGE_CAP[stage]} · % do capital · passe o mouse para comparar no tempo`, legend: topN.map((r, i) => ({ name: r.id, color: `var(--s${i + 1})` })), hasData: topN.some((r) => r.curve && r.curve.length > 1),
+    draw: (el, w) => lineChart(el, { series: topN.map((r, i) => ({ name: r.id, color: `var(--s${i + 1})`, points: r.curve || [] })), width: w, height: 320, zero: true, area: true, yLabel: 'Lucro acumulado em % do capital', fmtY: (val, t) => (t ? pct(val) : sgn(nfv.format(val)) + '%') }),
     table: { head: ['Estratégia', 'Lucro acumulado final'], rows: topN.map((r) => [r.id, pct(r.curve && r.curve.length ? r.curve[r.curve.length - 1][1] : null)]), numCols: [1] } });
-  const mini = card('Top 5 por evidência', 'Ranking completo em Ranking', h('div', { class: 'tablewrap' }, simpleTable(['#', 'Estratégia', 'Evidência', 'ROI', 'Queda'], topN.map((r, i) => [String(i + 1), h('a', { href: `#/strategy/${r.id}?stage=${stage}`, title: r.family }, h('b', null, r.id)), scoreMeter(r), pct(r.roi_pct), plain(r.max_dd_pct)]), [3, 4])),
-    h('div', { style: 'margin-top:8px' }, h('a', { href: `#/leaderboard?stage=${stage}`, 'data-fkey': 'ov-rank' }, 'Abrir o ranking completo →')));
-  const parts = summaryParts(), notes = parts.filter((p) => !p.startsWith('Atenção')), nOpen = openItems().length;
-  const summary = h('section', { class: 'brief', 'aria-label': 'Resumo' }, h('p', { class: 'lead' }, notes[0]),
-    notes.length > 1 && h('p', { class: 'sub' }, notes.slice(1).join(' ')),
-    nOpen > 0 && h('p', { class: 'sub' }, `${nOpen} ${plural(nOpen, 'alerta aberto', 'alertas abertos')}: detalhes em Estado do sistema, mais abaixo.`),
-    h('p', { class: 'next' }, h('b', null, 'Próximo passo: '), nextStep()));
-  return h('div', null, summary, stageSwitch, kp, h('div', { class: 'grid g21' }, h('div', { class: 'vstack' }, featured, evol), h('div', { class: 'vstack' }, answersCard(stage), mini)),
-    sectionTitle('Estado do sistema'), systemTiles(), h('div', { style: 'height:12px' }),
-    h('div', { class: 'grid g2' }, alertPanel(state.attention || []), activityFeed(8)),
-    sectionTitle('Laboratório'), h('div', { class: 'grid g2' }, funnelCard(), sinceCard()));
+  evol.classList.add('b-12');
+  const answers = answersCard(stage), since = sinceCard();
+  answers.classList.add('b-6'); since.classList.add('b-6');
+  const alerts = alertPanel(state.attention || []), feed = activityFeed(8);
+  alerts.classList.add('b-7'); feed.classList.add('b-5');
+  return h('div', null, head,
+    h('div', { class: 'bento' }, featuredCard(best, stage), funnelBento(), healthBento(), evol, rankBento(topN, stage), yearsBento(topN), alerts, feed, answers, since));
 }
 
 /* ==================== System monitor ==================== */
