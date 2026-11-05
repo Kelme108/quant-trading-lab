@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-027",
+  "family": "DailySupertrendFlip",
+  "title": "Daily Supertrend (ATR 10, x3) long-only flip trend follower on 1h execution",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no cooldown, no other filters. Daily definitions (d = just-closed day, included): TR(d) = max(high-low, |high-close(d-1)|, |low-close(d-1)|); ATR(d) = Wilder smoothing of TR with length 10 (alpha 1/10, seeded with the mean of the first 10 TRs); hl2 = (high+low)/2; BasicUpper = hl2 + 3.0*ATR; BasicLower = hl2 - 3.0*ATR. FinalUpper(d) = BasicUpper(d) if BasicUpper(d) < FinalUpper(d-1) or close(d-1) > FinalUpper(d-1), else FinalUpper(d-1). FinalLower(d) = BasicLower(d) if BasicLower(d) > FinalLower(d-1) or close(d-1) < FinalLower(d-1), else FinalLower(d-1). Trend state: initial state is DOWN on the first day with a defined ATR. If state(d-1) is DOWN and close(d) > FinalUpper(d) the state becomes UP; if state(d-1) is UP and close(d) < FinalLower(d) the state becomes DOWN; otherwise it is unchanged. The Supertrend line is FinalLower in UP and FinalUpper in DOWN. ENTRY when a daily candle closes and the state flips from DOWN to UP on that day, and no position is open (flip only; a state that is already UP is not an entry, including on the first candle of a split). EXIT when a daily candle closes and the state flips from UP to DOWN (daily close below the Supertrend line). STOP-LOSS: none in the rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, never a binding stop (the Supertrend line is the trailing exit, evaluated on daily closes). No cooldown. All numbers fixed ex ante, no grid: ATR length 10, multiplier 3.0. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 3700 bars (150 daily candles = 3600 hourly bars plus a partial day and margin, so the Wilder ATR seed and the ratcheting bands forget their start; under the 4500 limit).",
+  "parameters": {
+    "signal_timeframe": "1d",
+    "execution_timeframe": "1h",
+    "atr_length_days": 10,
+    "atr_smoothing": "Wilder",
+    "band_multiplier": 3.0,
+    "price_basis": "hl2",
+    "initial_state": "DOWN",
+    "entry": "daily flip DOWN to UP",
+    "exit": "daily flip UP to DOWN",
+    "stoploss_engine_placeholder": -0.99,
+    "cooldown_candles": 0,
+    "warmup_bars": 3700,
+    "exposure_rule": "lab_dd_grid"
+  },
+  "rationale": "Mechanism: crypto trends persist because information diffuses slowly and flows herd; large daily moves tend to continue for weeks. A trend follower that buys only when price closes beyond a volatility-scaled band (3 daily ATRs from hl2) and exits when the ratcheting trailing line breaks pays for being late: the counterparties are mean-reversion sellers and breakout fadeers who sell into the early part of a trend. The ATR-scaled trail adapts the exit distance to volatility, so the loss on a failed flip is bounded by about 3 ATRs from the bar rather than a fixed percentage, and in bear or range phases the line stays above price so no entry occurs, which targets the post-2021 losing streaks of H-005. The source (a StockSharp store page) gives only a technical description, no mechanism; this is the closest honest one, and I did not open the page myself (the scout supplied it). Expected trades: roughly 4-8 per pair per year, so tens of trades per pair over the exploration window; winners in a trend are typically many times the 0.35% base round trip (0.95% stress), while losing whipsaws are the main cost. Risk: drawdown is controlled by the exposure rule and by the wide-stop/few-trades nature; success criteria are the existing gates (positive net at base and conservative, drawdown <= 25%, >= 30 trades per pair).",
+  "novelty_vs_tried": "Structurally different from the fixed-percentage-stop breakout families (H-009, H-005, H-007) and from DailyKeltnerBreakout (H-025): the entry is a flip of a one-sided ratcheting band (state machine with trailing exit that only moves in the trade's favour), not a fresh cross of a symmetric EMA band with an EMA exit and a fixed stop, and there is no SMA trend filter and no fixed stop. It also differs from the Donchian/momentum families (channel high, N-day return) by using ATR-scaled distance with hl2 as the anchor.",
+  "sources": [
+    {
+      "title": "Super Trend (C#) - StockSharp strategy store (supplied by scout; not opened by me)",
+      "url": "https://stocksharp.com/store/strategies.0010_super_trend/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Only the context file research/context/H-027.md (exploration-split summaries of earlier hypotheses) and the validation protocol; no validation or final-test results; no price data inspected."
+}
