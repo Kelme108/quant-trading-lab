@@ -170,8 +170,8 @@ def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: in
         "",
         "## Hard limits (deterministic triage drops anything outside them)",
         "- Pairs BTC/USDT, ETH/USDT, BNB/USDT. Spot, long only, one position per pair, the whole allowed balance per trade.",
-        "- Timeframe `1h`, or `1d` (signals from closed daily candles, executed on 1h).",
-        f"- Longest lookback: at most {triage.MAX_LOOKBACK['1h']} bars on 1h, or {triage.MAX_LOOKBACK['1d']} days on 1d.",
+        "- Timeframe `15m` or `1h` (intraday, preferred now), or `1d` (signals from closed daily candles, executed on 1h).",
+        f"- Longest lookback: at most {triage.MAX_LOOKBACK['1h']} bars on 15m or 1h, or {triage.MAX_LOOKBACK['1d']} days on 1d.",
         "- No short selling, leverage, margin, derivatives, martingale, pyramiding or position sizing.",
         f"- Enough trades: at least {min_trades} per pair in about {years:.1f} years of history, so at least "
         f"{needed:.1f} expected trades per year per pair after a safety margin. A rule that trades a few times a year is useless here.",

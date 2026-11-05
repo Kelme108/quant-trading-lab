@@ -148,6 +148,8 @@ class TriageTests(unittest.TestCase):
         self.assertEqual(self.run_one(self.row(timeframe="1d", longest_lookback=250))["state"], "dropped")
         self.assertEqual(self.run_one(self.row(timeframe="1h", longest_lookback=4500, expected_trades_per_year=20))["state"], "queued")
         self.assertEqual(self.run_one(self.row(timeframe="1h", longest_lookback=4501, expected_trades_per_year=20))["state"], "dropped")
+        self.assertEqual(self.run_one(self.row(timeframe="15m", longest_lookback=4500, expected_trades_per_year=200))["state"], "queued")
+        self.assertEqual(self.run_one(self.row(timeframe="15m", longest_lookback=4501, expected_trades_per_year=200))["state"], "dropped")
 
     def test_too_few_expected_trades_drops_the_idea(self) -> None:
         result = self.run_one(self.row(expected_trades_per_year=4))

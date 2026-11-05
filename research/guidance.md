@@ -1,3 +1,7 @@
+## Owner's direction, 2026-11-05 (read first)
+
+Build a diversified portfolio of rules that TRADE OFTEN. Daily rules (H-020, H-024, H-025) gave only 9-16 trades in the validation split, so the validation could not decide (minimum 30). Prefer intraday rules on `15m` (now enabled) or `1h` with roughly 100-500 trades per year per pair, built on a mechanism structurally different from the candidates already in the lab (mostly dip-buying in an uptrend and slow breakouts). Cost still decides: a round trip costs 0.35% at base and 0.95% at stress, so state why the gross move per trade exceeds it. The warm-up limit (4500 bars) applies on 15m too: 4500 bars of 15m is about 47 days, so build longer horizons with an informative 1h/4h/1d timeframe via merge_informative_pair rather than with a very long 15m lookback.
+
 Focus this search on drawdown control and robustness, not on maximizing historical return.
 
 Why: H-002 lost money (about 800 trades per pair, cost-dominated). H-005 returned +500% to +880% but its maximum drawdown was 43% to 51%, against the 25% gate. Its worst drawdown on each pair was a streak of 8 to 13 consecutive losing trades (average loss 6% to 8% each, whole balance per trade) in a bear or range market after the 2021 peak, with at most one winner inside it. Do not repeat that pattern.
@@ -7,7 +11,7 @@ Guidelines:
 2. Aim for max drawdown below 25% in all four cost scenarios with positive expected return. Remember that with a whole balance per trade, N consecutive losses of L% each must stay under the 25% ceiling.
 3. Keep trade count in mind: fewer than 30 trades in a split is "inconclusive", and a filter that is too restrictive will land there (H-004 had 13 to 16 trades). Equally, very frequent signals are eaten by costs (H-002).
 4. The same rule and parameters must work on BTC, ETH and BNB. No per-pair tuning.
-5. Spot, long only, 1h. Sizing methods such as custom_stake_amount are forbidden by the strategy check, so risk must be controlled by entries and exits.
+5. Spot, long only, 15m or 1h. Sizing methods such as custom_stake_amount are forbidden by the strategy check, so risk must be controlled by entries and exits.
 6. Respect the variant cap of 3 per family. Prefer a new family over spending a variant of a family that already failed, unless you can name the specific mechanism that the variant fixes.
 7. In the proposal rationale, state the technical justification, the expected mechanism of risk reduction, and objective success criteria (the existing gates), before anything is implemented.
 

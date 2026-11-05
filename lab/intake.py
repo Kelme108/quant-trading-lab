@@ -30,7 +30,7 @@ REQUIRED_KEYS = (
 )
 SOURCE_KEYS = ("type", "url", "title", "license")
 SOURCE_TYPES = ("paper", "blog", "repo")
-TIMEFRAMES = ("1h", "1d")  # 1d = daily signals via the closed daily candle, executed on 1h
+TIMEFRAMES = ("15m", "1h", "1d")  # 1d = daily signals via the closed daily candle, executed on 1h
 TEXT_LIMITS = {"title": (5, 120), "rule_summary": (60, 1500), "mechanism": (40, 1000)}
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 

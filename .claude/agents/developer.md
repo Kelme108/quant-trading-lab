@@ -20,7 +20,7 @@ Write exactly two new files:
 Never edit or delete any existing file. A change to an existing strategy is a new hypothesis, not an edit.
 
 ## Strategy contract (a static check rejects violations before anything runs)
-- `INTERFACE_VERSION = 3`, `timeframe = "1h"`, `can_short = False`, `minimal_roi = {"0": 100.0}`, a negative `stoploss`.
+- `INTERFACE_VERSION = 3`, `timeframe` equal to the proposal's timeframe (`"15m"` or `"1h"`; a `1d` rule runs on `"1h"` with daily candles via `merge_informative_pair`), `can_short = False`, `minimal_roi = {"0": 100.0}`, a negative `stoploss`.
 - `startup_candle_count` at least the longest lookback in the rule.
 - Indicators use only closed candles. Anything that looks at neighbouring rows must look backwards only: no `shift` with a negative argument, no centered windows. A channel or level that the current candle is compared with must be shifted by one candle, as in `DonchianBreakoutBaseline`.
 - Signals are exactly 1 where set; entry and exit never fire on a candle with zero volume or on undefined (NaN) indicator values.

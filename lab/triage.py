@@ -27,7 +27,7 @@ from lab import intake, registry, runner
 from lab.strategy_check import MAX_STARTUP_CANDLES
 
 ROOT = Path(__file__).parents[1]
-MAX_LOOKBACK = {"1h": MAX_STARTUP_CANDLES, "1d": 200}
+MAX_LOOKBACK = {"15m": MAX_STARTUP_CANDLES, "1h": MAX_STARTUP_CANDLES, "1d": 200}
 TRADES_MARGIN = 1.3          # expected trades must exceed the requirement by 30%
 OVERLAP_LIMIT = 0.55         # Jaccard overlap of content words above which an idea repeats a tried rule
 SCORE_MAX = 4.5
@@ -95,7 +95,7 @@ def triage_idea(
     elif idea["longest_lookback"] > MAX_LOOKBACK[idea["timeframe"]]:
         reasons.append(
             f"longest lookback {idea['longest_lookback']} exceeds {MAX_LOOKBACK[idea['timeframe']]} "
-            f"{'bars' if idea['timeframe'] == '1h' else 'days'}"
+            f"{'days' if idea['timeframe'] == '1d' else 'bars'}"
         )
     topics = forbidden_topics(idea["rule_summary"], idea["mechanism"], idea["title"])
     if topics:
