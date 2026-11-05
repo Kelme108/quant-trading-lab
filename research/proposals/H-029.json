@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-029",
+  "family": "MondayEffectLong",
+  "title": "Monday-session long in daily uptrend, flat at Tuesday 00:00 UTC",
+  "ex_ante_rule": "Closed 1h candles for execution, UTC clock; the trend filter uses CLOSED DAILY candles built from the 1h data (informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed). Long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. FILTER: on the Monday 00:00 UTC bar, the last closed daily candle is Sunday's; the filter holds when Sunday's daily close > SMA(50) of daily closes (50 closed daily candles including Sunday). ENTRY: buy at the open of the Monday 00:00 UTC 1h bar (signal evaluated on the closed Sunday daily candle and the 23:00 Sunday bar) if the filter holds and no position is open. If the Monday 00:00 bar or the daily SMA is missing, no trade. EXIT: sell at the open of the Tuesday 00:00 UTC bar (time exit after exactly 24 hourly bars, fixed clock, regardless of price). STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (the scout's closed-bar check is replaced by this intrabar form). At most one trade per week per pair by construction (entry only at the Monday 00:00 open). Cooldown: none needed. All numbers fixed ex ante, no grid: trend mean 50 days, entry Monday 00:00 UTC, hold 24 hours, stop 3%. Warm-up: 1200 bars (50 daily candles = 1200 hourly bars; the SMA is not recursive; startup_candle_count 1200, under the 4500 limit).",
+  "parameters": {
+    "trend_sma_days": 50,
+    "entry_weekday": "Monday",
+    "entry_hour_utc": 0,
+    "hold_hours": 24,
+    "exit_weekday": "Tuesday",
+    "exit_hour_utc": 0,
+    "stoploss_pct": 3,
+    "max_trades_per_week": 1,
+    "startup_candle_count": 1200,
+    "cooldown_candles": 0
+  },
+  "rationale": "Mechanism (low confidence): weekend volume is thin, so sellers can push price down with little liquidity; when institutional and larger flow returns on Monday the price tends to be restored, giving a higher Monday return as in currency markets. Conditioning on a daily close above its 50-day mean limits the trade to weeks where the broader drift is up, to avoid holding through bearish weeks. The source itself finds the effect time-varying with no persistent pattern, so this is a diversifier test, not a confident edge. Cost: round trip is 0.35% at base and 0.95% at stress, so the average Monday gross return must exceed 0.35%; for a 24h hold this is large relative to a typical mean daily return and is doubtful. Expected trades: Mondays in an uptrend, roughly 25-35 per year per pair (about 50% of 52 weeks), so a split may fall near or below the 30-trade minimum and be inconclusive. The 3% stop is about one daily standard deviation of these pairs, to cap the loss per trade; with a whole balance, consecutive stopped losses of 3% plus costs stay well under the 25% drawdown ceiling for streaks under about 6. Success criteria are the existing gates: positive net at base and conservative cost, drawdown below 25%, at least 30 trades per pair.",
+  "novelty_vs_tried": "Every other candidate is a dip-buy, breakout or trend-following rule that holds for days or weeks and enters on price patterns. This is a calendar-clock rule: entry is dictated by the weekday and hour, the hold is a fixed 24 hours, and no price pattern triggers it; the only price input is a slow 50-day daily trend gate. It is closest in style to H-028 (intraday clock rule, which produced zero trades), but uses a different window (Monday session), a daily filter and a weekly frequency. It should have low correlation with the breakout and dip families.",
+  "sources": [
+    {
+      "title": "Are There Any Simple Calendar Effects in Bitcoin Market? (Quantpedia)",
+      "url": "https://quantpedia.com/are-there-any-simple-calendar-effects-in-bitcoin-market/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected. Only the research context (hypotheses and exploration summaries of earlier hypotheses for BTC, ETH, BNB 1h) and the Quantpedia page, as of 2026-11-05."
+}
