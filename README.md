@@ -1,222 +1,280 @@
-# Trading Lab
+# Quant Trading Lab
 
-Laboratório reproduzível para pesquisa de estratégias de criptomoedas spot com Freqtrade.
+Laboratório **reproduzível e auditável** para pesquisar, validar e (futuramente) executar estratégias de trading quantitativo. Combina um motor de backtest ([Freqtrade](https://www.freqtrade.io/)), um pipeline automatizado de hipóteses com *gates* estatísticos rígidos, um painel de monitoramento local e uma camada de execução em tempo real (MetaTrader 5) em modo demo.
 
-> **Estado de segurança:** este projeto permanece em `dry_run`. Não contém chaves privadas, não usa margem/alavancagem e não envia ordens reais.
+> ## ⚠️ Estado de segurança
+> - O projeto opera **somente em `dry_run` / conta demo**. Não há ordens reais, chaves privadas, margem ou alavancagem no repositório.
+> - **Nenhuma estratégia do laboratório tem evidência fora da amostra.** Das 19 hipóteses registradas, nenhuma foi aprovada para operação real; uma é "candidata na exploração" e ainda não passou pela validação.
+> - O laboratório **nunca aprova operação real**. Isso é uma decisão exclusiva do usuário.
+> - Isto não é recomendação de investimento. Resultados negativos são esperados e preservados de propósito.
 
-## Decisão inicial
+---
 
-O motor principal é o **Freqtrade via Docker Compose**, porque reúne estratégia Python, download de OHLCV, backtesting, dry-run e FreqUI em um fluxo open source. A instalação nativa não foi escolhida neste ambiente: o host é Windows/MSYS2 e o WSL Kali fornece Docker Engine. O laboratório fica em `D:\Trade-Initial` (montado no WSL como `/mnt/d/Trade-Initial`), onde há espaço suficiente para a imagem e os dados.
+## Sumário
 
-A estratégia inicial é [SmaTrendBaseline.py](user_data/strategies/SmaTrendBaseline.py): SMA(20)/SMA(50), filtro de regime SMA(200), saída pelo cruzamento contrário e stop-loss fixo de 10%. Os parâmetros são uma **baseline ex-ante**, não uma recomendação nem um resultado de rentabilidade.
+- [Filosofia](#filosofia)
+- [Arquitetura](#arquitetura)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Requisitos](#requisitos)
+- [Início rápido](#início-rápido)
+- [Laboratório multiagente (`lab/`)](#laboratório-multiagente-lab)
+- [Gates de validação](#gates-de-validação)
+- [Painel de monitoramento](#painel-de-monitoramento)
+- [Camada de execução em tempo real (`live/`)](#camada-de-execução-em-tempo-real-live)
+- [Skills `trader-*`](#skills-trader-)
+- [Testes](#testes)
+- [Segurança e boas práticas](#segurança-e-boas-práticas)
+- [Documentação](#documentação)
+- [Status e resultados](#status-e-resultados)
+- [Fontes](#fontes)
 
-## Diagnóstico do ambiente
+---
 
-Executado em 20/10/2026:
+## Filosofia
 
-- Diretório: `/mnt/d/Trade-Initial` no WSL; projeto no host em `D:\Trade-Initial`.
-- WSL 2, distribuição Kali Linux Rolling 2025.2.
-- Host Windows 11 Home, acesso via MSYS2/Git Bash no VS Code.
-- Python 3.13.3, Git 2.47.2, Docker 28.3.3, Compose v2.39.1.
-- Carteira hipotética local: 100 USDT na configuração de dry-run; o limite futuro de R$ 500 continua apenas uma hipótese, sem depósito ou recomendação.
-- Espaço livre na unidade `D:`: aproximadamente 120 GB no diagnóstico.
-- O arquivo experimental anterior `bot.py` foi preservado e não participa do laboratório Freqtrade.
+O maior risco em pesquisa quantitativa não é falta de ideias, e sim **enganar-se com o próprio backtest**. O laboratório existe para tornar isso difícil:
 
-## Estrutura
+1. **Hipótese registrada antes de rodar** (regra *ex-ante*, dados visíveis, número de testes anteriores).
+2. **Divisão cronológica** em exploração, validação e teste final trancado.
+3. **Penalidade por múltiplos testes**: a barra de lucro sobe a cada variante testada na mesma família.
+4. **Custos conservadores** em quatro cenários (otimista, base, conservador, estresse).
+5. **Determinismo**: o fluxo e toda aprovação são código Python; agentes de IA só escrevem texto (propostas, código, revisões) e **nunca decidem**.
+6. **Resultado negativo é resultado.** Hipóteses rejeitadas ficam no registro.
+
+## Arquitetura
+
+```text
+        ┌─────────────┐   ideias    ┌──────────────┐  proposta   ┌─────────────┐
+        │  scout      │───────────▶ │   research   │───────────▶ │  developer  │
+        │ (agente)    │             │   (agente)   │             │  (agente)   │
+        └─────────────┘             └──────────────┘             └──────┬──────┘
+                                                                        │ estratégia + teste
+                                                                        ▼
+ ┌───────────────────────── lab/ (Python determinístico) ──────────────────────────┐
+ │ guard ▸ strategy_check ▸ runner (Freqtrade/Docker) ▸ gates ▸ registry (SQLite)  │
+ │ lookahead/recursive ▸ 4 cenários de custo ▸ benchmarks ▸ portfólio              │
+ └───────────────┬───────────────────────────────────────────┬─────────────────────┘
+                 │ revisões (texto)                          │ estado (somente leitura)
+                 ▼                                           ▼
+     validator · quant · risk (agentes)              Painel local (lab.dashboard)
+
+        ┌────────────────── live/ (Windows, fora do Docker) ──────────────────┐
+        │ engine ▸ risk ▸ killswitch ▸ journal ▸ broker (paper / MT5 demo)    │
+        └──────────────────────────────────────────────────────────────────────┘
+```
+
+Um ciclo completo: **propor → implementar → testar → decidir → revisar → portfólio**.
+
+## Estrutura do repositório
 
 ```text
 .
-├── docs/                         # pesquisa, decisões e procedimento
-├── research/                     # registros de experimentos
-├── reports/                      # relatórios exportados/interpretados
-├── tests/                        # testes da baseline
+├── lab/                    # Orquestrador, gates, runner, registro, painel (Python)
+│   ├── config/             # gates, splits, holdout, cenários, orçamento, portfólio
+│   └── dashboard_assets/   # HTML/JS do painel (lightweight-charts, Apache-2.0)
+├── live/                   # Execução em tempo real (MT5 demo, kill switch, risco)
+│   ├── core/               # engine, risk, journal, killswitch, realguard
+│   ├── brokers/            # adaptador paper (simulado)
+│   ├── config/             # live.example.json (live.json é local e ignorado)
+│   └── tools/              # probe_mt5.py (verificação somente leitura)
 ├── user_data/
-│   ├── backtest_results/
-│   ├── data/
-│   ├── strategies/
-│   └── config.dryrun.json        # sem credenciais; dry_run=true
-├── docker-compose.yml
-└── README.md
+│   ├── strategies/         # Estratégias Freqtrade (+ _archive/ das rejeitadas)
+│   └── config.dryrun.json  # Sem credenciais; dry_run=true
+├── research/               # Ledger de hipóteses, manifestos, decisões, auditorias
+├── tests/                  # Suíte de testes (lab, estratégias, segurança, live)
+├── docs/                   # Protocolos, guias, checklist de operação real
+├── reports/                # Relatórios interpretados
+├── forward/                # Configs de forward test (dry-run)
+├── .claude/                # Agentes e skills (trader-*)
+├── docker-compose.yml          # Freqtrade (versão fixa)
+├── docker-compose.forward.yml  # Forward test em dry-run
+└── bot.py                  # Script experimental legado (fora do laboratório)
 ```
 
-## Guia para iniciantes
+## Requisitos
 
-O procedimento completo, com comandos, explicação de backtest, lookahead, recursive,
-dry-run, custos, benchmarks, manifestos e critérios de decisão está em
-[docs/guia-utilizacao-freqtrade.md](docs/guia-utilizacao-freqtrade.md).
+| Componente | Uso | Observação |
+|---|---|---|
+| Python 3.13+ | `lab/`, testes, painel | Biblioteca padrão para o painel |
+| Docker + Compose v2 | Freqtrade (backtest, dry-run) | No Windows, rode a partir do **WSL** |
+| Freqtrade `2026.9` | Imagem `freqtradeorg/freqtrade:2026.9` | Versão fixa no compose |
+| MetaTrader 5 + pacote `MetaTrader5` | `live/` | Só Windows; venv dedicado `live/.venv` (ignorado) |
+| Claude Code | Agentes do ciclo (`.claude/agents/`) | Opcional; custo limitado por `lab/config/budget.json` |
 
+Ambiente de referência: Windows 11 + WSL 2 (Kali), Docker 28, Compose v2, Python 3.13.
 
-Execute os comandos a partir do WSL, não do Git Bash, para usar o Docker Engine Linux:
+## Início rápido
 
 ```bash
-cd /mnt/d/Trade-Initial
+git clone https://github.com/Kelme108/quant-trading-lab.git
+cd quant-trading-lab
+```
+
+Execute os comandos do Docker a partir do **WSL** (Docker Engine Linux):
+
+```bash
 docker compose version
-```
-
-Se o Compose estiver disponível, obtenha a imagem oficial e valide o layout:
-
-```bash
 docker compose pull
-docker compose run --rm freqtrade list-strategies \
-  --config user_data/config.dryrun.json
+docker compose run --rm freqtrade list-strategies --config user_data/config.dryrun.json
 ```
 
-O `docker-compose.yml` monta somente `user_data` no container. Não há segredo no arquivo de configuração. Antes do pull, libere espaço em `C:` ou mova o armazenamento do Docker/WSL.
+### Baixar dados públicos
 
-## Baixar dados públicos
-
-A Binance é somente a origem dos candles neste experimento; isso não cria conta nem exige saldo. O endpoint usado deve ser público e as restrições regionais da Binance precisam ser verificadas no momento da execução.
-
-Para um ensaio inicial reproduzível de 365 dias:
+A Binance é só a origem dos candles (endpoint público, sem conta nem saldo):
 
 ```bash
 docker compose run --rm freqtrade download-data \
   --config user_data/config.dryrun.json \
-  --exchange binance \
-  --pairs BTC/USDT \
-  --timeframes 1h \
-  --timerange 20251020-20261020 \
-  --data-format-ohlcv feather
-
-docker compose run --rm freqtrade list-data \
-  --exchange binance \
-  --datadir user_data/data \
-  --show-timerange \
-  --data-format-ohlcv feather
+  --exchange binance --pairs BTC/USDT --timeframes 1h \
+  --timerange 20251020-20261020 --data-format-ohlcv feather
 ```
 
-A data final deve ser registrada pelo comando `list-data`; verifique lacunas relevantes e confirme que existe pelo menos o período de startup de 200 candles antes da janela analisada.
-
-## Primeiro backtest de referência
-
-O período abaixo é um exemplo operacional; registre a data efetivamente disponível antes de interpretar os resultados. Não ajuste os parâmetros depois de observar o resultado deste primeiro ensaio:
+### Backtest de referência
 
 ```bash
 docker compose run --rm freqtrade backtesting \
   --config user_data/config.dryrun.json \
-  --strategy SmaTrendBaseline \
-  --strategy-path user_data/strategies \
-  --timeframe 1h \
-  --pairs BTC/USDT \
-  --timerange 20251020-20261020 \
-  --dry-run-wallet 100 \
-  --fee 0.001 \
-  --export trades \
-  --export-filename user_data/backtest_results/sma-baseline-20251020-20261020.json \
-  --backtest-directory user_data/backtest_results \
-  --breakdown day month
+  --strategy SmaTrendBaseline --strategy-path user_data/strategies \
+  --timeframe 1h --pairs BTC/USDT --timerange 20251020-20261020 \
+  --dry-run-wallet 100 --fee 0.001 --export trades
 ```
 
-O arquivo de saída e a tabela do terminal são a fonte dos números. Este repositório não inventa métricas: retorno, drawdown, Sharpe, Sortino, profit factor, expectativa e número de operações só serão reportados depois da execução.
+A baseline `SmaTrendBaseline` (SMA20/SMA50, filtro SMA200, stop de 10%) é uma **referência de infraestrutura congelada**, não uma recomendação. Mudanças de regra exigem uma nova estratégia versionada.
 
-Para análise de look-ahead após os dados existirem:
-
-```bash
-docker compose run --rm freqtrade lookahead-analysis \
-  --config user_data/config.dryrun.json \
-  --strategy SmaTrendBaseline \
-  --strategy-path user_data/strategies \
-  --timeframe 1h \
-  --pairs BTC/USDT \
-  --timerange 20251020-20261020 \
-  --minimum-trade-amount 1
-```
-
-## FreqUI local (optional)
-
-A API fica **desabilitada por padrão** em `user_data/config.dryrun.json`. Para uma
-sessão local deliberada, crie uma cópia não versionada da configuração, habilite a API,
-configure credenciais fortes e use `listen_ip_address: "0.0.0.0"` somente dentro do
-container. O host deve continuar publicando somente `127.0.0.1:8080`.
-
-Não preencha credenciais no arquivo versionado. Nunca publique a porta na LAN ou na
-Internet.
-
-```bash
-# somente depois de editar uma cópia local não versionada
-# api_server.enabled=true
-# api_server.listen_ip_address="0.0.0.0"
-docker compose config --quiet
-docker compose ps
-curl -I http://127.0.0.1:8080/
-```
-
-O `docker-compose.yml` usa uma versão fixa do Freqtrade e não reinicia o bot
-automaticamente; iniciar o serviço é uma ação deliberada de forward test em dry-run.
-
-Cada experimento deve ter um manifesto em `research/manifests/` contendo a versão do
-runtime, hashes do código e dos dados, intervalo efetivo, parâmetros, custos, comando e
-resultado. O template está em `research/experiment-manifest.yaml`. Gere um manifesto
-antes de interpretar qualquer novo resultado e preserve os artefatos anteriores.
-
-Validações locais:
-
-```bash
-python3 research/validate_ohlcv.py user_data/data/binance/BTC_USDT-1h.feather
-python3 -m unittest discover -s tests -v
-```
-
-A baseline `SmaTrendBaseline` permanece congelada. Qualquer mudança de regra deve ser
-uma nova estratégia/versionamento e não uma alteração retrospectiva da referência.
-
-## Dry-run
-
-Depois de revisar os logs e os resultados do backtest:
-
-```bash
-docker compose up -d freqtrade
-docker compose logs -f freqtrade
-```
-
-O `dry_run` continua `true`, `trading_mode` é `spot`, `can_short` é falso e a whitelist contém apenas BTC/USDT. Não altere para live, não adicione chaves privadas e não habilite saque. O dry-run é forward testing, não prova de execução futura.
-
-## Qualidade e critérios
-
-A baseline será considerada apenas uma referência de infraestrutura. Antes de qualquer decisão posterior, compare cronologicamente exploração, validação e teste final; inclua taxas e slippage conservador, benchmarks comprar-e-manter e ficar em caixa, regimes distintos, sensibilidade dos parâmetros/custos e walk-forward. Um resultado negativo ou inconclusivo é aceitável e deve ser preservado.
+Para análise de *look-ahead* e *recursive*, comandos completos e interpretação, veja o [guia de uso do Freqtrade](docs/guia-utilizacao-freqtrade.md).
 
 ## Laboratório multiagente (`lab/`)
 
-Um ciclo automatizado de pesquisa e validação: **propor → implementar → testar → decidir → revisar → portfólio**. O fluxo e toda aprovação são código Python determinístico; os agentes (`.claude/agents/`) só escrevem texto: uma proposta, uma estratégia, uma revisão. Nada que um agente diga aprova uma estratégia. O laboratório **nunca aprova operação real**.
-
 ```bash
-python -m lab.orchestrator expand-data            # baixa/estende candles dos pares habilitados
+python -m lab.orchestrator expand-data                 # baixa/estende candles dos pares habilitados
 python -m lab.orchestrator cycle --max-experiments 1   # um ciclo completo
-python -m lab.orchestrator status                 # hipóteses, status e gasto com agentes
-python -m lab.orchestrator propose | implement H-004 | run H-004 --split exploration | decide H-004 | review H-004 | portfolio
+python -m lab.orchestrator status                      # hipóteses, status e gasto com agentes
+python -m lab.orchestrator propose
+python -m lab.orchestrator implement H-004
+python -m lab.orchestrator run H-004 --split exploration
+python -m lab.orchestrator decide H-004
+python -m lab.orchestrator review H-004
+python -m lab.orchestrator portfolio
 ```
 
-- **Dados e splits:** BTC/USDT, ETH/USDT e BNB/USDT em 1h (`lab/config/scenarios.json`). Por par, 75% do histórico é exploração e 25% validação, com limites em timestamps exatos (`lab/config/splits.json`). O **teste final** é só dado posterior a 21/10/2026 e está trancado (`final_test_unlocked: false`); só você destranca.
-- **Gates** (`lab/config/gates.json`): lookahead e recursive limpos, mínimo de trades, lucro líquido acima de uma barra que **sobe a cada variante testada na mesma família** (contra overfitting por múltiplos testes), sem depender do melhor trade, drawdown máximo, em 4 cenários de custo. Valores ainda marcados como *propostos*.
-- **Portfólio** (`lab/config/portfolio.json`): entra quem é candidato em todos os pares e splits, com lucro por dia consistente e baixa correlação com os já incluídos. Considerado por ordem de registro, nunca por desempenho. Portfólio vazio é um resultado válido.
-- **Segurança:** cada agente só pode criar os arquivos esperados no passo (`lab/guard.py`, por hash antes/depois); violação para o ciclo e arquivos protegidos voltam do `HEAD`. Código gerado passa por triagem estática (`lab/strategy_check.py`), pela suíte de testes e por um backtest curto no Freqtrade real antes de rodar. Sem chaves, sem ordens reais, `dry_run` sempre ligado.
-- **Custo:** o único custo variável são as chamadas aos agentes. `lab/config/budget.json` limita cada chamada e cada ciclo (hoje US$ 2 por chamada e US$ 12 por ciclo) e o gasto fica em `agent_runs` no banco.
-- **Registro:** `research/lab.sqlite` é a fonte da verdade, **não versionada**: o contador de hipóteses testadas vive nele. Faça backup; perder o arquivo apaga a penalidade por múltiplos testes.
-- **Importante:** resultados anteriores a 30/10/2026 que mostram "1 operação" eram um defeito do ambiente de teste (aposta fixa igual à carteira) e foram invalidados; veja `research/command-log.md`.
+- **Dados e splits:** BTC/USDT, ETH/USDT e BNB/USDT em 1h ([scenarios.json](lab/config/scenarios.json)). Por par, 75% do histórico é exploração e 25% validação, com limites em timestamps exatos ([splits.json](lab/config/splits.json)). O **teste final** usa apenas dados posteriores a 21/10/2026 e está trancado (`final_test_unlocked: false`); só o usuário destranca.
+- **Agentes** ([.claude/agents/](.claude/agents/)): `scout` (coleta ideias de fontes públicas), `research` (propõe uma hipótese), `developer` (implementa), `validator`, `quant` e `risk` (revisões). Cada um só pode criar os arquivos esperados naquele passo.
+- **Guard** ([lab/guard.py](lab/guard.py)): verifica por hash antes/depois; violação interrompe o ciclo e arquivos protegidos voltam do `HEAD`.
+- **Triagem de código:** estratégias geradas passam por análise estática ([strategy_check.py](lab/strategy_check.py)), pela suíte de testes e por um backtest curto no Freqtrade real.
+- **Portfólio** ([portfolio.json](lab/config/portfolio.json)): entra quem é candidato em todos os pares e splits, com lucro por dia consistente e baixa correlação com os já incluídos, considerado por ordem de registro (nunca por desempenho). Portfólio vazio é um resultado válido.
+- **Custo:** o único custo variável são as chamadas aos agentes; [budget.json](lab/config/budget.json) limita cada chamada e cada ciclo, e o gasto fica em `agent_runs` no banco.
+- **Registro:** `research/lab.sqlite` é a fonte da verdade e **não é versionado**; o contador de hipóteses testadas vive nele. **Faça backup**: perder o arquivo apaga a penalidade por múltiplos testes. O [ledger](research/hypothesis-ledger.md) é gerado a partir dele.
 
-## Painel de monitoramento (`lab/dashboard.py`)
+## Gates de validação
+
+Definidos em [lab/config/gates.json](lab/config/gates.json). O hash SHA-256 do arquivo é gravado com cada decisão, tornando alterações detectáveis. Valores ainda marcados como *propostos*.
+
+| Gate | Regra |
+|---|---|
+| Look-ahead | Sem viés detectado em todos os cenários e splits |
+| Recursive | Indicadores estáveis após o `startup_candle_count` |
+| Mínimo de trades | ≥ 30 por split; abaixo disso a decisão é *inconclusiva* |
+| Lucro líquido | Positivo nos cenários base e conservador, acima de uma barra que **sobe 10% por variante** testada na família |
+| Sem melhor trade | Lucro continua positivo removendo o maior trade |
+| Drawdown | ≤ 25% em todos os cenários de custo |
+| Benchmarks | Reporta contra caixa e comprar-e-manter (não é obrigatório vencer) |
+| Progressão | Exploração → validação (lida uma vez) → teste final trancado |
+
+## Painel de monitoramento
 
 ```bash
-python -m lab.dashboard serve --open      # http://127.0.0.1:8765, atualiza sozinho a cada 15 s
-python -m lab.dashboard export            # um arquivo HTML autônomo em research/dashboard.html
+python -m lab.dashboard serve --open   # http://127.0.0.1:8765 (atualiza a cada 15 s)
+python -m lab.dashboard export         # HTML autônomo em research/dashboard.html
 ```
 
-Mostra o que o FreqUI não mostra: o **funil de pesquisa** (registradas, testadas, aprovadas na exploração e na validação, no portfólio), **quais gates mais barram**, hipóteses por par e etapa com o motivo de cada decisão, retorno por cenário de custo (onde cruza o zero o custo consome a vantagem), curva de saldo, tentativas por família e a barra de lucro que sobe, gasto com agentes, ciclos recentes, saúde e defasagem dos dados, e o estado de segurança. Cada gráfico tem uma visão em tabela.
+Mostra o **funil de pesquisa**, quais gates mais barram, hipóteses por par e etapa com o motivo de cada decisão, retorno por cenário de custo, curva de saldo, tentativas por família, gasto com agentes, ciclos recentes, saúde/defasagem dos dados e o estado de segurança. Há também página de dry-run (status do congelamento, qualidade de execução e intake de ideias). Cada gráfico tem visão em tabela.
 
-- **Itens de atenção:** violação do guard, falha de agente, ciclo que parou, dado defasado (mais de 48 h) ou configuração insegura. Um incidente que um ciclo completo posterior superou sai do alerta, mas continua na tabela de agentes.
-- **Segurança:** só leitura. Escuta apenas em `127.0.0.1`, abre o banco com `mode=ro`, responde só GET/HEAD, recusa `Host` desconhecido (contra DNS rebinding) e usa CSP com nonce por requisição. O texto vindo de agentes e da web entra na página como texto puro.
-- **Bot ao vivo:** quando houver forward test, use o FreqUI (`http://127.0.0.1:8080`) para trades e saldo em tempo real. O painel só mostra o resumo do banco do dry-run.
-- **Sem dependência nova:** biblioteca padrão e HTML/JS/SVG inline, sem CDN.
+- **Somente leitura:** escuta só em `127.0.0.1`, abre o banco com `mode=ro`, aceita só GET/HEAD, recusa `Host` desconhecido (contra DNS rebinding) e usa CSP com nonce por requisição. Texto vindo de agentes e da web entra como texto puro.
+- **Sem dependências novas:** biblioteca padrão + HTML/JS/SVG, sem CDN.
+- Para trades e saldo em tempo real do bot, use o FreqUI (`http://127.0.0.1:8080`).
 
-## Fontes oficiais consultadas
+## Camada de execução em tempo real (`live/`)
 
-- [Freqtrade stable](https://www.freqtrade.io/en/stable/)
-- [Installation](https://docs.freqtrade.io/en/stable/installation/)
-- [Docker quickstart](https://www.freqtrade.io/en/stable/docker_quickstart/)
-- [Strategy customization](https://docs.freqtrade.io/en/stable/strategy-customization/)
-- [Backtesting](https://docs.freqtrade.io/en/latest/backtesting/)
-- [Data download](https://docs.freqtrade.io/en/stable/data-download/)
-- [FreqUI](https://docs.freqtrade.io/en/latest/freq-ui/)
-- [Exchanges](https://www.freqtrade.io/en/stable/exchanges/)
+Motor de execução separado do Freqtrade (o pacote `MetaTrader5` só roda no Windows, com o terminal aberto e logado). O objetivo é operar mini índice (WIN) e mini dólar (WDO) da B3 — **hoje apenas em conta demo e sem nenhuma estratégia aprovada**. O que existe é infraestrutura: motor, gestão de risco, *kill switch*, diário de operações e adaptador simulado.
+
+**Limites iniciais** ([live/DECISIONS.md](live/DECISIONS.md), [live.example.json](live/config/live.example.json)):
+
+| Item | Valor |
+|---|---|
+| Modalidade | Day-trade, somente comprado, sem overnight |
+| Perda diária / semanal máxima | R$ 300 / R$ 900 |
+| Contratos por ativo | 2 |
+| Operações por dia | 10 |
+| Stop obrigatório | Sim |
+| Kill switch | Arquivo-sentinela `live/STOP` |
+| Dinheiro real | **Bloqueado** (`allow_real=false`) |
+
+Uma ordem real só sai se **todas** as condições forem verdadeiras: `LIVE_MODE=real`; `allow_real: true` com SHA-256 do `live.json` registrado pelo usuário; conta real cujo número bate com `LIVE_ACCOUNT_ID`; e estratégia ativa com hash congelado e aprovação no registry. Em conta demo, a lógica inverte: recusa-se a execução se a conta for real. A mesma função de sinal deve rodar no backtest e no tempo real (teste de paridade).
+
+```bash
+cp live/config/live.example.json live/config/live.json   # local, ignorado pelo git
+python live/tools/probe_mt5.py                           # verificação somente leitura da conta
+```
+
+Credenciais (login, senha, servidor) ficam **somente em variáveis de ambiente ou `.env` ignorado**, nunca no repositório.
+
+## Skills `trader-*`
+
+Em [.claude/skills/](.claude/skills/) há skills independentes do Claude Code para um fluxo de investimento discricionário, todas gerando **propostas** e nunca ordens sem confirmação explícita:
+
+`trader-copycat` (13F) · `trader-analyst` (SEC EDGAR) · `trader-screener` · `trader-budget` · `trader-risk` · `trader-broker` · `trader-rebalance` · `trader-tax` · `trader-news` · `trader-alerts` · `trader-pelosi`
+
+## Testes
+
+```bash
+python -m unittest discover -s tests -v
+python research/validate_ohlcv.py user_data/data/binance/BTC_USDT-1h.feather
+```
+
+A suíte cobre gates, estatística, custos, splits, guard, runner, orquestrador, painel, estratégias e a configuração de segurança. Testes em `tests/live/` cobrem o motor de execução. [tests/test_protected_files.py](tests/test_protected_files.py) e [lab/guard.py](lab/guard.py) protegem arquivos críticos (gates, splits, holdout, config de dry-run).
+
+## Segurança e boas práticas
+
+- `dry_run=true`, `trading_mode=spot`, `can_short=false`; sem chaves e sem permissão de saque.
+- O `.gitignore` mantém fora do git: credenciais, bancos SQLite, logs, dados de mercado, resultados brutos, `.env`, ambientes virtuais, `live/config/live.json` e `live/STOP`.
+- FreqUI desabilitado por padrão; ao usar, publique apenas em `127.0.0.1` e nunca na LAN/Internet.
+- Antes de qualquer decisão: compare exploração, validação e teste final, inclua taxas e *slippage* conservadores, benchmarks, regimes distintos, sensibilidade e *walk-forward*.
+
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [guia-utilizacao-freqtrade.md](docs/guia-utilizacao-freqtrade.md) | Guia para iniciantes: backtest, lookahead, recursive, dry-run |
+| [protocolo-validacao-v3.md](docs/protocolo-validacao-v3.md) | Protocolo de validação vigente |
+| [procedimento-validacao-aprimoramento.md](docs/procedimento-validacao-aprimoramento.md) | Melhorias do procedimento |
+| [relatorio-auditoria-estrategias.md](docs/relatorio-auditoria-estrategias.md) | Auditoria das estratégias |
+| [estrategias-h011-h014.md](docs/estrategias-h011-h014.md) | Estratégias H-011 a H-014 |
+| [checklist-operacao-real.md](docs/checklist-operacao-real.md) | Checklist para qualquer operação real |
+| [prompt-execucao-tempo-real.md](docs/prompt-execucao-tempo-real.md) | Especificação da camada `live/` |
+| [portal-redesign.md](docs/portal-redesign.md) | Redesenho do painel |
+| [research-decision.md](docs/research-decision.md) | Decisões de pesquisa |
+| [hypothesis-ledger.md](research/hypothesis-ledger.md) | Registro de todas as hipóteses |
+| [command-log.md](research/command-log.md) | Log de comandos e invalidações |
+
+## Status e resultados
+
+Das 19 hipóteses registradas (H-001 a H-019):
+
+- 1 referência congelada (`SmaTrendBaseline`);
+- a grande maioria **rejeitada na exploração** ou descartada por menos de 30 trades (códigos arquivados em `user_data/strategies/_archive/`);
+- 1 **candidata na exploração** (H-009, `WeeklyBreakoutRegime`), ainda sem validação e em forward test congelado (`research/forward/`);
+- 1 inválida por desvio entre implementação e regra.
+
+Resultados anteriores a 30/10/2026 que mostravam "1 operação" eram um defeito do ambiente de teste e foram invalidados (veja [command-log.md](research/command-log.md)). Para números atualizados consulte o ledger e o painel — este README não reproduz métricas para não envelhecê-las.
+
+## Fontes
+
+- [Freqtrade](https://www.freqtrade.io/en/stable/) · [Backtesting](https://docs.freqtrade.io/en/latest/backtesting/) · [Data download](https://docs.freqtrade.io/en/stable/data-download/) · [FreqUI](https://docs.freqtrade.io/en/latest/freq-ui/)
 - [Binance Spot API](https://github.com/binance/binance-spot-api-docs)
-- [Atlas Studio](https://www.mind-vest.io/studio)
-- [MetaTrader 5](https://www.metatrader5.com/)
+- Bailey & López de Prado, *The Deflated Sharpe Ratio* (2014) e Bailey, Borwein, López de Prado & Zhu, *Pseudo-Mathematics and Financial Charlatanism* (2014) — base da penalidade por múltiplos testes.
+- [MetaTrader 5 Python](https://www.mql5.com/en/docs/python_metatrader5)
+- [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0)
+
+## Licença
+
+Nenhuma licença foi definida ainda; todos os direitos reservados ao autor até que uma seja adicionada.
