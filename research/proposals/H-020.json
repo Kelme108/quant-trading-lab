@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-020",
+  "family": "Double7ChannelDip",
+  "title": "Daily Double 7: buy a 7-day closing low above the 200-day mean, sell a 7-day closing high",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (Freqtrade informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no profit target, no time exit, no sizing hooks, no cooldown, no other filters. Indicators on daily closes: SMA(200 days) of daily close; lowest daily close of the last 7 days INCLUDING the current (just closed) day; highest daily close of the last 7 days INCLUDING the current day. ENTRY when a daily candle closes with: daily close > SMA(200) AND daily close <= lowest daily close of the last 7 days (including that day) AND no open position. EXIT when a daily candle closes with: daily close >= highest daily close of the last 7 days (including that day). STOP-LOSS: none in the published rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, never a binding stop. Lookbacks: 7 days entry channel, 7 days exit channel, 200 days trend filter; no grid, no tuning. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 400 bars (daily candles on the informative frame: 200 for the SMA(200) plus 200 spare; startup_candle_count 400 as in H-015/H-019, under the 4500 limit).",
+  "parameters": {
+    "signal_timeframe": "1d",
+    "execution_timeframe": "1h",
+    "trend_sma_days": 200,
+    "entry_low_channel_days": 7,
+    "exit_high_channel_days": 7,
+    "channel_includes_current_day": true,
+    "entry_comparison": "close <= lowest close of 7 days",
+    "exit_comparison": "close >= highest close of 7 days",
+    "stoploss": -0.99,
+    "cooldown_candles": 0,
+    "warmup_bars": 400,
+    "min_trades_per_pair": 30
+  },
+  "rationale": "Mechanism: after several consecutive down days inside a long-term uptrend, short-horizon sellers (de-risking, capitulation, stop-driven flows) demand liquidity and push price briefly below fair value; the buyer who supplies liquidity at a 7-day closing low is paid by a short-term reversal, and exits at a 7-day closing high. The source gives only the empirical stock-index observation, not a mechanism, so this is the closest honest one and is unproven in crypto. The 200-day filter avoids buying dips in bear markets, the failure in the owner's drawdown note (streaks of losers after the 2021 peak). Expected trades: roughly 15-30 per pair per year, i.e. maybe 80-150 over the exploration window; each swing from a 7-day low to a 7-day high in crypto is typically several percent, versus 0.35%/0.50% round-trip cost, but gross gain per trade is uncertain and there is no stop, so a single deep drop can hurt; exposure is set by the lab rule to keep drawdown under 25%. Success criteria are the existing gates (positive net at base and conservative, drawdown <= 25%, >= 30 trades, DSR/PBO/plateau as applicable, Sharpe above buy-and-hold and Sma200Baseline at 2x costs).",
+  "novelty_vs_tried": "Closest is H-019 DailyRSI2Dip (daily dip in a 200-day uptrend), but the trigger here is a pure price channel (7-day closing low) rather than RSI(2) < 10, and the exit is a 7-day closing high rather than SMA(5) or loss of the trend; there is no exit on loss of SMA(200), so it holds through trend breaks until the channel exit. Unlike the Donchian/breakout families it buys weakness, not strength; unlike Bollinger/EMASnapback (1h) it works on daily closes with a symmetrical 7/7 channel. New family, one parameter set, no grid.",
+  "sources": [
+    {
+      "title": "Larry Connors' Double 7 Strategy: Tested on SPY and 8 Other Markets (StrategyQuant)",
+      "url": "https://strategyquant.com/blog/larry-connors-double-7-strategy-tested-on-spy-and-8-other-markets/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the research context file (hypothesis list and exploration summaries) and the validation protocol; BTC, ETH, BNB 1h data not inspected."
+}
