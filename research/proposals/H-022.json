@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-022",
+  "family": "ThreeDayLowerRangeDip",
+  "title": "Connors 3-day lower highs and lows pullback inside a 200-day uptrend (daily signals, 1h execution)",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (Freqtrade informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no add-ons, no profit target, no time exit, no sizing hooks, no cooldown, no other filters. Indicators on daily data: SMA(200) of daily close and SMA(5) of daily close, both including the just-closed day. Let H(d), L(d) be the daily high and low of day d, d = the just-closed day. THREE-DAY FALLING RANGE: H(d)<H(d-1) AND L(d)<L(d-1) AND H(d-1)<H(d-2) AND L(d-1)<L(d-2) AND H(d-2)<H(d-3) AND L(d-2)<L(d-3) (strict inequalities). ENTRY when a daily candle closes with: close(d) > SMA200(d) AND close(d) < SMA5(d) AND the three-day falling range holds AND no open position. EXIT (first that occurs): a daily candle closes above SMA5; OR a daily candle closes below SMA200 (safety exit); OR the hard stop. STOP-LOSS: one fixed 12% below the entry price (native intrabar stop). COOLDOWN: none. All numbers fixed ex ante from the published method, no grid: 200-day trend mean, 5-day exit/entry mean, 3 falling days, 12% stop. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 400 bars (daily candles on the informative frame: 200 for SMA(200) plus 200 spare; startup_candle_count 400 as in H-015/H-019/H-020/H-021, under the 4500 limit).",
+  "parameters": {
+    "signal_timeframe": "1d (closed UTC daily candles built from 1h)",
+    "execution_timeframe": "1h",
+    "trend_sma_days": 200,
+    "short_sma_days": 5,
+    "falling_range_days": 3,
+    "stop_loss_pct": 12,
+    "safety_exit": "daily close below SMA200",
+    "cooldown_candles": 0,
+    "startup_candle_count": 400,
+    "exposure_rule": "lab drawdown rule"
+  },
+  "rationale": "Mechanism: three consecutive days of lower highs and lower lows while the price is still above its 200-day mean is a short selling streak inside an uptrend. Stop-triggered holders and impatient sellers push price below its 5-day mean; liquidity providers who buy there are paid when price reverts to the 5-day mean, the usual short-term reversal explanation. The source (a TradingView open-source script of the Connors method) states no mechanism; I did not open the page myself, the scout supplied it. Expected trades: the pattern is rare (six strict inequalities plus close below SMA5 and above SMA200), so roughly 8-15 trades per year per pair, in line with the 50-70 trades of the other daily dip hypotheses; the 30-trade minimum may bind and a drop is accepted. Costs: the typical reversion back to the 5-day mean is a few percent versus a 0.35% base round trip (0.5% conservative); this is not guaranteed and the net edge is the test. Risk control, tied to the owner's drawdown direction: the SMA200 trend filter and safety exit avoid bear-market streaks, the wide 12% stop is a catastrophe limit rather than a tight stop that gets hit by noise, and the fixed exposure share keeps closed-trade drawdown under 25%. Success criteria are the existing gates.",
+  "novelty_vs_tried": "Structurally different from the breakout/trend families (H-001, H-002, H-005, H-007, H-009). Among the daily dips it differs from H-019 (RSI2 oversold), H-020 (7-day closing-low channel) and H-021 (IBS close location): the trigger is a three-day sequence of strictly lower highs and lower lows, a range-based price-structure condition, plus a close below the 5-day mean. It shares the SMA200 filter and SMA5 exit with H-019, which is deliberate in the published method. New family, no variants spent.",
+  "sources": [
+    {
+      "title": "Larry Connors 3-day high/low method (TradingView open-source script, supplied by the scout, not opened by me)",
+      "url": "https://www.tradingview.com/script/2DMs2jT9"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen. Only research/context/H-022.md (exploration-split summaries of earlier hypotheses) and research/validation-protocol-v2.md; BTC, ETH, BNB 1h."
+}
