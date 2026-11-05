@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-026",
+  "family": "NearHighAnchorGate",
+  "title": "Daily nearness-to-26-week-high anchoring gate with hysteresis exit",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no cooldown, no other filters. Definitions on daily candles, d = just-closed day: H(d) = highest daily HIGH of the 182 daily candles ending at d (d included). N(d) = close(d) / H(d). ENTRY when a daily candle closes with N(d) >= 0.95 AND no position is open. EXIT when a daily candle closes with N(d) < 0.85. While 0.85 <= N(d) < 0.95 the current state is held (hysteresis: no entry, no exit). STOP-LOSS: none in the rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, never a binding stop (the 0.85 exit is the risk control). If H(d) is undefined (fewer than 182 daily candles) no signal. All numbers fixed ex ante, no grid: window 182 days, entry 0.95, exit 0.85. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 4400 bars (182 daily candles = 4368 hourly bars plus a partial day of margin; under the 4500 limit).",
+  "parameters": {
+    "window_days": 182,
+    "entry_nearness": 0.95,
+    "exit_nearness": 0.85,
+    "high_source": "daily_high_including_current_day",
+    "signal_timeframe": "1d",
+    "execution_timeframe": "1h",
+    "execution": "next_1h_open",
+    "stoploss": -0.99,
+    "cooldown_candles": 0,
+    "startup_candle_count": 4400,
+    "exposure_grid_step": 0.05,
+    "exposure_max_p95_dd": 0.25
+  },
+  "rationale": "Anchoring (George and Hwang 2004): investors judge news relative to a recent high and are reluctant to bid price through it, so good news is underreacted to when price sits near its 26-week high and the drift continues as the anchor is gradually overcome. Sellers who sell near the high give away that slow drift. The cited working paper finds the distance from the k-week high predicts positive returns for large liquid coins, which BTC, ETH and BNB are; the exact trading rule is an adaptation (the paper tests 1-week; the 26-week window is chosen ex ante, not tuned). Hysteresis (enter at 0.95, exit only below 0.85, a 15% drawdown from the high) avoids flip-flop costs and bounds the loss of a failed trade, addressing the quick stop-out streaks seen in H-009. Expected trades: roughly 10-25 per pair per year at most, likely fewer (long holds in uptrends); the typical winning trade should gain well over the 0.35% base / 0.95% stress round-trip cost, while losers are cut near -10-15% from the high. Risk: trade count may be near the 30-per-split threshold; if so it is dropped, not retuned. Success criteria are the existing gates (positive net at base and conservative cost, drawdown below 25%, at least 30 trades). No source for the exact 0.95/0.85 thresholds exists; they are round numbers.",
+  "novelty_vs_tried": "Structurally different from the tried breakout and moving-average families: the signal is a ratio of close to the 182-day high (a continuous anchor distance), not a channel breakout, a moving-average cross or a fixed-length lookback minimum. It uses a two-threshold latch (hysteresis) with a gap of 10 points between entry and exit, so it enters while price is merely near the high rather than on new highs, and the exit is a relative drawdown from the 26-week high rather than a channel low or SMA loss. It has no fixed stop, no cooldown, and no SMA regime filter, unlike H-009/H-017.",
+  "sources": [
+    {
+      "title": "Impact of size and volume on cryptocurrency momentum and reversal (FFA Working Papers 2023)",
+      "url": "https://wp.ffu.vse.cz/artkey/wps-202301-0003_impact-of-size-and-volume-on-cryptocurrency-momentum-and-reversal.php"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Context file research/context/H-026.md only (exploration-split summaries); no price data and no validation or final-test results were viewed."
+}
