@@ -213,6 +213,30 @@ class FailingIdeaTests(PipelineTestCase):
         self.assertIn("STOPPED - KeyError", text)
 
 
+class ResumeTests(PipelineTestCase):
+    def test_a_failed_implementation_can_be_resumed_once_the_harness_is_fixed(self) -> None:
+        queue_idea(self.conn, 1)
+        original = self.lab._run_test_suite
+        self.lab._run_test_suite = lambda: (False, "harness broken")
+        self.run_weekly()
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "failed: implementation")
+        self.lab._run_test_suite = original
+        text = self.pipe.resume(["H-001"]).read_text(encoding="utf-8")
+        self.assertIn("completed", text)
+        self.assertIn("candidate: awaiting the user's approval", text)
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "exploration: candidate")
+        self.assertEqual({s for _, s, _ in self.experiments.ran}, {"exploration"})
+
+    def test_a_hypothesis_with_a_gate_decision_is_never_resumed(self) -> None:
+        queue_idea(self.conn, 1)
+        self.run_weekly()
+        ran = len(self.experiments.ran)
+        text = self.pipe.resume(["H-001"]).read_text(encoding="utf-8")
+        self.assertIn("STOPPED", text)
+        self.assertIn("second draw", text)
+        self.assertEqual(len(self.experiments.ran), ran)
+
+
 class StoppingTests(PipelineTestCase):
     def test_a_guard_violation_stops_the_whole_run_and_says_so(self) -> None:
         queue_idea(self.conn, 1, score=4.0)

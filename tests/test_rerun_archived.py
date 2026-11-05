@@ -45,8 +45,14 @@ class ArchiveRecordTests(unittest.TestCase):
         present = {p.stem for p in (ROOT / "user_data" / "strategies").glob("*.py")}
         self.assertTrue(KEPT <= present)
         for row in registry.list_archived_strategies(self.conn):
-            self.assertFalse((ROOT / row["original_path"]).exists())
             self.assertTrue((ROOT / row["archive_path"]).is_file())
+            active = ROOT / row["original_path"]
+            if registry.has_approval(self.conn, row["hypothesis_id"], "dryrun"):
+                # restored for an approved dry-run: allowed only as a byte-identical copy of the archived file
+                if active.exists():
+                    self.assertEqual(rerun_archived.sha256_file(active), row["strategy_sha256"], row["original_path"])
+                continue
+            self.assertFalse(active.exists(), row["original_path"])
 
 
 class VerifyRowTests(unittest.TestCase):

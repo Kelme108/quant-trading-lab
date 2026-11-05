@@ -79,7 +79,12 @@ class Pipeline:
         except StepFailed as error:
             registry.set_idea_state(self.conn, idea["id"], "dropped", f"could not be formalised: {error}"[:300])
             return {**row, "outcome": "not formalised", "detail": str(error)[:200]}
-        row["hypothesis"] = hid
+        return self.process_hypothesis(hid, row)
+
+    def process_hypothesis(self, hid: str, row: dict | None = None) -> dict:
+        """Implement, check, calibrate, explore and review one registered hypothesis. Never reads validation."""
+        lab = self.lab
+        row = {**(row or {"idea": "-", "outcome": "", "detail": ""}), "hypothesis": hid}
         name = None
         try:
             lab.implement(hid)
@@ -152,6 +157,27 @@ class Pipeline:
 
     # -- the weekly run ---------------------------------------------------------------
 
+    def resume(self, hypothesis_ids: list[str]) -> Path:
+        """Re-run registered hypotheses whose implementation or exploration failed for a reason outside the rule
+        (a broken test harness, Docker down, an interrupted run). It never re-runs a hypothesis that has a decision."""
+        lab = self.lab
+        lab.cycle_start, lab.proposed_this_cycle = _now(), 0
+        rows, stopped = [], ""
+        try:
+            for hid in hypothesis_ids:
+                found = registry.get_hypothesis(self.conn, hid)
+                if found is None:
+                    raise StepFailed(f"{hid} is not registered")
+                if lab.conn.execute(
+                    "SELECT 1 FROM decisions d JOIN experiments e ON e.id = d.experiment_id WHERE e.hypothesis_id = ?",
+                    (hid,),
+                ).fetchone():
+                    raise StepFailed(f"{hid} already has a gate decision; re-running it would be a second draw")
+                rows.append(self.process_hypothesis(hid))
+        except Exception as error:
+            stopped = f"{type(error).__name__}: {error}"
+        return self.write_report(rows, [], [], stopped)
+
     def weekly(self, *, scout_count: int = 5, max_new: int | None = None, do_scout: bool = True) -> Path:
         lab = self.lab
         lab.cycle_start, lab.proposed_this_cycle = _now(), 0
@@ -223,8 +249,13 @@ def main(argv: list[str] | None = None) -> int:
     weekly.add_argument("--max-new", type=int, default=None)
     weekly.add_argument("--no-scout", action="store_true", help="skip the scout and work the existing queue")
     weekly.add_argument("--expand-data", action="store_true", help="download/extend candles first (needs Docker)")
+    resume = sub.add_parser("resume", help="re-run registered hypotheses that failed outside the rule (no decision yet)")
+    resume.add_argument("hypotheses", nargs="+")
     args = parser.parse_args(argv)
     lab = orchestrator.Lab(registry.connect())
+    if args.command == "resume":
+        print(Pipeline(lab).resume(args.hypotheses))
+        return 0
     pipeline = Pipeline(lab, expand_data=orchestrator.expand_data if args.expand_data else None)
     print(pipeline.weekly(scout_count=args.scout_count, max_new=args.max_new, do_scout=not args.no_scout))
     return 0
