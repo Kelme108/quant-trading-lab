@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-025",
+  "family": "DailyKeltnerBreakout",
+  "title": "Daily Keltner upper-band close breakout in uptrend, exit at daily EMA20",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no profit target, no sizing hooks, no cooldown, no other filters. Daily indicators (d = just-closed day, included): EMA20 = EMA of daily close, span 20 (alpha 2/21), seeded with the first daily close; TR(d) = max(high-low, |high-close(d-1)|, |low-close(d-1)|); ATR20 = Wilder smoothing of TR (alpha 1/20, seeded with the mean of the first 20 TRs); UpperBand(d) = EMA20(d) + 1.5*ATR20(d); SMA100 = mean of the last 100 daily closes including d. ENTRY when a daily candle closes with: close(d) > UpperBand(d) AND close(d-1) <= UpperBand(d-1) (fresh cross) AND close(d) > SMA100(d) AND no open position. EXIT when a daily candle closes with close(d) < EMA20(d), or via the hard stop. STOP-LOSS: one fixed 8% below the entry price (native intrabar stop); about 2 daily ATRs of these pairs, not tuned. No grid; all numbers fixed ex ante: EMA length 20, ATR length 20, band multiplier 1.5, trend mean 100 days, stop 8%. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 3700 bars (150 daily candles = 3600 hourly bars plus one partial day and margin: 100 days for SMA100, and about 130 days for EMA20 and Wilder ATR20 to forget their seeds; startup_candle_count 3700, under the 4500 limit).",
+  "parameters": {
+    "ema_length_days": 20,
+    "atr_length_days": 20,
+    "atr_smoothing": "wilder",
+    "band_multiplier": 1.5,
+    "trend_sma_days": 100,
+    "fresh_cross_required": true,
+    "stop_loss_pct": 8,
+    "cooldown_candles": 0,
+    "signal_timeframe": "1d",
+    "execution_timeframe": "1h",
+    "warmup_bars": 3700,
+    "exposure_rule": "lab_grid_5pct"
+  },
+  "rationale": "A daily close more than 1.5 ATR above the 20-day mean marks a volatility expansion in an established uptrend (close above the 100-day mean). The mechanism is continuation: slower participants, trend followers and stop-driven buyers chase the move over the following days, and the position is held until price falls back to the 20-day mean. The source gives no mechanism for the breakout direction (it uses Keltner bands on 5-minute bars, both directions), so this is the scout's closest honest argument, not an established finding. Risk control tied to the owner's concern (long losing streaks of stopped-out breakouts): daily-close confirmation with a trend gate filters intraday spikes, the fresh-cross requirement avoids repeat entries in the same run, and the exit at EMA20 is wide enough to avoid noise. Expected trades: roughly 10-25 per pair per year, i.e. perhaps 50-120 over the exploration window, so the 30-trade minimum should be met; winners need a gross move well above the 0.35-0.50% round-trip cost (typical winners are several percent, losers capped near 8%). Win rate will probably be below 50%; profit relies on a few large trends, which is a known risk shared with H-009.",
+  "novelty_vs_tried": "Entry is a volatility-scaled band breakout (close above EMA20 + 1.5 ATR20) on daily bars, not a fixed-window high (Donchian H-002/H-009/H-018), not a squeeze percentile (H-005), and not a momentum sign (H-015). The exit is a fall back to the 20-day EMA rather than a channel low or SMA. It shares the daily-signal-on-1h execution pattern and a trend gate with H-019/H-020/H-024, but the trigger is ATR-scaled expansion with a fresh cross. The family DailyKeltnerBreakout is new, so no variant cap is used up.",
+  "sources": [
+    {
+      "title": "Keltner Channel Strategy (StockSharp API examples) - source of the Keltner 20/1.5 ATR bands; the breakout-in-uptrend rule here is the scout's own adaptation",
+      "url": "https://doc.stocksharp.com/en/api-examples/0955_Keltner_Channel"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data was viewed. Exploration-split summary results of earlier hypotheses (H-001 to H-024) in the context file only; no validation or final-test data."
+}
