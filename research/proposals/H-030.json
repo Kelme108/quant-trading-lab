@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-030",
+  "family": "OvernightDropReversal",
+  "title": "Overnight thin-liquidity drop reversal: buy 08:00 UTC after a 00-08 UTC fall of 1.5% or more in an uptrend",
+  "ex_ante_rule": "Closed 1h candles, UTC clock; signals evaluated at bar close, orders executed at the next bar open. Long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters, no cooldown. DEFINITIONS: for each UTC day, O0 = open of the 00:00 UTC bar; C7 = close of the 07:00 UTC bar (the bar covering 07:00-08:00); d = C7 / O0 - 1 (the 8-bar overnight return). DAILY FILTER: build 1d candles from the 1h data (informative 1d via merge_informative_pair, forward-filled, so only completed daily candles are visible); at 08:00 UTC the last closed daily candle is the previous day's; the filter holds when that previous day's daily close > SMA(100) of daily closes (100 closed daily candles including that previous day). ENTRY: at the close of the 07:00 UTC bar, if d <= -0.015 AND the daily filter holds AND no position is open, buy at the open of the next bar (the 08:00 UTC bar). If the 00:00 or 07:00 bar or the daily SMA is missing, no signal that day. EXIT: sell at the open of the 16:00 UTC bar of the same day (time exit after 8 hourly bars, fixed clock, regardless of price). STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (the scout's closed-1h-bar check is replaced by this intrabar form). At most one trade per day per pair by construction: entry is only possible at the 08:00 open and the trade is always closed by 16:00. No cooldown needed. All numbers fixed ex ante, no grid: window 00:00-08:00 UTC, drop threshold -1.5%, trend mean 100 days, exit 16:00 UTC, stop 3%. Warm-up: 2500 bars (100 daily candles = 2400 hourly bars for the SMA(100), which is not recursive, plus a partial day and margin; startup_candle_count 2500, under the 4500 limit).",
+  "parameters": {
+    "window_start_utc_hour": 0,
+    "signal_bar_utc_hour": 7,
+    "entry_bar_utc_hour": 8,
+    "exit_bar_utc_hour": 16,
+    "drop_threshold": -0.015,
+    "daily_trend_sma_days": 100,
+    "stop_loss_pct": 3.0,
+    "max_trades_per_day": 1,
+    "cooldown_candles": 0,
+    "startup_candle_count": 2500,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: order-book depth and volume are lowest in the 00-08 UTC hours and rise when European and then US participants arrive. A fall of 1.5% or more made in the thin hours is partly caused by the price impact of forced or impatient sellers (liquidations, stop runs, market orders into an empty book) rather than by information, so part of it should be given back when liquidity returns; the buyer at 08:00 supplies liquidity and is paid for it. The daily SMA(100) filter keeps the trade to uptrend regimes, where dips are more often reversed than in bear markets (the failure of H-003 and H-005 in post-2021 bear/range phases). The scout states this mechanism is the closest honest one and is not claimed by the source; the source (Quantpedia, calendar effects in Bitcoin) only documents intraday seasonality of volume and returns. I did not find direct evidence for the reversal effect itself, so it is a hypothesis. Trades and cost: a drop of 1.5% in 8 hours in an uptrend is rare, I expect about 10 to 25 trades per year per pair, so some splits may land below 30 trades and be inconclusive; I accept that and do not loosen the threshold. The gross rebound per trade must exceed the 0.35% base round trip (0.95% stress); the 3% stop caps the loss per trade near 3.3% with costs and the 8-hour hold keeps exposure low, so drawdown from a losing streak stays limited (8 consecutive stop-outs would be about 24%, unlikely given the trade frequency and the 8-hour exit). Success criteria are the existing gates: positive net at base and conservative cost on all three pairs, at least 30 trades, drawdown below 25%.",
+  "novelty_vs_tried": "Structurally different from the dip-buying-in-uptrend and slow breakout rules in the lab: the trigger is a fixed UTC clock window (overnight 00-08 UTC return) with a fixed same-day time exit at 16:00 UTC, not an indicator level, channel or oscillator. The mechanism is time-of-day liquidity, not mean reversion to a moving average. H-028 (IntradayEarlySessionMomentum) used the same clock structure but with momentum (positive sign, 00-03 window, exit 16:00) and produced no trades; this rule has the opposite sign, a different window and entry time, and an explicit entry bar. Holding period is 8 hours, versus days or weeks for the daily and weekly rules.",
+  "sources": [
+    {
+      "title": "Are There Any Simple Calendar Effects in Bitcoin Market? (Quantpedia)",
+      "url": "https://quantpedia.com/are-there-any-simple-calendar-effects-in-bitcoin-market/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-030.md (idea I-013 from the scout, exploration-split summaries of earlier hypotheses) and research/validation-protocol-v2.md. The source page was cited from the scout's note and was not opened by me."
+}
