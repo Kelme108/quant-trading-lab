@@ -1,0 +1,12 @@
+{
+  "title": "Daily internal bar strength dip buy in 200-day uptrend",
+  "source": {"type": "repo", "url": "https://doc.stocksharp.com/en/api-examples/0927_Internal_Bar_Strength_IBS", "title": "Internal Bar Strength IBS Strategy (StockSharp docs)", "license": "unknown"},
+  "rule_summary": "Daily signals from closed UTC daily candles built from 1h data, executed at the next 1h open. IBS = (close - low) / (high - low) of the daily candle; skip days with zero range. ENTRY when a daily candle closes with IBS < 0.2 AND daily close > SMA(200 days) AND no open position. EXIT when a later daily candle closes with IBS >= 0.8. Safety exit: daily close below the 200-day SMA. Optional hard stop 12% below entry. Long only, one position per pair, whole balance. The source uses 0.2 and 0.8 thresholds on 4h bars with no trend filter; the 200-day filter and daily frame are my adaptation.",
+  "mechanism": "A close near the day's low in an uptrend often reflects forced selling or liquidity-driven pressure at the end of the day. Dip buyers who provide liquidity are paid when price reverts the next sessions. The source gives no mechanism; this is the usual short-term reversal / liquidity-provision explanation.",
+  "timeframe": "1d",
+  "longest_lookback": 200,
+  "free_parameters": 4,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 14,
+  "family_hint": "DailyIBSDip"
+}
