@@ -25,12 +25,12 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 CLASS = "ThreeDayLowerRangeDip_H022_v1"
 
 
 def load_strategy():
-    path = ROOT / "user_data" / "strategies" / f"{CLASS}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{CLASS}.py"
     spec = importlib.util.spec_from_file_location(CLASS, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
