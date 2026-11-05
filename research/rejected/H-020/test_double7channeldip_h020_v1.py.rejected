@@ -1,0 +1,123 @@
+import importlib.util
+import sys
+import types
+import unittest
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+PATH = ROOT / "user_data" / "strategies" / "Double7ChannelDip_H020_v1.py"
+spec = importlib.util.spec_from_file_location("Double7ChannelDip_H020_v1", PATH)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+Strategy = module.Double7ChannelDip_H020_v1
+
+
+def make_frame(prices) -> pd.DataFrame:
+    prices = list(prices)
+    return pd.DataFrame(
+        {
+            "date": pd.date_range("2022-01-01", periods=len(prices), freq="1h", tz="UTC"),
+            "open": prices,
+            "high": [p * 1.01 for p in prices],
+            "low": [p * 0.99 for p in prices],
+            "close": prices,
+            "volume": [1.0] * len(prices),
+        }
+    )
+
+
+def run(frame):
+    s = Strategy()
+    frame = s.populate_indicators(frame, {})
+    frame = s.populate_entry_trend(frame, {})
+    return s.populate_exit_trend(frame, {})
+
+
+def daily_prices(days, seed=1):
+    rng = np.random.default_rng(seed)
+    daily = 100 * np.exp(np.cumsum(rng.normal(0.002, 0.03, days)))
+    return np.repeat(daily, 24)
+
+
+class Double7Tests(unittest.TestCase):
+    def test_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "1h")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 400)
+
+    def test_signals_binary_and_present(self) -> None:
+        frame = run(make_frame(daily_prices(500)))
+        total = 0
+        for column in ("enter_long", "exit_long"):
+            self.assertIn(column, frame)
+            values = frame[column].dropna().unique().tolist()
+            self.assertTrue(set(values).issubset({1}))
+            total += int(frame[column].fillna(0).sum())
+        self.assertGreater(total, 0)
+
+    def test_zero_volume_no_signal(self) -> None:
+        frame = make_frame(daily_prices(500))
+        frame["volume"] = 0.0
+        frame = run(frame)
+        self.assertEqual(int(frame.get("enter_long", pd.Series()).fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series()).fillna(0).sum()), 0)
+
+    def test_undefined_startup_no_signal(self) -> None:
+        frame = run(make_frame(daily_prices(500)))
+        # SMA(200 days) is undefined until the 201st day starts.
+        warm = 200 * 24
+        self.assertTrue(frame["d_sma200"].iloc[:warm].isna().all())
+        for column in ("enter_long", "exit_long"):
+            self.assertEqual(int(frame[column].iloc[:warm].fillna(0).sum()), 0)
+
+    def test_dip_entry_and_high_exit(self) -> None:
+        up = list(np.linspace(100, 300, 230))
+        days = up + [290, 280, 270, 260, 250, 240, 230] + [400, 400]
+        frame = run(make_frame(np.repeat(days, 24)))
+        entries = frame.index[frame["enter_long"] == 1]
+        exits = frame.index[frame["exit_long"] == 1]
+        self.assertGreater(len(entries), 0)
+        # First dip day (index 230) closes at a 7-day low; visible on day 231 00:00.
+        self.assertEqual(entries[0], 231 * 24)
+        self.assertIn(238 * 24, exits)
+
+    def test_no_lookahead(self) -> None:
+        prices = daily_prices(500)
+        n = 420 * 24 + 7  # cut mid-day
+        full = run(make_frame(prices))
+        short = run(make_frame(prices[:n]))
+        cols = [c for c in full.columns if c not in {"enter_tag", "exit_tag"}]
+        pd.testing.assert_frame_equal(
+            full.loc[: n - 1, cols].reset_index(drop=True),
+            short[cols].reset_index(drop=True),
+            check_dtype=False,
+        )
+        for column in ("enter_long", "exit_long"):
+            a = full[column].iloc[:n].fillna(0).to_numpy()
+            b = short[column].fillna(0).to_numpy()
+            self.assertTrue((a == b).all())
+
+
+if __name__ == "__main__":
+    unittest.main()

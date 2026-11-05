@@ -1,0 +1,79 @@
+"""H-020: Daily Double 7 (buy a 7-day closing low above SMA200, sell a 7-day closing high).
+
+Signals use closed UTC daily candles built from the 1h data. A daily value
+becomes visible at the first 1h candle of the following day (as with
+merge_informative_pair), and signals fire only on that candle, so orders
+execute at the next 1h open. Spot long only, no stop (stoploss only satisfies
+the engine contract), no cooldown.
+
+Rules (daily closes, channels include the just-closed day):
+- Entry: close > SMA(200) AND close <= lowest close of the last 7 days.
+- Exit: close >= highest close of the last 7 days.
+"""
+
+import pandas as pd
+from pandas import DataFrame
+from freqtrade.strategy import IStrategy
+
+
+class Double7ChannelDip_H020_v1(IStrategy):
+    """Connors Double 7 on daily closes, executed on the 1h chart."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.99
+    startup_candle_count = 400
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dates = pd.to_datetime(dataframe["date"], utc=True)
+        close = pd.Series(dataframe["close"].to_numpy(), index=pd.DatetimeIndex(dates))
+        daily_close = close.groupby(close.index.floor("D")).last()
+
+        daily = pd.DataFrame(index=daily_close.index)
+        daily["d_close"] = daily_close
+        daily["d_sma200"] = daily_close.rolling(200).mean()
+        daily["d_low7"] = daily_close.rolling(7).min()
+        daily["d_high7"] = daily_close.rolling(7).max()
+        # Visible only after the day has closed: first candle of the next day.
+        daily.index = daily.index + pd.Timedelta(days=1)
+
+        floored = pd.DatetimeIndex(dates)
+        aligned = daily.reindex(floored, method="ffill")
+        for column in daily.columns:
+            dataframe[column] = aligned[column].to_numpy()
+        dataframe["d_new"] = floored.isin(daily.index)
+        return dataframe
+
+    def _ready(self, dataframe: DataFrame):
+        return (
+            dataframe["d_new"]
+            & dataframe["d_close"].notna()
+            & dataframe["d_sma200"].notna()
+            & dataframe["d_low7"].notna()
+            & dataframe["d_high7"].notna()
+            & (dataframe["volume"] > 0)
+        )
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dataframe.loc[
+            (
+                self._ready(dataframe)
+                & (dataframe["d_close"] > dataframe["d_sma200"])
+                & (dataframe["d_close"] <= dataframe["d_low7"])
+            ),
+            ["enter_long", "enter_tag"],
+        ] = (1, "double7_low")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dataframe.loc[
+            (
+                self._ready(dataframe)
+                & (dataframe["d_close"] >= dataframe["d_high7"])
+            ),
+            ["exit_long", "exit_tag"],
+        ] = (1, "double7_high")
+        return dataframe
