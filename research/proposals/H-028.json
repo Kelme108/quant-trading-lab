@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-028",
+  "family": "IntradayEarlySessionMomentum",
+  "title": "Early-UTC-day 1% rally predicts same-day continuation: buy 04:00, sell 16:00 UTC",
+  "ex_ante_rule": "Closed 1h candles only, UTC clock; signals evaluated at bar close, orders executed at the next bar open. Long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. DEFINITION: for each UTC day, O0 = open of the 00:00 UTC bar; C3 = close of the 03:00 UTC bar (the bar covering 03:00-04:00); r = C3 / O0 - 1. ENTRY: at the close of the 03:00 UTC bar, if r >= 0.01 and no position is open, buy at the open of the next bar (04:00 UTC). If the 00:00 or 03:00 bar is missing, no signal that day. EXIT: at the close of the 15:00 UTC bar (the bar covering 15:00-16:00), sell at the open of the 16:00 UTC bar regardless of price (time exit, fixed clock). STOP-LOSS: one fixed 2.5% below the entry price, the engine's native intrabar stop (the scout's original 'closed 1h bar 2.5% below entry' check is replaced by this intrabar form). At most one trade per day per pair: entry is only possible at the 04:00 open, so this holds by construction. No cooldown needed. All numbers fixed ex ante, no grid: entry window 00:00-04:00 UTC, threshold +1.0%, exit 16:00 UTC, stop 2.5%. Warm-up: 24 bars (longest lookback is 4 bars from the 00:00 open to the 03:00 close; 24 bars guarantee a full UTC day is present; startup_candle_count 24, well under 4500).",
+  "parameters": {
+    "reference_bar_utc_hour": 0,
+    "signal_bar_utc_hour": 3,
+    "entry_open_utc_hour": 4,
+    "exit_signal_bar_utc_hour": 15,
+    "exit_open_utc_hour": 16,
+    "entry_threshold_return": 0.01,
+    "stop_loss_pct": 2.5,
+    "max_trades_per_day": 1,
+    "cooldown_candles": 0,
+    "startup_candle_count": 24,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism (from the cited paper): Bitcoin trades around the clock, and the return in the first part of a session predicts the return in the last part. The authors attribute this to liquidity provision: dealers and market makers who absorb a large early order flow lay off the inventory gradually through the day, so price keeps drifting in the direction of the early move; it is not late news. The counterparties are the early sellers who sold into the move too cheaply and must re-buy later at higher prices. The paper defines sessions by volume, not UTC clock, so fixed UTC windows (00:00-04:00 signal, 04:00-16:00 hold) are an untested adaptation and the effect may be weaker or absent; this is stated honestly. Frequency and costs: a +1% move in the first 4 hours happens on roughly 10-15% of days for these pairs, so I expect about 35-55 trades per year per pair (about 100-200 over a multi-year split, above the 30 minimum). The round trip costs 0.35% at base and 0.95% at stress, so the average gross gain per trade must exceed that; this is not guaranteed. Over a 12-hour hold on volatile assets the typical absolute move is about 1.5-2%, so a modest positive drift conditional on a strong early move could clear 0.35% but probably not 0.95%. Drawdown control: capital is in the market only 12 hours on a minority of days, the stop caps each loss near 2.5% plus costs, and there is no dependence on a multi-month trend, so a 10-trade losing streak costs about 25-30% in the worst case but is unlikely if the effect exists. Success criteria are the existing gates: positive net profit at base and conservative cost, at least 30 trades per pair, max drawdown below 25%, same rule on BTC, ETH and BNB.",
+  "novelty_vs_tried": "All tried families are daily or slow-trend rules (SMA, Donchian, breakouts, dip-buying in uptrends, daily RSI/IBS) or 1h mean reversion. This rule uses no trend filter or price-based indicator at all: it is a clock-based intraday continuation (time-of-day effect) with a fixed 12-hour holding window, a different mechanism (dealer inventory laying off) and a different trade frequency (dozens of short trades per year, flat overnight). It is a new family, not a variant of any listed one.",
+  "sources": [
+    {
+      "title": "Bitcoin intraday time series momentum (Shen, Urquhart, Wang; Financial Review 2022) - University of Birmingham research portal",
+      "url": "https://research.birmingham.ac.uk/en/publications/bitcoin-intraday-time-series-momentum/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the research context file for H-028 (exploration-split summary numbers of earlier hypotheses) and the validation protocol; BTC, ETH, BNB 1h as available through 2026-11-05 for the developer."
+}
