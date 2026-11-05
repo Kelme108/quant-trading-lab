@@ -1,0 +1,17 @@
+{
+  "title": "Daily lottery-jump (MAX) persistence gate with 20-day mean exit",
+  "source": {
+    "type": "paper",
+    "url": "https://research.birmingham.ac.uk/en/publications/max-momentum-in-cryptocurrency-markets/",
+    "title": "MAX momentum in cryptocurrency markets",
+    "license": "none"
+  },
+  "rule_summary": "Daily signals from closed UTC daily candles, executed at next 1h open. MAX(t) = largest daily close-to-close return among the last 30 daily closes including the just-closed day. Jump-regime is on when MAX(t) is at or above the median of MAX over the previous 150 days (excluding today). ENTRY: jump-regime on AND daily close > SMA(50 days) AND daily close > highest daily close of the prior 10 days AND no open position. EXIT: daily close < SMA(20 days). Hard stop 12% below entry, checked on closed bars. No re-entry for 3 days after exit. Long only, one position, whole balance. Single-asset time-series adaptation of the cross-sectional MAX momentum finding (the paper sorts coins; this is my own adaptation).",
+  "mechanism": "The source says crypto has lottery-like, positively skewed payoffs and that coins with large recent maximum daily returns keep earning higher returns (attention and speculative demand persist). The other side is late sellers and contrarians who treat a spike as an overreaction and sell into continuing attention-driven demand. The source gives no single-asset version; this is the closest honest reading.",
+  "timeframe": "1d",
+  "longest_lookback": 180,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 7,
+  "family_hint": "DailyMaxJumpMomentum"
+}
