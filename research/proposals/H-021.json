@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-021",
+  "family": "DailyIBSDip",
+  "title": "Daily internal bar strength dip buy inside a 200-day uptrend",
+  "ex_ante_rule": "Signals use CLOSED DAILY candles (UTC) built from the 1h data (Freqtrade informative 1d merged with merge_informative_pair, forward-filled, so a daily value is visible only after that day has closed); orders execute on the 1h chart at the next 1h open. Long only, one position per pair, whole allowed balance, no pyramiding, no profit target, no time exit, no sizing hooks, no other filters. Daily IBS = (close - low) / (high - low) of the closed daily candle; days with high == low are skipped (no signal, state unchanged). SMA200 = simple mean of the last 200 daily closes including the just-closed day. ENTRY when a daily candle closes with IBS < 0.2 AND daily close > SMA200 AND no open position. EXIT (first that occurs) when a later daily candle closes with IBS >= 0.8, OR a daily candle closes below SMA200 (safety exit), OR the hard stop. STOP-LOSS: one fixed 12% below the entry price (native intrabar stop). COOLDOWN: none. All numbers fixed ex ante, no grid: IBS entry threshold 0.2, IBS exit threshold 0.8, trend mean 200 days, stop 12%. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 400 bars (daily candles on the informative frame: 200 for the SMA200 plus 200 spare; startup_candle_count 400 as in H-015/H-019/H-020, under the 4500 limit).",
+  "parameters": {
+    "signal_frame": "1d closed UTC candles from 1h",
+    "execution": "next 1h open",
+    "ibs_entry_below": 0.2,
+    "ibs_exit_at_or_above": 0.8,
+    "trend_sma_days": 200,
+    "safety_exit": "daily close below SMA200",
+    "stop_loss_pct": 12,
+    "cooldown_bars": 0,
+    "zero_range_days": "skipped",
+    "warmup_bars": 400,
+    "exposure_rule": "lab choose_exposure"
+  },
+  "rationale": "Mechanism: a daily close near the day's low inside an established uptrend often reflects end-of-day forced selling or liquidity-driven pressure. Dip buyers who provide that liquidity are paid by short-term reversal when price reverts over the following sessions; the counterparty is the urgent seller who accepts a poor closing price. The source (StockSharp IBS example) gives no mechanism, so this is the usual short-term reversal / liquidity-provision explanation, not a documented crypto result. The 200-day filter targets the H-005/H-003 failure of dip and breakout trades in bear or range phases after the 2021 peak; the 12% stop and the SMA200 exit cap a single loss. Trade count: entries need an IBS<0.2 close above SMA200 and exits take a few days, so I expect roughly 10 to 25 trades per pair per year (unverified guess; the lab drops the idea if under 30 trades per exploration split). Per trade the average reversal from IBS<0.2 to IBS>=0.8 closes is a few percent, against a 0.35% base and 0.50% conservative round trip; this is the open question the gates answer. Sister daily dip rules (H-019 RSI2) were only marginally profitable at base cost, so the edge may be thin.",
+  "novelty_vs_tried": "Uses a single-candle position-in-range statistic (IBS) on daily bars, not an oscillator (RSI2 in H-019, Bollinger/RSI in H-003, EMA/ATR z-score in H-012), not a 7-day close channel (H-020), and not a breakout or momentum rule. Entry depends on one candle's close location and exit on a rebound to the top of a later daily range, with a 200-day trend filter and a 12% stop. Daily signals executed on 1h follow the H-015/H-019 framework.",
+  "sources": [
+    {
+      "title": "Internal Bar Strength IBS Strategy (StockSharp docs)",
+      "url": "https://doc.stocksharp.com/en/api-examples/0927_Internal_Bar_Strength_IBS"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the research context file with exploration-level summaries of earlier hypotheses (data up to 2026-11-05 not inspected)."
+}
