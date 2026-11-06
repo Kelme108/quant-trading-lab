@@ -1,0 +1,25 @@
+{
+  "hypothesis_id": "H-038",
+  "family": "HourlyFailedBreakdownReclaim",
+  "title": "Turtle Soup on 1h: failed 20-day-low sweep reclaimed within 3 bars",
+  "ex_ante_rule": "Closed 1h candles only; signals at bar close t, order at next bar open. Long only, one position, whole allowed balance, no sizing hooks. DEFINITIONS (bar t = latest closed bar): PL = lowest low of the 480 bars t-483..t-4 (the 480 bars before bar t-3). The bar that set PL must be at index <= t-96 (at least 4 days before t); if the lowest low is tied, use the most recent tied bar. SWEEP: min(low over bars t-3..t) < PL. RECLAIM: close(t) > PL AND (close(t-1) <= PL OR low(t) < PL), i.e. the first close back above PL. ENTRY at close of t when SWEEP and RECLAIM hold, the PL age condition holds, no position is open and the cooldown is satisfied. One entry per sweep (the first reclaim close only). TARGET = highest high of the 24 bars ending at t, fixed at the signal bar. EXIT at the first bar close >= TARGET (executed next open), or at the close of the 48th bar after entry (time stop, executed next open). STOP-LOSS: fixed 3% below entry price (native intrabar stop). This replaces the scout's 'close below S' stop with the engine's fixed percentage stop; S itself is not used. COOLDOWN: no re-entry for 24 candles after any exit. No other filters, no pyramiding. Warm-up: 500 bars (longest lookback 483 bars; no recursive indicators).",
+  "parameters": {
+    "low_lookback_bars": 480,
+    "low_window_ends_before_bar": 4,
+    "min_age_of_low_bars": 96,
+    "sweep_window_bars": 4,
+    "target_high_lookback_bars": 24,
+    "time_stop_bars": 48,
+    "stoploss_pct": 3,
+    "cooldown_bars": 24,
+    "warmup_bars": 500,
+    "timeframe": "1h"
+  },
+  "rationale": "Stop orders of longs and of breakout sellers cluster just under a widely watched 20-day low. A brief push through it triggers forced selling; once that supply is exhausted and price closes back above the level, the break has no follow-through and price tends to snap back toward the recent range (the 24h high). The counterparties are the stop-run sellers and breakout shorts who sold the failed break. The source (LuxAlgo Turtle Soup) gives only the pattern description, no evidence; this is the closest honest mechanism. Expected frequency: the setup needs a fresh 20-day low pierced and reclaimed within 4 bars, roughly 10-30 trades per year per pair, which is below the owner's preferred count and may be near the 30-trade minimum on short splits. Gross move: the target is the 24h high, typically several percent above a reclaim close, versus a 0.35% base round trip; the 3% stop caps the loss per trade near 3.3% (whole balance), so 8 consecutive losses are about 24%, which is a known drawdown risk. Success is judged only by the existing gates.",
+  "novelty_vs_tried": "Structurally new: a counter-trend failed-breakdown reclaim with a fixed target and time stop, entered after a sweep of a 20-day low. It has no trend or regime filter, unlike the tried uptrend dip-buys (H-010, H-012, H-019 type) and slow breakouts (Donchian, H-009, H-005). It differs from Bollinger and EMA snapback rules by using a price-level liquidity sweep and a reclaim of that exact level rather than an indicator stretch. Its family is new.",
+  "sources": [
+    {"title": "LuxAlgo Library: Turtle Soup", "url": "https://www.luxalgo.com/library/concept/turtle-soup.md"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data; only the context file research/context/H-038.md (exploration summaries of earlier hypotheses) and the scout idea I-023."
+}
