@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-057",
+  "family": "AbnormalDayContinuation",
+  "title": "Abnormal-day continuation: buy the first intraday crossing of the UTC day's volatility band, hold at most 24 hours",
+  "ex_ante_rule": "Timeframe 1h, closed bars only, all times UTC; a signal at a bar close is filled at the next bar open. Long only, one position, whole allowed balance. DAILY STATISTICS (built from completed 1h bars, no lookahead): for each completed UTC day k, C(k) = close of that day's 23:00 bar (if that bar is missing, the close of the last bar of that day). Daily return R(k) = C(k)/C(k-1) - 1. For the current UTC day d, m = mean and s = sample standard deviation (ddof=1) of R(k) over the 30 completed days k = d-30 .. d-1 (needs 31 daily closes = 744 bars); m and s are fixed for the whole of day d. INTRADAY: O = open of day d's 00:00 bar (if missing, the open of the first bar of day d). D(t) = close(t)/O - 1 for every bar t of day d. Threshold T = m + 0.75*s. ENTRY at the close of bar t when ALL hold: (1) the open time of bar t is between 01:00 and 18:00 UTC inclusive; (2) D(t) >= T; (3) D(t) >= 0.01; (4) D(t-1) < T, where t-1 is the previous bar of the same UTC day (first crossing); (5) no position is open; (6) no entry has been made earlier in the same UTC day (at most one entry per UTC day). Buy at the next bar open. EXIT, whichever comes first: (a) TIME EXIT: 24 hours after the entry fill, i.e. the exit signal is raised at the close of the 24th bar of the trade (the bar opening 23 hours after the entry bar) and the position is sold at the next open, so no position is held longer than 24 hours; (b) FAILURE EXIT: a bar closes below O, the open of the UTC day on which the entry signal fired (the move has fully failed); sell at the next open. STOP-LOSS: fixed 4% below the entry price, native intrabar stop (a disaster stop only; exit (b) normally triggers first). No cooldown beyond the one-entry-per-UTC-day rule, no take-profit, no trailing, no pyramiding, no other filters. Warm-up: 800 bars (744 bars for 31 daily closes plus up to 24 bars of the current day, rounded up; no recursive indicators are used).",
+  "parameters": {
+    "timeframe": "1h",
+    "vol_lookback_days": 30,
+    "band_multiplier_k": 0.75,
+    "min_intraday_move": 0.01,
+    "entry_window_first_hour_utc": 1,
+    "entry_window_last_hour_utc": 18,
+    "max_entries_per_utc_day": 1,
+    "time_exit_bars": 24,
+    "failure_exit_level": "day_open_of_signal_day",
+    "stoploss_pct": 0.04,
+    "warmup_bars": 800
+  },
+  "rationale": "Caporale and Plastun (2020) report on hourly BTC, ETH and LTC data that days with abnormal returns can be detected before the day ends, and that prices tend to keep moving in the direction of the abnormal return until the close and on the following day (with exceptions, notably a contrarian effect for BTC after positive abnormal days, so the edge is uncertain). Who gives the money away: traders who react late to an unusually large move (attention-driven buyers, trend followers, news readers) and shorts forced to cover; their buying arrives after the move is already statistically unusual, which matches the late-informed-trader explanation of intraday momentum (Gao et al. 2018). Risk control: the day's open is a natural invalidation level (exit (b)), and the 24-hour time exit caps exposure; a fixed 4% intrabar stop limits gaps. Cost: the trigger requires the day to be up at least 1% and at least 0.75 sigma of daily returns; the bet is a continuation of a comparable amount (roughly 1-2% gross on typical crypto daily sigma of 3-4%), above the 0.30% base and 0.45% conservative round trip. Expected frequency: with T near 0.75 sigma, about 20-25% of days cross the band, minus late crossings and days blocked by an open position: roughly 60-100 trades per year per pair, below the owner's 150 target but with a larger move per trade; I state this honestly rather than change the scout's numbers. Success criteria: the existing gates (positive net at base and conservative, drawdown <= 25%, >= 30 trades per split, lookahead and recursive checks).",
+  "novelty_vs_tried": "No family in the context uses the day's own return distribution as the trigger. H-028 (IntradayEarlySessionMomentum) uses a fixed early-session window and H-052 (IntradayNoiseAreaMomentum) a time-of-day noise band; here the band is the 30-day daily-return mean plus 0.75 sigma, applied to the open-to-now return and may fire at any hour 01-18 UTC. Unlike the breakout families (H-002, H-005, H-007, H-009) it uses no price channel or regime filter and closes every trade within 24 hours, with the day open as the failure level.",
+  "sources": [
+    {
+      "title": "Caporale and Plastun (2020), Momentum effects in the cryptocurrency market after one-day abnormal returns, Financial Markets and Portfolio Management 34: 251-266",
+      "url": "https://bura.brunel.ac.uk/handle/2438/20686"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-057.md (exploration summaries of earlier hypotheses) through 2026-11-06"
+}
