@@ -1,0 +1,17 @@
+{
+  "title": "Intraday positive-jump continuation: buy a 15m bipower-scaled jump, hold to the UTC day close",
+  "source": {
+    "type": "paper",
+    "url": "https://ar5iv.labs.arxiv.org/html/2110.09429",
+    "title": "Understanding jumps in high frequency digital asset markets (Saef, Nagy, Sizov, Haerdle)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at the close of bar t, order at the open of bar t+1. Long only, one position. r(i) = ln(close(i)/close(i-1)). Local volatility s(t) = sqrt((pi/2) * mean over i = t-96..t-1 of |r(i)|*|r(i-1)|) (bipower variation over the previous 96 bars, the current bar excluded). Jump statistic J(t) = r(t)/s(t). DAILY FILTER: build UTC daily candles from the 15m data; the last completed daily close must be above the simple mean of the last 30 completed daily closes. ENTRY at the close of bar t when ALL hold: J(t) >= 4.0; r(t) >= 0.006; bar t opens between 00:00 and 17:45 UTC; daily filter true; no position open and no trade already taken this UTC day. EXIT, first of: (a) a 15m close below the low of the jump bar t, sell at the next open; (b) the close of the 23:45 UTC bar of the same day, sell at the next open (00:00), so every position closes within 24 hours.",
+  "mechanism": "Saef et al. (Lee-Mykland jump test on high-frequency data for many digital assets) find that the sign of an intraday jump matches the sign of that day's end-of-day return, that jumps cluster in the 13-17 UTC active hours, and that positive jumps matter more in bull markets, when rallies are joined quickly. Wen, Bouri, Xu and Zhao (N. Am. J. Econ. Finance 2022, ideas.repec.org) also report intraday momentum that changes around large jumps and attribute it to late-informed investors. The counterparty is the slower trader who sells into the jump or buys hours later. A 4-sigma jump on 15m is a large move (usually more than 1%), and the drift to the day close is taken over many hours, so the gross move per winner should well exceed costs. Caveat: the paper's regression is contemporaneous, not a tradable test.",
+  "timeframe": "15m",
+  "longest_lookback": 2880,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "IntradayJumpContinuation"
+}

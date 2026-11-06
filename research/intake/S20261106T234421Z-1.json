@@ -1,0 +1,17 @@
+{
+  "title": "Settlement-hour dip reversal: buy 15m drops into the 00/08/16 UTC funding and expiry times, 4-hour exit",
+  "source": {
+    "type": "blog",
+    "url": "https://cryptoslate.com/bitcoins-2-24-billion-friday-options-expiry-teased-a-reversal-then-gave-it-back-within-hours/",
+    "title": "Bitcoin's $2.24 billion Friday options expiry teased a reversal then gave it back within hours (summarising a Finance Research Letters study, DOI 10.1016/j.frl.2026.110340)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at the close of bar t, order at the open of bar t+1. Long only, one position. SETTLEMENT TIMES: 00:00, 08:00 and 16:00 UTC. The SIGNAL BAR is the 15m bar that closes exactly at a settlement time (the bars opening at 23:45, 07:45 and 15:45 UTC). P_pre = open of the bar that opened 2 hours before the settlement time (8 bars back, e.g. 06:00 for 08:00). D = close(signal bar)/P_pre - 1. ENTRY at the close of a signal bar when -0.04 <= D <= -0.008 (a fall of 0.8% to 4% in the 2 hours into settlement) and no position is open; buy at the open of the settlement-time bar. EXIT, first of: (a) a 15m close >= P_pre (the pre-drop level is regained), sell at the next open; (b) a 15m close <= entry fill price * 0.98 (stop), sell at the next open; (c) time exit at the close of the 16th bar after entry (4 hours). At most one trade per settlement time. No trend filter. Only 15m data is used.",
+  "mechanism": "Perpetual funding is settled for every Binance pair at 00/08/16 UTC, and Ruan and Streltsov (Cornell, 'Perpetual Futures Contracts and Cryptocurrency Market Quality') show spot volume and spreads spike in these hours from perp-spot arbitrage flows. Traders who close positions just before settlement to avoid paying funding (usually longs, as funding is mostly positive) and arbitrage unwinds create temporary, non-informational selling into the timestamp; once settlement passes, positions are reopened and liquidity providers who absorbed the flow are paid by the rebound. The FRL expiry study found the same shape at the 08:00 UTC Deribit expiry: a fall in the hour before, a reversal in the next two hours. The target is the pre-drop level, at least 0.8% above the signal close, so the gross move per winner exceeds the 0.30-0.45% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 8,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "family_hint": "SettlementHourDipReversal"
+}

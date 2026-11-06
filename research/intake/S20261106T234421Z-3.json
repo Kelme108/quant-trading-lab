@@ -1,0 +1,17 @@
+{
+  "title": "Variance-ratio regime gate: 15m 24-hour-high breakout only when short-horizon returns trend",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/eee/riibaf/v47y2019icp344-353.html",
+    "title": "Informational inefficiency of Bitcoin: A study based on high-frequency data (Zargar and Kumar, Research in International Business and Finance 2019)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at the close of bar t, order at the open of bar t+1. Long only, one position. r(i) = ln(close(i)/close(i-1)). VARIANCE RATIO over the 384 bars ending at t: VR(t) = sample variance of the overlapping 4-bar sums r(i-3)+...+r(i) / (4 * sample variance of r(i)), both computed inside that window. HTF FILTER: build 4h candles from the 15m data (UTC blocks 00,04,...,20); the last completed 4h close must be above the simple mean of the last 50 completed 4h closes. ENTRY at the close of bar t when ALL hold: close(t) > highest high of bars t-96..t-1 (prior 24 hours); VR(t) >= 1.10; HTF filter true; no position open. EXIT, first of: (a) a 15m close below the lowest low of the prior 16 bars (4 hours), sell at next open; (b) time exit at the close of the 96th bar after entry (24 hours).",
+  "mechanism": "Zargar and Kumar's variance-ratio tests show Bitcoin returns are not a random walk at 15-120 minute horizons although daily returns look memoryless, and that this inefficiency varies over time. Wen et al. (N. Am. J. Econ. Finance 2022) find that intraday crypto returns switch between momentum (late-informed investors) and reversal (overreaction). The gate trades breakouts only when recent 15m returns are positively autocorrelated (VR above 1: herding, liquidation chains, slow information spread), so late buyers keep paying up after the entry. When VR is below 1 the same breakout tends to fade and is skipped. A 24-hour-high breakout held up to a day aims at moves of 1% or more, well above the 0.30-0.45% round trip. This is not H-002: the regime gate is the mechanism and the exit is time-bounded.",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "VarianceRatioRegimeBreakout"
+}
