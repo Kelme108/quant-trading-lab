@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-058",
+  "family": "USSessionOvernightHold",
+  "title": "US cash-session weakness, overnight hold: buy after a non-rallying US session at 20:00 UTC, sell at 13:00 UTC next day",
+  "ex_ante_rule": "Timeframe 1h, closed candles only, UTC clock; a signal at a bar close is filled at the next bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters, no trend filter, no informative timeframe. US SESSION of UTC day d = the seven 1h bars opening at 13:00, 14:00, 15:00, 16:00, 17:00, 18:00 and 19:00 UTC of day d. S(d) = close of the 19:00 UTC bar of day d / open of the 13:00 UTC bar of day d - 1. ENTRY: at the close of the 19:00 UTC bar of day d, if the UTC weekday of that bar is Monday to Friday (dayofweek 0-4), S(d) < +0.003, and no position is open, buy at the open of the 20:00 UTC bar of day d. If the 13:00 or the 19:00 bar of day d is missing, no signal that day. At most one entry per day by construction. EXIT (time exit, fixed clock, regardless of price): the exit signal is the close of the 12:00 UTC bar of calendar day d+1, so the position is sold at the open of the 13:00 UTC bar of day d+1, i.e. after 17 hourly bars (20:00..12:00). Friday entries exit at Saturday 13:00 UTC. Backstop: any trade open for 17 hours or more is exited at the next bar open (covers missing bars); no position is ever held more than 24 hours. STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (triggers as soon as price touches it). This replaces the scout's 'a 1h bar closes 3% below entry' check with the intrabar form required by the engine; the 3% level is unchanged. COOLDOWN: none (the next possible entry, 20:00 UTC, is always after the previous 13:00 exit). All numbers fixed ex ante, no grid: session 13:00-20:00 UTC (bars 13:00..19:00), threshold +0.3%, entry 20:00 UTC, exit 13:00 UTC next day, stop 3%, weekdays Mon-Fri. Warm-up: 24 bars (longest lookback is 7 bars, from the 13:00 open to the 19:00 close of the same day; 24 bars guarantee a full UTC day; no recursive indicators; startup_candle_count 24).",
+  "parameters": {
+    "timeframe": "1h",
+    "session_first_bar_utc": 13,
+    "session_last_bar_utc": 19,
+    "session_threshold": 0.003,
+    "entry_bar_open_utc": 20,
+    "exit_bar_open_utc": 13,
+    "hold_bars": 17,
+    "max_hold_hours_backstop": 17,
+    "signal_weekdays": "Mon-Fri (dayofweek 0-4)",
+    "stoploss": -0.03,
+    "cooldown_bars": 0,
+    "startup_candle_count": 24
+  },
+  "rationale": "Mechanism: several measurements report that BTC drifts down during US cash hours and earns most of its gains outside them (CryptoSlate on Binance BTC/USDT 30m: about -3.2% in US hours vs +6.1% outside over 13 sessions in Sep-Oct 2026; Quantpedia's summary of Padysak and Vojtko finds the strongest hourly returns at 21:00-23:00 UTC, after US equities close). Proposed counterparty: US-hours holders who de-risk crypto together with equities, and ETF/basis desks whose creations, redemptions and hedges run in the NY session (benchmark NAV window 15:00-16:00 NY), pushing price below the level non-US-hours buyers clear it at; the long leg collects the recovery from 20:00 to 13:00 UTC. The CryptoSlate article itself says the sellers are not identified, so the counterparty is a hypothesis, not a measured fact. Skipping sessions that already rallied 0.3% or more avoids days where the US flow was buying. Trades: about 260 weekdays per year, S < 0.3% on perhaps 55-70% of them, so roughly 140-180 trades per year per pair, inside the 150-500 target. Move per trade: a 17-hour hold on BTC/ETH/BNB has a typical absolute move of 1.5-3%, so the trade aims at a gross move above 0.8%; the edge needs a mean drift of only about 0.3-0.45% per trade to clear the round trip at base and conservative cost. Risk: the 3% stop caps a single loss near 3.2% with costs; a run of 7 such stops stays under 25%. Success criteria are the existing gates: positive net at base and conservative cost, drawdown below 25%, at least 30 trades per split, the same rule on all three pairs.",
+  "novelty_vs_tried": "No tried hypothesis holds the US-closed hours. H-030 (OvernightDropReversal) buys 08:00-16:00 UTC after an Asian-session drop; H-039 (WeekendDaytimeSession) holds weekend daytime 13:00-21:00; H-036 (USOpenVolumeContinuation) and H-028 (IntradayEarlySessionMomentum) are momentum trades inside or before the US session. This rule is the complement: it is out of the market during the US cash session and long from the US equity close to the next US pre-open, conditioned on the US session not having rallied. No trend or volatility filter; new family USSessionOvernightHold.",
+  "sources": [
+    {
+      "title": "Bitcoin keeps losing ground when Wall Street opens as Coinbase discount deepens (CryptoSlate)",
+      "url": "https://cryptoslate.com/bitcoin-keeps-losing-ground-when-wall-street-opens-as-coinbase-discount-deepens/"
+    },
+    {
+      "title": "Are There Seasonal Intraday or Overnight Anomalies in Bitcoin? (Quantpedia)",
+      "url": "https://vvv.quantpedia.com/?p=17341"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summaries in research/context/H-058.md (BTC, ETH, BNB 1h) and the web sources cited."
+}
