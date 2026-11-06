@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-037",
+  "family": "MultiTimeframeMACDTrend",
+  "title": "Hourly MACD cross-up gated by daily MACD uptrend, exit on hourly cross-down",
+  "ex_ante_rule": "Closed candles only; signals evaluated at bar close, orders executed at next bar open. Long only, one position, whole allowed balance, no pyramiding, no take-profit, no sizing hooks. Hourly indicators on 1h closes: MACD line = EMA(12) - EMA(26); signal = EMA(9) of the MACD line (standard recursive EMAs, adjust=False). Daily indicators: build closed UTC daily candles from the 1h data (informative 1d via merge_informative_pair, forward-filled so a daily value is visible only after that day has closed); daily MACD line = EMA(12) - EMA(26) of daily closes, daily signal = EMA(9) of the daily MACD line. DAILY UP at a 1h bar = last closed daily MACD line > last closed daily signal. ENTRY at the close of 1h bar t when: hourly MACD(t) > signal(t) AND hourly MACD(t-1) <= signal(t-1) (cross-up) AND DAILY UP AND no open position; buy at next open. EXIT at the close of bar t (sell at next open) when hourly MACD(t) < signal(t) AND MACD(t-1) >= signal(t-1) (cross-down), OR when DAILY UP becomes false after a daily close (checked on the 1h bar where the new daily value first appears). STOP-LOSS: fixed 5% below entry price (native intrabar stop). No cooldown, no other filters. Warm-up: 4200 bars (175 days: gives the daily EMA26 and the daily signal EMA9 about 7x their span to stabilise; hourly EMAs need far less). startup_candle_count = 4200.",
+  "parameters": {
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "daily_macd_fast": 12,
+    "daily_macd_slow": 26,
+    "daily_macd_signal": 9,
+    "stoploss_pct": 5,
+    "cooldown_candles": 0,
+    "warmup_bars": 4200,
+    "timeframe": "1h",
+    "informative_timeframe": "1d"
+  },
+  "rationale": "Mechanism (a stated hypothesis, not proven; the source gives only a loose rationale): slower participants react to daily momentum with a delay, so when daily momentum is positive an hourly momentum re-acceleration marks a continuation leg, while the daily gate removes hourly crosses inside downtrends, which are mostly noise and are what produced the long losing streaks in other lab rules. Holding until the hourly cross-down, rather than one bar, lets winners run so the average winner can exceed the 0.35% base round trip (0.95% stress). Expected frequency: hourly MACD crosses up roughly 150-250 times per year per pair; the daily gate keeps perhaps 50-60% of them, giving about 80-140 trades per year per pair, i.e. several hundred in a split, well above 30. This is cost-sensitive: MACD(12,26,9) hourly trades are short, so the gross move per trade must average over about 0.5% to pass the conservative cost; this is not guaranteed and is exactly what the gates will test. Risk control: daily gate and daily-turn-down exit stop trading in bear phases, the 5% stop caps the loss per trade (a streak of 5 stops would be about 23%, but stops should be rare for hourly holds). Success criteria are the existing gates: positive net at base and conservative cost on all three pairs, drawdown under 25%, at least 30 trades per pair. No tuning: textbook 12/26/9 on both timeframes, 5% stop fixed in advance.",
+  "novelty_vs_tried": "No MACD or EMA-difference momentum rule is in the context file. Tried rules are SMA crosses, Donchian/range breakouts, mean-reversion dips, squeezes, and daily momentum/IBS/RSI2. This one is a two-timeframe momentum-oscillator cross: hourly signal-line cross entries and exits with a daily MACD regime gate, trading far more often than the daily and slow-breakout rules and using a signal-line exit instead of a channel or MA exit. New family, first variant.",
+  "sources": [
+    {
+      "title": "How to Design a Simple Multi-Timeframe Trend Strategy on Bitcoin (Quantpedia)",
+      "url": "https://quantpedia.com/how-to-design-a-simple-multi-timeframe-trend-strategy-on-bitcoin/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the research context file (tried hypotheses and exploration summaries through 2026-11-05), the validation protocol, and the Quantpedia page."
+}
