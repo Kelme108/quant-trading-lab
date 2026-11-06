@@ -26,12 +26,12 @@ _strategy_mod = sys.modules["freqtrade.strategy"]
 if not hasattr(_strategy_mod, "informative"):
     _strategy_mod.informative = lambda *args, **kwargs: (lambda function: function)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "DailyKeltnerBreakout_H025_v1"
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

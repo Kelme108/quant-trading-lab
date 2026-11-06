@@ -13,11 +13,12 @@ never from an agent.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import subprocess
 from pathlib import Path
 
-from lab import archive, calibrate, checks, orchestrator, registry, tradereport, triage
+from lab import archive, autopilot, calibrate, checks, orchestrator, registry, tradereport, triage
 from lab.orchestrator import BudgetExhausted, GuardAbort, StepFailed, _now, _stamp
 
 ROOT = Path(__file__).parents[1]
@@ -35,7 +36,8 @@ def trial_count(conn, path: Path = TRIAL_LEDGER) -> dict:
 
 class Pipeline:
     def __init__(self, lab: orchestrator.Lab, *, run_checks=checks.run_checks, explore=calibrate.calibrate_and_explore,
-                 write_review=tradereport.write_report, archive_one=archive.archive_hypothesis, expand_data=None) -> None:
+                 write_review=tradereport.write_report, archive_one=archive.archive_hypothesis, expand_data=None,
+                 autopilot=None) -> None:
         self.lab = lab
         self.conn = lab.conn
         self.root = lab.root
@@ -44,6 +46,9 @@ class Pipeline:
         self.write_review = write_review
         self.archive_one = archive_one
         self.expand_data = expand_data
+        # lab/autopilot.run bound to this pipeline (main() binds it when lab/config/autopilot.json is enabled):
+        # an exploration candidate then gets its validation read and, on the pairs that pass, a dry-run by itself.
+        self.autopilot = autopilot
 
     # -- git ------------------------------------------------------------------
 
@@ -115,14 +120,63 @@ class Pipeline:
                 raise
             except Exception as error:
                 detail += f"; agent review failed: {str(error)[:120]}"
+            outcome, extra, dead = self._autopilot(hid)
+            detail += extra
+            if dead:
+                archived = self._archive(hid)
+                detail += "; archived" if archived["archived"] else f"; not archived ({archived['reason']})"
         else:
-            try:
-                archived = self.archive_one(self.conn, hid, root=self.root)
-            except Exception as error:
-                archived = {"archived": False, "paths": [], "reason": f"{type(error).__name__}: {error}"[:120]}
+            archived = self._archive(hid)
             detail += "; archived" if archived["archived"] else f"; not archived ({archived['reason']})"
         self._record(hid, name, archived["paths"], outcome)
         return {**row, "outcome": outcome, "detail": detail, "status": status}
+
+    def _archive(self, hid: str) -> dict:
+        try:
+            return self.archive_one(self.conn, hid, root=self.root)
+        except Exception as error:
+            return {"archived": False, "paths": [], "reason": f"{type(error).__name__}: {error}"[:120]}
+
+    def _autopilot(self, hid: str) -> tuple[str, str, bool]:
+        """(outcome, extra detail, archive?) for an exploration candidate. Without the policy it waits for the user.
+        A candidate whose validation passed on no pair is archived like any other failure."""
+        waiting = "candidate: awaiting the user's approval to read the validation"
+        if self.autopilot is None:
+            return waiting, "", False
+        try:
+            result = self.autopilot(self.conn, hid)
+        except (GuardAbort, BudgetExhausted):
+            raise
+        except Exception as error:
+            return waiting, f"; autopilot failed: {type(error).__name__}: {error}"[:200], False
+        extra = f"; {result['detail']}" if result.get("detail") else ""
+        return result["outcome"], extra, result["outcome"].startswith("validation read by the autopilot: no pair passed")
+
+    def autopilot_existing(self, hypothesis_ids: list[str]) -> Path:
+        """Apply the policy to candidates that were waiting for the user before the policy existed."""
+        lab = self.lab
+        lab.cycle_start, lab.proposed_this_cycle = _now(), 0
+        rows, stopped = [], ""
+        try:
+            for hid in hypothesis_ids:
+                if registry.get_hypothesis(self.conn, hid) is None:
+                    raise StepFailed(f"{hid} is not registered")
+                name = None
+                try:
+                    name = lab.find_strategy(hid)[0]
+                except Exception:
+                    pass
+                outcome, detail, dead = self._autopilot(hid)
+                paths = []
+                if dead:
+                    archived = self._archive(hid)
+                    paths = archived["paths"]
+                    detail += "; archived" if archived["archived"] else f"; not archived ({archived['reason']})"
+                self._record(hid, name, paths, outcome)
+                rows.append({"idea": "-", "hypothesis": hid, "outcome": outcome, "detail": detail.lstrip("; ")})
+        except Exception as error:
+            stopped = f"{type(error).__name__}: {error}"
+        return self.write_report(rows, [], [], stopped)
 
     def _record(self, hid: str, name: str | None, extra_paths: list[str], outcome: str) -> None:
         """Regenerate the ledger and the SQL dump and commit this hypothesis's files, whatever its outcome."""
@@ -251,12 +305,20 @@ def main(argv: list[str] | None = None) -> int:
     weekly.add_argument("--expand-data", action="store_true", help="download/extend candles first (needs Docker)")
     resume = sub.add_parser("resume", help="re-run registered hypotheses that failed outside the rule (no decision yet)")
     resume.add_argument("hypotheses", nargs="+")
+    auto = sub.add_parser("autopilot", help="apply the autopilot policy to exploration candidates waiting for the user")
+    auto.add_argument("hypotheses", nargs="+")
     args = parser.parse_args(argv)
     lab = orchestrator.Lab(registry.connect())
+    pipeline = Pipeline(lab, expand_data=orchestrator.expand_data if getattr(args, "expand_data", False) else None)
+    policy = autopilot.load_policy()
+    if policy["enabled"]:
+        pipeline.autopilot = functools.partial(autopilot.run, commit=pipeline._commit, root=lab.root, policy=policy)
     if args.command == "resume":
-        print(Pipeline(lab).resume(args.hypotheses))
+        print(pipeline.resume(args.hypotheses))
         return 0
-    pipeline = Pipeline(lab, expand_data=orchestrator.expand_data if args.expand_data else None)
+    if args.command == "autopilot":
+        print(pipeline.autopilot_existing(args.hypotheses))
+        return 0
     print(pipeline.weekly(scout_count=args.scout_count, max_new=args.max_new, do_scout=not args.no_scout))
     return 0
 

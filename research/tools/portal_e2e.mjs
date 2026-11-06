@@ -35,19 +35,14 @@ let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`); if (!ok) failed++; };
 const rowsIds = () => js(`[...document.querySelectorAll('table.lb tbody tr')].map((r) => r.dataset.key)`);
 
-// Default view: only candidates. The toggle in the header brings back the rest; the other checks run with everything visible.
+// Only live strategies reach the page: archived ones are never sent, so there is no toggle to bring them back.
 await open('#/leaderboard');
 const onlyCand = await rowsIds();
-check('by default only candidates are listed', onlyCand.length >= 1 && onlyCand.every((k) => k.startsWith('H-009')), onlyCand.join(','));
-const hiddenLabel = await js(`document.querySelector('[data-fkey="showall"]').textContent`);
-check('header offers to show the non-candidates', /Mostrar não candidatas \(\d+\)/.test(hiddenLabel), hiddenLabel);
-await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
-check('toggle shows every strategy', (await rowsIds()).length >= 5);
-await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
-check('toggle hides them again', (await rowsIds()).length === onlyCand.length);
-await js(`document.querySelector('[data-fkey="showall"]').click()`); await sleep(400);
+check('only live strategies are listed', onlyCand.length >= 1, onlyCand.join(','));
+const archivedLabel = await js(`document.querySelector('[data-fkey="showall"]').textContent`);
+check('header says how many are archived', /\d+ no arquivo/.test(archivedLabel), archivedLabel);
 let ids = await rowsIds();
-check('ranking lists strategies', ids.length >= 5, `${ids.length} rows`);
+check('ranking lists strategies', ids.length >= 1, `${ids.length} rows`);
 check('default sort is by evidence (desc)', JSON.stringify(await js(`[...document.querySelectorAll('table.lb tbody tr .score-n')].map((e) => Number(e.textContent))`)) === JSON.stringify((await js(`[...document.querySelectorAll('table.lb tbody tr .score-n')].map((e) => Number(e.textContent)).sort((a, b) => b - a)`))));
 await js(`document.querySelector('[data-fkey="lbth:roi"]').click()`); await sleep(300);
 let roi = await js(`[...document.querySelectorAll('table.lb tbody td.c-roi')].map((e) => parseFloat(e.textContent.replace(/\\./g, '').replace(',', '.').replace('−', '-')))`);

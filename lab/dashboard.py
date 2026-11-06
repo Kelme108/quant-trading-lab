@@ -839,8 +839,18 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
             }
         )
 
-    state["hypotheses"] = hypotheses
-    state["strategies"] = _strategies(hypotheses, run_trades, wallet)
+    # Only LIVE strategies reach the page: candidates, the portfolio and those running in dry-run. Rejected, dropped,
+    # failed and archived hypotheses stay in the registry and the archive for the agents (and in the funnel and
+    # family counts above), but never in the lists, rankings, curves or comparisons.
+    in_dryrun = {path.name.split("-freeze.json")[0] for path in (root / "research" / "forward").glob("H-*-freeze.json")}
+    for hy in hypotheses:
+        hy["in_dryrun"] = hy["id"] in in_dryrun
+        hy["candidate"] = hy["candidate"] or hy["in_dryrun"]
+        hy["archived"] = not (hy["candidate"] and not hy["invalid"])
+    live = [hy for hy in hypotheses if not hy["archived"]]
+    state["archived_count"] = len(hypotheses) - len(live)
+    state["hypotheses"] = hypotheses  # every one, flagged: the portal never lists an archived one
+    state["strategies"] = _strategies(live, run_trades, wallet)
     cap = state["budget"]["max_variants_per_family"]
     gate_config = {"net_profit": {"base_threshold_quote": state["gate_bar"]["base_threshold_quote"],
                                   "multiple_testing_penalty": {"per_variant_increase": state["gate_bar"]["per_variant_increase"]}}}

@@ -127,6 +127,18 @@ class StateTests(DashboardTestCase):
              "validation_passed": 1, "in_portfolio": 1},
         )
 
+    def test_archived_hypotheses_are_flagged_and_never_reach_the_strategy_lists(self) -> None:
+        alive = self.hypothesis(1, status="exploration: candidate")
+        dead = self.hypothesis(2, status="rejected at exploration")
+        frozen = self.hypothesis(3, status="not approved at validation")
+        (self.root / "research" / "forward").mkdir(parents=True, exist_ok=True)
+        (self.root / "research" / "forward" / f"{frozen}-freeze.json").write_text("{}", encoding="utf-8")
+        state = self.state()
+        flags = {h["id"]: h["archived"] for h in state["hypotheses"]}
+        self.assertEqual(flags, {alive: False, dead: True, frozen: False})  # a bot in dry-run stays visible
+        self.assertEqual(state["archived_count"], 1)
+        self.assertNotIn(dead, {row["id"] for row in state["strategies"]})
+
     def test_a_hypothesis_passing_on_only_some_pairs_does_not_pass_the_stage(self) -> None:
         hid = self.hypothesis(1)
         self.experiment(hid, "BTC/USDT", "exploration", "candidate_for_portfolio")

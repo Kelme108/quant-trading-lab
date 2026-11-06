@@ -4,6 +4,7 @@ import re
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 TESTS = Path(__file__).parent
@@ -338,6 +339,15 @@ class CalibrateTests(unittest.TestCase):
             root=Path(self.tmp.name), splits=self.splits, backtest=fake, read_trades=fake.read_trades,
             experiments=explorer, pairs=list(PAIRS),
         )
+
+    def test_an_exposure_below_the_minimum_order_drops_instead_of_running_a_backtest_with_no_trades(self) -> None:
+        explorer = FakeExplorer()
+        with mock.patch.object(calibrate.bootstrap, "choose_exposure", return_value={"exposure": 0.05, "p95_by_pair": {}}):
+            result = self.run_calibration(100, explorer)
+        self.assertEqual(result["outcome"], "dropped_exposure")
+        self.assertEqual(result["status"], "dropped: calibrated exposure below the minimum order")
+        self.assertEqual(explorer.exposures, [])
+        self.assertIn("Calibrated exposure: 0.05", registry.get_hypothesis(self.conn, "H-001")["notes"])
 
     def test_fewer_than_30_trades_drops_the_hypothesis_without_running_the_experiment(self) -> None:
         explorer = FakeExplorer()

@@ -5,12 +5,11 @@ The exposure must be the one calibrated on the exploration split (stored in the 
 """
 import argparse
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(ROOT))
-from lab import experiment, orchestrator, registry, runner  # noqa: E402
+from lab import autopilot, registry, runner  # noqa: E402
 
 
 def main() -> int:
@@ -34,25 +33,10 @@ def main() -> int:
     if already:
         print(f"{hid}: validation was already read ({already} experiments); not reading it again.")
         return 4
-    number = int(hid.split("-")[1])
-    found = sorted((ROOT / "user_data" / "strategies").glob(f"*_H{number:03d}_v*.py"))[-1]
-    name, strategy_file = found.stem, str(found.relative_to(ROOT)).replace("\\", "/")
-    timeframe = orchestrator.strategy_timeframe(found)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    splits, version = runner.load_splits(), experiment.freqtrade_version()
-    ids = [experiment.run_experiment(conn, hypothesis_id=hid, strategy_name=name, strategy_file=strategy_file, pair=pair,
-                                     split_name="validation", timestamp=stamp, splits=splits, version=version,
-                                     notes=f"single validation read, exposure {args.exposure} (calibrated on exploration)",
-                                     exposure=args.exposure, timeframe=timeframe) for pair in pairs]
-    decisions = {}
-    for experiment_id in ids:
-        decision, _ = experiment.decide_experiment(conn, experiment_id, hid)
-        decisions[experiment_id] = decision
-        print(experiment_id, decision)
-    values = set(decisions.values())
-    status = ("validation: candidate" if values == {"candidate_for_portfolio"}
-              else "not approved at validation" if "rejected" in values or "inconclusive" in values else "validation: mixed")
-    registry.set_hypothesis_status(conn, hid, status)
+    # the same single read the autopilot policy uses (lab/autopilot.py)
+    decisions = autopilot.read_validation(conn, hid, args.exposure, root=ROOT, pairs=pairs)
+    for pair, decision in decisions.items():
+        print(pair, decision)
     registry.sync_ledger_markdown(conn)
     registry.dump_sql(conn)
     return 0

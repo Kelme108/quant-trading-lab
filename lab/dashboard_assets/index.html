@@ -812,6 +812,8 @@ function normalize(raw) {
   const out = { ...DEFAULTS(), ...raw }, d = DEFAULTS();
   for (const k of Object.keys(d)) if (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && raw[k] && typeof raw[k] === 'object') out[k] = { ...d[k], ...raw[k] };
   Object.defineProperty(out, '__missing', { value: CONTRACT.filter((p) => getPath(raw, p) === undefined), enumerable: false });
+  /* archived hypotheses (rejected, dropped, invalid) never appear in any list: they stay in the archive for the agents */
+  if (Array.isArray(out.hypotheses)) out.hypotheses = out.hypotheses.filter((x) => !x.archived);
   return out;
 }
 let state = normalize(JSON.parse(document.getElementById('state').textContent));
@@ -2100,7 +2102,7 @@ function buildShell() {
   els.title = h('h1', null), els.ctx = h('div', { class: 'ctx' });
   els.theme = h('button', { type: 'button', 'data-fkey': 'theme', 'aria-label': 'Alternar tema claro e escuro', onclick: () => { const t = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; try { localStorage.setItem(LS_THEME, t); } catch (e) { /* tema só nesta sessão */ } render(); } }, icon('theme', 15), ' Tema');
   els.density = h('button', { type: 'button', 'data-fkey': 'density', 'aria-label': 'Alternar densidade: confortável ou compacta', 'aria-pressed': document.documentElement.dataset.density === 'compact' ? 'true' : 'false', onclick: () => { const c = document.documentElement.dataset.density === 'compact' ? 'comfortable' : 'compact'; document.documentElement.dataset.density = c; els.density.setAttribute('aria-pressed', c === 'compact' ? 'true' : 'false'); try { localStorage.setItem(LS_DENSITY, c); } catch (e) { /* densidade só nesta sessão */ } } }, 'Compacto');
-  els.showall = h('button', { type: 'button', 'data-fkey': 'showall', 'aria-label': 'Mostrar ou ocultar estratégias que não são candidatas', onclick: () => { toggleShowAll(); render(); } });
+  els.showall = h('button', { type: 'button', 'data-fkey': 'showall', 'aria-label': 'Hipóteses arquivadas fora da visão', });
   els.search = h('button', { type: 'button', class: 'searchbtn', 'data-fkey': 'search', 'aria-label': 'Buscar página ou estratégia (Ctrl K)', onclick: () => paletteOpen() }, icon('search', 14), h('span', null, 'Buscar'), h('kbd', null, 'Ctrl K'));
   els.stateAt = h('span', { class: 'pill hide-sm', role: 'status' }, statusIcon, statusText);
   els.alert = h('a', { class: 'pill alertchip', href: '#/data?at=sec-alertas', 'data-fkey': 'banner-link', hidden: true });
@@ -2154,7 +2156,8 @@ function render(opts = {}) {
   const active = document.activeElement, fk = active && els.page.contains(active) && active.dataset ? active.dataset.fkey : null;
   const y = scrollY, same = shownKey === route.key && !opts.top;
   hideDef(); hideTip(); qn = 0;
-  { const n = typeof hiddenCount === 'function' ? hiddenCount() : 0; els.showall.textContent = ui.showAll ? 'Só candidatas' : `Mostrar não candidatas (${n})`; els.showall.setAttribute('aria-pressed', ui.showAll ? 'true' : 'false'); els.showall.hidden = n === 0 && !ui.showAll; }
+  /* archived hypotheses are not sent to the page any more: the header only says how many sit in the archive */
+  { const n = typeof hiddenCount === 'function' ? hiddenCount() : 0; els.showall.textContent = `${n} no arquivo`; els.showall.title = 'Reprovadas, descartadas e inválidas ficam só no arquivo, para consulta dos agentes'; els.showall.disabled = true; els.showall.hidden = n === 0; }
   if (!state.hypotheses.some((x) => x.id === ui.selected)) ui.selected = null;
   refreshChrome();
   let node;

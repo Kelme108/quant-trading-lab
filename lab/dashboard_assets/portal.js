@@ -9,16 +9,12 @@ const sx = ui.sx = { pair: 'all' };
 const MIN_TRADES = () => (state.gate_bar && state.gate_bar.minimum_trades) || 30;
 
 /* ---------- data access ---------- */
-/* By default only candidates are shown; the toggle in the header (or ui.showAll) brings back rejected/dropped/archived ones.
-   Nothing is deleted: the data is the same, only the view is filtered. */
-const LS_SHOWALL = 'lab-dashboard-show-all-v1';
-ui.showAll = (() => { try { return localStorage.getItem(LS_SHOWALL) === '1'; } catch (e) { return false; } })();
-/* A server that does not send the flag (older code still running) must not hide everything: no flag, no filter. */
-const hasFlag = () => (state.strategies || []).some((r) => 'candidate' in r);
-const visibleHy = (hy) => ui.showAll || !hasFlag() || hy.candidate;
-const strat = () => (state.strategies || []).filter((r) => ui.showAll || !hasFlag() || r.candidate);
-const hiddenCount = () => (hasFlag() ? new Set((state.strategies || []).filter((r) => !r.candidate).map((r) => r.id)).size : 0);
-const toggleShowAll = () => { ui.showAll = !ui.showAll; try { localStorage.setItem(LS_SHOWALL, ui.showAll ? '1' : '0'); } catch (e) { /* só nesta sessão */ } };
+/* Only live strategies reach the page (candidates, portfolio, dry-run): the server leaves rejected, dropped and
+   archived ones out on purpose, so they never mix with the others. They stay in the archive for the agents. */
+ui.showAll = false;
+const visibleHy = (hy) => !hy.archived && hy.candidate !== false;
+const strat = () => (state.strategies || []).filter((r) => r.candidate !== false);
+const hiddenCount = () => state.archived_count || 0;
 const sRows = (stage) => strat().filter((r) => r.stage === stage);
 const sRow = (id, stage) => strat().find((r) => r.id === id && r.stage === stage);
 const sIds = () => [...new Set(strat().map((r) => r.id))];
@@ -509,8 +505,7 @@ function rankBento(rows, stage) {
   const n = hiddenCount();
   return h('section', { class: 'card b-7', id: 'sec-top' }, h('header', null, h('div', null, h('h2', null, 'Ranking por evidência'), h('div', { class: 'sub' }, `${STAGE_CAP[stage]} · evidência 0 a 100, não é win rate`)), h('a', { href: `#/leaderboard?stage=${stage}`, 'data-fkey': 'ov-rank' }, 'Abrir o ranking completo →')),
     h('div', { class: 'rk' }, head, list),
-    n || ui.showAll ? h('div', { class: 'rk-foot' }, h('span', null, ui.showAll ? 'Mostrando também as não candidatas.' : `+ ${nf0.format(n)} não ${plural(n, 'candidata oculta', 'candidatas ocultas')} (reprovadas, descartadas ou inválidas)`),
-      h('button', { type: 'button', class: 'link', 'data-fkey': 'ov-showall', onclick: () => { toggleShowAll(); render(); } }, ui.showAll ? 'Só candidatas' : 'Mostrar')) : null);
+    n ? h('div', { class: 'rk-foot' }, h('span', null, `${nf0.format(n)} ${plural(n, 'hipótese arquivada', 'hipóteses arquivadas')} (reprovadas, descartadas ou inválidas) fora desta visão: ficam só no arquivo, para consulta dos agentes.`)) : null);
 }
 function yearsBento(rows) {
   const years = [...new Set(rows.flatMap((r) => Object.keys(r.years || {})))].sort();

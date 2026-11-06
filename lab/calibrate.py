@@ -18,6 +18,8 @@ from lab import bootstrap, costs, experiment, registry, runner
 
 ROOT = Path(__file__).parents[1]
 MIN_TRADES = 30
+WALLET_QUOTE = 100.0  # the --dry-run-wallet of every lab backtest (lab/runner.py)
+MIN_STAKE_QUOTE = 10.0  # smallest stake Freqtrade places on Binance spot here (5 USDT notional plus its reserves)
 
 
 def _stamp() -> str:
@@ -60,6 +62,16 @@ def calibrate_and_explore(
         registry.set_hypothesis_status(conn, hypothesis_id, status)
         _append_note(conn, hypothesis_id, f"No exposure on the 5% grid keeps the bootstrap p95 drawdown within 25% on every pair; calibration trades {counts}.")
         return {"outcome": "dropped_exposure", "counts": counts, "exposure": None, "status": status}
+    if exposure * WALLET_QUOTE < MIN_STAKE_QUOTE:
+        # Freqtrade cannot place an order this small (Binance minimum notional plus its reserves): the exploration
+        # backtest would make no trade at all and read as a 'minimum trades' rejection, which is not what happened.
+        status = "dropped: calibrated exposure below the minimum order"
+        registry.set_hypothesis_status(conn, hypothesis_id, status)
+        _append_note(conn, hypothesis_id, f"Calibrated exposure: {exposure} gives a stake of {exposure * WALLET_QUOTE:g} "
+                                          f"on the {WALLET_QUOTE:g} wallet, below the {MIN_STAKE_QUOTE:g} minimum order; "
+                                          f"the drawdown control needs a smaller stake than the exchange accepts. "
+                                          f"Calibration trades {counts}.")
+        return {"outcome": "dropped_exposure", "counts": counts, "exposure": exposure, "status": status}
     version = experiments.freqtrade_version()
     ids = [
         experiments.run_experiment(
