@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-040",
+  "family": "DailyNR7Breakout",
+  "title": "Daily NR7 compression day, next-day upside breakout entered on 1h in a 50-day uptrend",
+  "ex_ante_rule": "Closed candles only; strategy runs on 1h. Daily candles are built from completed UTC days (informative 1d via merge_informative_pair, only closed days used). Long only, one position, whole allowed balance, no pyramiding, no take-profit. DEFINITIONS: for UTC day D, range(D) = high(D) - low(D). Day D is NR7 when range(D) is strictly smaller than range of each of the 6 days D-1..D-6. SMA50d = simple mean of the last 50 closed daily closes. SIGNAL DAY = the UTC day after an NR7 day D (day D+1); only the most recent closed day D = yesterday is considered, so no entries on any other day. ENTRY: on signal day, if the last closed daily close (close of D) > SMA50d computed at D, then at the first 1h bar t of the signal day whose close > high(D) AND whose close time is at or before 20:00 UTC (i.e. bar open hour <= 19:00 UTC), signal at the close of bar t and order executed at the next 1h open. At most one entry per NR7 day; if no qualifying bar occurs, nothing is entered that day. If a position is already open, the signal is ignored. EXIT (evaluated at 1h bar close, executed at next open), whichever first: (a) 1h close < low(D) of the NR7 day that triggered the entry; (b) 48 1h bars elapsed since entry (time exit). STOP-LOSS: one fixed native intrabar stop at 3% below entry price (a catastrophic-loss cap; the NR7-low exit in (a) is the normal exit and is checked on closed bars as an exit signal, not as a stop). COOLDOWN: none beyond the one-entry-per-NR7-day rule. No other filters. Fixed parameters: NR window 7 days, SMA 50 days, entry cutoff 20:00 UTC, time exit 48 bars, stop 3%. Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning). Warm-up: 1500 bars (50 daily closes = 1200 1h bars plus the 7-day NR window and margin for the incomplete first day).",
+  "parameters": {
+    "nr_window_days": 7,
+    "sma_days": 50,
+    "entry_cutoff_utc_hour": 20,
+    "time_exit_bars": 48,
+    "stop_loss_pct": 3,
+    "exit_on_close_below": "NR7 day low",
+    "entry_trigger": "1h close above NR7 day high",
+    "entries_per_nr7_day": 1,
+    "execution": "next 1h open",
+    "startup_candle_count": 1500,
+    "timeframe": "1h",
+    "informative_timeframe": "1d"
+  },
+  "rationale": "A day whose range is the narrowest of seven signals contraction: resting breakout orders and stops stack just beyond the range. When price clears the high within a prevailing uptrend (daily close above SMA50), short covering and momentum buying must execute at once, so the move often exceeds the narrow range; those who faded the range and are stopped out supply the profit. The source (LuxAlgo) states only the contraction-then-expansion premise and gives no tested edge, so this is the closest honest mechanism, not an evidenced one. Frequency: NR7 occurs about 1 day in 7, the uptrend gate and breakout requirement cut that to roughly 15-30 trades per pair per year, so the sample over the exploration split may be near the 30-trade floor; I accept that rather than loosen the rule. Cost: round trip is 0.35% at base and 0.95% at stress. A typical NR7 BTC/ETH/BNB daily range is about 1-2.5%, and the 48-bar hold lets a breakout run beyond that, so the expected gross move must exceed the range-sized risk; if it does not clear 0.35% net it fails the gates. The 3% fixed stop caps single-trade loss to limit streak drawdown, replacing the scout's closed-bar stop that the engine cannot express.",
+  "novelty_vs_tried": "Structurally different from the tried list: the trigger is a one-day volatility-contraction pattern (NR7) with a next-day intraday breakout of that single day's high, not a 168-bar or 20-bar channel breakout, Bollinger or EMA dip-buy, or a squeeze percentile (H-005/H-008 use a 168-bar range percentile and a 2400-bar SMA). Exits are tied to the specific NR7 day's low and a 48-bar time limit rather than a channel low or regime loss. Holding periods are short (at most 2 days), so exposure is low and the trade count is higher than the slow daily rules.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: NR4/NR7 Narrow-range Bars",
+      "url": "https://www.luxalgo.com/library/concept/nr4-nr7-narrow-range-bars.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-040.md (tried-hypothesis list, exploration summaries for other families) and the idea I-022 text. Intended data: BTC, ETH, BNB 1h through the exploration split."
+}
