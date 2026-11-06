@@ -1,0 +1,12 @@
+{
+  "title": "Weekend daytime session long (Sat/Sun 13:00-21:00 UTC) when NYSE is closed, in 50-day uptrend",
+  "source": {"type": "blog", "url": "https://quantpedia.com/are-there-seasonal-intraday-or-overnight-anomalies-in-bitcoin/", "title": "Are There Seasonal Intraday or Overnight Anomalies in Bitcoin?", "license": "unknown"},
+  "rule_summary": "UTC clock, closed 1h candles. On Saturday and Sunday only: if the last closed daily candle's close is above the SMA(50) of daily closes (daily signal, forward-filled so only completed days are used), buy at the open of the 13:00 UTC 1h bar (14:00 bar of the US session start is 13:30 UTC in winter, so 13:00 is a fixed approximation). EXIT at the close of the 20:00 UTC bar (sell at the next open, 21:00 UTC). Hard stop 3% below entry on closed bars. Skip a day if a bar is missing. One position per pair, whole balance, no other filters.",
+  "mechanism": "The source reports that when the traditional market is closed, Bitcoin earns most of its return in the New York daytime hours, while on NYSE-open days the return is mostly overnight. A plausible reason is that retail and crypto-native flows are the only active buyers on weekends and hedging or arbitrage supply from equity-linked desks is absent. The other side is thin weekend sellers. Caution: the per-trade average gross move may be small compared with the 0.35% cost; the uptrend gate and stop are meant to concentrate it.",
+  "timeframe": "1h",
+  "longest_lookback": 1200,
+  "free_parameters": 4,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 80,
+  "family_hint": "WeekendDaytimeSession"
+}
