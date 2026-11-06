@@ -21,8 +21,8 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
-path = ROOT / "user_data" / "strategies" / "MondayEffectLong_H029_v1.py"
+ROOT = Path(__file__).parents[2]
+path = ROOT / "user_data" / "strategies" / "_archive" / "MondayEffectLong_H029_v1.py"
 spec = importlib.util.spec_from_file_location("MondayEffectLong_H029_v1", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
