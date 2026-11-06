@@ -1,0 +1,12 @@
+{
+  "title": "15m high-volume 6-hour selloff reversal in daily uptrend, 12-hour time exit",
+  "source": {"type": "paper", "url": "https://ideas.repec.org/p/hhs/rbnkwp/0413.html", "title": "Trading volume and liquidity provision in cryptocurrency markets", "license": "unknown"},
+  "rule_summary": "15m chart, closed bars, signal at bar close, fill at next open. Let r24 = close/close 24 bars ago - 1 (6 hours). Let V6 = sum of volume of the last 24 bars and Vref = mean of the same 24-bar volume sum sampled every 24 bars over the previous 14 days (1344 bars). ENTRY when r24 <= -0.03, V6 >= 1.5*Vref, the bar just closed is green (close > open), the last closed daily close is above the SMA of 100 daily closes (built from 1h/15m), and no position is open. EXIT: first of (a) close >= close 24 bars before entry bar (full retrace) , (b) close <= entry*0.97 (stop), (c) 48 bars (12 hours) after entry, at that bar's close. Cooldown 24 bars after exit. Long only, one position per pair.",
+  "mechanism": "Sharp high-volume sell-offs are partly forced or impatient flow; liquidity providers who absorb it earn a reversal premium as compensation for inventory and adverse-selection risk (Bianchi et al. in Riksbank WP 413: reversal profits are larger when conditioned on high volume; Kozlowski et al. 'Cryptocurrency return reversals' find reversals robust across subsamples). The trade targets a roughly 2-3% retrace, well above the 0.30-0.45% round trip. Sources are daily-frequency; the intraday transfer is untested, stated honestly. Differs from H-032/H-033 by using a 6h window with a volume-ratio gate and a green confirmation bar.",
+  "timeframe": "15m",
+  "longest_lookback": 1344,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "VolumeConditionedReversal"
+}
