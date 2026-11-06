@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-043",
+  "family": "HourlyWilliamsVolBreakout",
+  "title": "Williams-style volatility breakout: day open + 0.6 x prior-day range, 1h, flat at UTC midnight",
+  "ex_ante_rule": "Closed 1h candles only; signal at bar close, order at next bar open. Long only, one position, whole allowed balance. UTC days built from 1h bars. For UTC day D: O = open of the 00:00 bar of D; R = (highest high - lowest low) of the 24 bars of day D-1; level = O + 0.6*R; TrendDay = close of the last bar (23:00) of day D-1 > SMA(50) of daily closes, where the daily closes are the 23:00-bar closes of the last 50 completed UTC days up to and including D-1 (equivalent to a 1h series of 1200 bars sampled at day ends; all use completed days only). ENTRY at the close of a 1h bar whose open time is between 01:00 and 18:00 UTC inclusive on day D when ALL hold: close > level; R/O >= 0.02; TrendDay true; no open position; no trade already entered on day D. The buy fills at the next bar open. At most one entry per day, no re-entry on the same day after an exit. EXIT, whichever first: (a) a 1h bar closes < O - 0.5*R (exit executed at next bar open); (b) time exit: the 23:00 bar's close is the last signal of day D, so the position is sold at the open of the 00:00 UTC bar of day D+1 (flat at midnight); (c) native fixed stop-loss 5% below the entry price (intrabar), added as the engine-required fixed-percentage protection against gaps between the closed-bar exit checks. No cooldown beyond the one-trade-per-day rule, no take-profit, no pyramiding, no other filters. Fixed parameters: 0.6 trigger multiple, 0.5 stop multiple, 0.02 min range ratio, SMA 50 days, entry window 01:00-18:00 UTC. Warm-up: 1300 bars (1200 bars for SMA(50) of daily closes + 24 bars for prior-day range + margin).",
+  "parameters": {
+    "trigger_multiple": 0.6,
+    "exit_multiple": 0.5,
+    "min_range_over_open": 0.02,
+    "daily_sma_days": 50,
+    "entry_window_first_hour_utc": 1,
+    "entry_window_last_hour_utc": 18,
+    "time_exit_hour_utc": 0,
+    "max_trades_per_day": 1,
+    "native_stop_loss_pct": 5,
+    "cooldown_candles": 0,
+    "timeframe": "1h",
+    "warmup_bars": 1300
+  },
+  "rationale": "Mechanism: when price pushes more than 60% of yesterday's range above today's open, stop orders above the open/prior range are triggered and momentum chasers and late shorts add buying; sellers anchored to the open and prior range get run over, and the move tends to carry into the same day (Larry Williams-style volatility breakout, no exact peer-reviewed evidence found; the LuxAlgo page is a descriptive concept page). Requiring prior-day range >= 2% means the trigger is at least 1.2% above the open, and with the daily SMA(50) filter trades are taken only in up-trending regimes where continuation is likelier. Costs: the round trip is 0.35% at base and 0.95% at stress; the average holding is a few hours to under a day, and the expected gross drift after a trigger on a wide-range day must exceed 0.35%, which is plausible given daily ranges of at least 2% but is not guaranteed and is exactly what the gates test. Expected trades: the range and trend filters make it fire on perhaps 15-30% of days, about 60-100 trades per year per pair, comfortably over the 30-trade minimum in a split. Drawdown control: one trade per day, flat every midnight (no overnight gap exposure, no multi-day losing carry), the O-0.5R exit and a 5% native stop cap single-trade loss, and the SMA(50) day filter avoids bear phases like the one that created the H-005 losing streaks. Success criteria are the existing gates (positive at base and conservative cost, max drawdown <25%, >=30 trades per pair).",
+  "novelty_vs_tried": "All tried hypotheses are multi-day trend breakouts, slow momentum, or dip/mean-reversion buys. This rule is an intraday, day-anchored volatility breakout: the trigger is relative to the UTC day open and yesterday's range, positions are always flat at midnight, and trade frequency is far higher. Nearest relatives are HourlyRangeExpansionDrift and SessionOpeningRangeBreakout, but those do not use the prior-day-range multiple from the daily open with a range-size filter and a daily trend gate.",
+  "sources": [
+    {
+      "title": "Volatility Breakout (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/volatility-breakout.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-043.md (exploration-only summary statistics of other hypotheses) and the validation protocol; BTC, ETH, BNB 1h/15m through 2026-11-06 not inspected."
+}
