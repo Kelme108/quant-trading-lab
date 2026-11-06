@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-039",
+  "family": "WeekendDaytimeSession",
+  "title": "Weekend US-daytime session long (Sat/Sun 13:00-21:00 UTC) in a 50-day daily uptrend",
+  "ex_ante_rule": "Timeframe 1h, UTC clock, closed candles only. Long only, one position per pair, whole allowed balance. DAILY SIGNAL: build the daily candle from 1h data (informative 1d via merge_informative_pair, forward-filled so only the last COMPLETED daily candle is visible). UPTREND(d) is true if the last completed daily close is above the SMA(50) of daily closes (50 completed days, including that day). ENTRY: on Saturday and Sunday only (UTC), when UPTREND is true and no position is open, buy at the open of the 13:00 UTC 1h bar (signal evaluated on the close of the 12:00 UTC bar, so the order fills at the 13:00 open). One entry per calendar day at most; if the 12:00 or 13:00 bar is missing, skip that day. EXIT: sell at the open of the 21:00 UTC bar (signal at the close of the 20:00 UTC bar), i.e. a holding period of 8 hourly bars (13:00-21:00). Also force the exit if the position is still open at that time for any reason; never hold overnight. STOP-LOSS: fixed 3% below the entry price, native intrabar stop (triggers as soon as price touches it). No take-profit, no pyramiding, no other filters, no cooldown (the entry is at most once per day by construction). Weekday definition: day-of-week of the candle open time in UTC, Saturday=5, Sunday=6. Expected trades: about 104 weekend days per year, UPTREND true on roughly half to two thirds, so about 50-70 trades per year per pair. Warm-up: 1300 bars (SMA(50) of daily closes = 1200 hourly bars plus 100 bars margin for day alignment and the merge).",
+  "parameters": {
+    "entry_hour_utc": 13,
+    "exit_hour_utc": 21,
+    "holding_bars": 8,
+    "trading_days": "Saturday,Sunday",
+    "daily_sma_length": 50,
+    "stop_loss_pct": 3,
+    "cooldown_bars": 0,
+    "warmup_bars": 1300,
+    "max_entries_per_day": 1,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: the source (Quantpedia summary of an academic study of Bitcoin seasonality) reports that on days when traditional markets are closed, Bitcoin's return is concentrated in New York daytime hours, whereas on NYSE-open days it comes mostly overnight. A plausible reason is that on weekends retail and crypto-native buyers are the only active flow, while equity-linked hedging and arbitrage supply is absent, so buy pressure meets thin sellers; the daily SMA(50) gate keeps the exposure to phases where that demand has been dominant. Caveat: I did not verify the original paper's numbers or that the effect survives after costs; the cited page is a blog summary. Cost honesty: the base round trip is 0.35% and conservative 0.50%, and an 8-hour window in BTC/ETH/BNB has an average gross move that may be of that order or smaller; the edge is therefore not assured and this is a test of whether the effect exceeds costs, not a claim. Expected 50-70 trades per year per pair, which gives enough trades (>30) in each split. Risk control: the holding is only 8 hours and flat otherwise, the 3% stop caps single-trade loss near 3.2% including slippage, and trades are small and independent, so a long losing streak is bounded by the stop, and the uptrend gate avoids weekend longs in downtrends. Success criteria: the existing gates (positive net profit at base and conservative cost, drawdown within limits, at least 30 trades per pair, same rule on all three pairs).",
+  "novelty_vs_tried": "All tried rules are daily or multi-day trend, breakout, momentum or dip-buying rules, or hourly shock/overreaction rules. This one is a calendar/time-of-day effect: it trades only a fixed 8-hour window on Saturdays and Sundays, flat otherwise, with exit by clock rather than by price. It has no breakout, no pullback and no volatility trigger, and the daily SMA(50) is only a simple regime gate, much shorter than the SMA(720)/SMA(2160) gates used in the WeeklyBreakoutRegime family. The closest tried families are MondayEffectLong and USOpenVolumeContinuation, which use other days or volume triggers.",
+  "sources": [
+    {
+      "title": "Are There Seasonal Intraday or Overnight Anomalies in Bitcoin? (Quantpedia)",
+      "url": "https://quantpedia.com/are-there-seasonal-intraday-or-overnight-anomalies-in-bitcoin/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-039.md (exploration summaries of earlier hypotheses) and research/validation-protocol-v2.md, as of 2026-11-06. BTC, ETH, BNB 1h/1d candles were not inspected."
+}
