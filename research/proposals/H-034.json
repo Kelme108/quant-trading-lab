@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-034",
+  "family": "SessionOpeningRangeBreakout",
+  "title": "UTC-day opening-range breakout on 1h, wide ranges only, midpoint exit and 20:00 time exit",
+  "ex_ante_rule": "Closed 1h candles only, UTC clock; signal at bar close, order at next bar open. Long only, one position, whole allowed balance, no pyramiding. OPENING RANGE of each UTC day = the 1h candle opening at 00:00 UTC (covers 00:00-01:00, the same hour the scout's four 15m bars cover): range high RH = its high, range low RL = its low, height H = RH - RL, midpoint M = (RH + RL)/2. The day is ARMED only if H / RL >= 0.008 (0.8%). ENTRY: on a 1h candle whose open time is between 01:00 and 11:00 UTC inclusive (so its close is at or before 12:00 UTC), if the day is armed, the strategy is flat, no trade has yet been entered that UTC day, and close > RH; order at next open. One trade per day per pair; no re-entry the same day. EXIT at bar close (executed next open), first of: (a) close < M; (b) close >= RH + 1.5 * H (profit target); (c) the candle opening at 19:00 UTC closes (the 20:00 UTC time exit, executed at the 20:00 open). STOP-LOSS: fixed 4% below entry price (native intrabar stop; a safety net wider than the typical half-range midpoint exit, no other stop). Cooldown: none beyond the one-trade-per-day rule. No trend filter, no volume filter, no other filters. Fixed values RH/RL/H/M are frozen from the 00:00 candle and not updated during the day. Positions are never held past 20:00 UTC. The 15m version of the scout (four 15m bars) is replaced by the single 1h candle on the 1h chart as directed; no number is tuned. Warm-up: 48 bars (no indicator; the current day's 00:00 candle is at most 23 bars back, 48 gives margin).",
+  "parameters": {
+    "range_start_utc_hour": 0,
+    "range_bars_1h": 1,
+    "min_range_pct": 0.008,
+    "entry_window_first_open_hour_utc": 1,
+    "entry_window_last_open_hour_utc": 11,
+    "max_trades_per_day": 1,
+    "exit_midpoint_close": true,
+    "profit_target_range_multiples": 1.5,
+    "time_exit_last_signal_bar_open_hour_utc": 19,
+    "stop_loss_pct": 0.04,
+    "cooldown_bars": 0,
+    "warmup_bars": 48,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: the quiet 00:00-01:00 UTC hour sets a reference range; when the Asia-to-Europe handover brings stops, breakout buyers and momentum chasers, a close above the range high signals a one-sided order-flow imbalance, while participants fading the range must cover or chase. The width filter (range >= 0.8%) keeps only days with enough volatility so that the 1.5x range-height target is at least 1.2% above the breakout level, well above the 0.35% base round trip (0.95% stress), and the midpoint exit caps the typical loss near half a range. The time exit at 20:00 UTC avoids overnight exposure and limits the exposure to a short intraday window, which reduces drawdown exposure versus slow breakouts: no multi-month losing streaks can accumulate because every trade is flat by evening, and the 4% stop bounds each loss. Expected trades: the width filter and breakout condition should arm and trigger on roughly a fifth to a third of days, about 60-120 trades per year per pair; the same rule runs on BTC, ETH and BNB. Honest caveat: the source gives only the generic ORB rule and no crypto-specific evidence; this mechanism is the scout's closest justification, and the edge may not survive costs. Success criteria are the existing gates (positive net at base and conservative cost, at least 30 trades per split, drawdown below 25%).",
+  "novelty_vs_tried": "Every tried family is a daily or multi-day trend, breakout or dip rule held for days to weeks. This is a calendar-anchored intraday rule: the reference level is the same-day 00:00 UTC hour, positions are always flat by 20:00 UTC, and a profit target scaled to the day's own range is used. It has no moving-average regime, no multi-day channel, and no dip-buying. The closest listed is IntradayEarlySessionMomentum, which is a momentum rule on the session return, not a measured opening range with a width filter and a range-multiple target.",
+  "sources": [
+    {
+      "title": "ORB Trading Strategy (Altrady) - generic opening range breakout rule, supplied by the scout; I did not open it myself",
+      "url": "https://www.altrady.com/blog/crypto-trading-strategies/orb-trading-strategy"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the exploration-split context file research/context/H-034.md (hypothesis list and cost scenarios) and the validation protocol, as of 2026-11-06."
+}
