@@ -1,0 +1,12 @@
+{
+  "title": "Hourly inside-bar breakout of a wide mother bar, trend-filtered, midpoint invalidation",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/inside-bar/", "title": "Inside Bar (LuxAlgo Library)", "license": "Free to use with attribution"},
+  "rule_summary": "Closed 1h candles. Mother bar M = bar t-2, inside bar = bar t-1 when high(t-1) < high(t-2) and low(t-1) > low(t-2). Mother range must satisfy (high-low)/low >= 1.2%. Trend filter: close(t-1) > SMA(240) of 1h closes. ENTRY: the first bar t' within the 6 bars after the inside bar whose close > mother high, if flat; buy at the next open. If no breakout in 6 bars the setup is void. EXIT: first 1h close below the mother-bar midpoint (high+low)/2, or after 24 bars from entry, whichever first. Stop: close below mother low also exits (covered by the midpoint rule). Source gives only the pattern and trend filter; the numbers here are my fixed choices.",
+  "mechanism": "After a large bar, a contained bar means the market digested the move without giving back ground; resting breakout stop orders and trend followers sit above the mother high. When it breaks, forced buyers (short covering, breakout chasers) pay up. Sellers on the other side are those who faded the large bar. The wide-mother-bar condition (>=1.2%) targets continuation moves larger than the 0.35% cost; the source warns many such breaks fail, so this is honest-uncertain.",
+  "timeframe": "1h",
+  "longest_lookback": 240,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 60,
+  "family_hint": "HourlyInsideBarBreakout"
+}

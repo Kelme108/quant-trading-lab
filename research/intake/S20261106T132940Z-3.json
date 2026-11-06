@@ -1,0 +1,12 @@
+{
+  "title": "Weekly anchored-VWAP reclaim: buy 1h close back above Monday-anchored VWAP in uptrend",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/anchored-vwap.md", "title": "Anchored VWAP (LuxAlgo Library)", "license": "Free to use with attribution"},
+  "rule_summary": "Closed 1h candles, UTC. Weekly VWAP(t) = sum(typical price*volume)/sum(volume) over bars from Monday 00:00 UTC through bar t, typical price=(high+low+close)/3. The source gives no explicit entry rule; this is my restatement of its 'reclaim of anchor' idea. Eligible from Monday 12:00 UTC (at least 12 bars in the week). Filter: close > SMA(480) of 1h closes. SETUP: at least 8 consecutive 1h closes below VWAP, with the lowest close in that run at least 1.0% below VWAP. ENTRY: first 1h close above VWAP after the setup, buy at next open, flat only. EXIT: 1h close more than 0.7% below VWAP, or close of the Sunday 23:00 bar (week end), or 48 bars after entry. Re-anchors every Monday.",
+  "mechanism": "VWAP is the average cost of the week's participants; after a sustained dip (at least 1% under it) many buyers are underwater and sell into the first retrace to break-even, but a clean reclaim means supply was absorbed and mean-reversion funds and VWAP-benchmarked execution algos buy back toward it. Counterparties are late dip sellers. The 1% depth makes the reversion distance exceed the 0.35% cost; evidence is source-light so treat as exploratory.",
+  "timeframe": "1h",
+  "longest_lookback": 480,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 40,
+  "family_hint": "WeeklyAnchoredVWAPReclaim"
+}

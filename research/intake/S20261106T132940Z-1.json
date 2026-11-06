@@ -1,0 +1,12 @@
+{
+  "title": "Williams-style volatility breakout: day open plus 0.6 x prior-day range, 1h, flat at UTC midnight",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/volatility-breakout.md", "title": "Volatility Breakout (LuxAlgo Library)", "license": "Free to use with attribution"},
+  "rule_summary": "Closed 1h candles, UTC days. For each UTC day D: O = open of the 00:00 bar; R = (high - low) of day D-1 from 1h data; level = O + 0.6*R. Daily filter: close of day D-1 > SMA(50) of daily closes (50 closed days, built from 1h). ENTRY: at the close of any 1h bar from 01:00 to 18:00 UTC whose close > level, if flat and no trade already taken that day; buy at next bar open. Require R/O >= 0.02 so the trigger distance is at least 1.2%. EXIT: hard stop when a 1h close < O - 0.5*R, or at the open of the 00:00 UTC bar of the next day (time exit), whichever first. One trade per day max, no re-entry. Signals daily-derived, execution hourly.",
+  "mechanism": "A move of more than half of yesterday's range beyond the open shows one-sided order flow (stop-run buying, momentum chasers, liquidations of late shorts) that tends to carry into the same day. Counterparties are sellers anchored to the open and the prior range who get run over. Requiring a wide prior range (>=2%) makes the post-trigger drift large relative to the 0.35% round trip; the day-end exit caps exposure.",
+  "timeframe": "1h",
+  "longest_lookback": 1200,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 70,
+  "family_hint": "HourlyWilliamsVolBreakout"
+}
