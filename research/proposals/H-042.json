@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-042",
+  "family": "HourlyInsideBarBreakout",
+  "title": "Hourly inside-bar breakout of a wide mother bar, SMA240 trend filter, midpoint invalidation",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close, order executed at next bar open. Long only, one position, whole allowed balance. Index bars by t. DEFINITIONS: for a bar i, it is an INSIDE BAR setup when high(i) < high(i-1) AND low(i) > low(i-1) (mother bar M = bar i-1), AND the mother range (high(M)-low(M))/low(M) >= 0.012, AND close(i) > SMA(240) of 1h closes at bar i. The setup is created at the close of bar i. SETUP WINDOW: the 6 bars i+1..i+6. ENTRY: at the close of the first bar t in i+1..i+6 with close(t) > high(M), if the setup is still unused and no position is open, buy at the open of bar t+1. If no bar in the window closes above high(M), the setup is void. While a setup window is open, a newer inside bar does not create a new setup (the earliest unexpired setup is used); a setup is also void once used. EXIT at the close of the first bar after entry with close < (high(M)+low(M))/2 (mother-bar midpoint, fixed at entry from the setup), executed at the next open; this also covers a close below the mother low. TIME EXIT: sell at the open following the 24th bar after the entry bar if still open. STOP-LOSS: fixed 4% below entry price (native intrabar stop; a disaster stop, the midpoint exit normally acts first because it lies at least 0.6% below the mother high). No cooldown, no take-profit, no pyramiding, no other filters. Warm-up: 300 bars (SMA(240) is not recursive; 60 bars extra margin).",
+  "parameters": {
+    "timeframe": "1h",
+    "sma_trend_len": 240,
+    "min_mother_range_pct": 1.2,
+    "setup_window_bars": 6,
+    "max_hold_bars": 24,
+    "exit_level": "mother_midpoint",
+    "stop_loss_pct": 4,
+    "cooldown_bars": 0,
+    "warmup_bars": 300,
+    "entry_trigger": "close_above_mother_high",
+    "execution": "next_open"
+  },
+  "rationale": "Mechanism: a wide bar (>=1.2% range) followed by a bar fully contained in it shows the market absorbed the move without giving back ground. Resting buy-stop orders (breakout traders, short sellers' stop-buys) cluster just above the mother high; when price closes above it these orders trigger and forced buyers pay up, while the sellers are those who faded the wide bar. The SMA(240) filter (10 days) keeps trades in the direction of the prevailing trend. The midpoint exit cuts failed breakouts quickly (loss is roughly half the mother range, >=0.6%, plus gaps) and the 24-bar time exit caps exposure, which limits losing-streak damage. Expected trades: the pattern with a 1.2% mother range, uptrend, and a breakout inside 6 bars is infrequent on majors; I estimate roughly 40-150 trades per year per pair. Gross gain per trade must exceed the 0.35% base round trip (0.95% stress): the wide-mother condition selects bars where the follow-through is typically on the order of the mother range (>=1.2%), but this is uncertain; the source warns many such breaks fail, and win rate is likely below 50%, so the edge relies on winners being larger than the cost plus losers. No source tests this on crypto; the cited LuxAlgo page only defines the pattern. Success criteria: the existing gates (positive net at base and conservative cost, drawdown below 25%, at least 30 trades per pair, same rule on all three pairs).",
+  "novelty_vs_tried": "No inside-bar or candle-pattern family exists in the context. Existing hourly rules are dip-buying in uptrends, slow multi-day/week channel breakouts (Donchian, weekly regime, squeeze), session/opening-range breakouts and shock/range-expansion drift. This one is a two-bar compression/continuation pattern with a pattern-specific structural exit (mother midpoint) and a short 24-bar holding period, with a 10-day SMA trend filter rather than 30-200-day regimes.",
+  "sources": [
+    {
+      "title": "Inside Bar (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/inside-bar/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the exploration-split summary statistics and tried-hypothesis list in research/context/H-042.md, through 2026-11-06."
+}
