@@ -1,0 +1,17 @@
+{
+  "title": "Abnormal-day detection: buy when the UTC day's return first exceeds its daily-volatility band, hold 24 hours",
+  "source": {
+    "type": "paper",
+    "url": "https://bura.brunel.ac.uk/handle/2438/20686",
+    "title": "Momentum effects in the cryptocurrency market after one-day abnormal returns (Caporale and Plastun, Financial Markets and Portfolio Management 2020)",
+    "license": "unknown"
+  },
+  "rule_summary": "Timeframe 1h, closed bars, UTC; signal at a bar close, fill at the next bar open. Long only, one position. DAILY STATISTICS (closed UTC days built from the 1h bars): daily return R = close of the 23:00 bar / close of the previous day's 23:00 bar - 1; m and s = mean and sample standard deviation of R over the 30 completed days before the current day (720 bars). INTRADAY: O = open of the current day's 00:00 bar; D(t) = close(t)/O - 1. ENTRY at the close of a bar whose open time is 01:00-18:00 UTC if D(t) >= m + 0.75*s, D(t) >= 0.01, D(t-1) < m + 0.75*s (first crossing), no position is open and no entry has been made earlier that UTC day; buy at the next open. EXIT: at the first of (a) 24 bars after entry, sell at the next open; (b) a bar closes below O (the day's open, the move has fully failed). One entry per UTC day at most.",
+  "mechanism": "Caporale and Plastun find on hourly BTC, ETH and LTC data that once a day's return becomes abnormal (detectable before the day ends), prices keep moving in its direction until the end of that day and on the next day; they also report exceptions (a contrarian effect for BTC after positive abnormal days), so the edge is honestly uncertain. Closest mechanism: underreaction and late, attention-driven buying (news and trend followers who only notice a move once it is unusually large) plus short-covering, matching the late-informed-trader explanation of Gao et al. (2018) intraday momentum. A crossing of a daily-volatility band of at least 1% followed by a 24-hour hold aims at a continuation of roughly another band width, well above the 0.30-0.45% cost. Differs from H-028/H-052: no fixed early window or time-of-day noise band; the trigger is the day's own volatility band, and it can fire at any hour.",
+  "timeframe": "1h",
+  "longest_lookback": 744,
+  "free_parameters": 3,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "AbnormalDayContinuation"
+}

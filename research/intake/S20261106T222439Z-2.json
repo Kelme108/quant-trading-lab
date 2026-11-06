@@ -1,0 +1,17 @@
+{
+  "title": "Regional session-open overreaction reversal on 15m: buy a large drop in the first 90 minutes of Tokyo, London or New York",
+  "source": {
+    "type": "paper",
+    "url": "https://scholars.hkbu.edu.hk/en/publications/intraday-price-reversals-for-index-futures-in-the-us-and-hong-kon/",
+    "title": "Intraday price reversals for index futures in the US and Hong Kong (Fung, Mok, Lam, Journal of Banking and Finance 2000)",
+    "license": "unknown"
+  },
+  "rule_summary": "Timeframe 15m, closed bars; signal at a bar close, fill at the next bar open. Long only, one position. OPEN WINDOWS (6 bars = 90 minutes each): Tokyo = 00:00-01:30 UTC every day; London = 08:00-09:30 London local time, Mon-Fri; New York = 09:30-11:00 New York local time, Mon-Fri (local times converted to UTC with the standard UK/US daylight-saving rules). For window W on day d: r = close of its 6th bar / open of its 1st bar - 1; A = mean of |r| of the same window over its previous 20 occurrences (same session, earlier days only). ENTRY at the close of the 6th bar if r <= -1.0*A AND r <= -0.006 AND no position is open; buy at the next open. Store P0 = open of the window's 1st bar and L = lowest low of the 6 window bars. EXIT at the first of: (a) a bar closes >= P0 (full retrace of the opening drop); (b) a bar closes < L*0.995 (stop); (c) 24 bars (6 hours) after entry, sell at the next open. Windows that start while a position is open are ignored.",
+  "mechanism": "Fung, Mok and Lam (2000) find intraday reversals after large opening moves in S&P 500 and Hang Seng futures, growing with the size of the opening move and not explained by spreads or panic. Grant, Wolf and Yu (2005, J. Banking & Finance, Montclair page) confirm opening overreaction over 15 years. Counterparty: traders who must execute at a session open (stop and margin orders accumulated while their home market slept, hedgers, desks rebalancing to the overnight move) demand liquidity in a burst; liquidity providers charge for absorbing it, and the price snaps back once the burst is done. Crypto has the same clock-driven order bursts at regional opens (periodic volume and volatility peaks documented in arXiv 2109.12142). Requiring a drop of at least 0.6% and one larger than the window's typical move puts the target (the window open) well above the 0.30-0.45% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 1920,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "SessionOpenOverreaction"
+}

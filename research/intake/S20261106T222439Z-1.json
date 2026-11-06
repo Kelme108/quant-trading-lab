@@ -1,0 +1,17 @@
+{
+  "title": "US cash-session weakness, overnight hold: buy at US equity close, sell before next US open",
+  "source": {
+    "type": "blog",
+    "url": "https://cryptoslate.com/bitcoin-keeps-losing-ground-when-wall-street-opens-as-coinbase-discount-deepens/",
+    "title": "Bitcoin keeps losing ground when Wall Street opens as Coinbase discount deepens",
+    "license": "unknown"
+  },
+  "rule_summary": "Timeframe 1h, closed bars, UTC clock; signal at a bar close, fill at the next bar open. Long only, one position. Applies Monday to Friday only (UTC weekday of the signal bar). US SESSION of day d = the 1h bars opening 13:00 through 19:00 UTC (7 bars, covering the US cash session 09:30-16:00 New York in summer and most of it in winter). S = close of the 19:00 bar / open of the 13:00 bar - 1. ENTRY: at the close of the 19:00 UTC bar on a weekday, if S < +0.003 (the US session did not rally by 0.3% or more) and no position is open, buy at the open of the 20:00 UTC bar. EXIT: sell at the open of the 13:00 UTC bar of the next calendar day (17 bars after entry; Friday entries exit Saturday 13:00). STOP: if a 1h bar closes 3% or more below the entry price, sell at the next open. No other filters, no lookback beyond the same day. Free numbers: the 0.3% session threshold, the 3% stop; the window hours are fixed by the US cash session.",
+  "mechanism": "Several measurements (CryptoSlate on Binance BTC/USDT 30m klines; K33 2022 note; the paperswithbacktest write-up of Padysak and Vojtko, which reports that on NYSE-open days most BTC gains accrue outside 15:00-21:00 UTC) find that BTC drifts down during US cash hours and recovers outside them. Proposed counterparty: US-hours sellers who de-risk crypto alongside equities and ETF/basis desks whose redemptions and hedges are executed in the NY session (Kaiko: benchmark NAV window 3-4pm NY), pushing price below where non-US-hours buyers clear it. The long leg holds 17 hours, a horizon whose typical absolute move is well above 1%, so a modest drift is a gross edge above the 0.30-0.45% round trip; trading only after a non-rallying session skips days whose gain was already taken in US hours.",
+  "timeframe": "1h",
+  "longest_lookback": 7,
+  "free_parameters": 2,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 155,
+  "family_hint": "USSessionOvernightHold"
+}
