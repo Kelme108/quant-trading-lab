@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-044",
+  "family": "HeikinAshi4hFlip",
+  "title": "4h Heikin Ashi fresh bullish flip with no lower wick, SMA(100) 4h filter, built from 1h candles",
+  "ex_ante_rule": "Closed candles only; strategy runs on 1h; signals evaluated when a 4h bar completes, order filled at the next 1h open. Long only, one position, whole allowed balance, no pyramiding, no take-profit, no cooldown, no other filters. 4h CANDLES: aggregate completed 1h candles into UTC blocks starting 00,04,08,12,16,20 (open=first 1h open, high=max, low=min, close=last 1h close). A 4h bar is complete (and usable) only at the close of its 1h candle starting at hour 03,07,11,15,19,23 UTC; evaluate only on those 1h candles, using only completed 4h bars (no partial bar). HEIKIN ASHI on the 4h bars: haC=(O+H+L+C)/4; haO=(prev haO + prev haC)/2, first bar haO=(O+C)/2; haH=max(H,haO,haC); haL=min(L,haO,haC). A bar is bullish if haC>haO, bearish if haC<haO. ENTRY at completion of 4h bar t when ALL hold: (1) HA bar t bullish; (2) HA bar t-1 bullish; (3) HA bar t-2 bearish (fresh flip); (4) HA bar t has no lower wick: (haO-haL)/haO <= 0.0005; (5) real 4h close(t) > SMA(100) of real 4h closes; (6) no open position. Buy at the next 1h open. EXIT at completion of the first 4h bar (after entry) whose HA candle is bearish (haC<haO), sell at the next 1h open; or by the hard stop. STOP-LOSS: fixed 5% below entry price (native intrabar stop). Parameters: HA recursion as above, wick tolerance 0.05%, SMA 100 4h bars (=400 1h bars). Warm-up: 1200 bars (300 4h bars: SMA(100) needs 400 1h bars and the HA recursion, whose seed influence halves every 4h bar, is fully converged well within 300 4h bars; the HA series must always be computed from the start of the available data so that results do not depend on the start point beyond this warm-up).",
+  "parameters": {
+    "aggregation_timeframe": "4h",
+    "utc_block_hours": "00,04,08,12,16,20",
+    "ha_first_open": "(O+C)/2",
+    "fresh_flip_bars_required": 3,
+    "lower_wick_tolerance": 0.0005,
+    "sma_4h_length": 100,
+    "sma_4h_in_1h_bars": 400,
+    "stop_loss_pct": 0.05,
+    "cooldown_candles": 0,
+    "warmup_bars": 1200,
+    "entry_fill": "next 1h open after 4h bar completion",
+    "exit_fill": "next 1h open after first bearish HA 4h bar"
+  },
+  "rationale": "Mechanism: averaging (Heikin Ashi) smooths out single-bar noise; a bullish HA bar with no lower wick means price never traded below the averaged open, i.e. one-sided buying, and two consecutive bullish bars after a bearish one mark the start of a persistent move that slow trend followers, breakout and CTA-style participants join with delay, while late sellers fading the trend lose. The SMA(100) on 4h (about 17 days) keeps entries in uptrends, which cuts the whipsaw flips in ranges that caused the long losing streaks seen in earlier breakout rules. The exit at the first bearish HA bar lets winners run through minor pullbacks and cuts losers fast; the 5% stop caps single losses. Expected trades: roughly 15-40 per year per pair (fresh flip plus no-lower-wick plus trend filter is selective); a trend leg on 4h is typically several percent, far above the 0.35% base round trip (0.95% stress), but the win rate is likely 35-45%, so profit depends on a few larger winners; this is a risk and is stated. Source is a general description of Heikin Ashi; the concrete counts and thresholds are the scout's choices and have no empirical backing found, so the edge is untested speculation, not documented evidence.",
+  "novelty_vs_tried": "No Heikin Ashi or smoothed-candle rule exists in the tried list. Entries use a 4h candle-colour state-change pattern (fresh flip plus wick shape) rather than price breakouts over N-bar highs (Donchian, weekly breakout, squeeze), dip-buying (RSI/Bollinger/EMA snapback, pullback recovery) or SMA crosses or momentum thresholds. The exit is a candle-state reversal rather than a channel low or SMA loss. The only overlap is a trend filter (SMA), shared by many rules.",
+  "sources": [
+    {"title": "Heikin Ashi (LuxAlgo library)", "url": "https://www.luxalgo.com/library/concept/heikin-ashi.md"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No market data viewed; only the context file research/context/H-044.md (idea I-030 and the list of tried hypotheses) and the validation protocol. Data universe: BTC, ETH, BNB 1h through 2026-11-06."
+}
