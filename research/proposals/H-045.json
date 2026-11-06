@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-045",
+  "family": "HourlySwingStructureBreak",
+  "title": "Hourly confirmed-swing structure break: higher swing low then close above swing high",
+  "ex_ante_rule": "Closed 1h candles only; signals at bar close, orders at next bar open. Long only, one position, whole allowed balance. SWING PIVOTS: a raw swing high at bar i is high(i) == max(high[i-3..i+3]) (ties: the earliest bar of equal highs counts); a raw swing low at bar i is low(i) == min(low[i-3..i+3]) (ties: earliest). A pivot at i is known only at the close of bar i+3 and is never used earlier. MINIMUM SWING FILTER: a raw pivot is ACCEPTED only if its distance to the most recent accepted pivot of the opposite type is at least 2.0%: for a high H vs accepted low L need (H-L)/L >= 0.02; for a low L vs accepted high H need (H-L)/H >= 0.02. Pivots are processed in order of confirmation time (bar i+3); if no opposite pivot has been accepted yet, the raw pivot is accepted. Rejected pivots are discarded. Latest swing high SH = most recent accepted high; latest swing low SL = most recent accepted low; SL_prev = the accepted low before SL. BULLISH STRUCTURE: SL > SL_prev. ENTRY at close of bar t when ALL hold: structure bullish; close(t) > SH; close(t-1) <= SH as known at t (not already above it); close(t) > SMA(200) of close; no open position; cooldown satisfied. EXIT at close of bar t (executed next open) when close(t) < SL (latest accepted swing low, as known at t). STOP-LOSS: fixed 4% below entry price (native intrabar stop). COOLDOWN: no re-entry for 6 candles after any exit. No take-profit, no pyramiding, no other filters. Warm-up: 1500 bars (SMA(200) plus enough history for the pivot sequence to settle; no signal before the bar index 1500).",
+  "parameters": {
+    "pivot_half_window": 3,
+    "min_swing_distance": 0.02,
+    "sma_length": 200,
+    "stop_loss_pct": 0.04,
+    "cooldown_bars": 6,
+    "startup_candle_count": 1500,
+    "timeframe": "1h",
+    "entry_trigger": "close crosses above latest accepted swing high",
+    "exit_trigger": "close below latest accepted swing low"
+  },
+  "rationale": "Mechanism: resting buy-stops and short-sellers' protective stops cluster just above visible swing highs. After a higher swing low shows buyers defending, a close through the prior swing high triggers that cluster; short covering and trend-following demand push price further, so the participants on the other side are those who sold into the prior high or whose stops get hit and who must buy back at worse prices. The 2% minimum swing size and the close>SMA(200) gate restrict trades to meaningful structure inside an uptrend, so the expected move exceeds the 0.35% base round-trip cost (0.95% at stress). The 4% stop and the exit below the latest swing low cap losses per trade, which addresses the owner's concern about long strings of 6-8% losses. Expected trade count: roughly 40-100 per pair per year (to be confirmed by the backtest). Caveat: the source is a descriptive indicator page, not evidence of an edge; the claim is untested and may be cost-dominated.",
+  "novelty_vs_tried": "Existing breakouts (Donchian, weekly, squeeze, Keltner, range expansion) use fixed-length rolling highs; this entry uses event-defined confirmed swing pivots plus a higher-low structure condition, and the exit is a structural swing-low break, not a fixed-length channel low or moving average. It is a new family with a short, adaptive lookback on 1h and tighter 4% stop, so it should trade much more often than the slow daily and weekly rules.",
+  "sources": [
+    {
+      "title": "Swing High/Low (LuxAlgo library)",
+      "url": "https://www.luxalgo.com/library/concept/swing-high-low.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-045.md (hypothesis list and exploration summaries for earlier hypotheses) and the idea I-029 text. BTC, ETH, BNB 1h conceptually through 2026-11-06."
+}
