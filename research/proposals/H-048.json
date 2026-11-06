@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-048",
+  "family": "VolumeProfileValueAreaReject",
+  "title": "Prior-week volume-profile value-area low sweep and reclaim, target point of control",
+  "ex_ante_rule": "Closed 1h candles only; signals at bar close, orders at next bar open. Long only, one position, whole allowed balance, no pyramiding. PROFILE: at each UTC day D (00:00), use the 168 completed 1h bars ending at 23:00 UTC of day D-1. Let lo = min low, hi = max high of those bars, width = (hi-lo)/50; 50 equal rows, row k covers [lo+k*width, lo+(k+1)*width), top row includes hi. Each bar's volume is spread equally over every row its [low,high] range overlaps (a bar with high==low goes to the row containing it). POC = row with the largest volume (ties: lowest row); POC price = centre of that row. Value area: start with the POC row, repeatedly compare the summed volume of the next two rows above vs the next two rows below the area (if only one row remains on a side, use it; ties: choose below) and add the heavier pair, until the area holds >= 70% of total volume. VAL = bottom edge of the lowest row in the value area. VAL and POC are frozen for all bars of day D (signal bars 00:00..23:00). ENTRY at close of bar t when ALL hold: (1) min(low over bars t-3..t) < VAL; (2) close(t) > VAL; (3) close(t-1) <= VAL OR low(t) < VAL (first reclaim); (4) POC/close(t) - 1 >= 0.015; (5) no open position; (6) no entry already signalled on the same UTC day; (7) cooldown satisfied. At entry record sweep_low = min(low over t-3..t), fixed. EXIT at close of bar t (executed next open) when any: close(t) >= POC (the frozen POC of the current day); 48 bars elapsed since entry; close(t) < sweep_low*0.995. STOP-LOSS: fixed 4% below entry price (native intrabar stop). COOLDOWN: no re-entry for 6 candles after any exit. No take-profit other than the POC exit, no other filters. Warm-up: 200 bars (168-bar profile plus the day alignment; no recursive indicators).",
+  "parameters": {
+    "profile_lookback_bars": 168,
+    "price_rows": 50,
+    "value_area_fraction": 0.7,
+    "profile_recompute": "daily 00:00 UTC, frozen 24h",
+    "sweep_window_bars": 4,
+    "min_distance_to_poc": 0.015,
+    "max_entries_per_day": 1,
+    "time_stop_bars": 48,
+    "sweep_exit_buffer": 0.005,
+    "stop_loss_pct": 0.04,
+    "cooldown_bars": 6,
+    "startup_candle_count": 200,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: the previous week's volume-weighted value area marks prices where most business was accepted. A brief dip below its lower edge (VAL) that is quickly reclaimed is a failed auction: stops and impatient sellers below value were absorbed by bids, and the market tends to rotate back toward the high-volume node (POC) as range traders and mean-reverting buyers lift price. Counterparties giving the money away are the sellers who sold the sweep below value. The POC must be at least 1.5% above entry, so the target gross move (1.5% or more) is several times the 0.35% base round trip and above the 0.95% stress cost. Exits are the POC, a 48-bar time stop, a sweep-low break (the failed-reclaim signal) and a fixed 4% native stop, so a losing streak is bounded: the typical loss is about 1-3% and 8 consecutive 4% stops would be needed to approach the 25% drawdown ceiling. Expected trade count is modest, roughly 15-50 per pair per year (needs a sweep, a reclaim and a distant POC, one per day), so the 30-trade minimum per split is a risk I accept rather than loosen. Source: the cited LuxAlgo page only explains the volume profile, POC and value area concepts; it gives no numeric rules and no evidence of profitability; the construction and all numbers are the scout's, fixed round before any result and identical on BTC, ETH and BNB.",
+  "novelty_vs_tried": "None of the tried families uses volume-weighted price structure. Prior rules are trend/regime breakouts, SMA/EMA or Bollinger/RSI dips, momentum, squeeze and calendar effects, all based on price or moving averages. This rule uses a daily-frozen weekly volume profile (POC and value area) as support/target levels, enters on a failed-auction sweep and reclaim of the value-area low, and exits at the POC, so the target is a structural level rather than an average, and it has no trend filter.",
+  "sources": [
+    {
+      "title": "Volume Profile (LuxAlgo library)",
+      "url": "https://www.luxalgo.com/library/concept/volume-profile.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Research context file only (hypotheses tried and exploration summaries); no price data, validation or final-test results were viewed. BTC, ETH, BNB 1h scope through 2026-11-06."
+}
