@@ -1,4 +1,8 @@
-## Owner's direction, 2026-11-05 (read first)
+## Owner's direction, 2026-11-06 (read first; supersedes the trade-count target below)
+
+Target the MID-FREQUENCY band: 50-150 trades per year per pair, on the 1h chart, with signals from 1h candles or from 4h candles built from closed 1h bars. Evidence: daily rules gave 9-16 validation trades (inconclusive); rules with 200-800 trades per year (H-002, H-041, H-043) lost to the 0.35%-0.95% round-trip cost or broke the drawdown gate under stress. At 50-150 trades a year a rule gets about 100-300 trades in the 2-year validation split, enough to decide, while each trade can still target a move several times the cost. Keep diversifying the mechanism.
+
+## Owner's direction, 2026-11-05
 
 Build a diversified portfolio of rules that TRADE OFTEN. Daily rules (H-020, H-024, H-025) gave only 9-16 trades in the validation split, so the validation could not decide (minimum 30). Prefer intraday rules on `15m` (now enabled) or `1h` with roughly 100-500 trades per year per pair, built on a mechanism structurally different from the candidates already in the lab (mostly dip-buying in an uptrend and slow breakouts). Cost still decides: a round trip costs 0.35% at base and 0.95% at stress, so state why the gross move per trade exceeds it. The warm-up limit (4500 bars) applies on 15m too: 4500 bars of 15m is about 47 days, so build longer horizons with an informative 1h/4h/1d timeframe via merge_informative_pair rather than with a very long 15m lookback.
 

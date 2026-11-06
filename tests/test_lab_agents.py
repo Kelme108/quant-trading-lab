@@ -29,6 +29,13 @@ class BuildArgvTests(unittest.TestCase):
             values.append(item)
         return values
 
+    def test_research_and_developer_run_on_the_stronger_model_the_rest_on_the_default(self) -> None:
+        for name in agents.AGENT_SPECS:
+            expected = "opus" if name in ("research", "developer") else agents.DEFAULT_MODEL
+            self.assertEqual(self.after(self.argv(name), "--model"), [expected], name)
+            frontmatter = (agents.ROOT / ".claude" / "agents" / f"{name}.md").read_text(encoding="utf-8")
+            self.assertIn(f"model: {expected}\n", frontmatter, name)
+
     def test_every_call_is_headless_json_budgeted_and_unsaved(self) -> None:
         for name in agents.AGENT_SPECS:
             argv = self.argv(name)

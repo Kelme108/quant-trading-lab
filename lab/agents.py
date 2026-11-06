@@ -24,6 +24,9 @@ from lab import registry
 
 ROOT = Path(__file__).parents[1]
 DEFAULT_MODEL = "sonnet"
+# Owner's request (2026-11-06): the agents that design and implement the rule run on the stronger model;
+# the others stay on the default. Costs more per call; the per-call and per-cycle caps still apply.
+AGENT_MODELS: dict[str, str] = {"research": "opus", "developer": "opus"}
 
 # tools: the built-in tools the agent gets at all (--tools).
 # allow: tool rules pre-approved so a headless run never stops on a prompt;
@@ -96,7 +99,7 @@ class AgentResult:
 
 
 def build_argv(
-    name: str, budget_usd: float, claude_path: str | None = None, model: str = DEFAULT_MODEL
+    name: str, budget_usd: float, claude_path: str | None = None, model: str | None = None
 ) -> list[str]:
     """The exact command line for an agent call (the prompt is sent on stdin)."""
     if name not in AGENT_SPECS:
@@ -109,7 +112,7 @@ def build_argv(
         executable,
         "-p",
         "--agent", name,
-        "--model", model,
+        "--model", model or AGENT_MODELS.get(name, DEFAULT_MODEL),
         "--output-format", "json",
         "--permission-mode", "acceptEdits",
         "--tools", *spec["tools"],
