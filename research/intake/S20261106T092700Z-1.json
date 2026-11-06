@@ -1,0 +1,17 @@
+{
+  "title": "Hourly negative-shock overreaction: buy 4h crash close, 24h hold",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/taf/recsxx/v25y2022i1p1294-1313.html",
+    "title": "Intraday Bitcoin price shocks: when bad news is good news",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 1h candles only; signal at bar close, order at next bar open. Long only, one position per pair, whole balance. r4(t) = close(t)/close(t-4) - 1. ENTRY at close of bar t when r4(t) <= -4.0% AND close(t) > SMA(1200 bars) of close (not a long-term downtrend) AND no open position. EXIT at the close of bar t+24 (executed next open), or earlier at close if close >= close(t-4) (the pre-drop price); hard stop: close 5% below entry price, checked on closed bars. No re-entry within 12 bars of an exit. All thresholds are fixed in advance, not tuned.",
+  "mechanism": "Forced sellers (liquidations, stop cascades, panic market orders) push price below fair value within hours; liquidity providers and patient buyers are paid to absorb the flow as price relaxes back over 6-24 hours. The cited paper reports overreaction after negative hourly shocks that grows over 6-24 hours; it gives no explicit rule, so thresholds here are my own. A 4% drop with partial recovery to the pre-drop price targets a move well above the 0.35% cost.",
+  "timeframe": "1h",
+  "longest_lookback": 1200,
+  "free_parameters": 5,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 12,
+  "family_hint": "HourlyShockOverreaction"
+}

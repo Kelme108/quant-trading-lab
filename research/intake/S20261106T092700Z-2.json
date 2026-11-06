@@ -1,0 +1,17 @@
+{
+  "title": "Volatility-scaled hourly crash with volume spike, rebound to crash-bar open",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/taf/recsxx/v25y2022i1p1294-1313.html",
+    "title": "Intraday Bitcoin price shocks: when bad news is good news",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 1h candles only; signal at bar close, order at next bar open. Long only, one position per pair, whole balance. r1(t) = close(t)/close(t-1) - 1. S(t) = standard deviation of r1 over the 720 bars ending at t-1. V(t) = volume(t) divided by the mean volume of the 168 bars ending at t-1. ENTRY at close of bar t when r1(t) <= -3.0*S(t) AND r1(t) <= -1.5% AND V(t) >= 3 AND (close(t)-low(t))/(high(t)-low(t)) >= 0.5 (bar closes in its upper half, rejecting the low) AND no open position. EXIT at the close of the first bar with close >= open of the crash bar t (executed next open), or at the close of bar t+18, whichever is first. Stop: close 4% below entry on closed bars. Cooldown 6 bars after exit.",
+  "mechanism": "A volume-spiking crash bar that closes off its low shows forced or panic selling being absorbed; the cited paper finds overreaction after negative hourly shocks that keeps reversing for 6-24 hours. Sellers who dumped at the low pay the rebound to patient buyers. The paper gives no explicit rule; the volume spike and range-position confirmation are my own additions. The target (crash-bar open) is at least 1.5% above the signal close, above the 0.35% cost.",
+  "timeframe": "1h",
+  "longest_lookback": 720,
+  "free_parameters": 6,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 15,
+  "family_hint": "VolumeSpikeCrashRebound"
+}
