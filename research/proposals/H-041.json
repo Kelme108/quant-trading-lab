@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-041",
+  "family": "WeeklyAnchoredVWAPReclaim",
+  "title": "Weekly Monday-anchored VWAP reclaim after a sustained dip, in an SMA(480) uptrend",
+  "ex_ante_rule": "Closed 1h candles, UTC; signals at bar close, order at next bar open; long only, one position, whole allowed balance. Weekly VWAP(t) = sum(typical*volume)/sum(volume) over all 1h bars from Monday 00:00 UTC through bar t inclusive, typical=(high+low+close)/3; it re-anchors (resets) every Monday 00:00 UTC. dev(t)=close(t)/VWAP(t)-1. A bar is ELIGIBLE if its open time is Monday 11:00 UTC or later in the same week (at least 12 bars of the week completed, i.e. 12 bars including the signal bar). BELOW-RUN: consecutive bars with close < VWAP, all inside the current week. SETUP: the BELOW-RUN that ended at bar t-1 has length >= 8 bars AND min dev over that run <= -0.010 (lowest close at least 1.0% below the VWAP of its own bar). ENTRY at close of bar t when: ELIGIBLE, close(t) > VWAP(t) (first close above VWAP after the run, so close(t-1) < VWAP(t-1)), the SETUP holds, close(t) > SMA(480) of 1h closes at t, bar t is not the Sunday 23:00 bar, and no open position. EXIT at close of bar t (executed next open) on the first of: (a) close(t) < VWAP(t)*(1-0.007); (b) bar t is the Sunday 23:00 UTC bar (week end); (c) 48 bars have elapsed since the entry bar. STOP-LOSS: fixed 3% below entry price (native intrabar stop). COOLDOWN: none (0 candles); a new entry needs a fresh SETUP. No take-profit, no pyramiding, no other filters. Warm-up: 500 bars (SMA(480) plus margin; VWAP is non-recursive and needs only the current week, at most 168 bars).",
+  "parameters": {
+    "vwap_anchor": "Monday 00:00 UTC",
+    "typical_price": "(high+low+close)/3",
+    "min_week_bars": 12,
+    "min_run_bars": 8,
+    "min_depth_pct": 1.0,
+    "trend_sma": 480,
+    "exit_below_vwap_pct": 0.7,
+    "week_end_exit_bar": "Sunday 23:00 UTC",
+    "max_hold_bars": 48,
+    "stop_loss_pct": 3.0,
+    "cooldown_bars": 0,
+    "warmup_bars": 500
+  },
+  "rationale": "Mechanism: the weekly VWAP is the volume-weighted average cost of the week's participants and a benchmark for execution algorithms. After at least 8 hours below it and at least 1% under it, late dip sellers have sold at poor prices and underwater buyers want to exit at break-even. A clean reclaim suggests that supply was absorbed, and VWAP-benchmarked buyers and short-horizon mean-reversion flow then support a drift back toward and above the line. The counterparties are the late dip sellers. The SMA(480) filter (20 days) restricts this to uptrends, so the dip is a pullback rather than a downtrend. Honest caveat: the source describes anchored VWAP only as support/resistance and trend gauge and gives no entry rule, so this restatement is exploratory and its evidence is thin. Expected trades: the setup is conditional (8+ bars below, 1% deep, then a reclaim, in an uptrend), so roughly 30-100 per pair per year. The gross move per trade is uncertain, because the entry is just above VWAP and the exit is 0.7% below it; the gain must come from continuation above VWAP. Round trip cost is 0.35% at base and 0.95% at stress, so the edge is marginal and the test is whether the mean gross move exceeds about 0.5%. The 3% stop and 48-bar cap limit the loss per trade and streak damage, with the week-end flat rule limiting exposure. Success criteria are the existing gates: positive net profit at base and conservative costs, drawdown below 25%, and at least 30 trades per pair.",
+  "novelty_vs_tried": "No VWAP or volume-weighted anchor has been tried. Existing families are breakouts, SMA/Donchian trends, RSI/IBS/Bollinger/EMA dip-buys on rolling windows, calendar effects, and session opening ranges. This rule uses a weekly-reset volume-weighted reference level, a reclaim event after a sustained time-below-level run, and a week-end flat exit. It is a short-horizon intraday rule with many more trades than the slow breakouts, and it is not a rolling-window oscillator.",
+  "sources": [
+    {"title": "Anchored VWAP (LuxAlgo Library)", "url": "https://www.luxalgo.com/library/concept/anchored-vwap.md"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the research context file for H-041 (exploration-split summaries of earlier hypotheses) and the validation protocol."
+}
