@@ -1,0 +1,17 @@
+{
+  "title": "Quiet-session range (00-12 UTC) breakout at the US-hours volatility peak, same-day exit",
+  "source": {
+    "type": "paper",
+    "url": "https://arxiv.org/abs/2109.12142",
+    "title": "Periodicity in Cryptocurrency Volatility and Liquidity (Hansen, Kim, Kimbrough)",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 1h candles, UTC clock; signal at bar close, order at next bar open. Each UTC day, define the quiet-session range from the twelve 1h bars opening 00:00-11:00 UTC: RH = highest high, RL = lowest low. The day is armed only if (RH-RL)/RL >= 0.008. ENTRY: on a 1h bar opening between 13:00 and 17:00 UTC inclusive, if the day is armed, no position is open and no trade has been taken that day, buy at the next open when the bar's close is above RH. EXIT: first of (a) a bar close below the range midpoint (RH+RL)/2, (b) the close of the 22:00 UTC bar (exit at next open, so flat by 23:00 UTC). At most one trade per day per pair. No daily-timeframe filter.",
+  "mechanism": "Hansen et al. show volatility and volume are strongly periodic by hour and weekday, with algorithmic and futures-schedule flows; other practitioner write-ups (Kaiko/Bloomberg hourly range analysis, as reported in press) place the volatility peak in US hours. A range built in the quiet Asia/Europe hours sits on thin liquidity; when US-hour flow pushes price out of it, stop orders and momentum followers add to the move, and the Birmingham 'Bitcoin intraday time series momentum' paper attributes intraday momentum to liquidity provision, so earlier sellers of the range lose. Requiring a range of at least 0.8% targets a gross move above the 0.30-0.45% round trip. The source gives no trading rule; this one is my own construction.",
+  "timeframe": "1h",
+  "longest_lookback": 12,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "QuietRangeUSBreakout"
+}
