@@ -1,0 +1,17 @@
+{
+  "title": "Noise-area intraday momentum: 1h close above the time-of-day noise band from the UTC open, VWAP trailing exit",
+  "source": {
+    "type": "paper",
+    "url": "https://www.sfi.ch/de/publications/n-24-97-beat-the-market-an-effective-intraday-momentum-strategy-for-s-p500-etf-spy",
+    "title": "Beat the Market: An Effective Intraday Momentum Strategy for S&P500 ETF (SPY) (Zarattini, Aziz, Barbon, SFI WP 24-97)",
+    "license": "unknown"
+  },
+  "rule_summary": "1h closed bars, UTC day; signal at bar close, fill at next open; long only, one trade per pair per UTC day. O = open of the 00:00 UTC bar of the current day. For each hour-of-day slot h (the bar opening at h:00), move_d(h) = |close of slot h on day d / open of day d - 1|. sigma(h) = mean of move_d(h) over the previous 14 completed UTC days (same slot only; 336 bars back). Upper band U(h) = O*(1+sigma(h)). Daily VWAP(h) = cumulative sum of typical price*volume / cumulative volume from the 00:00 bar through slot h, typical=(H+L+C)/3. ENTRY at the close of a bar in slots 01..19 when close > U(h), close > VWAP(h), no trade yet today and flat. EXIT: at the close of any later bar, if close < max(U(h), VWAP(h)) exit at next open; otherwise exit at the open of the next 00:00 UTC bar (time exit, <=23h).",
+  "mechanism": "Zarattini, Aziz and Barbon define a noise area from the average absolute move away from the day's open at each time of day; inside it supply and demand are balanced, and a break outside signals an abnormal order-flow imbalance that tends to persist for the rest of the session (fragmented execution of large rebalancing orders; they also link profitability to dealer gamma imbalance). CXO Advisory and Concretum write-ups describe the same band/VWAP construction. In crypto the persistence is fed by perp liquidations and stop orders once price leaves its usual daily range. Because entry requires price already beyond a typical day's move and exits trail at the band/VWAP, the trades that survive carry trend-day moves of 1-3%, above the 0.30-0.45% cost. The SPY rule also shorts; only the long side is used here.",
+  "timeframe": "1h",
+  "longest_lookback": 336,
+  "free_parameters": 2,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "IntradayNoiseAreaMomentum"
+}

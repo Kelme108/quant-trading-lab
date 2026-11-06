@@ -1,0 +1,17 @@
+{
+  "title": "15m stop-sweep of the 24-hour low reclaimed within an hour, 12-hour time exit",
+  "source": {
+    "type": "paper",
+    "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125",
+    "title": "Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis (Osler, FRBNY Staff Report 125)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars; signal at bar close t, fill at next open; long only, one position. PL(t) = lowest low of the 96 bars t-100..t-5 (a 24-hour low, excluding the last 4 bars). SWEEP: min(low of bars t-3..t) < 0.998*PL(t) (the 24h low was taken out by at least 0.2% within the last hour). DEPTH CAP: min(low of t-3..t) >= 0.98*PL(t) (deeper breaks are treated as real breakdowns, no trade). RECLAIM: close(t) > PL(t) and close(t-1) <= PL(t). Trend filter: close(t) > SMA(384) of 15m closes (4-day mean). ENTRY at next open if flat and no entry in the previous 16 bars. EXIT, first of: take-profit limit at entry*1.012; stop at min(low of t-3..t)*0.998 (intrabar); time exit at the open 48 bars (12 hours) after entry.",
+  "mechanism": "Osler (FRBNY SR125; SR150 on cascades) shows stop-loss sell orders cluster just beyond obvious levels and make moves accelerate when triggered; once that resting stop supply is used up, price often snaps back because the selling was mechanical, not informed. In crypto the same pool includes long liquidations stacked under the 24h low. The buyer here acts as the liquidity provider to those forced sellers. This is a 24-hour, 15m variant of the tested 20-day failed-breakdown rule (H-038), so it trades far more often. The 1.2% target is more than twice the conservative round trip; the stop sits just under the sweep low.",
+  "timeframe": "15m",
+  "longest_lookback": 384,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "HourlyFailedBreakdownReclaim"
+}

@@ -1,0 +1,17 @@
+{
+  "title": "Round-number support bounce: buy a 15m rejection of a round level after an 8-hour decline into it",
+  "source": {
+    "type": "paper",
+    "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125",
+    "title": "Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis (Osler, FRBNY Staff Report 125)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars, signal at bar close, fill at next open; long only, one position. ROUND GRID as in a daily-fixed grid: from the previous UTC day's last 15m close P, step S = largest of 1, 2.5 or 5 times a power of ten that is <= 0.02*P; levels L = multiples of S. SETUP at bar t for the nearest level L below max(high of t-32..t-1): (1) price came down into it: max high of bars t-32..t-1 >= 1.012*L; (2) touch without a real break: low(t) <= 1.001*L and low(t) >= 0.996*L, and no bar in t-32..t-1 closed below L; (3) rejection: close(t) >= 1.002*L. ENTRY at next open if flat. EXIT, first of: take-profit limit at entry*1.010; stop when a 15m bar closes below 0.993*L (exit next open); time exit at the open 24 bars (6 hours) after entry. One trade per level per UTC day.",
+  "mechanism": "Osler (FRBNY SR125) finds that take-profit orders cluster exactly at round numbers, so a falling market meets a wall of resting buy orders from shorts taking profit and from limit buyers at the round figure; this is why trends tend to stall and reverse at round levels while stops sit just beyond them. The rule buys only when the level holds on a closing basis (stops below were not cascaded), i.e. the resting buy demand absorbed the selling. The sellers on the other side are short-horizon momentum sellers who hit bids at the level. Distinct from the cascade idea (which trades the break); the target is 1.0% gross, above the 0.45% conservative round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 32,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "family_hint": "RoundNumberSupportBounce"
+}

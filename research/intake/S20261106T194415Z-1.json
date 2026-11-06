@@ -1,0 +1,17 @@
+{
+  "title": "Round-number stop cascade: buy the first 15m close through a fresh round price level, target the next level",
+  "source": {
+    "type": "paper",
+    "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125",
+    "title": "Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis (Osler, FRBNY Staff Report 125)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars, signal at bar close, fill at next open; long only, one position. ROUND GRID (recomputed once per UTC day from the previous day's last 15m close P): step S = largest number of the form 1, 2.5 or 5 times a power of ten that is <= 0.02*P (e.g. BTC 60000 -> 1000, ETH 3000 -> 50, BNB 600 -> 10). Levels L = integer multiples of S. ENTRY at close of bar t when: close(t-1) < L <= close(t) for some level L, close(t) >= 1.002*L, the level is fresh (max high of bars t-32..t-1 < L, i.e. untouched for 8 hours), close(t) > SMA(96) of 15m closes (24h mean), and no position is open. EXIT, first of: take-profit limit at L + S (the next round level up); stop at L - 0.5*S (intrabar stop); time exit at the open of the bar 32 bars (8 hours) after entry. At most one entry per level per UTC day.",
+  "mechanism": "Osler (FRBNY SR125, and SR150 on price cascades) shows from a dealer's order book that stop-loss buy orders cluster just above round numbers, so a first break through an untested round level triggers resting stop buys (short-covering, and in crypto also perp short liquidations parked at the same levels) that push price further. The counterparties are the stop-out shorts forced to buy at market. The ATAS practitioner note on round numbers describes the same cascade. The target is the next round level, 0.8-2% away by grid construction, so the gross aim per trade is well above the 0.30-0.45% round-trip cost; the stop is half a step.",
+  "timeframe": "15m",
+  "longest_lookback": 96,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "family_hint": "RoundNumberStopCascade"
+}

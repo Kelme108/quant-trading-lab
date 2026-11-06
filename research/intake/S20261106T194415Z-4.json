@@ -1,0 +1,17 @@
+{
+  "title": "Low-volume 12-hour selloff reversal on 1h: buy drops not backed by volume, 12-hour time exit",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/p/cer/papers/wp730.html",
+    "title": "Trading Volume and Liquidity Provision in Cryptocurrency Markets (Bianchi, Babiak, Dickerson, CERGE-EI WP 730 / JBF 2022)",
+    "license": "unknown"
+  },
+  "rule_summary": "1h closed bars; signal at bar close t, fill at next open; long only, one position, no pyramiding. r12(t) = close(t)/close(t-12) - 1. s12(t) = sample std of 1h log returns over bars t-720..t-1 times sqrt(12). V12(t) = sum of volume over bars t-11..t. Vmed(t) = median of the 60 non-overlapping 12-bar volume sums V12(t-12), V12(t-24), ..., V12(t-720) (prior 30 days, current window excluded). ENTRY at close of t when ALL hold: r12(t) <= -1.0*s12(t); r12(t) <= -0.015; V12(t) < Vmed(t) (the drop happened on below-median volume); no open position. EXIT, first of: close >= close(t-12) of the signal bar (move fully retraced; exit next open); stop at entry*0.95 (intrabar); time exit at the open 12 bars after entry.",
+  "mechanism": "Bianchi, Babiak and Dickerson show that in crypto the interaction of past returns and volume predicts reversals: price moves on low volume reflect liquidity demand rather than information and revert, rewarding liquidity providers for inventory risk (CXO Advisory's summary describes the 12-hour horizon and the low-volume condition). The seller on the other side is an impatient trader pushing price through a thin book; with no information behind the move, the price comes back. The lab already tested the high-volume selloff (H-050); this is the opposite volume condition and a different mechanism. Entry needs at least a 1.5% drop, so a partial retrace of the drop is worth roughly 0.8% or more gross, above the round-trip cost.",
+  "timeframe": "1h",
+  "longest_lookback": 732,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "VolumeConditionedReversal"
+}
