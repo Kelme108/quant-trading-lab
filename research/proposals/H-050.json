@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-050",
+  "family": "VolumeConditionedReversal",
+  "title": "15m high-volume 6-hour selloff reversal in a daily uptrend with a 12-hour time exit",
+  "ex_ante_rule": "Timeframe 15m, closed bars only; signal at the close of bar t, order filled at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no other filters. DEFINITIONS (completed bars only): r24(t) = close(t)/close(t-24) - 1 (6-hour return). V6(t) = sum of volume over bars t-23..t (24 bars). Vref(t) = arithmetic mean of V6(t-24*k) for k = 1..56 (56 non-overlapping 6-hour volume sums covering the previous 14 days = 1344 bars, bars t-1367..t-24; the current window is excluded). DAILY REGIME: informative 1d candles merged with merge_informative_pair (ffill, closed daily candles only, so at any 15m bar only the last fully completed UTC day is visible); Dclose = that last completed daily close; DSMA = SMA(100) of daily closes ending at that same completed day; regime holds when Dclose > DSMA. ENTRY at the close of bar t when ALL hold: (1) r24(t) <= -0.03; (2) V6(t) >= 1.5 * Vref(t); (3) close(t) > open(t) (the bar just closed is green); (4) daily regime holds; (5) no open position; (6) cooldown satisfied; (7) all inputs defined (no NaN). At signal time store P = close(t-24) (the pre-selloff price, fixed for the trade). EXIT (signal at a bar close, filled at the next open), first of: (a) close(u) >= P for any bar u >= t+1 (full retrace of the 6-hour drop); (b) time exit at the close of bar t+48 (48 bars = 12 hours after the signal bar), filled at the open of bar t+49, so every position is closed within about 12 hours, well under 24 hours. STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (triggers as soon as price touches it). COOLDOWN: no re-entry for 24 candles (6 hours) after any exit. No take-profit other than exit (a). All numbers fixed ex ante, no grid. Warm-up: 1400 bars (15m; longest lookback is Vref, 1368 bars, rounded up; no recursive indicators). The daily SMA(100) additionally needs at least 101 completed daily candles on the informative 1d timeframe, loaded through the informative pair, not through a long 15m lookback.",
+  "parameters": {
+    "timeframe": "15m",
+    "return_window_bars": 24,
+    "drop_threshold": -0.03,
+    "volume_window_bars": 24,
+    "volume_ref_samples": 56,
+    "volume_ref_span_bars": 1344,
+    "volume_multiple": 1.5,
+    "green_bar_required": "close>open",
+    "regime_timeframe": "1d",
+    "regime_sma_days": 100,
+    "time_exit_bars": 48,
+    "stoploss_pct": 0.03,
+    "cooldown_bars": 24,
+    "warmup_bars": 1400
+  },
+  "rationale": "Mechanism: a 3%+ drop over 6 hours on 1.5x the usual 6-hour volume is a burst of liquidity demand (stop cascades, forced or impatient selling). Whoever absorbs it bears inventory and adverse-selection risk and is paid by a partial reversal once the selling pressure ends. Bianchi, Babiak and Dickerson (Riksbank WP 413 / JBF 2022) find that the interaction of lagged return and trading volume predicts crypto returns, consistent with liquidity-provision (reversal) premia; Kozlowski, Puleo and Zhou find crypto return reversals. Honest caveats: both are daily-frequency, cross-sectional studies, and Bianchi et al. find the premium concentrated in smaller, less liquid pairs, whereas BTC/ETH/BNB are the most liquid; the transfer to 6-hour windows on these pairs is untested. The green confirmation bar makes sure selling has paused before entry, and the daily SMA(100) regime avoids buying crashes inside a bear trend (the H-005 failure pattern of long losing streaks after the 2021 peak). Cost: the target is the pre-drop price, i.e. a gross move of roughly 2-3% from entry (at least the 3% drop minus the green bar's bounce), versus 0.30% base / 0.45% conservative round trip; even a partial retrace closed at the 12h time exit only needs ~0.5% to pay costs. Losses are capped at about 3% per trade by the stop. Expected frequency: a 3% 6h drop with a volume surge, in a daily uptrend, is uncommon on BTC (more frequent on ETH/BNB); I expect roughly 20-80 trades per year per pair, below the owner's 150-500 target. That is a known risk of formalising this idea as written; no filter is loosened to raise the count. Success criteria are the existing gates (positive net at base and conservative cost, drawdown below 25%, at least 30 trades per split per pair, same rule on all three pairs).",
+  "novelty_vs_tried": "H-032 (VolumeSpikeCrashRebound) used a single 1h bar crash of 3 sigma with 3x volume and a 18h exit, and landed below 30 trades; H-033 (HourlyShockOverreaction) used a 4h price drop on 1h bars with an SMA(1200) filter and no volume condition, and lost at base cost. This rule works on 15m bars, measures the selloff over 6 hours rather than one bar, conditions on aggregate 6-hour volume relative to a 14-day baseline of 6-hour volume sums (the return x volume interaction from the source), requires a green 15m confirmation bar so it does not buy into continuing selling, uses a daily SMA(100) regime from closed daily candles, a tighter 3% stop and a 12-hour time exit. No existing family combines a multi-hour drop, a volume-ratio gate and bar-level confirmation.",
+  "sources": [
+    {"title": "Trading volume and liquidity provision in cryptocurrency markets (Bianchi, Babiak, Dickerson), Riksbank WP 413", "url": "https://ideas.repec.org/p/hhs/rbnkwp/0413.html"},
+    {"title": "Cryptocurrency return reversals (Kozlowski, Puleo, Zhou), Applied Economics Letters 2021", "url": "https://ideas.repec.org/a/taf/apeclt/v28y2021i11p887-893.html"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-050.md exploration summaries of earlier hypotheses (BTC, ETH, BNB) and web sources, as of 2026-11-06"
+}
