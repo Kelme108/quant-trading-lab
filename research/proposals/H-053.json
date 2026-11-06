@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-053",
+  "family": "VolumeConditionedReversal",
+  "title": "Low-volume 12-hour selloff reversal on 1h: buy drops not backed by volume, exit on full retrace or after 12 bars",
+  "ex_ante_rule": "Timeframe 1h, closed bars only; a signal at the close of bar t is filled at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no other filters; the same rule on BTC/USDT, ETH/USDT, BNB/USDT. DEFINITIONS (completed bars only): r12(t) = close(t)/close(t-12) - 1. s12(t) = sample standard deviation (ddof=1) of the 720 hourly log returns ln(close(i)/close(i-1)) for i = t-720..t-1 (the current bar's return excluded), multiplied by sqrt(12). V12(t) = sum of volume over bars t-11..t (12 bars). Vmed(t) = median of the 60 non-overlapping 12-bar volume sums V12(t-12), V12(t-24), ..., V12(t-720) (k = 1..60, covering bars t-731..t-12, the prior 30 days; the current window is excluded). ENTRY at the close of bar t when ALL hold: (1) r12(t) <= -1.0 * s12(t); (2) r12(t) <= -0.015; (3) V12(t) < Vmed(t) (the drop happened on below-median volume); (4) no open position; (5) all inputs defined (no NaN). At signal time store P = close(t-12) (the pre-drop price, fixed for the trade). EXIT (signal at a bar close, filled at the next open), first of: (a) close(u) >= P at the close of any bar u >= t+1 (the 12-hour drop is fully retraced); (b) time exit: at the close of bar t+12 (the 12th bar after the signal bar, i.e. 12 bars after the entry fill at the open of t+1), exit at the open of bar t+13, so every position lasts at most 12 hours, well under 24 hours. STOP-LOSS: one fixed 5% below the entry price, the engine's native intrabar stop (triggers as soon as price touches it). No cooldown (a new entry may be signalled at the close of the bar on which an exit was signalled only after the position is closed, i.e. from the next bar's close on), no take-profit other than exit (a), no trend or regime filter. All numbers fixed ex ante, no grid. Warm-up: 800 bars (longest lookback: Vmed needs bars back to t-731, s12 needs closes back to t-721; 732 rounded up to 800; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "return_horizon_bars": 12,
+    "vol_lookback_bars": 720,
+    "vol_scale_sqrt_bars": 12,
+    "sigma_multiple": 1.0,
+    "min_drop": -0.015,
+    "volume_window_bars": 12,
+    "volume_reference_windows": 60,
+    "volume_reference_stat": "median",
+    "volume_condition": "V12 < Vmed",
+    "retrace_exit_target": "close(t-12) of signal bar",
+    "time_exit_bars": 12,
+    "stoploss": -0.05,
+    "cooldown_bars": 0,
+    "startup_candle_count": 800
+  },
+  "rationale": "Mechanism: Bianchi, Babiak and Dickerson (JBF 2022 / CERGE-EI WP730) proxy the returns of liquidity provision in crypto by short-term reversal and find that the interaction of lagged returns and trading volume predicts future returns: reversals concentrate where trading activity is low. A price drop on thin volume is more likely to reflect an impatient seller (liquidity demand) walking through a shallow book than new information; the liquidity provider who buys absorbs inventory risk and is paid when price reverts. The counterparty is the impatient seller who pays an immediacy premium. Caveat stated honestly: the paper is cross-sectional across many pairs at daily/weekly horizons; applying it as a single-pair time-series rule at a 12-hour horizon on 1h bars is an extrapolation (CXO Advisory's summary of the 2018 draft describes the long low-return/low-volume leg). Expected frequency: a 12-hour drop of at least 1 sigma and at least 1.5% occurs on a few percent of bars, and requiring below-median volume removes most capitulation-type drops; with exits within 12 h I expect roughly 100-250 trades per pair per year. Move per trade: the entry requires a drop of at least 1.5% (often 2-4% in volatile regimes); a full retrace earns that whole amount and a partial retrace within 12 h is targeted at about 0.8% or more gross, above the 0.30% base and 0.45% conservative round trip. Risk: the 5% stop and 12-hour time exit cap each loss; success is judged only by the existing gates (positive net at base and conservative cost on all three pairs, drawdown under 25%, at least 30 trades per split).",
+  "novelty_vs_tried": "The only other VolumeConditionedReversal variant, H-050, bought 6-hour selloffs on HIGH volume (V6 >= 1.5x mean) on 15m, with a green-bar confirmation and a daily SMA100 regime filter, a 3% stop and a 12-hour exit. This variant tests the opposite volume condition (drop on BELOW-median volume, i.e. liquidity demand without information, as in the cited paper), normalises the drop by the pair's own 30-day volatility (1 sigma of 12-hour returns) plus a 1.5% floor, runs on 1h, has no regime or confirmation filter, and uses a wider 5% stop. It differs from the dip-buying-in-uptrend rules (H-006, H-010, H-012) by having no trend gate and by conditioning on volume, and from VolumeSpikeCrashRebound/HourlyShockOverreaction, which require large or high-volume shocks.",
+  "sources": [
+    {"title": "Trading Volume and Liquidity Provision in Cryptocurrency Markets (Bianchi, Babiak, Dickerson, CERGE-EI WP 730)", "url": "https://ideas.repec.org/p/cer/papers/wp730.html"},
+    {"title": "Trading volume and liquidity provision in cryptocurrency markets (Journal of Banking and Finance 142, 2022)", "url": "https://ideas.repec.org/a/eee/jbfina/v142y2022ics0378426622001418.html"},
+    {"title": "CXO Advisory summary of 'Trading Volume in Cryptocurrency Markets' (2018 draft)", "url": "https://www.cxoadvisory.com/?p=31597"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summaries in research/context/H-053.md (BTC, ETH, BNB 1h/15m) were visible."
+}
