@@ -1,0 +1,17 @@
+{
+  "title": "Hourly MACD cross-up gated by daily MACD uptrend, exit on hourly cross-down",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/how-to-design-a-simple-multi-timeframe-trend-strategy-on-bitcoin/",
+    "title": "How to Design a Simple Multi-Timeframe Trend Strategy on Bitcoin",
+    "license": "unknown"
+  },
+  "rule_summary": "Hourly signals from closed 1h candles, daily trend from closed daily candles built from the 1h data (visible only after the daily close). Daily trend is up when the daily MACD line (EMA12 - EMA26 of daily closes) is above its 9-day EMA signal line. ENTRY at the close of an hourly bar when the hourly MACD line (EMA12 - EMA26 of hourly closes, signal EMA9) crosses from at-or-below to above its signal line, the daily trend is up, and no position is open; buy at next bar open. EXIT at the close of the first hourly bar where the hourly MACD line crosses below its signal line; sell at next open. Also exit if the daily trend turns down at a daily close. Hard stop 5% below entry. No other filters, no pyramiding. All MACD periods are the textbook 12/26/9.",
+  "mechanism": "Counterparties are slower participants who react to a daily trend with a delay: when the daily momentum is positive, an hourly momentum re-acceleration marks the continuation leg of the larger move, while the daily gate avoids buying hourly crosses inside downtrends where they are mostly noise. Holding until the hourly cross-down (not one bar) lets winners run to a few percent so the average move can exceed the 0.35% round trip; the source gives only a loose rationale (trade with the higher-timeframe trend), so this is a stated hypothesis, not proven.",
+  "timeframe": "1h",
+  "longest_lookback": 1000,
+  "free_parameters": 3,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 120,
+  "family_hint": "MultiTimeframeMACDTrend"
+}
