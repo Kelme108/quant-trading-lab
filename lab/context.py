@@ -18,7 +18,7 @@ import csv
 import json
 from pathlib import Path
 
-from lab import costs, registry, runner
+from lab import breadth, costs, registry, runner
 
 ROOT = Path(__file__).parents[1]
 
@@ -169,7 +169,8 @@ def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: in
         f"- At most {count} ideas, each a separate file `research/intake/{run_id}-<k>.json` (k from 1). Fewer, or none, is fine.",
         "",
         "## Hard limits (deterministic triage drops anything outside them)",
-        "- Pairs BTC/USDT, ETH/USDT, BNB/USDT. Spot, long only, one position per pair, the whole allowed balance per trade.",
+        f"- Pairs {', '.join(runner.enabled_pairs())}; a rule must pass on at least "
+        f"{breadth.exploration_min_pairs(len(runner.enabled_pairs()))} of them with the same parameters. Spot, long only, one position per pair, the whole allowed balance per trade.",
         "- Timeframe `15m` or `1h` (intraday, preferred now), or `1d` (signals from closed daily candles, executed on 1h).",
         f"- Longest lookback: at most {triage.MAX_LOOKBACK['1h']} bars on 15m or 1h, or {triage.MAX_LOOKBACK['1d']} days on 1d.",
         "- No short selling, leverage, margin, derivatives, martingale, pyramiding or position sizing.",

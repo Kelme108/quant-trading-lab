@@ -4,10 +4,11 @@ from lab import runner
 
 
 class ScenarioLoaderTests(unittest.TestCase):
-    def test_shipped_config_enables_the_three_pairs_on_1h_and_15m(self) -> None:
+    def test_shipped_config_enables_the_nine_pairs_on_1h_and_15m(self) -> None:
         """15m was enabled on 2026-11-05: the splits are dated (timeranges), so they cut 15m candles at the same
         instants as 1h. Any other timeframe still needs its own data first."""
-        self.assertEqual(runner.enabled_pairs(), ["BTC/USDT", "ETH/USDT", "BNB/USDT"])
+        self.assertEqual(runner.enabled_pairs(), ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT",
+                                                  "LTC/USDT", "LINK/USDT", "DOGE/USDT", "SOL/USDT"])
         self.assertEqual(runner.enabled_timeframes(), ["1h", "15m"])
 
     def test_gap_tolerance_is_a_documented_number(self) -> None:

@@ -48,11 +48,23 @@ class ShippedSplitsTests(unittest.TestCase):
     def test_exploration_takes_about_the_stated_share_of_history(self) -> None:
         share = self.splits["exploration_share_of_history"]
         for pair, entry in self.splits["pairs"].items():
+            if pair not in ("BTC/USDT", "ETH/USDT", "BNB/USDT"):
+                continue  # the 2026-11-06 pairs share the original calendar instead (test below)
             first = parse_utc(entry["exploration"]["start_utc"])
             explore_end = parse_utc(entry["exploration"]["end_utc"])
             valid_end = parse_utc(entry["validation"]["end_utc"])
             actual = (explore_end - first) / (valid_end - first)
             self.assertAlmostEqual(actual, share, delta=0.01, msg=pair)
+
+    def test_pairs_added_in_2026_11_end_exploration_on_the_shared_calendar(self) -> None:
+        for pair in ("XRP/USDT", "ADA/USDT", "LTC/USDT", "LINK/USDT", "DOGE/USDT", "SOL/USDT"):
+            entry = self.splits["pairs"][pair]
+            self.assertEqual(entry["exploration"]["end_utc"], "2024-07-04T23:00:00Z", pair)
+            self.assertEqual(entry["validation"]["start_utc"], "2024-07-05T00:00:00Z", pair)
+            start, stop = timerange_bounds(entry["exploration"]["timerange"])
+            self.assertEqual(stop + 3600, timerange_bounds(entry["validation"]["timerange"])[0], pair)
+        for pair in ("BTC/USDT", "ETH/USDT", "BNB/USDT"):
+            self.assertNotEqual(self.splits["pairs"][pair]["exploration"]["end_utc"], "2024-07-04T23:00:00Z")
 
     def test_final_test_ships_locked(self) -> None:
         self.assertIs(self.splits["final_test"]["final_test_unlocked"], False)
@@ -77,7 +89,7 @@ class ResolveSplitTests(unittest.TestCase):
 
     def test_unknown_pair_is_an_error(self) -> None:
         with self.assertRaises(KeyError):
-            runner.resolve_split_timerange("exploration", self.splits, pair="DOGE/USDT")
+            runner.resolve_split_timerange("exploration", self.splits, pair="XYZ/USDT")
 
     def test_unknown_split_is_an_error(self) -> None:
         with self.assertRaises(ValueError):

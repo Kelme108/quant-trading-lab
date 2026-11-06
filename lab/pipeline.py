@@ -150,7 +150,7 @@ class Pipeline:
         except Exception as error:
             return waiting, f"; autopilot failed: {type(error).__name__}: {error}"[:200], False
         extra = f"; {result['detail']}" if result.get("detail") else ""
-        return result["outcome"], extra, result["outcome"].startswith("validation read by the autopilot: no pair passed")
+        return result["outcome"], extra, result["outcome"].startswith("validation read by the autopilot:")
 
     def autopilot_existing(self, hypothesis_ids: list[str]) -> Path:
         """Apply the policy to candidates that were waiting for the user before the policy existed."""

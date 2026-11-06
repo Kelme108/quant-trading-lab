@@ -25,7 +25,10 @@ from pathlib import Path
 from lab import costs
 
 ROOT = Path(__file__).parents[1]
-PAIR_KEYS = {"btc": "BTC/USDT", "eth": "ETH/USDT", "bnb": "BNB/USDT"}
+PAIR_KEYS = {"btc": "BTC/USDT", "eth": "ETH/USDT", "bnb": "BNB/USDT", "xrp": "XRP/USDT", "ada": "ADA/USDT",
+             "ltc": "LTC/USDT", "link": "LINK/USDT", "doge": "DOGE/USDT", "sol": "SOL/USDT"}
+# Hypotheses frozen before the 9-pair universe (2026-11-06) and with no overlay files ran on these three.
+LEGACY_KEYS = ("btc", "eth", "bnb")
 COMPOSE = "docker-compose.forward.yml"
 BASE_FILES = ("user_data/config.dryrun.json", "docker-compose.yml")
 LABEL = ("Dry-run como coleta de evidência: NÃO validada; sem evidência prospectiva; não é aprovação, não é holdout "
@@ -65,9 +68,9 @@ def compose_path(hypothesis_id: str, root: Path = ROOT) -> str:
 
 
 def pair_keys(hypothesis_id: str, root: Path = ROOT) -> list[str]:
-    """The pairs this hypothesis runs on: those with an overlay file (all three when none exists yet)."""
+    """The pairs this hypothesis runs on: those with an overlay file (the original three when none exists)."""
     present = [key for key in PAIR_KEYS if (root / overlay_path(hypothesis_id, key)).is_file()]
-    return present or list(PAIR_KEYS)
+    return present or list(LEGACY_KEYS)
 
 
 def find_strategy(hypothesis_id: str, root: Path = ROOT) -> Path:

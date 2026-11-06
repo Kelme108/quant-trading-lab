@@ -10,6 +10,11 @@ from pathlib import Path
 
 from lab import agents, guard, orchestrator, registry
 
+import pin_pairs  # noqa: E402
+
+setUpModule, tearDownModule = pin_pairs.module_fixtures()
+
+
 PAIRS = ("BTC/USDT", "ETH/USDT", "BNB/USDT")
 
 PROPOSAL = {

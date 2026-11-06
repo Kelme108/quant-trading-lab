@@ -12,6 +12,11 @@ from lab import autopilot, forward, registry  # noqa: E402
 from test_lab_orchestrator import PAIRS, git  # noqa: E402
 from test_lab_pipeline import PipelineTestCase, queue_idea  # noqa: E402
 
+import pin_pairs  # noqa: E402
+
+setUpModule, tearDownModule = pin_pairs.module_fixtures()
+
+
 POLICY = {
     "enabled": True, "auto_validation": True, "auto_dryrun": True, "real_money": False,
     "min_stake_quote": 10.0, "wallet_quote": 100.0, "max_forward_bots": 12,
@@ -108,6 +113,15 @@ class AutopilotPipelineTests(PipelineTestCase):
         self.assertEqual(self.started, [])
         self.assertFalse(forward.freeze_path("H-001", self.root).exists())
         self.assertEqual(self.approvals("H-001"), [("validation", "autopilot-policy")])
+
+    def test_one_pair_passing_validation_is_too_few_for_the_breadth_rule(self) -> None:
+        self.validation = {p: "rejected" for p in PAIRS}
+        self.validation["ETH/USDT"] = "candidate_for_portfolio"
+        queue_idea(self.conn, 1)
+        text = self.run_weekly()
+        self.assertIn("validation read by the autopilot: too few pairs passed (ETH/USDT; the breadth rule needs 2)", text)
+        self.assertEqual(self.started, [])
+        self.assertFalse(forward.freeze_path("H-001", self.root).exists())
 
     def test_a_stake_below_the_minimum_order_gets_no_bot(self) -> None:
         self.exposure = 0.05

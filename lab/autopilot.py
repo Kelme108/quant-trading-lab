@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import experiment, forward, orchestrator, registry, runner
+from lab import breadth, experiment, forward, orchestrator, registry, runner
 
 ROOT = Path(__file__).parents[1]
 POLICY_PATH = ROOT / "lab" / "config" / "autopilot.json"
@@ -56,10 +56,19 @@ def calibrated_exposure(conn, hypothesis_id: str) -> float | None:
     return float(found[-1]) if found else None
 
 
-def exploration_passed(conn, hypothesis_id: str, pairs: list[str]) -> bool:
+def exploration_candidates(conn, hypothesis_id: str, universe: list[str] | None = None) -> list[str]:
+    """The pairs of the universe whose latest exploration decision is a candidate."""
     latest = {r["pair"]: r["decision"] for r in registry.list_latest_decisions(conn)
               if r["hypothesis_id"] == hypothesis_id and r["split"] == "exploration"}
-    return all(latest.get(p) == CANDIDATE for p in pairs)
+    return [p for p in (universe or runner.enabled_pairs()) if latest.get(p) == CANDIDATE]
+
+
+def exploration_passed(conn, hypothesis_id: str, pairs: list[str]) -> bool:
+    """Every pair to be read is an exploration candidate, and the universe clears the breadth rule."""
+    universe = runner.enabled_pairs()
+    candidates = exploration_candidates(conn, hypothesis_id, sorted(set(universe) | set(pairs)))
+    in_universe = [p for p in candidates if p in universe]
+    return all(p in candidates for p in pairs) and len(in_universe) >= breadth.exploration_min_pairs(len(universe))
 
 
 def validation_status(decisions: dict[str, str]) -> str:
@@ -76,11 +85,11 @@ def read_validation(conn, hypothesis_id: str, exposure: float, *, root: Path = R
                     version: str | None = None) -> dict[str, str]:
     """The single validation read (shared by research/tools/validate_once.py). {pair: decision}.
 
-    Refuses unless exploration is a candidate on every pair, a `validation` approval is recorded, and the
-    validation split was never read for this hypothesis."""
-    pairs = pairs or runner.enabled_pairs()
+    Reads only the exploration-candidate pairs (all of them by default). Refuses unless exploration cleared the
+    breadth rule, a `validation` approval is recorded, and the validation split was never read for this hypothesis."""
+    pairs = pairs or exploration_candidates(conn, hypothesis_id)
     if not exploration_passed(conn, hypothesis_id, pairs):
-        raise PolicyError(f"{hypothesis_id}: exploration is not a candidate on every pair; validation not read")
+        raise PolicyError(f"{hypothesis_id}: exploration did not clear the breadth rule on these pairs; validation not read")
     if not registry.has_approval(conn, hypothesis_id, "validation"):
         raise PolicyError(f"{hypothesis_id}: no validation approval is recorded")
     if registry.latest_experiments(conn, hypothesis_id, "validation"):
@@ -198,7 +207,7 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
     if not (policy["enabled"] and policy["auto_validation"]):
         result["detail"] = "autopilot off"
         return result
-    pairs = pairs or runner.enabled_pairs()
+    pairs = pairs or exploration_candidates(conn, hypothesis_id)
     note = f"standing policy of {policy.get('approved_by', '?')} ({policy.get('approved_at_utc', '?')}): {policy.get('note', '')}"[:300]
 
     exposure = calibrated_exposure(conn, hypothesis_id)
@@ -212,6 +221,11 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
     summary = ", ".join(f"{p.split('/')[0]} {d}" for p, d in decisions.items())
     if not passed:
         result.update(outcome="validation read by the autopilot: no pair passed", detail=summary)
+        return result
+    need = breadth.validation_min_pairs()
+    if len(passed) < need:
+        result.update(outcome=f"validation read by the autopilot: too few pairs passed ({', '.join(passed)}; "
+                              f"the breadth rule needs {need})", detail=summary)
         return result
     result["pairs"] = passed
     if not policy["auto_dryrun"]:

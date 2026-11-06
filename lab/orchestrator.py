@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import agents, context, experiment, guard, intake, portfolio, proposals, registry, runner, strategy_check, triage
+from lab import breadth, agents, context, experiment, guard, intake, portfolio, proposals, registry, runner, strategy_check, triage
 
 ROOT = Path(__file__).parents[1]
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
@@ -511,9 +511,9 @@ class Lab:
             for row in registry.list_latest_decisions(self.conn)
             if row["hypothesis_id"] == hypothesis_id and row["split"] == "exploration"
         }
-        return all(
-            latest.get(pair) == "candidate_for_portfolio" for pair in runner.enabled_pairs()
-        )
+        pairs = runner.enabled_pairs()
+        passing = sum(latest.get(pair) == "candidate_for_portfolio" for pair in pairs)
+        return passing >= breadth.exploration_min_pairs(len(pairs))
 
     def decide_split(self, hypothesis_id: str, split: str) -> dict[str, str]:
         """Apply the gates to the latest experiment of each pair that has no

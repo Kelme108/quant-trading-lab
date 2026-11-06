@@ -106,9 +106,10 @@ def choose_exposure(
     block_size: int = 3,
     n_resamples: int = 4000,
     seed: int = 1,
+    min_pairs: int | None = None,
 ) -> dict:
     """Largest exposure on the 5% grid whose bootstrap 95th-percentile closed-trade
-    drawdown stays within dd_limit on EVERY pair at once. One number for all pairs,
+    drawdown stays within dd_limit on at least `min_pairs` pairs (default: EVERY pair) at once. One number for all pairs,
     computed from exploration trades only. Returns exposure None when even 5% fails."""
     for exposure in EXPOSURE_GRID:
         p95 = {
@@ -118,7 +119,8 @@ def choose_exposure(
             )["drawdown_p95"]
             for pair, ratios in ratios_by_pair.items()
         }
-        if all(value <= dd_limit for value in p95.values()):
+        needed = len(p95) if min_pairs is None else min(min_pairs, len(p95))
+        if sum(value <= dd_limit for value in p95.values()) >= needed:
             return {"exposure": exposure, "p95_by_pair": p95}
     return {"exposure": None, "p95_by_pair": {}}
 

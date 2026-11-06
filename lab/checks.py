@@ -1,12 +1,12 @@
 """Causality checks of a registered strategy on the exploration window: smoke backtest, lookahead-analysis and
-recursive-analysis on every enabled pair. Needs Docker (Freqtrade). Nothing here reads validation or the holdout."""
+recursive-analysis on the check pairs of lab/config/breadth.json. Needs Docker (Freqtrade). Nothing here reads validation or the holdout."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from lab import costs, runner
+from lab import breadth, costs, runner
 
 ROOT = Path(__file__).parents[1]
 
@@ -16,7 +16,7 @@ def run_checks(name: str, *, timeframe: str = "1h", root: Path = ROOT, splits: d
     splits = splits if splits is not None else run.load_splits()
     fee = costs.get_scenario("base").effective_fee_per_side
     out: dict = {}
-    for pair in run.enabled_pairs():
+    for pair in breadth.causality_check_pairs(run.enabled_pairs()):
         timerange = run.resolve_split_timerange("exploration", splits, pair=pair)
         tag = f"{name.lower()}-{pair.replace('/', '-').lower()}"
         ok, _text = run.smoke_backtest(strategy=name, pair=pair, timerange=timerange)

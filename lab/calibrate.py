@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from lab import bootstrap, costs, experiment, registry, runner
+from lab import breadth, bootstrap, costs, experiment, registry, runner
 
 ROOT = Path(__file__).parents[1]
 MIN_TRADES = 30
@@ -49,18 +49,21 @@ def calibrate_and_explore(
         trades = read_trades(root / result["artifact_path"])
         ratios[pair] = [float(t["profit_ratio"]) for t in sorted(trades, key=lambda t: t["open_date"])]
         counts[pair] = len(trades)
-    if min(counts.values()) < MIN_TRADES:
+    need = breadth.exploration_min_pairs(len(pairs))
+    enough = [p for p in pairs if counts[p] >= MIN_TRADES]
+    if len(enough) < need:
         status = "dropped: fewer than 30 trades"
-        note = f"DROPPED by the pre-registered rule: calibration trades {counts} (< 30 on at least one pair); not retuned."
+        note = (f"DROPPED by the pre-registered rule: calibration trades {counts} (30 or more on {len(enough)} "
+                f"pair(s), {need} needed); not retuned.")
         registry.set_hypothesis_status(conn, hypothesis_id, status)
         _append_note(conn, hypothesis_id, note)
         return {"outcome": "dropped_trades", "counts": counts, "exposure": None, "status": status}
-    chosen = bootstrap.choose_exposure(ratios)
+    chosen = bootstrap.choose_exposure({p: ratios[p] for p in enough}, min_pairs=need)
     exposure = chosen["exposure"]
     if exposure is None:
         status = "dropped: no exposure meets the 25% bootstrap drawdown"
         registry.set_hypothesis_status(conn, hypothesis_id, status)
-        _append_note(conn, hypothesis_id, f"No exposure on the 5% grid keeps the bootstrap p95 drawdown within 25% on every pair; calibration trades {counts}.")
+        _append_note(conn, hypothesis_id, f"No exposure on the 5% grid keeps the bootstrap p95 drawdown within 25% on {need} pair(s); calibration trades {counts}.")
         return {"outcome": "dropped_exposure", "counts": counts, "exposure": None, "status": status}
     if exposure * WALLET_QUOTE < MIN_STAKE_QUOTE:
         # Freqtrade cannot place an order this small (Binance minimum notional plus its reserves): the exploration
@@ -90,12 +93,15 @@ def calibrate_and_explore(
         if failing:
             failed_gates[pair] = failing
     values = set(decisions.values())
+    passing = sum(d == "candidate_for_portfolio" for d in decisions.values())
     status = (
-        "exploration: candidate" if values == {"candidate_for_portfolio"}
+        "exploration: candidate" if passing >= need
         else "rejected at exploration" if "rejected" in values else "inconclusive at exploration"
     )
     registry.set_hypothesis_status(conn, hypothesis_id, status)
     _append_note(conn, hypothesis_id, f"Calibrated exposure: {exposure} (p95 by pair {chosen['p95_by_pair']}). Calibration trades: {counts}.")
+    if passing < need:
+        _append_note(conn, hypothesis_id, f"Breadth: candidate on {passing} of {len(pairs)} pairs, {need} needed.")
     return {"outcome": "explored", "counts": counts, "exposure": exposure, "status": status, "decisions": decisions,
             "failed_gates": failed_gates}
 

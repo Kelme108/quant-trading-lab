@@ -9,6 +9,11 @@ sys.path.insert(0, str(ROOT))
 
 from lab import intake, registry, triage  # noqa: E402
 
+import pin_pairs  # noqa: E402
+
+setUpModule, tearDownModule = pin_pairs.module_fixtures()
+
+
 NOW = lambda: "2026-11-04T12:00:00+00:00"  # noqa: E731
 
 IDEA = {

@@ -14,6 +14,11 @@ sys.path.insert(0, str(TESTS.parent))
 from lab import archive, calibrate, checks, guard, orchestrator, pipeline, registry  # noqa: E402
 from test_lab_orchestrator import BUDGET, LabTestCase, PAIRS, SCOUT_IDEAS, git, now  # noqa: E402
 
+import pin_pairs  # noqa: E402
+
+setUpModule, tearDownModule = pin_pairs.module_fixtures()
+
+
 CHECKS_OK = {p: {"smoke_ok": True, "lookahead_has_bias": False, "recursive_is_stable": True} for p in PAIRS}
 
 
