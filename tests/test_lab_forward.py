@@ -184,7 +184,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual((quality["closed"], quality["open"]), (1, 0))
         self.assertAlmostEqual(quality["observed_entry_cost_per_side_mean"], 0.001 + 0.01)
         self.assertEqual(quality["assumed_scenario"], "base")
-        self.assertAlmostEqual(quality["assumed_cost_per_side"], 0.00175)
+        self.assertAlmostEqual(quality["assumed_cost_per_side"], 0.0015)
 
     def test_a_better_than_requested_fill_is_not_counted_as_cost(self) -> None:
         better = {**CLOSED, "open_rate": 99.0}

@@ -175,7 +175,7 @@ def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: in
         "- No short selling, leverage, margin, derivatives, martingale, pyramiding or position sizing.",
         f"- Enough trades: at least {min_trades} per pair in about {years:.1f} years of history, so at least "
         f"{needed:.1f} expected trades per year per pair after a safety margin. A rule that trades a few times a year is useless here.",
-        "- The cost of a round trip is 0.35% at the base scenario and 0.95% at stress; the average winning move must be well above it.",
+        "- The cost of a round trip is 0.30% at the base scenario, 0.45% conservative and 0.90% at stress; the average winning move must be well above it.",
         "",
         "## Families already used (variant cap)",
         *family_lines,

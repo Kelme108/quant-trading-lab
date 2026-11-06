@@ -16,7 +16,7 @@ class CostScenarioTests(unittest.TestCase):
         scenario = costs.get_scenario("optimistic")
         self.assertEqual(scenario.slippage_per_side, 0.0)
         self.assertEqual(scenario.spread_total, 0.0)
-        self.assertAlmostEqual(scenario.effective_fee_per_side, 0.0010)
+        self.assertAlmostEqual(scenario.effective_fee_per_side, 0.00075)
 
     def test_scenarios_are_monotonically_more_expensive(self) -> None:
         ordered = [costs.get_scenario(name) for name in costs.REQUIRED_SCENARIO_NAMES]

@@ -36,6 +36,8 @@ Minimum scenarios:
 
 These are sensitivity scenarios. They must not be presented as measured Binance costs.
 
+**Amendment, 2026-11-06 (owner, Luiz Kelme).** To make day-trade rules viable: the fee is 0.075% per side in every scenario (Binance spot fee paid in BNB; a real account must hold BNB for fees), slippage and spread unchanged; the 25% drawdown ceiling applies to optimistic, base and conservative, and the stress drawdown is reported. Decisions made before this date used the 0.10% fee and the stress drawdown gate.
+
 ## Approval and rejection
 
 A strategy is not approved by positive return alone. It must have causal signals,

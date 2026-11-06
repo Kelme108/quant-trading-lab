@@ -149,7 +149,7 @@ def decide(
 
     # --- max drawdown ceiling per scenario ---
     max_dd_ratio = gates["max_drawdown"]["max_ratio"]
-    for scenario in required_scenarios:
+    for scenario in gates["max_drawdown"].get("scenarios", required_scenarios):
         # Worst peak-to-trough fall of the account, not Freqtrade's max_drawdown_account:
         # that one is taken at the point of largest ABSOLUTE loss and understates a
         # compounding whole-balance run (H-007 BNB: 25.1% vs 51.3%).

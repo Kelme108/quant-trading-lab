@@ -1,6 +1,6 @@
-## Owner's direction, 2026-11-06 (read first; supersedes the trade-count target below)
+## Owner's direction, 2026-11-06 (read first; supersedes the trade-count and cost figures below)
 
-Target the MID-FREQUENCY band: 50-150 trades per year per pair, on the 1h chart, with signals from 1h candles or from 4h candles built from closed 1h bars. Evidence: daily rules gave 9-16 validation trades (inconclusive); rules with 200-800 trades per year (H-002, H-041, H-043) lost to the 0.35%-0.95% round-trip cost or broke the drawdown gate under stress. At 50-150 trades a year a rule gets about 100-300 trades in the 2-year validation split, enough to decide, while each trade can still target a move several times the cost. Keep diversifying the mechanism.
+DAY TRADE: intraday rules on the `15m` or `1h` chart whose every position is closed within 24 hours (the rule must include a time exit of at most 24 hours, e.g. after N bars or at a fixed UTC hour). Target 150-500 trades per year per pair, with entries that each aim at a gross move of at least about 0.8% (well above the round trip: 0.30% base, 0.45% conservative). Rules with 400+ trades a year and a small move per trade lost to costs (H-002, H-041, H-043, H-044); slow rules with a few trades a year (H-004, H-020, H-024, H-025) do not fit the owner's goal, whatever their backtest. Higher timeframes (1h/4h/1d built from closed bars) may be used as filters, but the trade itself is intraday. The 25% drawdown ceiling applies at base and conservative cost. Keep diversifying the mechanism.
 
 ## Owner's direction, 2026-11-05
 

@@ -76,8 +76,8 @@ class ResearchContextTests(ContextTestCase):
 
     def test_cost_facts_come_from_the_cost_module(self) -> None:
         text = self.render()
-        self.assertIn("| base | 0.175% | 0.350% |", text)
-        self.assertIn("| conservative | 0.250% | 0.500% |", text)
+        self.assertIn("| base | 0.150% | 0.300% |", text)
+        self.assertIn("| conservative | 0.225% | 0.450% |", text)
 
     def test_exploration_numbers_are_shown(self) -> None:
         hypothesis = self.hypothesis(1)

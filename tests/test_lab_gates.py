@@ -65,6 +65,14 @@ class GatesDecisionTests(unittest.TestCase):
         decision, _ = gates.decide(metrics)
         self.assertEqual(decision, gates.DECISION_REJECTED)
 
+    def test_stress_drawdown_is_reported_not_gating_but_conservative_still_gates(self) -> None:
+        """Owner's amendment 2026-11-06: max_drawdown.scenarios leaves stress out."""
+        decision, _ = gates.decide(make_metrics(**{"max_relative_drawdown_pct__stress": 40.0}))
+        self.assertEqual(decision, gates.DECISION_CANDIDATE)
+        decision, reasons = gates.decide(make_metrics(**{"max_relative_drawdown_pct__conservative": 26.0}))
+        self.assertEqual(decision, gates.DECISION_REJECTED)
+        self.assertTrue(any("max_drawdown[conservative]" in r and "FAIL" in r for r in reasons))
+
     def test_negative_net_profit_in_base_rejects(self) -> None:
         decision, reasons = gates.decide(make_metrics(**{"net_profit_quote__base": -1.0}))
         self.assertEqual(decision, gates.DECISION_REJECTED)

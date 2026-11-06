@@ -42,45 +42,47 @@ class CostScenario:
         }
 
 
-# Values transcribed from research/validation-protocol-v2.md, "Cost scenarios".
+# Values transcribed from research/validation-protocol-v2.md, "Cost scenarios", with the owner's amendment of
+# 2026-11-06: fee 0.075% per side (Binance spot fee with the BNB discount) instead of 0.10%; slippage and spread
+# unchanged. Hypotheses decided before that date were judged with the 0.10% fee.
 # Conservative and stress give ranges in the protocol; the lower bound of each
 # range is used here as the single fixed value for a reproducible command. The
 # upper bound is noted so a reader can see the range was not silently dropped.
 SCENARIOS: dict[str, CostScenario] = {
     "optimistic": CostScenario(
         name="optimistic",
-        fee_per_side=0.0010,
+        fee_per_side=0.00075,
         slippage_per_side=0.0000,
         spread_total=0.0000,
     ),
     "base": CostScenario(
         name="base",
-        fee_per_side=0.0010,
+        fee_per_side=0.00075,
         slippage_per_side=0.0005,
         spread_total=0.0005,
     ),
     "conservative": CostScenario(
         # protocol range: slippage 10-20 bps/side, spread 10 bps; lower bound used.
         name="conservative",
-        fee_per_side=0.0010,
+        fee_per_side=0.00075,
         slippage_per_side=0.0010,
         spread_total=0.0010,
     ),
     "stress": CostScenario(
         # protocol range: slippage 25-50 bps/side, spread 25 bps; lower bound used.
         name="stress",
-        fee_per_side=0.0010,
+        fee_per_side=0.00075,
         slippage_per_side=0.0025,
         spread_total=0.0025,
     ),
 }
 
 # Not part of the four required gate scenarios. The protocol's "conservative" scenario costs 0.25% per side, only
-# 1.43x the base (0.175% per side), so it is NOT a doubling. "base_2x" doubles every component of the base scenario,
-# so its effective per-side cost (0.35%) and round-trip cost are exactly twice the base's.
+# 1.5x the base (0.15% per side, fee 0.075% since 2026-11-06), so it is NOT a doubling. "base_2x" doubles every component
+# of the base scenario, so its effective per-side cost (0.30%) and round-trip cost are exactly twice the base's.
 SCENARIOS["base_2x"] = CostScenario(
     name="base_2x",
-    fee_per_side=0.0020,
+    fee_per_side=0.0015,
     slippage_per_side=0.0010,
     spread_total=0.0010,
 )
