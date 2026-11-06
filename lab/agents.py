@@ -26,7 +26,7 @@ ROOT = Path(__file__).parents[1]
 DEFAULT_MODEL = "sonnet"
 # Owner's request (2026-11-06): the agents that design and implement the rule run on the stronger model;
 # the others stay on the default. Costs more per call; the per-call and per-cycle caps still apply.
-AGENT_MODELS: dict[str, str] = {"research": "opus", "developer": "opus"}
+AGENT_MODELS: dict[str, str] = {"scout": "opus", "research": "opus", "developer": "opus"}
 
 # tools: the built-in tools the agent gets at all (--tools).
 # allow: tool rules pre-approved so a headless run never stops on a prompt;
