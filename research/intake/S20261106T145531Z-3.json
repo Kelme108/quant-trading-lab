@@ -1,0 +1,12 @@
+{
+  "title": "4-hour Heikin Ashi trend flip built from 1h candles, no-lower-wick confirmation",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/heikin-ashi.md", "title": "Heikin Ashi (LuxAlgo library)", "license": "unknown"},
+  "rule_summary": "Build 4-hour candles from 1h bars (UTC blocks 00,04,08,12,16,20), then Heikin Ashi candles from them: haC=(O+H+L+C)/4, haO=(prev haO+prev haC)/2 (first bar (O+C)/2), haH=max(H,haO,haC), haL=min(L,haO,haC). Bar is bullish if haC>haO. ENTRY at the close of a 4h bar (fill next 1h open) when this bar and the previous one are both bullish, the previous bar was bearish before them (a fresh flip, i.e. the bar two back was bearish), the current bar has no lower wick (haL equals haO within 0.05%), the real 4h close is above SMA(100) of 4h closes, and no position is open. EXIT at the close of the first 4h bar whose HA candle is bearish. Hard stop 5% below entry. Fills use real prices.",
+  "mechanism": "Averaged candles filter out noise so a flip with no lower wick marks one-sided buying across two bars; trend followers and slow participants keep pressing in the same direction, so persistent moves are paid for by late sellers fading the trend. Trend legs on 4h give multi-percent moves per trade, far above the 0.35% cost, while losing flips are cut at the next bearish bar. Source states the rule loosely, so counts are my choices.",
+  "timeframe": "1h",
+  "longest_lookback": 600,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 30,
+  "family_hint": "HeikinAshi4hFlip"
+}

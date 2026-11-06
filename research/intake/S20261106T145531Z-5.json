@@ -1,0 +1,12 @@
+{
+  "title": "Prior-week volume-profile value-area rejection, buy back inside, target point of control",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/volume-profile.md", "title": "Volume Profile (LuxAlgo library)", "license": "unknown"},
+  "rule_summary": "Closed 1h candles. Every day at 00:00 UTC compute a profile from the previous 168 bars: split the high-low span into 50 equal price rows, spread each bar's volume evenly over rows its high-low touches, POC = row with most volume, value area = grow from POC adding the heavier pair of adjacent rows until 70% of volume; VAL = bottom of the value area. Levels are frozen for the 24 hours. ENTRY at close of bar t (next open) when low of some bar in t-3..t was below VAL, close(t) > VAL, close(t-1) <= VAL or low(t) < VAL (first reclaim), (POC / close(t) - 1) >= 0.015, and no position open. EXIT at close >= POC (next open), or after 48 bars, or close < the sweep low minus 0.5%. At most one entry per day.",
+  "mechanism": "Price that dips out of the previous week's accepted value and fails to stay out is rejected; the quick return suggests sellers below value were absorbed, and rotation back toward the high-volume node follows as mean-reverting traders and range holders buy. Sellers at the dip pay up. The POC must be at least 1.5% away so the target exceeds the 0.35% cost several times. The source gives no numeric rules; the construction is mine.",
+  "timeframe": "1h",
+  "longest_lookback": 168,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 30,
+  "family_hint": "VolumeProfileValueAreaReject"
+}

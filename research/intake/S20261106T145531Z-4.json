@@ -1,0 +1,12 @@
+{
+  "title": "Livermore pivotal-point break with volume expansion and fail-fast exit",
+  "source": {"type": "blog", "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md", "title": "Livermore Pivotal Point (LuxAlgo library)", "license": "unknown"},
+  "rule_summary": "Closed 1h candles. Pivotal level P = highest high of the prior 240 bars (excluding current). ENTRY at close of bar t (fill next open) when close(t) > P*1.002, volume(t) >= 2.0 * mean volume of the previous 48 bars, close(t) > SMA(480), and no position is open. FAIL-FAST EXIT: if any close within the next 8 bars after entry is below P, exit at the next open. Otherwise (follow-through held) trail: exit when close < lowest low of the prior 48 bars. Hard stop 4% below entry. Wait 12 bars after an exit. All hourly.",
+  "mechanism": "A break of a well-watched ten-day high on heavy volume forces short covering and triggers breakout orders; a break that cannot hold means the volume was absorbed by sellers, so leaving at once keeps the loss near the cost. The other side is the supplier who sold at the old high and the shorts who cover late. Winners are trailed for multi-percent moves above the 0.35% cost. The source gives no numbers; all values are my choices.",
+  "timeframe": "1h",
+  "longest_lookback": 480,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 25,
+  "family_hint": "LivermorePivotFailFast"
+}
