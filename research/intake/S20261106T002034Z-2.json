@@ -1,0 +1,17 @@
+{
+  "title": "Cross-pair catch-up: buy the laggard after the other two pairs jump on 1h",
+  "source": {
+    "type": "paper",
+    "url": "https://irep.iium.edu.my/73405/",
+    "title": "Lead-lag relationship between Bitcoin and Ethereum: evidence from hourly and daily data",
+    "license": "unknown"
+  },
+  "rule_summary": "1h closed candles of the three pairs; signal at bar close, order at next bar open. For pair X at bar t, let L(t) = mean of the 2-bar returns (close(t)/close(t-2) - 1) of the other two pairs, and r(t) = X's own 2-bar return. ENTRY when L(t) >= 1.5%, r(t) <= L(t) - 1.0% (X has not followed), and no position in X. EXIT at the close of the 4th bar after entry (time exit), or earlier if X closes below its entry price by 1.5% (stop checked on closed bars). Cooldown 4 bars after exit. No other filters.",
+  "mechanism": "Price discovery is not instant across pairs: the source finds causality running between BTC and ETH on hourly data (mixed, and it warns that profit is hard). Smaller or less liquid pairs absorb a large move in the others with a delay because market makers and arbitrageurs re-quote them in steps, so the laggard catches up. Only large jumps (1.5% or more with a gap of 1% or more) are used, so that a catch-up of a fraction of the gap can exceed the 0.35% cost. The source gives no tradable rule; the edge is doubtful and is left for the gates to judge.",
+  "timeframe": "1h",
+  "longest_lookback": 2,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 25,
+  "family_hint": "CrossPairCatchUp"
+}
