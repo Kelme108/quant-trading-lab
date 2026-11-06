@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-032",
+  "family": "VolumeSpikeCrashRebound",
+  "title": "Volume-spike hourly crash closing off its low: rebound to crash-bar open",
+  "ex_ante_rule": "Closed 1h candles only; signal evaluated at bar close t, order filled at the open of bar t+1. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no other filters. Definitions (completed bars only): r1(t) = close(t)/close(t-1) - 1. S(t) = population-free sample standard deviation (ddof=1) of r1 over the 720 bars ending at t-1 (bars t-720..t-1). V(t) = volume(t) / mean volume of the 168 bars ending at t-1 (bars t-168..t-1). Pos(t) = (close(t)-low(t))/(high(t)-low(t)); if high(t)==low(t) there is no signal. ENTRY at the close of bar t when ALL hold: r1(t) <= -3.0*S(t); r1(t) <= -0.015; V(t) >= 3.0; Pos(t) >= 0.5; no open position; cooldown satisfied; all inputs defined (no NaN). Store the open of the crash bar t as TARGET (fixed at entry). EXIT: at the close of the first bar u >= t+1 (the entry bar is the first one checked) with close(u) >= TARGET, filled at the open of bar u+1; or time exit at the close of bar t+18 (18 bars after the signal bar), filled at the open of bar t+19, whichever comes first. STOP-LOSS: one fixed 4% below the entry price, the engine's native intrabar stop (replaces the scout's closed-bar check). COOLDOWN: no re-entry for 6 candles after any exit. No take-profit other than the TARGET exit. All numbers fixed ex ante, no grid: 720-bar volatility window, 3.0 sigma, 1.5% minimum drop, 168-bar volume window, volume multiple 3.0, range position 0.5, time exit 18 bars, stop 4%, cooldown 6. Warm-up: 800 bars (longest lookback is 721 closes for 720 returns; no recursive indicators; startup_candle_count 800, under the 4500 limit).",
+  "parameters": {
+    "timeframe": "1h",
+    "vol_window_bars": 720,
+    "sigma_multiple": 3.0,
+    "min_drop": 0.015,
+    "volume_window_bars": 168,
+    "volume_multiple": 3.0,
+    "range_position_min": 0.5,
+    "time_exit_bars": 18,
+    "stop_loss_pct": 4.0,
+    "cooldown_bars": 6,
+    "target": "open of crash bar",
+    "std_ddof": 1,
+    "startup_candle_count": 800
+  },
+  "rationale": "Mechanism: a sharp hourly drop that is both extreme relative to the recent hourly volatility and accompanied by a volume spike is typically forced or panic selling (liquidations, stop cascades). A bar that closes in its upper half shows the selling was absorbed by buyers before the close. Liquidity is temporarily consumed, so patient buyers are paid a concession by those who sold at the low; the cited paper reports overreaction after negative hourly Bitcoin shocks that keeps reversing over 6-24 hours (full text paywalled; I read only the abstract, and the paper gives no explicit rule: the volume spike, range-position confirmation and target are scout additions). Cost: the target is the crash-bar open, which is above the signal close by at least about 1.5% (the drop of the bar) and often more, versus 0.35% base and 0.95% stress round trip; the stop is 4%. Expected trades: the 3-sigma plus 3x volume plus close-off-low filter is rare, probably around 5-30 per pair per year, so the count may land near or below the 30-trade minimum on a short split; that is accepted and the rule is not loosened. Risk control: capped hold of 18 hours, fixed 4% stop, one position, no trend-dependence so it is not tied to the 2020-21 bull cycle; consecutive-loss streaks are bounded at 4% plus cost each and the trades are widely spaced in time. Success criteria: the existing gates (positive net at base and conservative cost, drawdown limit, at least 30 trades per pair, same rule on all three pairs).",
+  "novelty_vs_tried": "Structurally different from every tried family: no moving-average trend regime, no breakout, no daily-signal dip. It is a short-horizon event-driven reversal triggered by a volatility-scaled crash with a volume spike and a rejection of the low, and exits at a price level (crash-bar open) with a time cap of 18 hours. Closest relatives are OvernightDropReversal (fixed clock window, daily SMA filter, -1.5% drop, rejected) and EMASnapbackATR (EMA/ATR stretch in an uptrend); this rule uses neither a clock nor a trend filter, requires volume confirmation and a close-off-low bar, and holds only until the lost ground is recovered.",
+  "sources": [
+    {
+      "title": "Intraday Bitcoin price shocks: when bad news is good news (Miralles-Quiros and Miralles-Quiros, Journal of Applied Economics 2022)",
+      "url": "https://ideas.repec.org/a/taf/recsxx/v25y2022i1p1294-1313.html"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data seen; only the context file research/context/H-032.md (tried hypotheses and exploration summaries) and the abstract of the cited paper."
+}
