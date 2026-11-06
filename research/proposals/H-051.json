@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-051",
+  "family": "HighVolumeSessionMomentum",
+  "title": "High-volume 08-16 UTC session surge carried to the 23:00 UTC close (intraday momentum)",
+  "ex_ante_rule": "Closed 1h candles only, UTC clock; signal evaluated at bar close, order filled at the next bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. SESSION of UTC day d = the 8 hourly bars opening at 08:00, 09:00, ..., 15:00 UTC (covering 08:00-16:00). Definitions, all computed at the close of the 15:00 UTC bar of day d: S = close(15:00 bar) / open(08:00 bar) - 1. SV = sum of volume of the 8 session bars. VrefS = arithmetic mean of SV of the previous 20 calendar days (days d-20..d-1, excluding day d; i.e. the SV values at the 15:00 bars 24, 48, ..., 480 bars back). SH = highest high and SL = lowest low of the 8 session bars. P = (close(15:00) - SL) / (SH - SL); if SH = SL, no signal. SMA200 = simple mean of the last 200 1h closes ending at the 15:00 bar (inclusive). ENTRY at the close of the 15:00 UTC bar when ALL hold: (1) S >= 0.015; (2) SV >= 1.5 * VrefS; (3) close(15:00) > SMA200; (4) P >= 0.75; (5) no open position. Buy at the open of the 16:00 UTC bar. If any of the 8 session bars is missing, if fewer than 20 prior SV values exist, or if SMA200 is undefined, no signal that day. EXIT: at the close of the 22:00 UTC bar of the same day (the bar covering 22:00-23:00), sell at the open of the 23:00 UTC bar regardless of price; this is the time exit (7 hourly bars held: 16..22, under 24 hours). STOP-LOSS: one fixed 1.5% below the entry price, the engine's native intrabar stop (replaces the scout's 'closed bar 1.5% below entry' check, as required by the engine). At most one trade per day per pair by construction (entry only at 16:00 open, position always closed by 23:00 open), so no re-entry the same day; no extra cooldown. All numbers fixed ex ante, no grid: session 08:00-16:00 UTC (8 bars), session return threshold +1.5%, volume multiple 1.5, volume reference 20 days, close-location threshold 0.75, trend mean 200 bars, exit 23:00 UTC open, stop 1.5%. Warm-up: 500 bars (longest lookback: 20 prior days of session volume = 480 bars plus the 7 earlier session bars = 487; SMA200 is shorter; no recursive indicators; startup_candle_count 500, under the 4500 limit).",
+  "parameters": {
+    "session_start_utc_hour": 8,
+    "session_last_bar_utc_hour": 15,
+    "session_bars": 8,
+    "session_return_min": 0.015,
+    "volume_multiple": 1.5,
+    "volume_ref_days": 20,
+    "close_location_min": 0.75,
+    "trend_sma_bars": 200,
+    "entry_bar_open_utc_hour": 16,
+    "exit_signal_bar_utc_hour": 22,
+    "exit_fill_utc_hour": 23,
+    "stoploss_pct": 0.015,
+    "warmup_bars": 500
+  },
+  "rationale": "Mechanism (Shen, Urquhart and Wang, Financial Review 2022): Bitcoin's early-session return predicts the later-session return, most strongly in the highest-volume or highest-volatility sessions, and the authors attribute it to liquidity provision rather than late-informed trading: market makers who absorb a large one-sided flow during the busy European/US-overlap hours carry inventory they must rebalance later, and late, slower participants keep adding in the same direction, extending the move. The counterparties are those liquidity providers and the traders who fade the surge. Wen et al. (2022) find that crypto intraday predictability can be momentum or reversal, so the high-volume (1.5x the 20-day session norm) and close-in-top-quarter-of-range filters aim at the momentum regime (a surge that closed near its high, not a spike that already faded), and SMA200 keeps the trade with the short-term trend. Cost: the entry needs a session surge of at least 1.5%; the paper's continuation implies a fraction of that in the 7 following hours, plausibly 0.5-1% on these surge days, above the 0.30% base and 0.45% conservative round trip, with the 1.5% stop limiting each loss to about 1.8% net. Expected count: a +1.5% 8-hour surge on 1.5x volume above SMA200 with a close near the high is maybe 15-50 days a year per pair (more on ETH/BNB than BTC), below the owner's 150-500 target; this is the scout's rule formalised as instructed, not retuned. Untested adaptation: the paper uses half-hour sessions and a volume-defined market clock; the fixed 08-16 UTC window is the idea's adaptation. Success = the existing gates (positive net at base and conservative, drawdown under 25%, at least 30 trades per split).",
+  "novelty_vs_tried": "Differs from H-028 IntradayEarlySessionMomentum (00-04 UTC return >= 1%, no volume, exit 16:00) by using the high-volume 08-16 UTC session, an 8-bar session-volume condition against a 20-day norm, a close-location filter and an evening exit. Differs from H-036 USOpenVolumeContinuation (single 14:00 bar volume spike, 0.7% bar return, 4-bar hold) by measuring a whole 8-hour session's return and volume and holding through the late session to 23:00. Not a dip-buy, breakout of multi-day highs or slow trend rule like most families in the lab; it is a pure intraday clock-based continuation trade, flat overnight.",
+  "sources": [
+    {"title": "Bitcoin intraday time series momentum (Shen, Urquhart, Wang, Financial Review 2022)", "url": "https://research.birmingham.ac.uk/en/publications/bitcoin-intraday-time-series-momentum/"},
+    {"title": "Intraday return predictability in the cryptocurrency markets: Momentum, reversal, or both (Wen et al., NAJEF 2022)", "url": "https://ideas.repec.org:443/a/eee/ecofin/v62y2022ics1062940822000833.html"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened; only exploration-split summary results of earlier hypotheses in research/context/H-051.md (BTC, ETH, BNB 1h), as of 2026-11-06."
+}
