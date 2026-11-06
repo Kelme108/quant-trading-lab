@@ -1,0 +1,26 @@
+{
+  "hypothesis_id": "H-035",
+  "family": "HourlyRangeExpansionDrift",
+  "title": "Hourly range-expansion bar closing at its high, 24-hour continuation hold in uptrend",
+  "ex_ante_rule": "Closed 1h candles, UTC; signal evaluated at bar close t, order executed at the open of bar t+1. Long only, one position, whole allowed balance, no pyramiding, no take-profit, no sizing hooks. Definitions: Range(t)=high(t)-low(t). TR(t)=max(high-low, |high-close(t-1)|, |low-close(t-1)|). ATR(t)=simple mean of TR over the 24 bars t-24..t-1 (excluding the current bar). Pos(t)=(close(t)-low(t))/(high(t)-low(t)); if high==low the bar does not qualify. ENTRY at close of bar t when ALL hold: (1) Range(t) >= 3.0*ATR(t); (2) Pos(t) >= 0.8; (3) close(t) > open(t); (4) close(t) > SMA(480) of 1h closes at t; (5) no open position; (6) cooldown satisfied. Buy at the open of t+1. EXIT: (a) signal exit: first bar close (bar u>t) with close(u) < low of the entry-signal bar t, executed at the open of u+1; (b) time exit: 24 bars after entry, executed at that bar's open (i.e. sell at the open of the 24th bar after the entry bar). STOP-LOSS: fixed 5% below the entry price (native intrabar stop; a catastrophic-loss backstop required by the engine contract, the signal-bar-low exit is the designed exit). COOLDOWN: no re-entry for 6 candles after any exit. No other filters. Warm-up: 500 bars (SMA(480) is the longest lookback; ATR needs 25 bars; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "atr_len": 24,
+    "range_mult": 3.0,
+    "pos_min": 0.8,
+    "sma_len": 480,
+    "time_exit_bars": 24,
+    "cooldown_bars": 6,
+    "stoploss_pct": 5,
+    "signal_exit": "close below low of entry-signal bar",
+    "entry_execution": "next bar open",
+    "warmup_bars": 500
+  },
+  "rationale": "Mechanism (the source, an opening-range-breakout article, gives none; this is the closest honest one): an abnormally large hourly bar that closes in its top 20% and above its open marks aggressive, price-insensitive buying (short covering, triggered breakout stop orders) that sweeps resting offers; slower participants, algorithms and momentum chasers keep adding over the next hours, so part of the move continues (short-horizon underreaction to liquidity shocks). The SMA(480) (20-day) filter restricts it to uptrend phases, where shock-up bars are more likely information-driven than squeezes in a downtrend, which addresses the long losing streaks seen in bear/range markets for other breakout rules. Cost: round trip 0.35% base, 0.95% stress. A 3x-ATR bar is rare, so I expect roughly 15-60 trades per year per pair (a trade count risk: if below 30 per split the result is inconclusive and the rule is not retuned). Gross move needed >0.35%; a 3x-ATR bar on BTC is typically 1-2%, so a drift of even a fraction of the bar size over 24h would exceed cost, but this is an unproven hypothesis and the edge may be zero or negative after costs. The signal-bar-low exit caps loss near the bar size, and the 5% stop limits the worst case, so streaks of losses stay bounded.",
+  "novelty_vs_tried": "Existing candidates are slow breakouts of multi-day highs (Donchian, weekly breakout, squeeze), dip-buying in uptrends (RSI2, Double7, EMA snapback, pullback recovery) and daily momentum. This rule is a single-bar event study: it trades a one-hour volatility shock with a close-location condition (range >= 3x ATR, close in top 20%), holds a fixed 24h, and exits on the shock bar's own low. It is faster, event-driven, uses only a 20-day SMA for trend, and is not a price-level breakout or a pullback.",
+  "sources": [
+    {"title": "Opening range breakout (ORB) trading strategy - Altrady", "url": "https://www.altrady.com/blog/crypto-trading-strategies/orb-trading-strategy"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Context file research/context/H-035.md (exploration-split summaries of earlier hypotheses only); no price data or validation results viewed; idea I-018 text from the scout."
+}
