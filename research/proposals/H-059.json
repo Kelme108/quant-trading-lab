@@ -1,0 +1,39 @@
+{
+  "hypothesis_id": "H-059",
+  "family": "IntradayJumpContinuation",
+  "title": "Intraday positive-jump continuation: buy a 15m bipower-scaled jump, hold to the UTC day close",
+  "ex_ante_rule": "Chart: 15m, closed bars only, UTC clock; signal at the close of bar t, order at the open of bar t+1. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. DEFINITIONS: r(i) = ln(close(i)/close(i-1)). Local volatility s(t) = sqrt((pi/2) * mean over i = t-96..t-1 of |r(i)|*|r(i-1)|) (bipower variation over the previous 96 bars; the current bar t is excluded; needs closes t-98..t-1). Jump statistic J(t) = r(t)/s(t); if s(t) is 0 or undefined there is no signal. DAILY FILTER: build UTC daily candles from the 15m data (informative 1d via merge_informative_pair, forward-filled, so a daily close is visible only after its day has closed). The filter holds when the last completed daily close (the previous UTC day) is strictly above the simple mean of the last 30 completed daily closes (that day included). ENTRY at the close of bar t when ALL hold: (1) J(t) >= 4.0; (2) r(t) >= 0.006; (3) bar t opens between 00:00 and 17:45 UTC inclusive; (4) daily filter true; (5) no position open; (6) no trade has already been entered on this UTC day (the day of bar t). Store L = low of the jump bar t at signal time. EXIT, first of: (a) on any 15m bar u >= t+1 (the entry bar included) whose close < L, sell at the open of bar u+1; (b) time exit: at the close of the 23:45 UTC bar of the signal day, sell at the open of the 00:00 UTC bar of the next day, so every position is closed within 24 hours. STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (a catastrophic backstop; exit (a) is the designed loss exit). COOLDOWN: none beyond the one-trade-per-UTC-day rule. All numbers fixed ex ante, no grid: return window 1 bar, bipower window 96 bars, jump threshold 4.0, minimum bar return 0.006 log, entry window 00:00-17:45 UTC, daily mean 30 days, time exit 23:45 bar close, stop 3%. Warm-up: 3072 bars (30 completed daily closes need up to 31 UTC days = 2976 15m bars; the bipower window needs 98 bars; 3072 = 32 days gives margin; no recursive indicators; under the 4500 limit).",
+  "parameters": {
+    "timeframe": "15m",
+    "bipower_window_bars": 96,
+    "jump_threshold_sigma": 4.0,
+    "min_bar_log_return": 0.006,
+    "entry_window_start_utc": "00:00",
+    "entry_window_last_bar_open_utc": "17:45",
+    "daily_sma_days": 30,
+    "max_trades_per_utc_day": 1,
+    "loss_exit": "15m close below low of jump bar",
+    "time_exit_bar_utc": "23:45 close, sell at 00:00 open",
+    "stoploss_pct": 3.0,
+    "cooldown_bars": 0,
+    "warmup_bars": 3072
+  },
+  "rationale": "Saef, Nagy, Sizov and Haerdle (jump tests on high-frequency data across many crypto assets) find that the sign of a same-day intraday jump matches the sign of that day's end-of-day return, that the effect does not carry to the next day, that jumps cluster in the 13-17 UTC active hours, and that positive jumps are larger in bull phases (rally-like behaviour). The trade buys a 15m bar whose return is at least 4 local bipower sigmas and at least 0.6%, only when the daily trend is up, and rides it only until the UTC day close, where the paper says the effect ends. The counterparty is the slow trader: holders who sell into the jump to take profit, and late-informed buyers who join hours later and pay the drift (intraday momentum of Wen, Bouri, Xu, Zhao 2022). Caveat: the paper's regression is contemporaneous, not a tradable test, so a jump captured only after its bar closes may already have spent much of its day's move; this is what the test decides. Trades: at most one per UTC day per pair; a 4-sigma 15m jump of at least 0.6% with the daily-trend filter on should fire on roughly 80-200 days a year per pair (more on DOGE/SOL, fewer on BTC). Move per trade: the holding period is several hours to the day close, and a winner that continues the jump typically moves 1-3% on these pairs, well above the 0.30% base / 0.45% conservative round trip; losers are cut at the close below the jump-bar low (usually 0.6-1.5% below entry), with a 3% native stop as backstop, so consecutive losses stay far from the 25% drawdown ceiling.",
+  "novelty_vs_tried": "No tried hypothesis uses a volatility-scaled jump test on 15m bars. H-024 DailyMaxJumpMomentum uses the largest daily return over 30 days as a slow regime flag and holds for weeks; here the jump is a single intraday 15m bar scaled by bipower variation (jump-robust volatility) and the hold ends at the same UTC day close. H-035 HourlyRangeExpansionDrift used 1h range vs ATR with a 24-bar hold; H-036 USOpenVolumeContinuation used a fixed 14:00 hour and volume; H-033 and H-050/H-053 buy drops (reversal). This rule buys a positive return jump at any hour 00:00-17:45 UTC, with a jump-robust scale, a daily trend filter and an end-of-UTC-day exit tied to the paper's finding that jumps affect the same day's return only. The scout's idea is defined on 15m bars (96-bar window = one day), so the strategy runs on 15m, which the 2026-11-06 direction allows; the context's generic '1h' line would change the meaning of the 96-bar window and the jump bar.",
+  "sources": [
+    {
+      "title": "Understanding jumps in high frequency digital asset markets (Saef, Nagy, Sizov, Haerdle), arXiv 2110.09429",
+      "url": "https://ar5iv.labs.arxiv.org/html/2110.09429"
+    },
+    {
+      "title": "Intraday return predictability in the cryptocurrency markets: momentum, reversal, or both (Wen, Bouri, Xu, Zhao), econbiz record",
+      "url": "https://www.econbiz.de/Record/intraday-return-predictability-in-the-cryptocurrency-markets-momentum-reversal-or-both/10013534113"
+    },
+    {
+      "title": "Understanding temporal dynamics of jumps in cryptocurrency markets: evidence from tick-by-tick data",
+      "url": "https://edoc.hu-berlin.de/items/6b0d7ba2-029a-4ea3-b783-0a8fba314835/full"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only the context file research/context/H-059.md (exploration-split summaries of earlier hypotheses for BTC, ETH, BNB 1h) and the web sources listed, through 2026-11-06."
+}
