@@ -23,12 +23,12 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "LivermorePivotFailFast_H046_v1"
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / (NAME + ".py")
+    path = ROOT / "user_data" / "strategies" / "_archive" / (NAME + ".py")
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
