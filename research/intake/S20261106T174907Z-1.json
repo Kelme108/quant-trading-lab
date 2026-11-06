@@ -1,0 +1,17 @@
+{
+  "title": "4h Kaufman adaptive MA trend: close 1.5% above rising KAMA, exit on close below KAMA",
+  "source": {
+    "type": "blog",
+    "url": "https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/kaufmans-adaptive-moving-average-kama",
+    "title": "Kaufman's Adaptive Moving Average (KAMA) - StockCharts ChartSchool",
+    "license": "unknown"
+  },
+  "rule_summary": "Build 4h candles from closed 1h bars (UTC blocks 00,04,...,20); evaluate only when a 4h bar completes, fill at the next 1h open. Efficiency ratio ER = |close - close 10 bars ago| / sum of |bar-to-bar close changes| over those 10 4h bars. Smoothing constant SC = (ER*(2/3 - 2/31) + 2/31)^2. KAMA = previous KAMA + SC*(close - previous KAMA), seeded with the 10-bar SMA. ENTRY at 4h close when close > KAMA*1.015 AND KAMA is above its value 6 bars earlier (rising) AND flat. EXIT at 4h close when close < KAMA (no band). Hard stop: 8% below entry, checked on closed 1h bars. Cooldown: none. Long only, one position, no pyramiding. Lookback about 120 4h bars for warm-up.",
+  "mechanism": "KAMA slows down when price is choppy (low efficiency ratio) and speeds up in clean directional moves, so it filters the range-bound whipsaws that make plain MA crosses lose to costs. The 1.5% entry band and rising-slope condition (the whipsaw filters the guide suggests) require a sizeable displacement, so a trade only starts in an efficient move. The other side is slower participants and mean-reversion sellers who fade early trend legs and under-react to information. Gross move per winning trend leg must be several percent to beat 0.35%; the band and 4h frame cut trade count to roughly 60-100 per year. The Altrady KAMA crypto guide was also read; it gives only the same directional-filter framework with no numeric rule, so evidence is mostly mechanical, not empirical.",
+  "timeframe": "1h",
+  "longest_lookback": 480,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 70,
+  "family_hint": "FourHourKAMATrend"
+}
