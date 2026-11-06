@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-049",
+  "family": "FourHourKAMATrend",
+  "title": "4h Kaufman adaptive MA trend: close 1.5% above rising KAMA(10,2,30), exit on close below KAMA",
+  "ex_ante_rule": "Strategy timeframe 1h; closed candles only; long only, spot, one position, whole allowed balance, no pyramiding. INFORMATIVE 4h: build 4h candles from closed 1h bars in UTC blocks starting 00,04,08,12,16,20 (open=first open, high=max high, low=min low, close=last close) and attach them with merge_informative_pair(ffill=True), so a 4h bar's values become visible only on the 1h candle that completes that block (the 1h candle opening at 03,07,11,15,19,23 UTC). All indicators below are computed on the 4h series, index k = 4h bar. ER(k) = |close(k) - close(k-10)| / sum over j=k-9..k of |close(j) - close(j-1)|; if the denominator is 0, ER = 0. SC(k) = (ER(k)*(2/3 - 2/31) + 2/31)^2. KAMA: seed at the 10th 4h bar of the loaded data (k=9) with the SMA of the first 10 4h closes; then KAMA(k) = KAMA(k-1) + SC(k)*(close(k) - KAMA(k-1)). RISING(k): KAMA(k) > KAMA(k-6). Signals are evaluated only on the 1h candle that completes a 4h block (on other 1h candles enter_long and exit_long are 0); orders fill at the next 1h open. ENTRY when close4h(k) > 1.015 * KAMA(k) AND RISING(k) AND no open position. EXIT when close4h(k) < KAMA(k) (no band). STOP-LOSS: fixed 8% below the entry price, native Freqtrade stoploss = -0.08, triggers intrabar on any 1h candle as soon as price touches it (this replaces the idea's 'checked on closed 1h bars' wording, which the engine does not support; level unchanged). No trailing stop, no take-profit (minimal_roi disabled), no time stop, no cooldown, no other filters. The same rule and numbers on BTC/USDT, ETH/USDT, BNB/USDT. Grid: a single cell (no parameter grid is explored). Warm-up: 4000 bars (1000 4h bars; the idea's ~120 4h-bar lookback is lengthened only so the recursive KAMA, whose slowest constant (2/31)^2 decays with a time constant of about 240 4h bars, passes the recursive-analysis gate; startup_candle_count = 4000).",
+  "parameters": {
+    "informative_timeframe": "4h",
+    "er_period_4h_bars": 10,
+    "fast_ema_period": 2,
+    "slow_ema_period": 30,
+    "kama_seed_sma_4h_bars": 10,
+    "entry_band_pct": 1.5,
+    "kama_slope_lag_4h_bars": 6,
+    "exit_band_pct": 0.0,
+    "stoploss_pct": 8,
+    "cooldown_candles": 0,
+    "startup_candle_count_1h": 4000
+  },
+  "rationale": "KAMA adapts its smoothing to the efficiency ratio: in choppy stretches ER is low and KAMA nearly stops, so price oscillates around a flat line and rarely sits 1.5% above a RISING KAMA; in clean directional moves KAMA follows price. Entry thus fires only once a move is efficient and displaced, using the two whipsaw filters ChartSchool suggests (percentage confirmation and KAMA direction). Counterparty: slower participants and mean-reversion sellers who fade early trend legs and under-react to information, giving multi-day momentum. Risk control tied to the H-005/H-009 failure (losing streaks in ranges after 2021): in a range KAMA flattens and the slope test fails, cutting quick failed re-entries; losses are capped by the exit on close < KAMA (usually a few %) and the 8% intrabar stop. Cost: decisions only on 4h closes; with band plus slope I expect about 50-100 round trips per pair per year (scout estimate 60-100). Winning 4h trend legs should be several percent, many times the 0.35% base / 0.50% conservative round trip; losers are frequent and small, so the edge is payoff skew, not win rate. Success criteria: the existing gates (positive net at base and conservative cost, drawdown < 25% in all scenarios, >= 30 trades per split per pair, clean lookahead and recursive checks, Sharpe above buy-and-hold and Sma200Baseline at 2x cost). Evidence is mechanical (indicator definition), not an empirical crypto backtest.",
+  "novelty_vs_tried": "No earlier hypothesis uses an adaptive moving average or the efficiency ratio. Prior trend rules use fixed-length SMAs (H-001, H-009 regime), Donchian/price-channel breakouts (H-002, H-005, H-007, H-009), Supertrend, Heikin-Ashi or MACD. Here the trend line's speed itself depends on how directional the last 10 4h bars were, so the filter against range whipsaw is built into the line rather than added as a separate regime filter; entry/exit are a band around that line on 4h closes, not a highest-high breakout or a dip-buy.",
+  "sources": [
+    {
+      "title": "Kaufman's Adaptive Moving Average (KAMA) - StockCharts ChartSchool",
+      "url": "https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/kaufmans-adaptive-moving-average-kama"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened; only the context file research/context/H-049.md (exploration-split summary metrics of earlier hypotheses for BTC, ETH, BNB 1h) as of 2026-11-06"
+}
