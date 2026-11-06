@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-056",
+  "family": "RoundNumberSupportBounce",
+  "title": "Round-number support bounce: buy a 15m rejection of a round level after an 8-hour decline into it",
+  "ex_ante_rule": "Chart: closed 15m candles only; every signal is evaluated at the close of bar t and filled at the open of bar t+1. Spot, long only, one position, whole allowed balance, no pyramiding, no sizing hooks; the same rule and numbers on BTC/USDT, ETH/USDT and BNB/USDT. ROUND GRID (fixed per UTC day): P = close of the last 15m bar (the 23:45 bar) of the previous UTC day. Step S = the largest number of the form 1, 2.5 or 5 times a power of ten (..., 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, ...) that is <= 0.02*P (e.g. BTC 60000 -> 1000, ETH 3000 -> 50, BNB 600 -> 10). Levels are integer multiples of S. S stays fixed for the whole UTC day. LEVEL AT BAR t: L = the multiple of S with 0.996*L <= low(t) <= 1.001*L (S is at least 0.8% of P, so at most one level qualifies; if none, no signal). This is the level being touched, i.e. the nearest round level below the recent high that price has come down into. ENTRY signal at the close of bar t when ALL hold: (1) DECLINE INTO LEVEL: max(high of bars t-32..t-1) >= 1.012*L (the 32 bars = 8 hours before t, excluding t); (2) TOUCH WITHOUT BREAK: 0.996*L <= low(t) <= 1.001*L, AND no bar among t-32..t-1 has close < L; (3) REJECTION: close(t) >= 1.002*L; (4) no position is open; (5) ONE TRADE PER LEVEL PER DAY: no earlier entry signal at the same level L on the same UTC day (UTC day of bar t). Record L at signal time; it is fixed for the trade. EXIT, whichever comes first: (a) TAKE-PROFIT: limit sell at entry_fill*1.010, filled intrabar as soon as high >= that price (at the open if the bar opens above it); (b) LEVEL-BREAK EXIT: if a bar u after the entry fill closes < 0.993*L, exit at the open of bar u+1 (closed-bar exit signal, not a stop); (c) STOP-LOSS: one fixed native intrabar stop 1.5% below the entry fill (stoploss = -0.015), a backstop for gaps and fast moves through the level; (d) TIME EXIT: with the entry filled at the open of bar e, exit at the open of bar e+24 (signal at the close of bar e+23), i.e. 6 hours, well under 24 hours. No cooldown other than condition (5). No trend filter, no other filters. Grid: a single cell, no parameters explored. Warm-up: 200 bars (longest lookback 32 bars plus up to 96 bars to reach the previous UTC day's 23:45 close, rounded up; no recursive indicators; startup_candle_count = 200).",
+  "parameters": {
+    "timeframe": "15m",
+    "grid_fraction_of_prev_day_close": 0.02,
+    "grid_mantissas": "1,2.5,5",
+    "decline_lookback_bars": 32,
+    "decline_min_above_level": 1.012,
+    "touch_low_upper": 1.001,
+    "touch_low_lower": 0.996,
+    "rejection_close_min": 1.002,
+    "take_profit_ratio": 1.01,
+    "level_break_close_ratio": 0.993,
+    "stoploss": -0.015,
+    "time_exit_bars": 24,
+    "max_trades_per_level_per_utc_day": 1,
+    "warmup_bars": 200
+  },
+  "rationale": "Mechanism (Osler, FRBNY SR125 / J. Finance 2003): take-profit orders and limit bids cluster exactly at round numbers, while stop-loss sells cluster just beyond them. A market falling into a round level therefore meets a wall of resting buy demand (shorts covering at their round target, limit buyers at the figure), which is why intraday declines tend to stall and reverse there. The rule buys only when the level held: the bar dipped at most 0.4% through it (not deep enough to cascade the stops clustered below) and closed back 0.2% above it, i.e. the resting demand absorbed the selling. The counterparties are short-horizon momentum sellers and stop-hunters who hit the bids at the level and are left on the wrong side of the bounce. Risk control: the trade is invalidated on a close 0.7% below the level (stops cascading = the thesis failed), a 1.5% native backstop, and a 6-hour time exit, so a losing streak cannot hold whole-balance losses of more than about 1-1.5% each. Cost: the target is +1.0% gross versus a 0.30% base / 0.45% conservative round trip; the typical loss is about 0.9-1.2% gross. Expected frequency: a fresh 1.2% decline into a round level that holds on closes, at most one trade per level per day, should occur roughly 100-250 times per year per pair (round levels are spaced 0.8-2% apart, so most days with a 1%+ intraday down-swing touch one). Note on timeframe: the context's boilerplate says 1h, but the idea is defined entirely in 15m bars (32-bar = 8h lookback, 24-bar = 6h time exit); keeping the rule's meaning requires 15m. No source measures this effect in crypto; the evidence is from FX order books.",
+  "novelty_vs_tried": "H-054 (RoundNumberStopCascade) trades the opposite side of the same order-clustering fact: it buys an upward break through a round level (stop cascade, momentum). This rule buys a held round level after a decline into it (take-profit/limit-bid clustering, reversal), requires that no close broke below the level, and exits on a close-basis break of the level; hence a new family. Unlike the dip rules (H-003, H-010, H-055, DailyRSI2Dip etc.), the support price is not derived from past prices or bands but from a fixed decimal grid, and there is no trend filter. Unlike H-055 (sweep-and-reclaim of a 24h low) the level is exogenous and the entry needs a decline of 1.2% within 8 hours into it.",
+  "sources": [
+    {"title": "Osler (2001), Currency orders and exchange-rate dynamics: explaining the success of technical analysis, FRBNY Staff Report 125", "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125"},
+    {"title": "Osler (2003), Currency Orders and Exchange Rate Dynamics: An Explanation for the Predictive Success of Technical Analysis, Journal of Finance 58(5)", "url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:58:y:2003:i:5:p:1791-1819"},
+    {"title": "Osler (2000), Support for Resistance: Technical Analysis and Intraday Exchange Rates, FRBNY Economic Policy Review", "url": "https://resources.newyorkfed.org/medialibrary/media/research/epr/00v06n2/0007osle.pdf"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summaries in research/context/H-056.md (BTC, ETH, BNB 1h/15m exploration results of earlier hypotheses)."
+}
