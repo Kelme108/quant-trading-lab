@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-036",
+  "family": "USOpenVolumeContinuation",
+  "title": "US-open volume-surge continuation: 14:00 UTC 1h bar, 4-hour hold",
+  "ex_ante_rule": "Closed 1h candles only, UTC clock; signal evaluated at bar close, order filled at the next bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. SIGNAL BAR: the 1h bar opening at 14:00 UTC (covers 14:00-15:00). V = its volume. Vref = arithmetic mean of the volume of the 14:00 UTC bars of the previous 20 calendar days (days d-20..d-1, excluding the current day; 480 bars back at most). ENTRY at the close of the 14:00 bar when ALL hold: (1) V >= 2.0 * Vref; (2) close > open; (3) close/open - 1 >= 0.007; (4) close > SMA(200) of 1h closes at that bar; (5) no open position. Buy at the open of the next bar (15:00 UTC). If the 14:00 bar, Vref (fewer than 20 prior 14:00 bars) or the SMA is missing, no signal. EXIT: at the close of the 18:00 UTC bar of the same day (the bar covering 18:00-19:00), sold at the open of the 19:00 bar, i.e. 4 hourly bars held (15,16,17,18), regardless of price. STOP-LOSS: one fixed 1.5% below the entry price, the engine's native intrabar stop (replaces the scout's closed-bar check). At most one trade per day per pair by construction (entry only after the 14:00 bar, trade always closed by 19:00). No cooldown needed. All numbers fixed ex ante, no grid: signal hour 14:00 UTC, volume multiple 2.0, reference 20 days, min bar return +0.7%, trend mean 200 bars, hold 4 bars, stop 1.5%. Warm-up: 500 bars (longest lookback is the 14:00 bar 20 days back = 480 bars; SMA(200) is shorter; no recursive indicators; startup_candle_count 500, under the 4500 limit).",
+  "parameters": {
+    "signal_hour_utc": 14,
+    "volume_multiple": 2.0,
+    "volume_reference_days": 20,
+    "min_bar_return": 0.007,
+    "trend_sma_bars": 200,
+    "entry_fill": "open of 15:00 bar",
+    "exit_signal_bar_hour_utc": 18,
+    "exit_fill": "open of 19:00 bar",
+    "hold_bars": 4,
+    "stop_loss_pct": 1.5,
+    "max_trades_per_day": 1,
+    "cooldown_candles": 0,
+    "warmup_bars": 500,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: crypto volume and volatility peak when US markets are open and are thin overnight; a 1h bar at the US cash open with at least twice its usual 14:00 volume and a +0.7% move is likely information- or flow-driven (institutional/ETF-linked participants who execute in slices over hours), so price may keep drifting as remaining orders arrive, while slower liquidity providers anchored on the pre-open price are on the other side. This is the scout's own construction; the cited Quantpedia page only documents calendar/time-of-day effects in Bitcoin, not this rule, and I found no direct evidence of the continuation. Cost: round trip is 0.35% at base and 0.95% at stress, so the average gross move over the 4-hour hold must exceed 0.35%; this is uncertain, which is why the rule demands a big volume and price shock and only trades with close above SMA(200). Expected frequency is low: roughly 10 to 40 trades per year per pair (volume doubling plus +0.7% in one hour at one fixed hour is rare), so cost drag is limited but the trade count may fall near the 30-trade minimum per split; a result under 30 trades would be inconclusive, not retuned. Drawdown control: 4-hour exposure only, 1.5% stop per trade, a small share of the time in the market. Success criteria: existing gates, positive net profit at base and conservative cost, drawdown under 25% in all scenarios.",
+  "novelty_vs_tried": "Unlike the daily dip and slow breakout rules, this is an intraday, fixed-clock event rule: it conditions on abnormal volume relative to the same hour on prior days at the US open and holds only 4 hours. H-028 (early-session momentum) and H-030 (overnight drop reversal) use fixed-clock windows but price only, in the Asian/European hours, and H-030 is a reversal; H-035 and H-032 use bar range or volume spikes but with no time-of-day, and H-032 is a crash rebound. No tried hypothesis uses a same-hour volume ratio or the US open.",
+  "sources": [
+    {
+      "title": "Are There Any Simple Calendar Effects in Bitcoin Market? (Quantpedia)",
+      "url": "https://quantpedia.com/Blog/Details/are-there-any-simple-calendar-effects-in-bitcoin-market"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data; only the research context file listing tried hypotheses and exploration summaries (BTC, ETH, BNB 1h), as of 2026-11-06."
+}
