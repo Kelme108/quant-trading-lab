@@ -1,0 +1,17 @@
+{
+  "title": "US-session volume-surge continuation: 1h bar at US open, 4-hour hold",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/Blog/Details/are-there-any-simple-calendar-effects-in-bitcoin-market",
+    "title": "Are There Any Simple Calendar Effects in Bitcoin Market?",
+    "license": "none"
+  },
+  "rule_summary": "Closed 1h candles, UTC clock. Signal bar is the 1h bar opening at 14:00 UTC (covers 14:00-15:00, just after the US cash open). Let V = its volume and Vref = mean volume of the 14:00 bars of the previous 20 days. ENTRY at the close of that bar if V >= 2.0 * Vref AND close > open AND (close/open - 1) >= 0.007 AND close > SMA(200 bars) of 1h closes AND no open position; buy at the next bar open (15:00). EXIT at the close of the 18:00 bar (executed at next open, i.e. 4 bars held), or earlier if a closed bar is more than 1.5% below the entry price. At most one trade per day per pair. No other filters.",
+  "mechanism": "Bitcoin activity is highest while US markets are open and thin overnight. A volume-confirmed up move at the US open is likely information-driven flow from institutional and ETF-linked participants who execute in slices over several hours, so price keeps drifting as the remaining orders arrive. The other side is slower liquidity providers and sellers who anchor on the pre-open price. The source describes only the time-of-day volume pattern, not a rule; the rule is my own construction. Whether the continuation exceeds the 0.35% cost is uncertain, which is why the filter demands a large volume and price shock.",
+  "timeframe": "1h",
+  "longest_lookback": 480,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 40,
+  "family_hint": "USOpenVolumeContinuation"
+}

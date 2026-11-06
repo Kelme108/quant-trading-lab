@@ -1,0 +1,17 @@
+{
+  "title": "Weekend thin-liquidity drop reversal: buy Sunday-morning dip, exit Sunday close",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/Blog/Details/are-there-any-simple-calendar-effects-in-bitcoin-market",
+    "title": "Are There Any Simple Calendar Effects in Bitcoin Market?",
+    "license": "none"
+  },
+  "rule_summary": "Closed 1h candles, UTC clock, Saturday and Sunday only. Define D = close of the current bar / highest close of the prior 24 bars - 1. ENTRY at the close of any bar whose open time is Saturday 00:00 UTC through Sunday 15:00 UTC when D <= -0.03 (price at least 3% below its 24-hour high close), the bar's close is above its open (first green bar after the drop), close > SMA(1200 bars) of 1h closes, and no position is open; buy at the next bar open. EXIT when close >= the highest close of the prior 24 bars measured at entry signal time minus half the drop (i.e. half the drop recovered), or at the close of the Sunday 23:00 UTC bar, or on a closed bar 2.5% below entry. One position per pair, at most one trade per weekend per pair.",
+  "mechanism": "Weekend volume is lower, so order books are thinner and forced sellers (stop cascades, liquidations of leveraged holders felt on spot) move price further than information justifies. Market makers widen spreads and refill depth only slowly; the buyers who step in when depth returns collect the recovery. The source documents lower weekend volume but no rule, so this is my own construction. A 3% drop with half recovered gives a gross target near 1.5%, above the 0.35% cost, but the trade count is modest and the edge is unproven.",
+  "timeframe": "1h",
+  "longest_lookback": 1200,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 15,
+  "family_hint": "WeekendThinDropReversal"
+}
