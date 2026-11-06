@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-031",
+  "family": "CrossPairCatchUp",
+  "title": "Cross-pair catch-up: buy the laggard after the other two pairs jump on 1h",
+  "ex_ante_rule": "Closed 1h candles of BTC/USDT, ETH/USDT and BNB/USDT only (the other two pairs are read as informative 1h pairs, closed bars only, aligned on the same candle timestamp). Long only, spot, one position per traded pair, whole allowed balance. Signal at the close of bar t, order filled at the open of bar t+1. Definitions for traded pair X at bar t: r(t) = close_X(t)/close_X(t-2) - 1. For each of the other two pairs Y, r_Y(t) = close_Y(t)/close_Y(t-2) - 1. L(t) = arithmetic mean of the two r_Y(t). ENTRY at close of bar t when ALL hold: (1) L(t) >= 0.015; (2) r(t) <= L(t) - 0.010; (3) no open position in X; (4) cooldown satisfied. EXIT: time exit after 4 bars held: if the entry fill is at the open of bar e, the exit signal is at the close of bar e+3 and fills at the open of bar e+4 (position held 4 hours). STOP-LOSS: one fixed 1.5% below the entry price, native intrabar stop (triggers as soon as price touches it, not on a close). COOLDOWN: no re-entry for 4 candles after any exit. No take-profit, no pyramiding, no other filters, no trend filter. All numbers fixed ex ante, no grid: 2-bar return length, jump threshold 1.5%, gap 1.0%, hold 4 bars, stop 1.5%, cooldown 4 bars. Warm-up: 50 bars (longest lookback is 2 bars; no recursive indicators; 50 bars covers alignment of the informative pairs).",
+  "parameters": {
+    "return_lookback_bars": 2,
+    "leader_threshold": 0.015,
+    "gap_threshold": 0.01,
+    "hold_bars": 4,
+    "stoploss_pct": 1.5,
+    "cooldown_bars": 4,
+    "warmup_bars": 50,
+    "timeframe": "1h",
+    "leader_definition": "mean of 2-bar returns of the other two pairs"
+  },
+  "rationale": "Mechanism: price discovery across crypto pairs is not instantaneous. Academic work on hourly BTC/ETH data finds lead-lag (causal) relations between the two, so a large simultaneous jump in the other two pairs may be absorbed by the third with a delay as market makers and arbitrageurs re-quote in steps. The counterparty giving the money away is the stale-quote liquidity provider and slow participants in the laggard pair. Only big moves are used (leaders up at least 1.5% in 2 hours and the laggard behind by at least 1.0%) so that a partial catch-up can exceed the 0.35% base round-trip cost (0.95% at stress). Honest caveat: the source documents causality, not a tradable rule, and warns profit is hard; the edge is doubtful and left to the gates. Expected trades: such joint jumps are rare; roughly 20-80 per pair per year, low enough that cost is not dominant, though the 30-trade minimum per split is a risk. The 1.5% stop at 4-hour holds limits losing streaks: a streak of 10 losses costs about 15% plus costs, below the 25% drawdown ceiling. Success criteria: the existing gates (positive net at base and conservative costs, drawdown below 25%, at least 30 trades per pair, same rule on all three pairs).",
+  "novelty_vs_tried": "All tried families are single-asset rules on own-price history (trend filters, breakouts, dip-buying, daily mean reversion, momentum). This one uses cross-sectional information: the contemporaneous moves of the other two pairs as the signal for the traded pair, with a 4-hour holding period and no trend regime. It is a short-horizon lead-lag mechanism, structurally different from any family in the context file.",
+  "sources": [
+    {
+      "title": "Lead-lag relationship between Bitcoin and Ethereum: evidence from hourly and daily data (IIUM repository)",
+      "url": "https://irep.iium.edu.my/73405/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Context file research/context/H-031.md (hypothesis list and exploration-only audit facts); no price data or validation results seen."
+}
