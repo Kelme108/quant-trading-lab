@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-046",
+  "family": "LivermorePivotFailFast",
+  "title": "Livermore pivotal-point break with volume expansion and fail-fast exit (1h)",
+  "ex_ante_rule": "Closed 1h candles only; signals evaluated at bar close t, orders filled at the open of bar t+1. Long only, one position, whole allowed balance, no pyramiding. Definitions: P(t) = highest high of the prior 240 bars (t-240..t-1, excluding current bar). VolAvg(t) = mean volume of the previous 48 bars (t-48..t-1, excluding current). SMA480(t) = simple mean of close over 480 bars ending at t. ENTRY at close of bar t when ALL hold: (1) close(t) > 1.002 * P(t); (2) volume(t) >= 2.0 * VolAvg(t); (3) close(t) > SMA480(t); (4) no open position; (5) cooldown satisfied. On entry store the pivot level P_entry = P(t) of the signal bar (fixed for the trade). FAIL-FAST EXIT: for the 8 bars after the entry signal bar, i.e. bars t+1..t+8, if any close(k) < P_entry, exit at the open of bar k+1. TRAILING EXIT: from bar t+9 onward (after the 8-bar fail-fast window), exit at the open of the next bar when close(k) < lowest low of the prior 48 bars (k-48..k-1, excluding current bar). Before bar t+9 only the fail-fast exit and the stop apply. STOP-LOSS: fixed 4% below the entry price (native intrabar stop). COOLDOWN: no re-entry for 12 candles after any exit. No take-profit, no other filters. Warm-up: 600 bars (longest lookback SMA480; margin for stability).",
+  "parameters": {
+    "pivot_lookback_bars": 240,
+    "pivot_break_margin": 0.002,
+    "volume_lookback_bars": 48,
+    "volume_multiple": 2.0,
+    "trend_sma_bars": 480,
+    "fail_fast_window_bars": 8,
+    "fail_fast_level": "P_entry (pivot level of the signal bar)",
+    "trail_lookback_bars": 48,
+    "stop_loss_pct": 4.0,
+    "cooldown_bars": 12,
+    "warmup_bars": 600,
+    "timeframe": "1h"
+  },
+  "rationale": "Mechanism: a close above a well-watched 10-day high on at least twice the normal volume triggers resting buy-stop orders and forces late short covering, while the other side is whoever sold at the old high and supplies liquidity. If the break is genuine, follow-through continues for multi-percent moves, well above the 0.35% base round-trip cost (0.95% at stress); if price closes back under the pivot within 8 hours, the volume was absorbed by sellers, and leaving at once keeps the loss near the 0.2-0.5% range plus costs instead of the full 4% stop. This addresses the failure pattern in the owner's note (long streaks of failed breakouts each losing 6-8%): the fail-fast exit and 4% stop cap the loss per failed breakout, and the volume and SMA(480) filters reduce the number of weak breaks. Expected trade count is roughly 10-30 per pair per year (volume doubling plus a 10-day high break within an uptrend is uncommon); winners are expected to run several percent via the 48-bar low trail, while many losers are cut near -0.5% to -1%. This is a new family and not a variant of any tried one; the source gives no numbers and all values are my fixed, round, pre-chosen choices, not tuned on any result. The 15-30 trades per year may leave under 30 trades in a split, which would be inconclusive; that risk is accepted rather than loosening the filters.",
+  "novelty_vs_tried": "Earlier breakout families (Donchian, WeeklyBreakoutRegime, RisingTrendBreakoutGate, VolatilitySqueezeBreakout) use 168-1440 bar highs with slow exits and no volume confirmation. This rule adds a volume-expansion gate (2x the 48-bar mean) and an early post-entry test of whether the broken level holds, an 8-bar fail-fast exit relative to the pivot itself, with a different trail only after follow-through is shown. No tried family uses a breakout-level retest as an exit or volume as an entry condition on a breakout.",
+  "sources": [
+    {
+      "title": "Livermore Pivotal Point (LuxAlgo library)",
+      "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the research context file and validation protocol (exploration results of earlier hypotheses as listed in the context) through 2026-11-06."
+}
