@@ -22,12 +22,12 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "HourlyInsideBarBreakout_H042_v1"
 
 
 def load_strategy():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
