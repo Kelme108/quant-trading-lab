@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-055",
+  "family": "HourlyFailedBreakdownReclaim",
+  "title": "15m stop-sweep of the 24-hour low reclaimed within an hour, 1.2% target, 12-hour time exit",
+  "ex_ante_rule": "Chart 15m, closed bars only; signal at the close of bar t, order filled at the open of bar t+1. Spot, long only, one position, whole allowed balance, no pyramiding, no sizing hooks; same rule and numbers on BTC/USDT, ETH/USDT, BNB/USDT. DEFINITIONS: PL(t) = lowest low of the 96 bars with index t-100 through t-5 inclusive (a 24-hour low that excludes the most recent bars t-4..t). SL4(t) = min(low of bars t-3..t). SMA384(t) = simple mean of the 384 closes ending at t (inclusive). ENTRY signal at close of bar t when ALL hold: (1) SWEEP: SL4(t) < 0.998*PL(t); (2) DEPTH CAP: SL4(t) >= 0.98*PL(t); (3) RECLAIM: close(t) > PL(t) AND close(t-1) <= PL(t) (PL(t) used on both sides); (4) TREND: close(t) > SMA384(t); (5) no position is open; (6) SPACING: no entry was filled at any of bars t-15..t (at least 16 bars since the previous entry fill; entry-to-entry spacing, not an exit cooldown); (7) all inputs defined. At signal store SWEEP_LOW = SL4(t), fixed for the trade. EXIT, first of: (a) TAKE-PROFIT: limit sell at entry_fill*1.012 (gross price level), filled intrabar as soon as high >= that level (at the open if the bar opens above it); (b) SWEEP-LOW EXIT: if a bar u after the entry fill closes < SWEEP_LOW*0.998, exit at the open of bar u+1 (closed-bar exit signal, not a stop); (c) STOP-LOSS: one fixed native intrabar stop 2.0% below the entry fill (stoploss = -0.02); (d) TIME EXIT: with entry filled at the open of bar e, exit at the open of bar e+48 (signal at the close of bar e+47), i.e. 12 hours, well under 24 hours. No trailing stop, no other filters. Note on the stop: the idea's stop (SWEEP_LOW*0.998, intrabar) varies per trade; the engine requires one fixed percentage, so the intrabar stop is fixed at 2.0% (the depth cap: the accepted sweep low lies at most 2% below PL, and entry is near or above PL), and the idea's level is kept as the closed-bar exit (b). Grid: a single cell, no parameters explored. Warm-up: 400 bars (longest lookback SMA(384) of 15m closes; PL needs 101 bars; no recursive indicators; startup_candle_count = 400).",
+  "parameters": {
+    "timeframe": "15m",
+    "pl_window_bars": 96,
+    "pl_window_start_offset": 100,
+    "pl_window_end_offset": 5,
+    "sweep_window_bars": 4,
+    "sweep_min_break": 0.998,
+    "depth_cap": 0.98,
+    "trend_sma_bars": 384,
+    "entry_spacing_bars": 16,
+    "take_profit": 0.012,
+    "sweep_low_exit_factor": 0.998,
+    "stoploss": -0.02,
+    "time_exit_bars": 48,
+    "warmup_bars": 400
+  },
+  "rationale": "Mechanism (Osler, FRBNY SR125 and SR150): stop-loss sell orders cluster just beyond obvious levels such as a recent low; when price touches them they execute mechanically and push price further (a cascade), but this order flow carries no information, so once the resting stop supply is exhausted price tends to revert. In crypto the pool under the 24h low also holds liquidations of leveraged longs. A quick sweep (at least 0.2% but no more than 2% below the 24h low, within the last hour) followed by a close back above the level marks the exhausted cascade; the buyer supplies liquidity to forced sellers and is paid by the snap-back. The depth cap rejects breaks that look like genuine breakdowns, and the 4-day mean filter avoids buying sweeps inside a falling market (the post-2021 losing-streak pattern seen in earlier rules). Expected trades: 24h lows are swept and reclaimed within an hour a few times a week per pair in uptrends, so roughly 100-250 trades per year per pair, inside the owner's day-trade target. Move per trade: the target is +1.2% gross, 4x the 0.30% base and 2.7x the 0.45% conservative round trip; the intrabar loss is capped at 2% and usually smaller via the sweep-low exit, and every trade closes within 12 hours. Success criteria: the existing gates (positive net at base and conservative cost, drawdown below 25% at optimistic, base and conservative, at least 30 trades per split, causality checks).",
+  "novelty_vs_tried": "Second variant of HourlyFailedBreakdownReclaim. H-038 used 1h bars, a 20-day low that had to be at least 4 days old, a target at the 24-bar high and a 3% stop, and gave only 42-54 trades with losses. This variant changes the structure of the level and the trade: a 24-hour low on 15m bars (much more frequent, with fresh liquidation pools), a minimum sweep depth of 0.2% and a 2% depth cap, a 4-day trend filter, a fixed 1.2% target sized against the cost and a 12-hour time exit. Unlike H-048 (weekly value-area low) and H-054 (round-number grid), the level is the plain rolling 24h low.",
+  "sources": [
+    {"title": "Osler (2001), Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis, FRBNY Staff Report 125", "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125"},
+    {"title": "Osler (2002), Stop-Loss Orders and Price Cascades in Currency Markets, FRBNY Staff Report 150", "url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr150.pdf"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the H-055 context file (exploration summaries of earlier hypotheses) for BTC, ETH, BNB 15m/1h through 2026-11-06"
+}
