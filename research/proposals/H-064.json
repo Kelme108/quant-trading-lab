@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-064",
+  "family": "SameSlotPeriodicity",
+  "title": "Hour-of-week periodicity: trade the weekday 4-hour block with a persistent 26-week same-slot drift",
+  "ex_ante_rule": "Chart 1h, closed bars only, all times UTC; a signal at a bar close fills at the next bar open. Long only, one position, whole allowed balance, same rule and parameters on all nine pairs. SLOTS: each UTC day is split into six 4-hour blocks b in {0..5} starting at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC; each block has four 1h bars (open times hh, hh+1, hh+2, hh+3). A slot is (UTC weekday, block), 42 slots per week. SLOT RETURN R(d,b) = close of the bar opening at hh+3 on day d / open of the bar opening at hh on day d - 1; missing if any of the four bars is missing. DAILY SELECTION (once per day d, fixed for all of day d): at the close of the 23:00 bar of day d-1, for each block b of day d use the 26 observations R(d-7k, b), k = 1..26 (same weekday and block in the previous 26 weeks, up to 4368 bars back). Compute mean m(b), sample std s(b) with ddof=1, and t(b) = m(b) / (s(b) / sqrt(26)). A block is ineligible if any of its 26 observations is missing or s(b) = 0. b* = the eligible block with the largest t(b); ties go to the earliest block of the day. ENTRY: only if m(b*) >= 0.0040 AND t(b*) >= 1.5, buy at the open of the first bar of block b* on day d (entry signal at the close of the bar opening at hh-1; for block 0 that is the 23:00 bar of day d-1). If b* fails either threshold, no trade that day (no fallback to another block). At most one entry per pair per UTC day; if a position is still open when the entry signal fires, skip that entry. EXIT (time exit): exit signal at the close of the 4th bar of block b* (bar opening at hh+3), filled at the next bar open, so the hold is 4 bars (4 hours), far inside the 24-hour limit. STOP-LOSS: fixed 3% below the entry price, native intrabar stop. No take-profit, no trailing stop, no cooldown beyond the one-entry-per-day limit, no other filters. Warm-up: 4400 bars (4368 bars for 26 weeks of same-slot history plus up to 24 bars to align to the UTC day boundary, 4392, rounded up).",
+  "parameters": {
+    "timeframe": "1h",
+    "block_hours": 4,
+    "blocks_per_day": 6,
+    "block_start_hours_utc": "0,4,8,12,16,20",
+    "lookback_weeks": 26,
+    "lookback_bars": 4368,
+    "std_ddof": 1,
+    "min_mean_return": 0.004,
+    "min_t_stat": 1.5,
+    "hold_bars": 4,
+    "stop_loss_pct": 3.0,
+    "max_entries_per_day": 1,
+    "warmup_bars": 4400
+  },
+  "rationale": "Miralles-Quiros and Miralles-Quiros (Oeconomia Copernicana 2022) compute Bitcoin mean returns for each hour of each weekday and find statistically significant hour-of-week slots whose post-event windows beat buy-and-hold. The proposed mechanism is weekday-specific forced flow at fixed clock times: participants who must trade at a given time (US ETF primary-market creations and the 3-4pm New York fixing only on NYSE days, as the scout reports from Kaiko, which I did not open myself; Monday/Friday risk rebalancing; thin weekend books) pay a price concession, and that concession recurs on the same weekday slot. The rule picks the block whose drift over the last 26 same-weekday observations is both large (mean >= 0.40%, above the 0.30% base round trip) and consistent (t >= 1.5), and holds only that block. Typical 4-hour ranges are 1-2%, so a 3% stop is rarely hit by noise. Expected trades: at most one per day; with both filters on, roughly 60-200 per year per pair (a guess, not measured), each targeting a gross move of about 0.4-1%. Risk: the threshold sits close to cost, and with a 26-observation window the selected slot may be noise (multiple comparison over 6 blocks); that is the hypothesis being tested. Success is judged by the existing gates only (net positive at base and conservative cost, drawdown < 25%, >= 6 of 9 pairs).",
+  "novelty_vs_tried": "H-060 (same family) ranks the six blocks by their mean over the last 28 consecutive days, a daily periodicity with a hit-rate filter. H-064 uses a weekly periodicity: each block is scored only on the same weekday over 26 weeks, ranked by a t-statistic rather than the mean, so different slots are selected (e.g. a Monday 12-16 slot is not diluted by weekend days). H-029 MondayEffectLong and H-039 WeekendDaytimeSession hard-code one calendar window; here the slot is chosen adaptively from rolling data. No other tried family uses hour-of-week return statistics.",
+  "sources": [
+    {
+      "title": "A new perspective of the day-of-the-week effect on Bitcoin returns: evidence from an event study hourly approach (Miralles-Quiros & Miralles-Quiros, Oeconomia Copernicana 2022)",
+      "url": "https://journals.economic-research.pl/oc/article/view/2091"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened; only research/context/H-064.md (exploration summaries of earlier hypotheses) and the source paper abstract page."
+}
