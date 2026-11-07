@@ -1,0 +1,17 @@
+{
+  "title": "1h Keltner 2.5-ATR breakout gated by a rising 4h EMA, ATR stop and target, 16-bar time exit",
+  "source": {
+    "type": "blog",
+    "url": "https://crypto-threads-five.vercel.app/post/how-a-multi-timeframe-keltner-breakout-strategy-filters-noise-in-crypto/",
+    "title": "How a Multi-Timeframe Keltner Breakout Strategy Filters Noise in Crypto (Crypto Threads)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at a bar close, filled at the next open. 1h indicators: EMA50 of close; ATR(50), ATR(20) and ATR(30) with Wilder smoothing; upper band U = EMA50 + 2.5*ATR50; RSI(40) of the typical price (H+L+C)/3. 4h filter: 4h candles built from completed 1h bars (UTC blocks 00,04,...,20), visible only once complete. The filter holds if the last completed 4h close > 4h EMA50 AND 4h EMA50 > its value 6 completed 4h bars earlier. ENTRY at the close of bar t: close(t) > U(t) AND close(t-1) <= U(t-1) (fresh close above the band) AND RSI40(t) > 50 AND the 4h filter holds AND no position. STOP: entry - 1.6*ATR20(t), fixed, intrabar. TARGET: entry + 4.5*ATR30(t), limit. TIME EXIT: sell at the open of the 17th bar after entry (16 bars held) if neither is hit. The source uses a buy-stop placed beyond its breakout level; here the trigger is the band close.",
+  "mechanism": "The source only says its filters screen out weak breakouts. The closest honest mechanism is intraday time-series momentum. Borgards (2021, North American Journal of Economics and Finance, 'Dynamic time series momentum of cryptocurrencies') finds momentum periods following formation periods at intraday frequencies, started by volatility bursts at critical price levels and linked to noise traders. A close 2.5 ATR above the 50-hour mean, in a rising 4h trend, is such a burst, fed by late trend-followers and short-covering. Mean-reversion traders fading the extension are on the other side. The target is 4.5 hourly ATR (typically 2-4%) against a 1.6 ATR stop, several times the 0.45% round trip, with a 16-hour cap.",
+  "timeframe": "1h",
+  "longest_lookback": 240,
+  "free_parameters": 11,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 150,
+  "family_hint": "HourlyKeltnerMTFBreakout"
+}

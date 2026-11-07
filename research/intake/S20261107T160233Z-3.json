@@ -1,0 +1,17 @@
+{
+  "title": "Time-of-day-adjusted volume surprise on a strong 1h up bar, 12-hour continuation hold",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/periodicity-in-cryptocurrencies-recurrent-patterns-in-volatility-and-volume/",
+    "title": "Periodicity in Cryptocurrencies - Recurrent Patterns in Volatility and Volume (Quantpedia)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars, UTC clock; signal at the close of bar t, filled at the open of bar t+1. EXPECTED VOLUME: Vexp(t) = mean volume of the 20 bars at the same UTC hour on the previous 20 days (bars t-24, t-48, ..., t-480; the current day excluded). Volume surprise VS(t) = volume(t)/Vexp(t). ENTRY at the close of bar t when ALL hold: (1) VS(t) >= 2.0; (2) close(t)/open(t) - 1 >= 0.006; (3) (close(t)-low(t))/(high(t)-low(t)) >= 0.7 (no signal if high == low); (4) no open position. STOP: low of bar t, fixed at entry and checked intrabar. TIME EXIT: sell at the open of bar t+13, i.e. after 12 full bars, unless stopped earlier. No take-profit, no trend or daily filter, no cooldown other than one position at a time.",
+  "mechanism": "Crypto volume follows a fixed daily cycle, with spikes at the 00/08/16 UTC funding times and in US hours. Quantpedia (summarising arXiv 2109.12142) says the useful signal is measured activity minus the expected activity for that time. Volume far above the same-hour norm points to news or a large buyer working an order, and such buyers split demand over hours, so price keeps drifting. Liquidity providers and stale limit sellers are on the other side. The rule needs a 0.6% up bar that closes near its high and holds for 12 hours. The expected follow-through is a multiple of the 0.30-0.45% cost, and the stop at the bar low caps losses at about one bar range. The source documents only the volume cycles, not returns, so this mechanism is my closest honest one.",
+  "timeframe": "1h",
+  "longest_lookback": 480,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "SeasonalVolumeSurprise"
+}
