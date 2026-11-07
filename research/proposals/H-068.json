@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-068",
+  "family": "SeasonalVolumeSurprise",
+  "title": "Time-of-day-adjusted volume surprise on a strong 1h up bar, 12-hour continuation hold",
+  "ex_ante_rule": "Chart 1h, closed bars only, UTC clock; a signal at the close of bar t is filled at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks; the same rule and numbers on all nine pairs. DEFINITIONS (completed bars only): EXPECTED VOLUME Vexp(t) = arithmetic mean of volume at bars t-24, t-48, ..., t-480 (the 20 bars at the same UTC hour on the 20 previous days; the current day and bar t are excluded). In pandas: mean of volume.shift(24*k) for k = 1..20; if any of the 20 values is missing (NaN) or Vexp(t) = 0, no signal. VOLUME SURPRISE VS(t) = volume(t) / Vexp(t). BAR RETURN B(t) = close(t)/open(t) - 1. CLOSE LOCATION CL(t) = (close(t) - low(t)) / (high(t) - low(t)); if high(t) == low(t) there is no signal. ENTRY at the close of bar t when ALL hold: (1) VS(t) >= 2.0; (2) B(t) >= 0.006; (3) CL(t) >= 0.7; (4) no position is open. Buy at the open of bar t+1. At signal time store LOWSIG = low(t), fixed for the trade. EXITS, the first of: (a) TIME EXIT: the exit signal is raised at the close of bar t+12 (the 12th bar held, counting the entry-fill bar t+1 as the first) and the position is sold at the open of bar t+13, i.e. after 12 full bars; no position lasts more than 12 hours, well under 24 hours. (b) SIGNAL-BAR-LOW EXIT: if any bar u >= t+1 (the entry-fill bar included) closes below LOWSIG, sell at the open of bar u+1. (c) STOP-LOSS: one fixed native intrabar stop 2.0% below the entry price (stoploss = -0.02), triggered as soon as price touches it. Note on the stop: the idea's stop is the low of bar t checked intrabar, which varies per trade; the engine requires one fixed percentage, so the intrabar stop is fixed at 2.0% (an up bar of at least 0.6% that closes in its top 30% usually has its low roughly 0.7-2% below the close) and the idea's level is kept as the closed-bar exit (b). No take-profit, no trailing stop, no trend, daily or other filter, no cooldown other than one position at a time (a new entry can be signalled only on a bar close after the previous position has been closed). Single cell, no grid explored. Warm-up: 500 bars (longest lookback is the same-hour volume 480 bars back; no recursive indicators; startup_candle_count = 500).",
+  "parameters": {
+    "timeframe": "1h",
+    "same_hour_lag_bars": 24,
+    "volume_reference_days": 20,
+    "volume_surprise_min": 2.0,
+    "bar_return_min": 0.006,
+    "close_location_min": 0.7,
+    "hold_bars": 12,
+    "stoploss_pct": 0.02,
+    "signal_bar_low_exit": "close below low of signal bar",
+    "cooldown_bars": 0,
+    "startup_candle_count": 500
+  },
+  "rationale": "Crypto volume follows a fixed daily cycle (spikes near 00, 08 and 16 UTC, the futures funding times, and in US hours). Hansen, Kim and Kimbrough (arXiv 2109.12142, summarised by Quantpedia) argue that the informative quantity is actual activity minus the activity expected for that time, not the raw level. Volume at least twice the same-hour norm of the last 20 days therefore points to news or a large buyer working an order, not to the routine funding-hour spike. Large buyers split demand over hours, so a strong up bar (>= +0.6%, closing in its top 30%) on such abnormal volume should keep drifting for some hours; the counterparties are liquidity providers and stale limit sellers who fill the first part of the order at prices that the remaining demand then lifts. Expected frequency: an abnormal-volume strong up hour happens a few times per week on these pairs, so roughly 100-250 trades per year per pair (one position at a time, 12-hour hold). Expected move: the signal bar itself is >= 0.6%, and the idea is a continuation of a similar magnitude over 12 hours, about 0.8-1.5% gross on winners, a multiple of the 0.30% base and 0.45% conservative round trip; losses are cut at a close below the signal bar low (about one bar range) or 2% intrabar, so a streak of 10 losses stays well under the 25% drawdown ceiling. Honest caveat: the source documents the volume and volatility cycles and the expected-versus-actual principle, not the returns of this rule; the continuation mechanism is the scout's hypothesis. Success is judged only by the existing gates.",
+  "novelty_vs_tried": "H-036 (USOpenVolumeContinuation) and H-051 (HighVolumeSessionMomentum) used volume only in one fixed session (14:00 bar or 08-16 UTC block) with a trend SMA filter and a clock exit. H-032/H-062 (VolumeSpikeCrashRebound) buy down bars on volume against a trailing all-hours mean. H-059 uses a return jump statistic without volume. This rule fires at any hour, normalises volume by the same-UTC-hour norm of the previous 20 days (removing the periodic funding/session spikes that a plain moving average treats as surprises), requires an up bar closing near its high, has no trend filter, and holds a fixed 12 bars with a signal-bar-low failure exit. New family.",
+  "sources": [
+    {
+      "title": "Periodicity in Cryptocurrencies - Recurrent Patterns in Volatility and Volume (Quantpedia)",
+      "url": "https://quantpedia.com/periodicity-in-cryptocurrencies-recurrent-patterns-in-volatility-and-volume/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened; only the exploration summaries of earlier hypotheses in research/context/H-068.md (nine pairs, 1h and 15m) and the Quantpedia page."
+}
