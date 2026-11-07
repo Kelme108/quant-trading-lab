@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-078",
+  "family": "CrossSectionalLowVolReversal",
+  "title": "Low-volume cross-sectional loser reversal on 1h: buy the worst of nine pairs when its 4h drop is not backed by volume",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, order filled at the open of bar t+1. Spot, long only, one position per traded pair, whole allowed balance, no pyramiding, no sizing hooks. Universe: BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL against USDT; every pair other than the traded pair X is loaded as an informative 1h pair (merge_informative_pair, closed bars, aligned on the same candle timestamp). DEFINITIONS for each pair at bar t: r4(t) = close(t)/close(t-4) - 1. V4(t) = sum of volume over bars t-3..t (4 bars). VN(t) = arithmetic mean of V4(t-24k) for k = 1..14 (the same 4-hour clock window on each of the 14 previous days; uses bars back to t-339). A pair counts in the cross-section at bar t only if its r4(t) is defined (closes at t and t-4 present). M(t) = median of r4(t) over the pairs that count (with an even count, the mean of the two middle values). If fewer than 5 pairs count, or X does not count, there is no signal. ENTRY for X at the close of bar t when ALL hold: (1) r4_X(t) <= r4_Y(t) for every other counting pair Y (X is the lowest; ties allowed); (2) r4_X(t) <= -0.02; (3) r4_X(t) <= M(t) - 0.015; (4) V4_X(t) <= 1.0 * VN_X(t), with all 14 V4 terms defined and VN_X(t) > 0; (5) no open position in X; (6) cooldown satisfied. At signal store P = close_X(t-4) (pre-drop price, fixed for the trade). EXIT, first of: (a) TARGET: at the close of any bar u from the entry fill bar e = t+1 onward with close(u) >= P, exit at the open of u+1; (b) TIME: exit signal at the close of bar e+11, filled at the open of bar e+12 (12 hours held, well under 24 h); (c) STOP-LOSS: one fixed 4% below the entry price, the engine's native intrabar stop (stoploss = -0.04, triggers as soon as price touches it; replaces the idea's close-checked stop). COOLDOWN: no new entry on X for 4 candles after any exit. No take-profit other than (a), no trailing stop, no trend filter, no other filters. All numbers fixed ex ante, single grid cell. Warm-up: 400 bars (longest lookback: VN needs bars t-339..t, i.e. 340 bars; no recursive indicators; rounded up to 400 for informative alignment).",
+  "parameters": {
+    "timeframe": "1h",
+    "return_lookback_bars": 4,
+    "volume_window_bars": 4,
+    "volume_norm_days": 14,
+    "volume_norm_step_bars": 24,
+    "min_abs_drop": -0.02,
+    "min_gap_below_median": 0.015,
+    "volume_multiple_max": 1.0,
+    "min_pairs_in_cross_section": 5,
+    "time_exit_bars": 12,
+    "stoploss": -0.04,
+    "cooldown_bars": 4,
+    "startup_candle_count": 400
+  },
+  "rationale": "Bianchi, Babiak and Dickerson (Riksbank WP 413, 2022) find that returns to liquidity provision, proxied by short-term reversal, are concentrated where trading activity is low, and that the interaction of lagged return and volume predicts crypto returns, consistent with inventory-risk and adverse-selection models. A sharp idiosyncratic drop on normal or thin volume looks like an impatient or forced seller pushing through a thin book rather than informed news flow (which tends to come with heavy volume); the liquidity provider who buys is paid the price concession for immediacy. Ranking against the other eight pairs removes the common market move, so the trade targets a pair-specific dislocation at least 2% in absolute size and 1.5% below the group median; volume is compared with the same clock window on the 14 previous days so intraday seasonality does not fake a 'quiet' drop. The target is a full retrace of the 4h drop (>= 2% gross), and recovering roughly half of it already covers the 0.45% conservative round trip; the 12-hour time exit and 4% stop keep the loss tail bounded and every position intraday. Expected frequency: only one pair can be the cross-sectional loser at any bar and the 2%/1.5%/volume conditions are strict, so roughly 40-150 trades per pair per year (more on volatile alts such as DOGE, SOL, ADA, fewer on BTC); this may sit below the owner's 150 target on the large caps, which is stated honestly rather than loosened. Losing streaks are a risk in broad crashes where the loser keeps falling; the 4% stop caps each loss so that 6 consecutive stops stay under 25%.",
+  "novelty_vs_tried": "H-053 (VolumeConditionedReversal) used one asset's own 12h drop against its own volatility and a 30-day median volume, with no cross-section. H-072 used a beta residual against a single reference (BTC) in a flat-reference regime. H-031 (CrossPairCatchUp) bought laggards only when the other pairs jumped up. This rule is a nine-pair cross-sectional rank (must be the single worst pair, far below the group median) combined with a time-of-day-matched volume condition (same 4h window on 14 prior days), so it isolates low-volume pair-specific liquidity shocks rather than own-history drops, beta residuals, or catch-up to rallies.",
+  "sources": [
+    {
+      "title": "Trading volume and liquidity provision in cryptocurrency markets (Bianchi, Babiak, Dickerson, Sveriges Riksbank Working Paper 413, 2022)",
+      "url": "https://swopec.hhs.se/rbnkwp/abs/rbnkwp0413.htm"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summaries of earlier hypotheses in research/context/H-078.md (nine pairs, 1h) through 2026-11-07."
+}
