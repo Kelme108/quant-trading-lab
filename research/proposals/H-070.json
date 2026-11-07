@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-070",
+  "family": "RealizedSkewnessDay",
+  "title": "Negative realized skewness of the prior UTC day (96 x 15m returns): buy 00:00 UTC, exit at 23:45 UTC",
+  "ex_ante_rule": "Chart: 15m, closed bars only, UTC clock, bars labelled by open time. A signal at a bar close is filled at the next bar open. Long only, spot, one position, whole balance. DAILY STATISTIC, computed once at the close of the 23:45 UTC bar of day d: for each of the 96 15m bars of day d (open times 00:00 to 23:45), r_i = ln(close_i / close_{i-1}), where the first return uses the close of the 23:45 bar of day d-1 (97 closes in total). RV = sum of r_i^2 over the 96 returns. RSK = sqrt(96) * (sum of r_i^3) / RV^1.5 (Amaya et al. realized skewness). If any of the 97 required bars is missing (fewer than 97 consecutive 15m bars spanning 23:45 of d-1 to 23:45 of d) or RV = 0, there is no signal for day d+1. ENTRY: at the close of the 23:45 UTC bar of day d, if RSK <= -0.25 and no position is open, emit a buy signal; it fills at the open of the 00:00 UTC bar of day d+1. EXIT (time exit): at the close of the 23:30 UTC bar of day d+1, emit a sell signal; it fills at the open of the 23:45 UTC bar of day d+1 (95 bars, 23h45m after entry; equivalently, exit once the trade has been open 95 bars). The time exit is the only exit. Stop-loss: none by design (implement as a native stoploss of -0.99, i.e. 99% below entry, which is never meant to bind). No take-profit, no trailing stop, no trend filter, no cooldown (entries happen only at 00:00 UTC, so positions cannot overlap or chain; the exit at 23:45 leaves the 00:00 bar free for the next signal). Same rule and parameters on all nine pairs. Warm-up: 192 bars (longest lookback is 97 bars; 192 = two full UTC days so a complete prior day is always available).",
+  "parameters": {
+    "timeframe": "15m",
+    "bars_per_day": 96,
+    "closes_used": 97,
+    "rsk_entry_threshold": -0.25,
+    "entry_bar_utc": "00:00",
+    "exit_signal_bar_utc": "23:30",
+    "exit_fill_bar_utc": "23:45",
+    "max_hold_bars": 95,
+    "stoploss": -0.99,
+    "startup_candle_count": 192
+  },
+  "rationale": "Mechanism: a UTC day whose 15m realized skewness is strongly negative is one where variance came from sharp down-bursts (forced sellers, liquidations, stop runs) rather than up-spikes. Liquidity providers who absorb that urgent selling demand a discount and are paid in the next session's partial recovery; the other side of the trade is the forced/impatient seller. Conversely, lottery-like up-spike days attract overpaying buyers and are avoided. Evidence: Ahmed and Al Mafrachi (IREF 2021) find realized skewness from intraday BTC/ETH/XRP prices predicts returns in and out of sample, but the abstract does not give the sign; the sign used here (low/negative skew -> higher next returns) follows Amaya, Christoffersen, Jacobs and Vasquez (JFE 2015) on equities, where low-minus-high weekly realized skew earned about 19 bps/week, and the scout's reading of Lee and Wang (JFQA 2025) that positive jump variance predicts lower crypto returns (I did not open that paper myself). Trades: RSK <= -0.25 should flag very roughly 35-45% of days, i.e. about 120-170 trades per year per pair, inside the owner's 150-500 target band at its lower end. Cost: each trade holds ~24h, over which these pairs typically move 2-5% in absolute terms, so the aimed gross move is well above 0.8% and the 0.30%/0.45% round trip; the edge required is a modest positive drift in that move. Risk: no stop, so a single day's loss is the full day's move; daily holds make the 25% drawdown gate the main risk in bear phases. Success is judged only by the existing gates.",
+  "novelty_vs_tried": "No family in the context uses a higher-order realized moment. Existing day-of-shock rules (HourlyShockOverreaction, VolumeSpikeCrashRebound, OvernightDropReversal, AbnormalDayContinuation, DailyMaxJumpMomentum) condition on the size or sign of a return or a single max jump; this conditions on the shape of the whole intraday return distribution (third moment normalised by variance), so a day with a flat or even positive net return can qualify if its variance came from down-bursts. Entry and exit are fixed clock times with a sub-24h time exit. Note: the context's generic line says 1h, but the idea is defined on 96 15m returns, so the chart is 15m to keep the rule's meaning (15m is an allowed timeframe).",
+  "sources": [
+    {"title": "Do higher-order realized moments matter for cryptocurrency returns? (Ahmed and Al Mafrachi, IREF 2021)", "url": "https://econpapers.repec.org/RePEc:eee:reveco:v:72:y:2021:i:c:p:483-499"},
+    {"title": "Does realized skewness predict the cross-section of equity returns? (Amaya, Christoffersen, Jacobs, Vasquez, JFE 2015)", "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:118:y:2015:i:1:p:135-167"},
+    {"title": "Make 24bps a week trading skewness (Alpha Architect summary)", "url": "https://alphaarchitect.com/make-24bps-a-week-trading-skewness/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file H-070.md (exploration summaries of earlier hypotheses) and the validation protocol."
+}
