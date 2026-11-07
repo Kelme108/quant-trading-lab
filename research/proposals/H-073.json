@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-073",
+  "family": "BreadthThrustIntraday",
+  "title": "Nine-pair hourly breadth thrust: buy when the EMA share of rising pairs surges from below 0.40 to above 0.615",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, order filled at the open of bar t+1. Long only, spot, one position per traded pair, whole balance, no pyramiding. All nine pairs (BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL against USDT) are loaded as informative 1h pairs and aligned on the same candle timestamp as the traded pair. BREADTH: at each bar t, A(t) = number of the nine pairs with close(t) > close(t-1); D(t) = number with close(t) < close(t-1); pairs with close(t) = close(t-1), or with no candle at t or t-1, are left out of both counts. B(t) = A(t)/(A(t)+D(t)), or 0.5 if A(t)+D(t) = 0. E(t) = exponential moving average of B with span 10 (alpha = 2/11, recursive, adjust=False). THRUST(t) is true when E(t) > 0.615 AND min(E(t-10), ..., E(t-1)) < 0.40 (the 10 bars before t, excluding t). ENTRY on traded pair X at the close of bar t when all hold: (1) THRUST(t) is true and THRUST(t-1) is false (rising edge only); (2) close_X(t) > close_X(t-10); (3) X has no open position. EXIT at the first of: (a) TIME: at the close of bar t+24 (the 24th closed bar after the signal bar t), filled at the open of t+25, so every trade lasts 24 hours from the fill; (b) STOP: native fixed stop-loss 3% below the entry price, triggered intrabar as soon as price touches it; (c) BREADTH COLLAPSE: at the close of any bar after the fill bar where E < 0.40, filled at the next open. No take-profit, no trailing stop, no cooldown, no other filters. Longest lookback: 10 bars for E and close(t-10), 24 bars for the time exit; E is recursive, so the warm-up is sized for EMA convergence. Warm-up: 200 bars.",
+  "parameters": {
+    "timeframe": "1h",
+    "breadth_universe_size": 9,
+    "ema_span": 10,
+    "thrust_high": 0.615,
+    "thrust_low": 0.40,
+    "thrust_window_bars": 10,
+    "participation_lookback_bars": 10,
+    "time_exit_bars": 24,
+    "stop_loss_pct": 3.0,
+    "collapse_exit_level": 0.40,
+    "startup_candle_count": 200
+  },
+  "rationale": "Zweig's breadth thrust (10-period EMA of advances/(advances+declines) rising from below 0.40 to above 0.615 within 10 sessions) marks a fast switch from broad selling to near-unanimous buying; the source ties it to the start of durable advances. The hourly crypto analogue is a market-wide flip from liquidation to buying across many coins at once: forced sellers (liquidated longs) have finished and shorts are forced to cover while risk-on flow returns, a cross-sectional flow signal that no single pair's chart shows. The counterparties are late liquidators selling at the washout and shorts covering into the rally. Trade count: with nine highly correlated pairs B often swings between near 0 and near 1, so rising-edge thrusts may occur roughly once or twice a day in choppy phases and less in calm ones; the participation filter removes some; expected roughly 150-450 trades per year per pair (untested estimate). Move per trade: each entry follows an aggregate swing large enough to move the smoothed breadth by 0.2+, and the 24-hour holding window spans typical daily ranges of 2-5% on these pairs, so the targeted gross move is several percent, well above the 0.30% base and 0.45% conservative round trip; the 3% stop and the breadth-collapse exit cap the loss per trade, so a streak of 8 stops costs about 22%, under the 25% ceiling. Caveats: the source uses daily NYSE breadth; the hourly transfer is untested, and nine crypto pairs are far more correlated than NYSE stocks, so the signal may fire on ordinary noise. Success criteria are the existing gates (positive net at base and conservative cost, drawdown below 25%, at least 6 of 9 pairs).",
+  "novelty_vs_tried": "No tried family uses cross-sectional market breadth. CrossPairCatchUp and RelativeStrengthRatioRotation compare one pair against another; IdiosyncraticResidualReversal uses a residual versus the market. This rule instead aggregates the up/down state of all nine pairs into a breadth oscillator and trades the regime flip of the whole market (washout to near-unanimous buying), with a per-pair participation check and a 24-hour time exit. It is neither a single-pair dip-buy nor a price-channel breakout.",
+  "sources": [
+    {
+      "title": "Breadth Thrusts (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/breadth-thrusts.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the H-073 context file (exploration summaries of earlier hypotheses) and the LuxAlgo breadth-thrust page, as of 2026-11-07"
+}
