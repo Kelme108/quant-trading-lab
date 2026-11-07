@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-080",
+  "family": "CrossPairCatchUp",
+  "title": "BTC-led 15m catch-up: buy a pair lagging a volume-backed leader surge bar, 4-hour time cap",
+  "ex_ante_rule": "Chart 15m, closed bars only; signal at the close of bar t, fill at the open of bar t+1. Long only, spot, one position, whole balance. Leader L = BTC/USDT for every traded pair except BTC/USDT, whose leader is ETH/USDT; L is merged as an informative 15m pair on the same timestamp (closed bars only). Definitions: b(t) = close_L(t)/close_L(t-1) - 1. sL(t) = sample standard deviation (ddof=1) of b over bars t-672..t-1 (672 bars = 7 days, current bar excluded). VL(t) = volume_L(t) / median(volume_L over bars t-96..t-1) (current bar excluded). x(t) = close_X(t)/close_X(t-1) - 1 for the traded pair X. SMA96_L(t) = simple mean of close_L over bars t-95..t (96 bars). ENTRY at the close of bar t when ALL hold: (1) b(t) >= max(0.006, 2.5*sL(t)); (2) VL(t) >= 2.0; (3) x(t) <= 0.4*b(t); (4) close_L(t) > SMA96_L(t); (5) no open position. At entry, store from the signal bar t: target T = close_X(t) * (1 + b(t) - x(t)) and, with the actual fill price E, exit level S = E * (1 - 1.5*b(t)). EXIT (signal at a bar close, fill at the next open), first of: (a) close_X >= T; (b) close_X <= S; (c) time exit: at the close of the 16th 15m bar counted from the entry bar (inclusive), i.e. the position is closed about 4 hours after entry and never later than 24 hours. STOP-LOSS: native fixed stop 3% below entry price, triggered intrabar (catastrophe cap; the 1.5*b close exit (b) normally acts first). No cooldown, no take-profit other than T, no pyramiding, no other filters. Warm-up: 700 bars (longest lookback 672 returns plus 1 bar for the return, rounded up; recursive-free indicators).",
+  "parameters": {
+    "timeframe": "15m",
+    "leader_default": "BTC/USDT",
+    "leader_for_BTC": "ETH/USDT",
+    "leader_min_return": 0.006,
+    "leader_sigma_mult": 2.5,
+    "sigma_lookback_bars": 672,
+    "volume_median_lookback_bars": 96,
+    "volume_ratio_min": 2.0,
+    "lag_fraction_max": 0.4,
+    "leader_sma_bars": 96,
+    "exit_level_mult_of_b": 1.5,
+    "time_exit_bars": 16,
+    "stoploss_pct": 3.0,
+    "warmup_bars": 700
+  },
+  "rationale": "Guo, Sang, Tu and Wang (JEDC 2024) show on Binance data that lagged returns of other cryptocurrencies predict a coin's returns, and attribute it to slow information diffusion with limited attention: common shocks reach the most-watched coin (BTC) first and are priced into others with delay. A 15m BTC bar of at least 0.6% and 2.5 sigma on twice its normal volume is a market-wide shock; a pair that moved under 40% of it has a gap of at least 0.36% and typically 0.6-1.5% to close. The counterparties are holders and market makers in the lagging pair who have not yet updated quotes. Expected trades: such leader bars occur roughly a few times a week in active regimes, giving an estimated 100-300 trades per year per pair (less in quiet years). Gross target per trade is b - x, near 0.6-1.5%, above the 0.30% base and 0.45% conservative round trip; losses are bounded by the 1.5*b close exit (about 0.9-2%) and a 3% intrabar stop, and every trade lasts at most about 4 hours, so a losing streak of 8 trades at ~1.5% stays well under the 25% drawdown ceiling. Success criteria are the existing gates (net profit positive at base and conservative, drawdown under 25%, at least 30 trades per split, on 6 of 9 pairs). The engine requires a fixed-percentage stop, so the idea's dynamic stop S is kept as a close-based exit and a fixed 3% native stop is added only as a cap; no other change to I-067.",
+  "novelty_vs_tried": "H-031 (CrossPairCatchUp) used 2-bar 1h returns averaged over two leader pairs with no volume condition and produced zero trades. This variant runs on 15m with a single leader (BTC; ETH for BTC itself), requires a volume-confirmed (2x median) and volatility-scaled (2.5 sigma over 7 days) leader shock, sizes the target from the actual gap b - x, and caps the holding period at 16 bars (4 hours). No other family in the lab conditions entries on another pair's single-bar shock relative to the traded pair's response.",
+  "sources": [
+    {
+      "title": "Cross-cryptocurrency return predictability (Guo, Sang, Tu, Wang, Journal of Economic Dynamics and Control 163, 2024)",
+      "url": "https://research-information.bris.ac.uk/en/publications/cross-cryptocurrency-return-predictability/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file research/context/H-080.md (exploration-split summaries of earlier hypotheses) and the source paper's abstract."
+}
