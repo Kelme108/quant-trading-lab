@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-060",
+  "family": "SameSlotPeriodicity",
+  "title": "Same-time-of-day periodicity: hold the UTC 4-hour block with the strongest trailing 28-day same-block return",
+  "ex_ante_rule": "Chart 1h, closed bars only, all times UTC; a signal at a bar close fills at the next bar open. Long only, one position, whole allowed balance. BLOCKS: each UTC day is split into six 4-hour blocks b in {0,1,2,3,4,5} starting at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC; each block has four 1h bars (open times hh, hh+1, hh+2, hh+3). BLOCK RETURN R(d,b) = close of the bar opening at hh+3 on day d / open of the bar opening at hh on day d - 1; it is defined only if all four bars of that block exist, otherwise it is missing. DAILY SELECTION (once per day, fixed for the whole of day d): at the close of the 23:00 bar of day d-1, for each block b compute M(b) = arithmetic mean of R(d-k,b) for k = 1..28 (the 28 completed days d-1 ... d-28, i.e. 672 bars back) and H(b) = count of those 28 returns that are > 0, divided by 28. If any of the 28 returns for a block is missing, that block is not eligible that day. b* = the eligible block with the largest M(b); ties go to the earliest block in the day. ENTRY: if M(b*) >= 0.0040 AND H(b*) >= 16/28 (0.5714), buy at the open of the first bar of block b* on day d (in practice: entry signal at the close of the bar opening at hh-1, i.e. the 23:00 bar of day d-1 for block 0, filled at the next open). If no block passes, no trade that day. At most one entry per pair per UTC day. EXIT (time exit): sell at the close of the 4th bar of block b* (the bar opening at hh+3), filled at the next bar open, so the hold is exactly 4 bars (4 hours); this is far inside the 24-hour limit. STOP-LOSS: fixed 3% below the entry price, native intrabar stop. No take-profit, no trailing stop, no cooldown beyond the one-entry-per-day limit, no other filters, no daily indicators. Same rule and parameters on all nine pairs. Warm-up: 720 bars (672 bars for the 28-day window plus up to 24 bars to align to the UTC day boundary, rounded up).",
+  "parameters": {
+    "timeframe": "1h",
+    "block_hours": 4,
+    "block_start_hours_utc": "0,4,8,12,16,20",
+    "lookback_days": 28,
+    "lookback_bars": 672,
+    "min_mean_block_return": 0.004,
+    "min_positive_fraction": 0.5714,
+    "min_positive_count": 16,
+    "hold_bars": 4,
+    "stoploss_pct": 3.0,
+    "max_entries_per_day": 1,
+    "tie_break": "earliest_block",
+    "warmup_bars": 720
+  },
+  "rationale": "Heston, Korajczyk and Sadka find that a stock's return in a given intraday interval predicts its return in the same interval on later days for up to about 40 days, and tie it to a predictable demand for immediacy at fixed clock times (systematic institutional flows worked by execution algorithms) that the volume, spread and volatility patterns do not explain. The party giving up money is the recurring clock-fixed flow (in crypto: US ETF creation/redemption around the 15:00-16:00 New York fixing, regional session opens, scheduled rebalancing and DCA bots) that pays a price concession every day to whoever supplies liquidity in that slot; buying ahead of the slot and selling at its end captures part of that concession. Trades: at most one 4-hour hold per day, so up to 365 a year; the 0.40% mean and 16/28 hit-rate bars should leave roughly 100-250 trades per pair per year (more in volatile years), inside the owner's 150-500 target in most regimes. Cost: a 4-hour move on these pairs is typically 1-2% in absolute size, and the entry requires the trailing same-block mean to be at least 0.40%, above the 0.30% base round trip; the realised edge will be a fraction of the trailing mean if persistence is partial, so the rule is a direct test of whether the slot drift is large and persistent enough to beat the 0.30%/0.45% round trip. Risk: a 3% stop on a 4-hour hold caps single-trade loss; losses of ~1% per trade over a streak stay far from the 25% ceiling. Success is judged only by the existing gates (positive net at base and conservative, drawdown < 25%, >= 6 of 9 pairs).",
+  "novelty_vs_tried": "No tried family selects trades by clock periodicity estimated from each pair's own history. The calendar families (MondayEffectLong, WeekendDaytimeSession, USSessionOvernightHold, IntradayEarlySessionMomentum, SessionOpeningRangeBreakout, USOpenVolumeContinuation) hold a fixed, pre-chosen session; here the slot is chosen adaptively each day from the trailing 28-day same-block return, so the held window moves as the flow pattern moves. There is no price-level, trend, breakout, dip or volatility condition, so it is structurally unlike the breakout, mean-reversion and trend-regime families, and its fixed 4-hour hold is shorter than all of them.",
+  "sources": [
+    {
+      "title": "Intraday Patterns in the Cross-section of Stock Returns (Heston, Korajczyk, Sadka)",
+      "url": "https://ar5iv.arxiv.org/html/1005.3535"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-060.md (exploration-split summaries of earlier hypotheses on BTC, ETH, BNB 1h) and the validation protocol."
+}
