@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-071",
+  "family": "ATRTrailMomentum",
+  "title": "Volatility-scaled 24-hour momentum on 1h with a ratcheting 2.5-ATR trailing stop and a 24-hour time exit",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, filled at the open of bar t+1. Long only, one position, whole balance, same rule and parameters on every pair. Definitions: M(t) = close(t)/close(t-24) - 1 (24-bar momentum). S(t) = sample standard deviation (ddof=1) of the 720 values M(t-720), ..., M(t-1) (rolling 720-bar std of M, shifted by one bar so the current bar is excluded). ATR(t) = Wilder ATR with period 14 on 1h bars (true range smoothed with alpha = 1/14). ENTRY at the close of bar t when ALL hold: (1) M(t) >= 1.5 * S(t); (2) M(t) >= 0.02; (3) close(t) > close(t-1); (4) no open position; (5) cooldown satisfied: no entry for 6 candles after any exit (at least 6 bars since the last exit). TRAILING EXIT (close-based, an exit signal, not the native stop): let e be the entry bar (the bar whose open is the fill) and P the fill price. Initial trail level T = P - 2.5 * ATR(t), with t the signal bar. At the close of every bar j >= e: if close(j) < T, exit at the open of bar j+1; otherwise update T = max(T, close(j) - 2.5 * ATR(j)), so T only moves up. TIME EXIT: if still open, exit at the close of bar e+23 (the 24th bar of the trade, filled at the open of bar e+24), so every position is closed within 24 hours. Whichever of the trailing exit and the time exit comes first applies. STOP-LOSS: native fixed stop 8% below the entry price (intrabar, triggers on touch); it is a catastrophic backstop only, since the 2.5-ATR trail normally sits much closer. No take-profit, no ROI table, no pyramiding, no other filters. Warm-up: 1000 bars (longest lookback 744 = 720-bar std of a 24-bar return, plus margin so Wilder ATR(14) is stable for the recursive check).",
+  "parameters": {
+    "timeframe": "1h",
+    "momentum_lookback_bars": 24,
+    "vol_window_bars": 720,
+    "sigma_threshold": 1.5,
+    "min_momentum": 0.02,
+    "atr_period": 14,
+    "atr_trail_multiplier": 2.5,
+    "time_exit_bars": 24,
+    "cooldown_bars": 6,
+    "stoploss_pct": 0.08,
+    "warmup_bars": 1000
+  },
+  "rationale": "Mechanism: time-series momentum from slow diffusion of information and herding. When a coin's 24-hour move exceeds both 2% and 1.5 times its usual 24-hour move dispersion (last 30 days), late buyers, momentum followers and short covering (in perp markets that feed spot through arbitrage) keep pushing the move for some hours. The counterparty is the liquidity provider and the contrarian seller who fades a move that is in fact news-driven. The source (AdaptiveTrend, arXiv 2602.11708) trades crypto momentum on 6h bars with a long-side ATR stop that only ratchets up and reports a broad Sharpe plateau for alpha 2.0-3.5; here alpha is fixed at 2.5 (the centre) and L and the threshold, which the source re-optimises monthly, are fixed ex ante at 24 bars (four 6h bars) and 1.5 sigma. Risk control: the ratcheting 2.5-ATR trail cuts failed continuations after roughly 2.5 hourly ATRs (often about 1.5-3% on these pairs), the 24-hour cap keeps the trade intraday and bounds exposure, and the 8% native stop only catches gaps. Expected frequency: the joint condition (>=2% and >=1.5 sigma in 24h) holds in active phases for runs of hours; with trades of up to 24 bars and a 6-bar cooldown, I expect about 100-300 trades per year per pair, fewer in quiet years. Cost: entries happen only in moves already beyond normal range, where the trend ride before a 2.5-ATR pullback is typically 1-3% gross, above the 0.30% base and 0.45% conservative round trip; losers are bounded near 2.5 ATR. Success is judged only by the existing gates (positive net at base and conservative, drawdown below 25%, at least 6 of 9 pairs).",
+  "novelty_vs_tried": "No family in the context uses a volatility-normalised momentum trigger (24h return measured against its own 720-bar dispersion) combined with a pure ratcheting ATR trailing exit and a hard 24-hour time exit. Donchian/Keltner/Williams/swing breakouts (H-002, H-066 and others) trigger on price crossing a level and exit on channel lows or fixed targets; TimeSeriesMomentum and SlowTimeSeriesMomentum use long lookbacks and slow exits; IntradayJumpContinuation and DailyMaxJumpMomentum key on single-bar jumps rather than a 24-bar move scaled by its own sigma. The exit here is path-dependent (trail moves up only) rather than a channel or mean.",
+  "sources": [
+    {
+      "title": "Systematic Trend-Following with Adaptive Portfolio Construction: Enhancing Risk-Adjusted Alpha in Cryptocurrency Markets (arXiv 2602.11708)",
+      "url": "https://arxiv.org/html/2602.11708v1"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-071.md (exploration summaries of earlier hypotheses) and the cited paper."
+}
