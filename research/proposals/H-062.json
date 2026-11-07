@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-062",
+  "family": "VolumeSpikeCrashRebound",
+  "title": "15m aggressive-selling bar reversal: volume-confirmed 3-sigma red bar, exit on full retrace or 4 hours",
+  "ex_ante_rule": "Chart 15m, closed candles only; signal at the close of bar t, order filled at the open of bar t+1. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no trend/daily or other filters. Definitions (completed bars only): r(i) = close(i)/close(i-1) - 1. sigma(t) = sample standard deviation (ddof=1) of r over the 672 bars t-672..t-1 (7 days; current bar excluded). Vmed(t) = median volume of the 96 bars t-96..t-1 (1 day; current bar excluded). Shock bar return b(t) = close(t)/open(t) - 1. ENTRY at the close of bar t when ALL hold: (1) b(t) <= -max(0.008, 3.0*sigma(t)); (2) volume(t) >= 3.0*Vmed(t); (3) no open position; (4) cooldown satisfied (at least 8 bars since the last exit); (5) all inputs defined (no NaN). At signal time store TARGET = open(t) and FLOOR = 0.99*low(t) of the shock bar (both fixed for the trade). EXIT (signal at a bar close, filled at the next bar open), first of: (a) full retrace: close(u) >= TARGET at the close of any bar u >= t+1 (the entry bar is the first bar checked); (b) breakdown exit: close(u) < FLOOR at the close of any bar u >= t+1; (c) time exit: at the close of bar t+16 (the 16th bar after entry, 4 hours), filled at the open of bar t+17. STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (a catastrophe backstop; the scout's closed-bar condition (b) is kept as an exit signal, not as the stop). COOLDOWN: no re-entry for 8 candles after any exit. No take-profit other than exit (a). Every position closes within 17 bars (4.25 hours) of the signal, well under 24 hours. All numbers fixed ex ante, no grid: 672-bar volatility window, 3.0 sigma, 0.8% minimum drop, 96-bar median volume window, volume multiple 3.0, floor 0.99 x shock-bar low, time exit 16 bars, stop 3%, cooldown 8. Warm-up: 700 bars (longest lookback is 673 closes for 672 returns; no recursive indicators; startup_candle_count 700, under the 4500 limit).",
+  "parameters": {
+    "timeframe": "15m",
+    "sigma_window_bars": 672,
+    "sigma_multiple": 3.0,
+    "min_drop": 0.008,
+    "volume_median_window_bars": 96,
+    "volume_multiple": 3.0,
+    "floor_factor_of_shock_low": 0.99,
+    "time_exit_bars": 16,
+    "stoploss": -0.03,
+    "cooldown_bars": 8,
+    "startup_candle_count": 700
+  },
+  "rationale": "Mechanism: Kitron and Wengrowicz (arXiv:2608.21888) measure 15-minute reversal on Binance pairs that is much stronger than in US equities, concentrated after moves driven by aggressive taker orders and growing with flow intensity, which they read as compensation to liquidity providers who absorb impatient takers. Candles have no taker side, so a red bar of at least 3 sigma (and at least 0.8%) on at least 3x the day's median volume stands in for a burst of aggressive market selling, often forced liquidations or stop cascades. The sellers pay for immediacy; a buyer who supplies liquidity right after earns the price concession as the pressure fades. Caveat stated honestly: the paper finds the unconditional per-candle edge (~1.3 bp) far below cost; this rule bets that the edge scales with shock size and flow intensity, as the paper's flow result suggests, so only extreme bars are traded. Cost: the target is a full retrace of the shock bar, at least 0.8% and typically 1-2% at 3 sigma, against a 0.30% base / 0.45% conservative round trip. Losses are bounded by the 1%-below-shock-low exit and a 3% native stop, and every trade ends within ~4 hours, limiting the losing-streak drawdown seen in H-005. Expected frequency: roughly 50-200 entries per year per pair (3-sigma 15m bars with a 3x volume spike cluster in volatile weeks; the 8-bar cooldown spaces them); this may fall below the owner's 150/year target on calm pairs. Success criteria: the existing gates (positive net at base and conservative cost, drawdown <= 25%, >= 30 trades per split, on at least 6 of 9 pairs).",
+  "novelty_vs_tried": "Second variant of VolumeSpikeCrashRebound. H-032 (1h, 720-bar sigma, 1.5% minimum drop, mean-volume ratio, close-in-upper-half filter, 18-bar time exit) was dropped for fewer than 30 trades. This variant runs on 15m, where the paper locates the reversal, uses the shock bar's own body (close/open) instead of close-to-close, a robust median-volume baseline, a lower 0.8% floor, no range-position filter, and a breakdown exit below the shock low, so it should trade far more often while staying a single-bar flow-exhaustion bet. It differs from H-033 (4-bar -4% drop with SMA1200 trend filter, 24h hold) and from dip-buying-in-uptrend families by having no trend filter and a 4-hour horizon tied to one volume-confirmed bar.",
+  "sources": [
+    {
+      "title": "Short-horizon mean reversion in cryptocurrency markets: a matched cross-market measurement (Kitron, Wengrowicz, arXiv:2608.21888)",
+      "url": "https://arxiv.org/abs/2608.21888"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data read; only the context file research/context/H-062.md (exploration-split summary results of earlier hypotheses) and the paper abstract page."
+}
