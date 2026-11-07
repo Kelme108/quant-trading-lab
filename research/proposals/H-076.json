@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-076",
+  "family": "VSAStopTestConfirm",
+  "title": "VSA stopping volume, then low-volume test, then confirmed up bar: buy the retest of an absorbed hourly low",
+  "ex_ante_rule": "Chart 1h, closed bars only; signals are evaluated at bar close and filled at the next bar's open. Long only, one position at a time, whole balance, no pyramiding, no trend filter, no cooldown. Warm-up: 64 bars (no recursive indicators). DEFINITIONS: Vmed(s) = median volume of bars s-48..s-1 (48 bars, excluding s). Pos(i) = (close(i)-low(i))/(high(i)-low(i)); if high(i) = low(i) the bar cannot be a stopping, test or confirmation bar. STOPPING BAR s, all must hold: low(s) = lowest low of bars s-47..s (48 bars including s); volume(s) >= 2.5*Vmed(s); Pos(s) >= 0.5; close(s) < close(s-6). The most recent stopping bar is the only active setup; a new stopping bar replaces any older one, and a stopping bar that has produced an entry is used up. VOID: if any bar after s, before entry, closes below low(s), the setup is cancelled. TEST BAR t, any bar in s+1..s+12 with: low(t) < low(t-1) AND low(t) >= low(s) AND volume(t) <= 0.6*Vmed(s) (Vmed of the stopping bar) AND Pos(t) >= 0.5. CONFIRMATION: bar c in t+1..t+3 (c <= s+15) with close(c) > high(t) AND volume(c) > volume(t). If several valid test bars have open confirmation windows, use the most recent test bar t. ENTRY signal at the close of the first confirming bar c when no position is open; fill at open of c+1 (entry price E). STOP: price low(t), fixed at entry and never moved, triggered intrabar when price touches it (custom stoploss from the stored low(t)); native safety stop -10% below E, so the effective stop is max(low(t), 0.90*E). If E <= low(t) the trade exits at the stop immediately. TARGET: limit exit at E + 2*(E - low(t)), filled at that price as soon as a bar's high reaches it. If stop and target are both touched in the same bar, assume the stop. TIME EXIT: signal at the close of bar c+24, filled at the open of c+25 (24 hours after entry). No other exits.",
+  "parameters": {
+    "timeframe": "1h",
+    "volume_median_lookback": 48,
+    "low_lookback": 48,
+    "stop_volume_multiple": 2.5,
+    "close_position_min": 0.5,
+    "decline_lag_bars": 6,
+    "test_window_bars": 12,
+    "test_volume_multiple_max": 0.6,
+    "confirm_window_bars": 3,
+    "target_risk_multiple": 2.0,
+    "time_exit_bars": 24,
+    "safety_stoploss_pct": 10,
+    "warmup_bars": 64
+  },
+  "rationale": "Volume Spread Analysis reads a heavy-volume bar that makes a new 48-hour low but closes in the upper half of its range as absorption: patient buyers take the other side of panicky or forced sellers (stop-loss runs, liquidations of spot holders) who pay for immediacy. A later probe lower on very low volume that holds above the absorption low shows supply has dried up, and an up bar closing above the test bar's high on rising volume confirms demand. The counterparties are late and stop-loss sellers who sell into the low and then are absent; the edge is the liquidity premium they pay. The test low is the natural invalidation point, so risk is defined per trade and the reward is twice the risk. Expected frequency: a 48-bar low with 2.5x median volume after a decline appears perhaps 1-3 times a week per pair; requiring the dry-up test and confirmation leaves roughly 40-120 trades a year per pair, possibly below the owner's 150 target (an honest estimate, not tuned). Move per trade: after a 48-hour-low event the distance from a confirmation close above the test high to the test low is typically 0.5-1.5% on these pairs, so the 2R target aims at about 1-3% gross, well above the 0.30% base and 0.45% conservative round trip; the 24-bar time exit keeps it a day trade. The LuxAlgo page gives no tested thresholds; all numbers are round design choices fixed before any test.",
+  "novelty_vs_tried": "The lab's crash-rebound and volume-reversal families (VolumeSpikeCrashRebound, VolumeConditionedReversal, HourlyShockOverreaction) buy at or right after the high-volume shock bar. This rule never buys the shock: it requires a two-stage sequence (absorption bar, then a separate low-volume test that holds the low, then a rising-volume confirmation) and uses a structural, per-trade stop at the test low with a 2R limit target, instead of a fixed-percent stop or a mean target. HourlyFailedBreakdownReclaim and TripleBottomReversal use price structure only; here the volume dry-up on the retest is the defining condition.",
+  "sources": [
+    {"title": "VSA Test Bar (LuxAlgo Library)", "url": "https://www.luxalgo.com/library/concept/vsa-test-bar.md"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-076.md (exploration summaries of earlier hypotheses) and the LuxAlgo VSA Test Bar page, as of 2026-11-07."
+}
