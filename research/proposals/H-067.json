@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-067",
+  "family": "AsianRangeLondonBreakout",
+  "title": "Asian-session (00-07 UTC) range breakout at the European open on 15m, 1R target, flat by 12:00 UTC",
+  "ex_ante_rule": "Chart 15m, closed bars only, UTC clock; a signal at a bar close is filled at the next bar open. Long only, one position, whole allowed balance, no pyramiding. Runs every calendar day, weekends included. ASIAN RANGE for UTC day D: AH = highest high and AL = lowest low of the 28 bars of day D opening 00:00, 00:15, ..., 06:45 UTC. If any of these 28 bars is missing, day D is not armed. DAILY FILTER: ATR14 = ATR(14) with Wilder smoothing (RMA, alpha 1/14) of true range, computed on closed UTC daily candles (informative 1d via merge_informative_pair, only completed days, so the value used on day D is the one at the close of day D-1). Day D is ARMED only if 0.25 <= (AH - AL) / ATR14 <= 0.80. ENTRY WINDOW: the 12 bars of day D opening 07:00 through 09:45 UTC. Scan these bars in time order on their closes: if a bar closes below AL before any bar has closed above AH, there is no trade on day D (first break is downward). Otherwise, at the first bar in the window whose close > AH, buy at the next bar open (latest possible fill: the 10:00 open). At most one trade per UTC day; no re-entry that day after any exit. STOP: a price stop at AL, intrabar (fills as soon as the low touches AL; if a bar opens below AL, fill at the open), implemented with custom_stoploss as a fixed price level for the trade. Native fixed backstop stop-loss: 8% below entry price (intrabar), only a safety net since AL is always closer given the width filter on these pairs. TARGET: T = entry + (entry - AL), entry = actual fill price (1R); exit as a limit when a bar high reaches T, filled at T (if a bar opens at or above T, fill at that open). TIME EXIT: if neither stop nor target is hit, sell at the open of the 12:00 UTC bar of day D (exit signal on the close of the 11:45 bar). Longest hold about 5 hours, always under 24 hours. No cooldown beyond one trade per day. No other filters. Warm-up: 4320 bars (45 daily candles x 96 bars, generous for the recursive Wilder ATR(14); the intraday range needs at most 40 bars).",
+  "parameters": {
+    "timeframe": "15m",
+    "asian_range_start_utc": "00:00",
+    "asian_range_last_bar_open_utc": "06:45",
+    "asian_range_bars": 28,
+    "entry_window_first_bar_open_utc": "07:00",
+    "entry_window_last_bar_open_utc": "09:45",
+    "time_exit_bar_open_utc": "12:00",
+    "atr_period_days": 14,
+    "atr_smoothing": "wilder",
+    "min_range_atr_ratio": 0.25,
+    "max_range_atr_ratio": 0.8,
+    "target_r_multiple": 1.0,
+    "backstop_stoploss_pct": 8,
+    "max_trades_per_day": 1,
+    "warmup_bars": 4320
+  },
+  "rationale": "Hansen, Kim and Kimbrough (arXiv 2109.12142, summarised by Quantpedia) document strong hour-of-day periodicity in crypto volatility and volume on Binance: activity is lowest in the late East-Asian night and steps up as European participants arrive around 07-08 UTC. The 00-07 UTC range is therefore set in thin trading by passive liquidity; its high collects resting buy stops and breakout orders of range traders. When European flow arrives with a directional push, triggering those stops adds forced buying, so a close above AH is more likely to extend than a random intraday close. Counterparties: range sellers and short holders whose stops sit above AH, and passive overnight market makers whose stale quotes get run over. The width filter skips dead days (range < 0.25 ATR, no participation) and days where the daily move is already spent (range > 0.8 ATR). Costs: 1R is at least the range width, at least 0.25 x daily ATR; with daily ATR typically 3-6% on these pairs, the target is about 1-3% gross, well above the 0.30% base and 0.45% conservative round trip, and the stop is the same distance. Expected trades: about 365 days x roughly 40-55% armed x roughly 50% upward first break, i.e. about 70-150 trades per pair per year, near the low end of the owner's 150-500 target; this is stated honestly rather than loosened. Drawdown: losses are capped at 1R (about 1-3%), so a run of 10 losses stays near or below 25%. The source page states no reliable published win rate exists for these exact rules; this is FX session practice carried to crypto, and the edge is untested.",
+  "novelty_vs_tried": "Closest is H-034 (SessionOpeningRangeBreakout): that used the single 00:00 1h candle as range, a fixed 0.8% minimum height, a midpoint exit, a 1.5x target, a 4% stop and a 20:00 exit, and it produced zero trades. H-067 uses a 7-hour Asian range (28 x 15m bars), a volatility-normalised width filter against closed-day ATR(14), a first-break-direction veto (no trade if price first closes below AL), a structural stop at AL with a symmetric 1R target, and a narrow 07:00-10:00 entry window tied to the European liquidity arrival with flat by 12:00. No other family in the lab trades the Asia-to-Europe session handover.",
+  "sources": [
+    {"title": "London Breakout Strategy (The Right Trader)", "url": "https://therighttrader.com/learn/trading-strategies/london-breakout-strategy"},
+    {"title": "Periodicity in Cryptocurrency Volatility and Liquidity (Hansen, Kim, Kimbrough, arXiv 2109.12142)", "url": "https://arxiv.org/pdf/2109.12142"},
+    {"title": "Periodicity in Cryptocurrencies - Recurrent Patterns in Volatility and Volume (Quantpedia)", "url": "https://quantpedia.com/periodicity-in-cryptocurrencies-recurrent-patterns-in-volatility-and-volume/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the context file research/context/H-067.md (exploration summaries of earlier hypotheses on BTC, ETH, BNB) and the cited web pages, as of 2026-11-07."
+}
