@@ -1,0 +1,36 @@
+{
+  "hypothesis_id": "H-072",
+  "family": "IdiosyncraticResidualReversal",
+  "title": "Idiosyncratic 6-hour drop versus a flat BTC: buy the beta-adjusted residual dislocation, 12-hour cap",
+  "ex_ante_rule": "Chart 1h, closed bars only. Signal at the close of bar t, order filled at the open of bar t+1. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no sizing hooks. Reference series B: BTC/USDT for every traded pair; for BTC/USDT itself B = ETH/USDT. B is an informative 1h pair (merge_informative_pair, closed bars, aligned on the same candle timestamp); if B's bar is missing at any timestamp needed, no signal. Definitions: x(i) = ln(C(i)/C(i-1)) of the traded pair, b(i) = ln(CB(i)/CB(i-1)) of B. beta(t) = sample cov(x,b) / sample var(b) over the 720 bars t-720..t-1 (excludes bar t); if var(b) = 0 or any input is NaN, no signal. rB6(t) = ln(CB(t)/CB(t-6)). Residual e6(t) = ln(C(t)/C(t-6)) - beta(t)*rB6(t), where each e6(i) uses its own beta(i). s(t) = sample std (ddof=1) of e6 over the 720 bars t-720..t-1 (excludes bar t). ENTRY at the close of bar t when ALL hold: (1) e6(t) <= -2.5*s(t); (2) e6(t) <= -0.02; (3) |rB6(t)| <= 0.01; (4) no open position; (5) all inputs defined. At entry store beta_e = beta(t), E = |e6(t)|, B0 = CB(t) (reference close at the signal bar) and P0 = the entry fill price. EXIT (signals checked at the close of every bar u from the entry bar on, filled at the open of bar u+1): (a) TARGET: ln(C(u)/P0) - beta_e*ln(CB(u)/B0) >= 0.6*E; (b) TIME: if the entry fills at the open of bar e, exit signal at the close of bar e+11, filled at the open of bar e+12 (12 hours held, well under 24 h); whichever comes first. STOP-LOSS: one fixed 4% below the entry price, the engine's native intrabar stop (triggers as soon as price touches it; replaces the idea's closed-bar check). No cooldown beyond one position at a time. No take-profit other than (a), no other filters. All numbers fixed ex ante, no grid: 720-bar beta window, 6-bar residual horizon, 720-bar residual std window, 2.5 sigma, 2% minimum residual drop, 1% reference flat band, 60% gap closure, 12-bar time exit, 4% stop. Warm-up: 1500 bars (e6 at t-720 needs beta from bars t-1440..t-721 plus 6 bars, i.e. about 1447 bars; no recursive indicators; startup_candle_count 1500, under 4500).",
+  "parameters": {
+    "timeframe": "1h",
+    "reference_pair": "BTC/USDT",
+    "reference_pair_for_btc": "ETH/USDT",
+    "beta_window_bars": 720,
+    "residual_horizon_bars": 6,
+    "residual_std_window_bars": 720,
+    "entry_sigma_multiple": 2.5,
+    "min_residual_drop": 0.02,
+    "reference_flat_band": 0.01,
+    "target_gap_fraction": 0.6,
+    "time_exit_bars": 12,
+    "stop_loss_pct": 0.04,
+    "cooldown_bars": 0,
+    "startup_candle_count": 1500
+  },
+  "rationale": "Mechanism: when one coin falls 2% or more over 6 hours (and at least 2.5 residual sigmas) while BTC is flat (within 1%), the drop is coin-specific price pressure (a large holder unwinding, unlock or listing news, or one venue's flow) rather than market risk. Liquidity providers and relative-value traders who hedge with BTC absorb that flow and are paid when the relative price recovers; the seller pays for immediacy. Fischer, Krauss and Deinert (JRFM 2019) find short-horizon (120-minute) relative reversal predictable in a crypto cross-section after 15 bp half-turn costs. Counter-evidence: the bryanvine Alpha Research paper 3 audit finds hourly residual reversion in liquid coins small and largely a stale-price artefact of illiquid coins, so the rule demands a large dislocation (>=2% and >=2.5 sigma) and books 60% of it, i.e. a gross target of about 1.2% or more per winning trade, roughly 3-4x the 0.30% base and 2.7x the 0.45% conservative round trip. Risk control: 12-hour time cap and 4% native stop; with whole balance, six consecutive full stops is about 22%, under the 25% ceiling, and most losers should exit by time at smaller losses. Expected frequency: uncertain ex ante; the flat-BTC plus 2% residual condition is rare on BTC/ETH and more common on DOGE, SOL, ADA, LINK; my rough guess is 20-100 trades per year per pair, likely below the owner's 150 target. That is a known risk of formalising this idea as written; I did not change the thresholds to raise it.",
+  "novelty_vs_tried": "New family. Unlike H-031 (CrossPairCatchUp), which buys a laggard after a market-wide 2-bar jump with raw return gaps, this rule requires the reference to be flat and uses a rolling 720-bar beta-hedged residual normalised by its own 720-bar volatility, so it targets idiosyncratic selling, not lagging participation in a rally. Unlike VolumeSpikeCrashRebound, HourlyShockOverreaction and the dip-buying families, the trigger is relative to BTC (a coin can trigger with an absolute drop that is not a crash, and a market-wide crash cannot trigger), and the exit is a residual gap-closure target rather than a price level. No trend filter, no breakout, no session timing.",
+  "sources": [
+    {
+      "title": "Statistical Arbitrage in Cryptocurrency Markets (Fischer, Krauss and Deinert, JRFM 2019)",
+      "url": "https://ideas.repec.org/a/gam/jjrfmx/v12y2019i1p31-d205554.html"
+    },
+    {
+      "title": "Alpha Research, Paper 3: Statistical Arbitrage in Crypto, an honest out-of-sample audit (bryanvine)",
+      "url": "https://bryanvine.github.io/alpha-research/paper3.html"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data viewed; only the exploration-split summaries in research/context/H-072.md (through 2026-11-07) and the two web sources."
+}
