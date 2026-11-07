@@ -1,0 +1,17 @@
+{
+  "title": "Nine-pair hourly breadth thrust: buy when the share of rising pairs surges from below 40% to above 61.5%",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/breadth-thrusts.md",
+    "title": "Breadth Thrusts (LuxAlgo Library)",
+    "license": "Free to use with attribution (LuxAlgo Library license)"
+  },
+  "rule_summary": "Chart 1h, closed bars only; signal at the close of bar t, fill at the open of t+1. All nine pairs are read as informative 1h pairs aligned on the same timestamp. BREADTH: at each bar t count A = pairs with close(t) > close(t-1) and D = pairs with close(t) < close(t-1) (unchanged pairs ignored); B(t) = A/(A+D), or 0.5 if A+D = 0. E(t) = EMA of B with span 10 (alpha 2/11). THRUST at t: E(t) > 0.615 AND the minimum of E over bars t-10..t-1 is < 0.40 (the move from below 0.40 to above 0.615 finished within 10 bars). ENTRY on traded pair X at the close of t when THRUST is true at t but was false at t-1, AND close_X(t) > close_X(t-10) (X took part in the move), AND X has no open position. EXIT the first of: (a) the close of the 24th bar after the entry bar (filled at the next open; time exit, so every trade is under 25 hours); (b) a hard stop 3% below the entry price; (c) E falls below 0.40 at a bar close (breadth collapses back). No take-profit, no pyramiding, no other filters.",
+  "mechanism": "Zweig's thrust (a 10-period EMA of advances/(advances+declines) rising from below 0.40 to above 0.615 within 10 sessions) marks a fast switch from broad selling to near-unanimous buying, which the page links to the start of durable advances. The hourly crypto analogue is a market-wide flip from liquidation to buying across many coins at once (short covering plus fresh risk-on flow), a flow signal no single pair shows. The other side are late liquidators and shorts forced to cover. By construction each entry follows a large aggregate swing, so the 24-hour target is a multi-percent rally rather than a fraction of the 0.30-0.45% round trip. Caveat: the source uses daily NYSE breadth; the hourly transfer is untested and the nine pairs are far more correlated than NYSE stocks.",
+  "timeframe": "1h",
+  "longest_lookback": 24,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "family_hint": "BreadthThrustIntraday"
+}

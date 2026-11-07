@@ -1,0 +1,17 @@
+{
+  "title": "VSA stopping volume then low-volume test: buy the confirmed retest of an absorbed hourly low",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/vsa-test-bar.md",
+    "title": "VSA Test Bar (LuxAlgo Library)",
+    "license": "Free to use with attribution (LuxAlgo Library license)"
+  },
+  "rule_summary": "Chart 1h, closed bars only; signal at bar close, fill at the next open. Vmed(s) = median volume of bars s-48..s-1. Pos(i) = (close-low)/(high-low) of bar i (no signal if high = low). STOPPING BAR s: low(s) is the lowest low of bars s-47..s; volume(s) >= 2.5*Vmed(s); Pos(s) >= 0.5; close(s) < close(s-6) (came after a decline). TEST BAR t, within bars s+1..s+12: low(t) < low(t-1) AND low(t) >= low(s) AND volume(t) <= 0.6*Vmed(s) AND Pos(t) >= 0.5. CONFIRMATION: the first bar c in t+1..t+3 with close(c) > high(t) AND volume(c) > volume(t); ENTRY at the close of c if no position is open; each stopping bar is used once. If any bar after s closes below low(s) before entry, the setup is void. STOP at low(t), fixed at entry. TARGET at entry + 2*(entry - low(t)), a limit exit. TIME EXIT at the close of the 24th bar after c (filled next open). No pyramiding, no trend filter.",
+  "mechanism": "Volume Spread Analysis reads a heavy-volume bar that makes a new local low but closes off it as absorption: a patient buyer takes the other side of panicky or forced sellers who pay for immediacy. Per the LuxAlgo page, a later probe lower that draws almost no volume shows supply is gone, a firm up bar on rising volume confirms it, and a slide below the test low invalidates it (the stop). The other side are late and stop-loss sellers. Unlike the lab's crash-rebound rules, this waits for the two-stage sequence (absorption, then dry-up) instead of buying the crash bar. The target is twice the risk from the test low, usually well above 1% after a 48-hour-low event, against a 0.30-0.45% cost. The page gives no tested thresholds; the numbers are design choices.",
+  "timeframe": "1h",
+  "longest_lookback": 64,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "VSAStopTestConfirm"
+}

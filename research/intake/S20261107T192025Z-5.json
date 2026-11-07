@@ -1,0 +1,17 @@
+{
+  "title": "Feedback-trading volatility switch on 1h: follow 6-hour surges when calm, fade 6-hour drops when volatile",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/ecj/econjl/v102y1992i411p415-25.html",
+    "title": "Feedback Traders and Stock Return Autocorrelations: Evidence from a Century of Daily Data (Sentana and Wadhwani, Economic Journal 1992)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars only; signal at the close of bar t, fill at the open of t+1. r(i) = ln(close(i)/close(i-1)). sig(t) = sample std (ddof=1) of r over bars t-23..t (24 hours). M(t) = median of sig over bars t-720..t-1 (30 days, current bar excluded). R6(t) = close(t)/close(t-6) - 1. CALM regime: sig(t) < M(t). VOLATILE regime: sig(t) >= 1.5*M(t). Between the two there is no entry. ENTRY A (continuation, CALM only): R6(t) >= 2.0*sig(t)*sqrt(6) AND R6(t) >= 0.012. ENTRY B (reversal, VOLATILE only): R6(t) <= -2.0*sig(t)*sqrt(6) AND R6(t) <= -0.025. Either entry requires no open position. EXIT for both: the first of a hard stop 3% below the entry price, or the close of the 12th bar after the entry bar (filled next open). After an exit, no new entry for 6 bars. No take-profit, no trend filter, no pyramiding.",
+  "mechanism": "Sentana and Wadhwani find return autocorrelation is positive when volatility is low and negative when it is high, more so after declines (in daily and hourly stock returns per the abstract), and attribute it to feedback traders whose weight rises with volatility. King and Koutmos (Annals of Operations Research 2021) find trend-chasing feedback traders in BTC, ETH, XRP and ADA, with the effect scaling with conditional volatility. So in calm markets a sharp 6-hour rise is slow diffusion that continues, while in turbulent markets a sharp drop is overshoot by feedback sellers that liquidity providers are paid to absorb. Both entries need a 2-sigma move of at least 1.2% or 2.5%, so the expected follow-through is about 1% or more against a 0.30-0.45% cost. The crypto evidence is daily; the hourly switch is untested.",
+  "timeframe": "1h",
+  "longest_lookback": 744,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "family_hint": "FeedbackVolRegimeSwitch"
+}

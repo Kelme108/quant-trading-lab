@@ -1,0 +1,17 @@
+{
+  "title": "Bulk-volume-classified order imbalance on 15m: buy a 4-hour buy-side flow surge, 8-hour hold",
+  "source": {
+    "type": "paper",
+    "url": "https://arxiv.org/html/2607.09426v2",
+    "title": "The Quarter-Hour Effect: Periodic Algorithmic Trading and Return Predictability in Cryptocurrency Futures",
+    "license": "CC BY 4.0"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at the close of bar t, fill at the open of t+1. r(i) = ln(close(i)/close(i-1)). s(i) = sample std (ddof=1) of r over bars i-96..i-1 (one day, current bar excluded). BUY FRACTION (bulk volume classification): f(i) = Phi(r(i)/s(i)), Phi = standard normal CDF; buy volume = volume(i)*f(i), sell volume = volume(i)*(1-f(i)). ORDER IMBALANCE OI(t) = sum over i=t-15..t of volume(i)*(2f(i)-1) divided by sum of volume(i) over the same 16 bars (4 hours), between -1 and 1. ACTIVITY: V16(t) = sum of volume over t-15..t; Vbar(t) = mean volume per bar over bars t-688..t-17 (672 bars, 7 days, the current window excluded). TREND: close(t) > SMA(384) of 15m closes (4 days). ENTRY when OI(t) >= 0.30 AND V16(t) >= 1.5*16*Vbar(t) AND TREND AND no open position. STOP: the lowest low of bars t-15..t, fixed at entry. EXIT the first of: the stop; the close of the 32nd bar after the entry bar (8 hours, filled next open). After an exit, no new entry until OI has been below 0.30 for at least one bar close. No take-profit, no pyramiding.",
+  "mechanism": "Order imbalance from informed or large traders who split orders persists: liquidity providers lean against it at first but do not absorb it fully, so prices drift with the flow for hours. The arXiv paper (Binance perpetuals) reports that order imbalance predicts cumulative returns over 4 to 12 hours positively after a short first-half-hour reversal; the 8-hour hold targets that window. Bulk volume classification (Easley, Lopez de Prado and O'Hara, RFS 2012) estimates buy and sell volume from candle return and volume alone; Andersen and Bondarenko call it noisy, hence the volume-surge gate. A 4-hour, volume-heavy one-sided flow selects moves of a percent or more, above the 0.30-0.45% cost. The paper used trade-level imbalance at quarter-hour marks, not BVC on spot candles, so the transfer is an assumption.",
+  "timeframe": "15m",
+  "longest_lookback": 688,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 220,
+  "family_hint": "BVCOrderFlowMomentum"
+}
