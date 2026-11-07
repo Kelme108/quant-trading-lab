@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-069",
+  "family": "SessionOpeningRangeBreakout",
+  "title": "US cash-open 15m opening-range breakout, New York time with DST, flat at the 16:00 ET close",
+  "ex_ante_rule": "Chart 15m, closed bars only; a signal at a bar close is filled at the next bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters (no 1h/4h/1d filter). CLOCK: every time is New York local time (IANA zone America/New_York, DST handled per date), converted from each candle's UTC open time; 09:30 ET = 13:30 UTC in US daylight time and 14:30 UTC in standard time. Trade only when the New York date is Monday to Friday (no holiday calendar). OPENING RANGE: the single 15m bar whose open time is 09:30 ET on that New York date; ORH = its high, ORL = its low. If that bar is missing, no trade that day. The day is ARMED only if 0.003 <= (ORH - ORL) / ORL <= 0.025. ENTRY: on an armed day, the FIRST 15m bar of that New York date whose open time is between 09:45 ET and 14:30 ET inclusive and whose close > ORH gives the entry signal (buy at the next bar open); later bars of the same day never give a signal, so at most one trade per day and no re-entry after an exit. EXIT (exit signal at bar close, filled at the next open), first of: (a) a 15m bar of the entry day closes below ORL (closed-bar replacement of the idea's ORL stop); (b) TIME EXIT: the bar opening at 15:45 ET of the entry day closes, so the position is sold at the 16:00 ET open; as a safety for missing bars, any bar with open time >= 15:45 ET on the entry date, or on any later date, also triggers the exit. Holding is always under 7 hours, far below 24 hours. STOP-LOSS: one fixed 3.0% below the entry price, the engine's native intrabar stop (since ORL is at most 2.5% below ORH, this is a catastrophe net just beyond the widest possible ORL distance). Cooldown: none beyond the one-trade-per-day rule. ORH/ORL are frozen from the 09:30 ET bar and never updated during the day. Warm-up: 96 bars (no indicator; the furthest look-back is the 09:30 ET bar, at most 20 bars before a 14:30 ET signal bar; 96 bars = one full day of 15m bars for margin).",
+  "parameters": {
+    "timeframe": "15m",
+    "timezone": "America/New_York",
+    "opening_range_bar_open_et": "09:30",
+    "entry_window_first_bar_open_et": "09:45",
+    "entry_window_last_bar_open_et": "14:30",
+    "time_exit_signal_bar_open_et": "15:45",
+    "time_exit_fill_et": "16:00",
+    "min_range_frac": 0.003,
+    "max_range_frac": 0.025,
+    "stoploss_pct": 3.0,
+    "trading_days": "Mon-Fri",
+    "max_trades_per_day": 1,
+    "warmup_bars": 96
+  },
+  "rationale": "Mechanism: crypto order flow now follows Wall Street hours. A Kraken study (CryptoSlate, mirrored on bitrss) uses US daylight-saving shifts to show that the US-hours share of BTC variance has grown since a break in Nov 2021, and the same holds for ETH, XRP, SOL, ADA, DOGE and LINK. So the US cash open, not a fixed UTC hour, is when ETF authorised participants, basis traders and US desks start trading. Zarattini, Barbon and Aziz (CXO summary) read the opening-range direction as one-sided institutional demand that is worked through the session; it runs over range sellers and passive offers at the high, and the people giving money away are liquidity providers and faders who sell into that flow. Anchoring to New York time with DST is the point: a fixed UTC hour is an hour off for about half the year. Trades: about 250 weekdays a year, most armed (range 0.3-2.5% for a 15m bar at the US open), and a close above ORH on perhaps 60-80% of those, so about 120-200 trades per year per pair. Move per trade: the hold is up to about 6 hours of the most volatile session of the day, where intraday ranges of 2-4% are typical for these pairs, so winners should be about 1% or more gross, well above the 0.30% / 0.45% round trip. Losses are capped near ORL (at most about 2.5% plus the breakout distance, with a 3% native net). Two deviations from the idea, both forced by the lab: the ORL stop is an exit on a 15m close below ORL, because native stops must be one fixed percentage; and a 3% native stop is added as a safety net. Success criteria: the existing gates (positive net at base and conservative cost, drawdown <= 25%, at least 30 trades per split, 6 of 9 pairs). No numbers tuned on results.",
+  "novelty_vs_tried": "Second variant of SessionOpeningRangeBreakout. H-034 used the 00:00 UTC 1h candle (Asian open) as its range, a 0.8% minimum height, a midpoint exit, a 1.5x profit target and a 20:00 UTC exit; it produced 0 trades. This variant changes the anchor to the US cash open on a DST-aware New York clock, uses a single 15m range bar with a 0.3-2.5% band, stops at the range low, has no target and exits at the US close. H-036 (USOpenVolumeContinuation) and H-028 (IntradayEarlySessionMomentum) used fixed UTC hours, a volume surprise or a 4h return threshold, and time exits after a fixed number of bars. None of them used a breakout of a DST-anchored opening range.",
+  "sources": [
+    {"title": "Intraday Trading of Overactive Stocks via Opening Range Breakout (CXO Advisory)", "url": "https://www.cxoadvisory.com/individual-investing/intraday-trading-of-overactive-stocks-via-opening-range-breakout/"},
+    {"title": "Crypto never closes, but Bitcoin, Ethereum, XRP and Solana now move on Wall Street time (CryptoSlate, bitrss mirror)", "url": "https://bitrss.com/crypto-never-closes-but-bitcoin-ethereum-xrp-and-solana-now-move-on-wall-street-time-250378"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only research/context/H-069.md (exploration summaries of earlier hypotheses on BTC, ETH, BNB 1h) and the two web sources, as of 2026-11-07."
+}
