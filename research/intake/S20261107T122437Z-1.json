@@ -1,0 +1,17 @@
+{
+  "title": "Same-time-of-day periodicity: hold the 4-hour UTC block with the strongest trailing 28-day same-block return",
+  "source": {
+    "type": "paper",
+    "url": "https://ar5iv.arxiv.org/html/1005.3535",
+    "title": "Intraday Patterns in the Cross-section of Stock Returns (Heston, Korajczyk, Sadka)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars, UTC; signal at bar close, fill at next bar open. Split each UTC day into six 4-hour blocks starting 00,04,08,12,16,20 UTC. Block return R(d,b) = close of the block's 4th 1h bar / open of its 1st bar - 1. At the close of the 23:00 bar of day d-1, for each block b compute M(b) = mean of R(d-k,b) over the 28 previous completed days k=1..28 (672 bars back) and H(b) = fraction of those 28 returns that are > 0. Pick the block b* with the largest M(b). If M(b*) >= 0.40% AND H(b*) >= 0.57 (16 of 28), buy at the open of the first 1h bar of block b* on day d. EXIT: sell at the close of the 4th bar of that block (filled at the next open, so the hold is exactly 4 hours). Stop: fixed 3% below entry. At most one trade per day per pair; if no block passes, no trade. All signals hourly; no daily indicators.",
+  "mechanism": "Heston-Korajczyk-Sadka find returns at the same time of day persist for weeks and tie it to recurring institutional demand: autocorrelated fund flows worked by execution algorithms that trade at the same clock times every day. In crypto the clock-fixed flows are ETF creation/redemption in the 3-4pm New York fixing window, regional session opens and scheduled bots. Liquidity providers who absorb the same predictable demand every day are paid through the price concession. A second source, the hourly weekday event study in Journal of Economics and Management (journals.economic-research.pl/oc/article/view/2091), reports significant hourly means in BTC. 4-hour moves on these pairs are typically 1-2%, and the 0.40% trailing-mean bar keeps only slots whose average drift is above the 0.30% round-trip cost.",
+  "timeframe": "1h",
+  "longest_lookback": 672,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "family_hint": "SameSlotPeriodicity"
+}

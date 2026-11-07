@@ -1,0 +1,17 @@
+{
+  "title": "ADX/volatility regime switch on 1h: EMA trend entries in trending high-vol regimes, RSI dips in quiet ranges, 24h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.quantconnect.com/forum/discussion/19666/btc-intraday-trading-systems/",
+    "title": "Exploring Intraday Bitcoin Trading Strategies - Regime Filters (QuantConnect forum)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at bar close, fill at next open; long only, one position. Indicators on 1h: ADX(14), +DI(14), -DI(14) (Wilder); ATRp = ATR(14)/close; EMA(10), EMA(30); RSI(14) (Wilder). TREND regime: ADX >= 25 AND +DI > -DI AND ATRp >= median of ATRp over the prior 720 bars. RANGE regime: ADX < 20. Trend entry: in TREND regime, EMA10 crosses above EMA30*1.002 on this bar (it was below on the previous bar). Range entry: in RANGE regime, RSI14 closes below 30. Exits: a trend trade exits at the first close with EMA10 < EMA30; a range trade exits at the first close with RSI14 >= 50. Both: stop at 3% below entry; time exit at the close of the 24th bar after entry. Cooldown 4 bars after any exit. Lookback: 720 bars.",
+  "mechanism": "The source is a template answer on a QuantConnect forum. It switches between momentum and mean reversion by ATR and ADX and gives no economic argument. Here is the closest honest one. When volatility is high and the trend is strong, prices are moving on news and herding flows, so late traders keep pushing in the same direction. In quiet, trendless hours, market makers dominate and short pullbacks revert. Using each signal only in its own regime avoids trend entries in chop and dip buys in crashes. The arXiv short-horizon reversal study (2608.21888) supports reversion when flow is not aggressive. Hourly RSI14 < 30 rebounds and trend legs on these pairs usually run past 1%, above the 0.30-0.45% cost.",
+  "timeframe": "1h",
+  "longest_lookback": 720,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "family_hint": "ADXRegimeSwitch"
+}

@@ -1,0 +1,17 @@
+{
+  "title": "Daily floor-pivot S1 reclaim on 15m: buy the close back above S1, target the pivot, flat by UTC day end",
+  "source": {
+    "type": "blog",
+    "url": "https://thepatternsite.com/PivotPoints.html",
+    "title": "Pivot Points (Bulkowski, The Pattern Site)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at bar close, fill at next bar open. From the previous completed UTC day (its 96 15m bars) take high H, low L, close C. Standard floor pivots: P=(H+L+C)/3, S1=2P-H, S2=P-(H-L). The day is armed only if (P-S1)/S1 >= 0.8%. ENTRY at the close of bar t whose open time is 00:00-19:45 UTC when all hold: (1) the minimum low of bars t-3..t is below S1; (2) close(t) > S1, and close(t-1) <= S1 or low(t) < S1 (first close back above S1); (3) no low today has been at or below S2; (4) no position, and no trade yet today. EXIT (next open) at the first close >= P (target), or the first close below the lowest low of bars t-3..t at entry (stop), or at the close of the 23:45 UTC bar (time exit, under 24 hours). Lookback: 100 bars.",
+  "mechanism": "Floor pivots are a textbook formula that many floor, retail and bot traders compute the same way, so resting bids and stop orders cluster around S1. Bulkowski's intraday test finds price turns near standard pivots more often than chance, and price often sweeps a level before turning. Sellers who hit S1 and set off stops below it supply liquidity at a temporary discount. A close back above S1 shows the stops are used up, and the price drifts back toward the day's equilibrium P. The source gives no trade rule; this one is my adaptation. The target S1 to P equals H-P, at least 0.8% by the arming filter and typically 1-2.5% on crypto days. That is well above the 0.30-0.45% cost, and the stop sits just below the sweep low.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 3,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "DailyPivotS1Reclaim"
+}

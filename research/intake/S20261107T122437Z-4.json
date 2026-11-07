@@ -1,0 +1,17 @@
+{
+  "title": "15m aggressive-selling bar reversal: volume-confirmed 3-sigma drop, exit on full retrace or 4 hours",
+  "source": {
+    "type": "paper",
+    "url": "https://arxiv.org/abs/2608.21888",
+    "title": "Short-horizon mean reversion in cryptocurrency markets: a matched cross-market measurement",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1. sigma(t) = sample std of 15m close-to-close returns over bars t-672..t-1 (7 days, current bar excluded). Vmed(t) = median volume of bars t-96..t-1. Shock bar return b(t) = close(t)/open(t) - 1. ENTRY when all hold: (1) b(t) <= -max(0.8%, 3.0*sigma(t)); (2) volume(t) >= 3.0*Vmed(t); (3) no open position; (4) at least 8 bars since the last exit. EXIT (next open) at the first close >= open(t) of the shock bar (full retrace), or the first close below 0.99*low(t) (stop), or at the close of the 16th bar after entry (4-hour time exit). No trend or daily filter. Lookback: 673 bars.",
+  "mechanism": "The paper finds crypto reversal at 15-minute horizons much stronger than in equities. It is concentrated after moves driven by aggressive taker flow and grows with that flow, which the authors read as pay for liquidity providers who absorb impatient takers. Candles carry no taker side, so a very large volume on a big red bar stands in for aggressive market selling, often forced liquidations. Liquidity providers who buy then earn the price concession as the pressure fades. This is a 15m, volatility-scaled variant of the hourly crash-rebound family. The trade aims at a full retrace of a bar of at least 0.8% (usually larger, at 3 sigma), above the 0.30-0.45% cost.",
+  "timeframe": "15m",
+  "longest_lookback": 673,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "VolumeSpikeCrashRebound"
+}

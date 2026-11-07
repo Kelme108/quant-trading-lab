@@ -1,0 +1,17 @@
+{
+  "title": "Hour-of-week periodicity: trade the weekday 4-hour block with a persistent 26-week same-slot drift",
+  "source": {
+    "type": "paper",
+    "url": "https://journals.economic-research.pl/oc/article/view/2091",
+    "title": "A new perspective of the day-of-the-week effect on Bitcoin returns: evidence from an event study hourly approach",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars, UTC; signal at bar close, fill at next bar open. A slot is (UTC weekday, 4-hour block), with blocks starting at 00,04,08,12,16,20 UTC, so there are 42 slots per week. Slot return = close of the block's 4th 1h bar / open of its 1st bar - 1. At the close of the 23:00 bar before day d, for each of the 6 blocks of day d's weekday, compute over the same weekday-and-block in the previous 26 weeks (26 observations, up to 4368 bars back): mean m, sample std s (ddof=1), and t = m / (s / sqrt(26)). Choose the block with the largest t. Enter at the open of its first bar only if m >= 0.40% AND t >= 1.5. EXIT at the close of the block's 4th bar (4-hour hold). Stop: fixed 3% below entry. At most one trade per day per pair. Hourly signals only.",
+  "mechanism": "The source computes mean BTC returns for each hour of each weekday and finds significant slots. The likely reason is that weekday-specific flows recur: US ETF primary-market activity only on NYSE days (Kaiko, kaiko.com/resources/btc-etfs-impact-on-spot-market-structure, shows the 3-4pm New York fixing hour's volume share jumps on weekdays but not weekends), Monday/Friday risk rebalancing, and weekend thin books. Whoever must trade at those clock times pays the price concession. This is a weekly-periodic slot, not the daily-periodic slot of the same-time-of-day idea, so the two pick different slots. The 0.40% mean and t >= 1.5 filters keep only slots whose average 4-hour drift is above the 0.30% cost. Typical 4-hour ranges are 1-2%.",
+  "timeframe": "1h",
+  "longest_lookback": 4368,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "SameSlotPeriodicity"
+}
