@@ -25,8 +25,8 @@ sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
 
-ROOT = Path(__file__).parents[1]
-PATH = ROOT / "user_data" / "strategies" / "ATRTrailMomentum_H071_v1.py"
+ROOT = Path(__file__).parents[2]
+PATH = ROOT / "user_data" / "strategies" / "_archive" / "ATRTrailMomentum_H071_v1.py"
 SPEC = importlib.util.spec_from_file_location("ATRTrailMomentum_H071_v1", PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
