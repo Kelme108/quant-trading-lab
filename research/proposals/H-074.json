@@ -1,0 +1,36 @@
+{
+  "hypothesis_id": "H-074",
+  "family": "FeedbackVolRegimeSwitch",
+  "title": "Feedback-trading volatility switch on 1h: follow 6-hour surges when calm, fade 6-hour drops when volatile",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, order filled at the open of bar t+1. Long only, spot, one open position at a time, whole balance. Definitions: r(i) = ln(close(i)/close(i-1)). sig(t) = sample standard deviation (ddof=1) of r over the 24 bars t-23..t (current bar included). M(t) = median of sig over the 720 bars t-720..t-1 (30 days, current bar excluded). R6(t) = close(t)/close(t-6) - 1. CALM regime: sig(t) < M(t). VOLATILE regime: sig(t) >= 1.5*M(t). If M(t) <= sig(t) < 1.5*M(t) there is no entry. ENTRY A (continuation, CALM only): R6(t) >= 2.0*sig(t)*sqrt(6) AND R6(t) >= 0.012. ENTRY B (reversal, VOLATILE only): R6(t) <= -2.0*sig(t)*sqrt(6) AND R6(t) <= -0.025. Enter long if ENTRY A or ENTRY B holds, no position is open, and the cooldown is satisfied. EXIT (both entries): the first of (1) the native stop-loss, a fixed 3% below the entry price, triggered intrabar as soon as price touches it; or (2) time exit: at the close of the 12th bar after the entry bar (the entry bar is the bar whose open filled the order), exit signalled and filled at the next open, so every position is closed within 13 hours (well under 24 hours). No take-profit, no trailing stop, no trend filter, no pyramiding, no other filters. COOLDOWN: after any exit, no new entry for 6 candles. If any input (sig, M, R6) is undefined because of insufficient history, no entry. Same rule and parameters on all nine pairs. Warm-up: 800 bars (minimum needed 745 = 720 bars of sig history + 24 returns + 1 close; rounded up; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "vol_window_bars": 24,
+    "vol_ddof": 1,
+    "vol_median_window_bars": 720,
+    "return_horizon_bars": 6,
+    "calm_threshold_mult": 1.0,
+    "volatile_threshold_mult": 1.5,
+    "sigma_move_mult": 2.0,
+    "min_surge_return": 0.012,
+    "min_drop_return": -0.025,
+    "stoploss_pct": 0.03,
+    "time_exit_bars": 12,
+    "cooldown_bars": 6,
+    "startup_candle_count": 800
+  },
+  "rationale": "Sentana and Wadhwani (1992) find that short-horizon (daily and hourly) return autocorrelation is positive when volatility is low and negative when it is high, more so after declines, and explain it with positive-feedback traders whose influence grows with volatility. King and Koutmos (2021) find feedback trading and herding in major cryptocurrencies, trend-chasing in several (e.g. ETH). Who pays: in calm markets, a sharp 6-hour rise reflects information diffusing slowly to late, trend-chasing buyers who keep pushing it up after us; in turbulent markets, a sharp drop is overshoot by forced/feedback sellers (stop cascades, liquidations on derivatives venues spilling to spot) who sell below fair value, and the long-only buyer is paid as a liquidity provider when the price partly reverts. Cost: each entry needs a 2-sigma 6-hour move of at least 1.2% (calm) or 2.5% (volatile); the follow-through or partial reversal we aim at is about 0.8-1.5% over 12 hours, against a 0.30% base / 0.45% conservative round trip. Risk: the -3% stop and the 12-bar time exit cap any loss near 3.3%, so a streak of 7 consecutive stops stays near 21%, under the 25% ceiling. Expected frequency: the 2-sigma condition with the regime split should fire roughly 60-200 times per year per pair (more on volatile alts such as DOGE/SOL, fewer on BTC), near the low end of the owner's 150-500 target; this is an estimate, not measured. Caveat: the crypto evidence is daily; the hourly switch is untested. Success is judged only by the existing gates.",
+  "novelty_vs_tried": "No tried family conditions the sign of the trade on the volatility regime. Existing momentum families (TimeSeriesMomentum, IntradayJumpContinuation, HourlyRangeExpansionDrift, VolatilitySqueezeBreakout) always follow moves, and the reversal families (HourlyShockOverreaction, VolumeSpikeCrashRebound, EMASnapbackATR, VolumeConditionedReversal) always fade them. This rule switches between continuation and reversal depending on whether 24-hour realised volatility is below its 30-day median or above 1.5x it, with a no-trade band between, as the feedback-trader model predicts. It uses no price-level, trend, volume or session filter and a pure 12-bar time exit.",
+  "sources": [
+    {
+      "title": "Sentana and Wadhwani (1992), Feedback Traders and Stock Return Autocorrelations: Evidence from a Century of Daily Data, Economic Journal 102(411)",
+      "url": "https://ideas.repec.org/a/ecj/econjl/v102y1992i411p415-25.html"
+    },
+    {
+      "title": "King and Koutmos (2021), Herding and feedback trading in cryptocurrency markets, Annals of Operations Research (PubMed record)",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33462519/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened; only the exploration-split summaries in research/context/H-074.md (BTC, ETH, BNB and earlier hypotheses), through 2026-11-07"
+}
