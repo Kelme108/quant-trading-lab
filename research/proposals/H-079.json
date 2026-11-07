@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-079",
+  "family": "MoneyFlowBreakout",
+  "title": "Chaikin Money Flow confirmed 1h breakout of the 24-hour high, exit on distribution or after 24 hours",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, fill at the open of bar t+1. Long only, spot, one open position, whole balance. Definitions: MFM(i) = ((close(i)-low(i)) - (high(i)-close(i))) / (high(i)-low(i)), set to 0 when high(i) = low(i). MFV(i) = MFM(i) * volume(i). CMF20(t) = sum of MFV over bars t-19..t divided by sum of volume over bars t-19..t (set CMF20 to 0 if the volume sum is 0). H24(t) = highest high of bars t-24..t-1 (24 bars, current bar excluded). L24(t) = lowest low of bars t-24..t-1. L6(t) = lowest low of bars t-6..t-1 (6 bars, current bar excluded). ENTRY at the close of bar t when ALL hold: (1) close(t) > H24(t); (2) CMF20(t) >= 0.05; (3) CMF20(t) > CMF20(t-6); (4) (H24(t) - L24(t)) / close(t) >= 0.02; (5) no open position; (6) cooldown: at least 6 bars since the last exit (no re-entry for 6 candles after any exit). EXIT (signal at a bar close, fill at next open) at the first bar t after entry where any holds: (a) CMF20(t) <= -0.05; (b) close(t) < L6(t); (c) time exit: the trade has been open 24 bars (exit at the close of the 24th bar after the entry fill, so every position is closed within 24 hours). STOP-LOSS: fixed 2.5% below the entry price, engine-native, triggers intrabar. No take-profit, no trailing stop, no pyramiding, no other filters. CMF and rolling high/low are non-recursive; longest lookback is CMF20 at t-6 (26 bars). Warm-up: 30 bars.",
+  "parameters": {
+    "timeframe": "1h",
+    "cmf_period": 20,
+    "cmf_entry_min": 0.05,
+    "cmf_rise_lag_bars": 6,
+    "cmf_exit_max": -0.05,
+    "breakout_lookback_bars": 24,
+    "min_range_pct": 0.02,
+    "exit_low_lookback_bars": 6,
+    "time_exit_bars": 24,
+    "stoploss_pct": 0.025,
+    "cooldown_bars": 6,
+    "warmup_bars": 30
+  },
+  "rationale": "Chaikin Money Flow weights each bar's volume by where it closes within its range. A CMF20 at or above +0.05 and rising over 6 hours means buyers repeatedly closed hourly bars near their highs on real volume (accumulation); StockCharts gives +/-0.05 as the bullish/bearish buffers and says positive CMF supports an uptrend. The counterparties are sellers who capped the prior 24-hour high and short-term traders whose stops rest above it: when the high is taken out while volume-weighted buying is already present, the breakout is more likely absorbed demand than a stop run that fails, and the resting buy stops add follow-through. Breakouts without this confirmation are skipped. Requiring a 24-hour range of at least 2% of price ensures there is room for a move of roughly 1-2% within the 24-hour hold, well above the 0.30% base and 0.45% conservative round trip; the 2.5% stop and distribution exit (CMF <= -0.05) or 6-bar-low exit cap the loss per trade so a streak of losers stays far from the 25% drawdown ceiling. Expected frequency: 24-hour-high breakouts on 1h occur several times a week on volatile pairs; the CMF and range filters remove roughly half, giving an expected 150-300 trades per pair per year. No source tests this exact combination on crypto; the cited page supports only the indicator definition and buffers. Parameters are textbook/round and were fixed before any results.",
+  "novelty_vs_tried": "Uses a close-location-weighted volume flow (CMF) as the confirmation of an intraday breakout, which no tried family uses. H-002 (DonchianBreakoutBaseline) is price-only with no time exit and no volume confirmation; H-046-style volume rules use raw volume on long pivots; SeasonalVolumeSurprise, HighVolumeSessionMomentum and USOpenVolumeContinuation use volume magnitude, not where bars close within their range. Exit also differs: an order-flow reversal exit (CMF <= -0.05) plus a hard 24-bar time exit, making it a day trade rather than a trend-following breakout like H-009.",
+  "sources": [
+    {
+      "title": "StockCharts ChartSchool: Chaikin Money Flow (CMF)",
+      "url": "https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/chaikin-money-flow-cmf"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the research context file research/context/H-079.md (exploration-split summaries of earlier hypotheses) and the cited web page."
+}
