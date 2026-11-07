@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-075",
+  "family": "HourlyBullFlagBreak",
+  "title": "Hourly bull flag: steep 6-bar pole, tight low-volume 2-8 bar flag, buy the close above the pole high",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at the close of bar t, order filled at the open of bar e = t+1. Long only, one position, whole balance. POLE CANDIDATES: for each p with t-9 <= p <= t-3 (flag of 2 to 8 bars), require high(p) = highest high of bars p..t-1. PL(p) = lowest low of bars p-5..p (6 bars); H(p) = high(p) - PL(p); require high(p)/PL(p) - 1 >= 0.025. FLAG = bars p+1..t-1. FL = lowest low of the flag, FH = highest high of the flag. Conditions: (1) depth: FL >= high(p) - 0.5*H; (2) tightness: FH - FL <= 0.5*H; (3) volume: mean volume of the flag bars <= 0.7 * mean volume of bars p-5..p; (4) trend: close(t) > SMA(168) of 1h closes at t. If several p satisfy all of (pole, 1-3), use the most recent p (largest p). ENTRY at the close of t when close(t) > high(p) for that p AND condition (4) AND no open position AND that pole (identified by the timestamp of bar p) has not already been traded (store it in the entry tag; reject a new entry with the same pole timestamp). Store FL and TARGET = FL + H in the entry tag, fixed at entry. EXITS, first of: (a) TARGET: limit-style take-profit at price FL + H, filled intrabar when high touches it (custom_roi), or at the open if a bar opens at or above it; (b) STRUCTURAL STOP: a closed bar u after the fill with close(u) < FL -> exit at the open of u+1; (c) NATIVE STOP: fixed 4% below the entry fill price, intrabar (stoploss = -0.04), as the engine-compatible stand-in for the flag-low stop of the idea; (d) TIME EXIT: at the open of bar e+24 (signal at the close of bar e+23, i.e. the close of the 24th bar after the signal bar t), so every position lasts at most 24 hours. No cooldown beyond the one-trade-per-pole rule, no pyramiding, no trailing stop, no other filters. Warm-up: 200 bars (SMA 168 plus the 15-bar pole/flag window, rounded up; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "pole_lookback_bars": 6,
+    "flag_min_bars": 2,
+    "flag_max_bars": 8,
+    "min_pole_rise": 0.025,
+    "max_retrace_of_pole": 0.5,
+    "max_flag_range_of_pole": 0.5,
+    "flag_volume_ratio_max": 0.7,
+    "trend_sma_bars": 168,
+    "target_multiple_of_pole": 1.0,
+    "native_stoploss_pct": 0.04,
+    "time_exit_bars": 24,
+    "startup_candle_count": 200
+  },
+  "rationale": "Bulkowski documents the shape (steep pole, short flag, volume trending down in the flag, measured move = pole height added to the flag low) but gives no causal reason; he studies daily charts, and applying it to 1h is an untested transfer. The closest honest mechanism: the pole is a burst of new demand (news or a large buyer working an order); the flag is short-term holders taking profit, absorbed with little price give-back on shrinking volume, showing that supply is thin; a close back above the pole high triggers breakout buyers and the stops of those who sold the pause, so the original flow resumes. The other side are early profit-takers and faders. Cost: the pole is at least 2.5% and the target is FL + H, which is at least 0.5*H above the pole high, so the planned gross gain is about 1.25-2.5%+ per trade against a 0.30% base and 0.45% conservative round trip; the time exit caps holding at 24 h. Risk: the flag-low close exit and a 4% intrabar stop bound each loss (losses of ~1-4%, so a streak of 8 losses stays near or under the 25% ceiling only if the average loss is ~3%; this is a known risk). Trade count: a 2.5% rise in 6 hours followed by a tight quiet flag above SMA168 should occur perhaps 50-200 times a year per pair (more on DOGE/SOL/ADA, fewer on BTC); this estimate is a guess, not measured. Success is judged only by the existing gates (positive net at base and conservative, drawdown < 25%, >= 30 trades per split, >= 6 of 9 pairs).",
+  "novelty_vs_tried": "No tried family uses a continuation pattern defined by a steep pole followed by a short, shallow, low-volume consolidation. Breakout families (DonchianBreakoutBaseline, WeeklyBreakoutRegime, VolatilitySqueezeBreakout, HourlyInsideBarBreakout, HourlyKeltnerMTFBreakout) break a fixed-window high or band without requiring a preceding impulse or volume dry-up; IntradayJumpContinuation and HourlyShockOverreaction act on the jump bar itself, not on a pause after it; volume families (VolumeConditionedReversal, SeasonalVolumeSurprise, HighVolumeSessionMomentum) condition on high volume, whereas this one requires declining volume in the pause. Exits are pattern-derived (measured-move target, flag-low invalidation) rather than channel or MA exits.",
+  "sources": [
+    {
+      "title": "Flags - Bulkowski's Encyclopedia of Chart Patterns (thepatternsite.com)",
+      "url": "https://thepatternsite.com/flags.html"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data or results viewed; only the context file research/context/H-075.md (exploration summaries of earlier hypotheses) and archived strategy code."
+}
