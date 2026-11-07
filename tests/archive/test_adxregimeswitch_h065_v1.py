@@ -23,12 +23,12 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 CLASS_NAME = "ADXRegimeSwitch_H065_v1"
 
 
 def load_module():
-    path = ROOT / "user_data" / "strategies" / f"{CLASS_NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{CLASS_NAME}.py"
     spec = importlib.util.spec_from_file_location(CLASS_NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
