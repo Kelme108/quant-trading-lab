@@ -1,0 +1,35 @@
+{
+  "hypothesis_id": "H-065",
+  "family": "ADXRegimeSwitch",
+  "title": "ADX/volatility regime switch on 1h: EMA cross entries in trending high-vol regime, RSI dips in quiet range, 24h cap",
+  "ex_ante_rule": "Chart 1h, closed bars only; every signal is evaluated at the close of bar t and filled at the open of bar t+1. Spot, long only, one position at a time, whole balance. Indicators on 1h close/high/low: ADX(14), +DI(14), -DI(14) with Wilder smoothing; ATR(14) with Wilder smoothing; ATRp(t) = ATR14(t)/close(t); MED(t) = median of ATRp over the 720 bars t-720..t-1 (excluding the current bar); EMA(10) and EMA(30) of close; RSI(14) of close with Wilder smoothing. TREND regime at t: ADX(t) >= 25 AND +DI(t) > -DI(t) AND ATRp(t) >= MED(t). RANGE regime at t: ADX(t) < 20 (the two regimes are mutually exclusive; ADX in [20,25) is neither, no entry). TREND ENTRY (tag 'trend'): TREND regime at t AND EMA10(t) > 1.002*EMA30(t) AND EMA10(t-1) <= 1.002*EMA30(t-1). RANGE ENTRY (tag 'range'): RANGE regime at t AND RSI14(t) < 30. If both were ever true on the same bar, the trend entry takes precedence. Entries require no open position and the cooldown satisfied. EXITS depend on the tag set at entry, whatever the current regime: a 'trend' trade exits at the first close with EMA10(t) < EMA30(t); a 'range' trade exits at the first close with RSI14(t) >= 50. TIME EXIT for both: if the trade is still open at the close of the 24th 1h bar counted from the entry bar (the entry fill bar is bar 1), exit at the next open, i.e. at most 24 hours after entry. STOP-LOSS for both: fixed 3% below the entry price, native intrabar stop (triggers as soon as price touches it). COOLDOWN: no new entry for 4 candles after any exit. No take-profit, no trailing stop, no pyramiding, no other filters. Longest lookback: 720-bar median of ATRp plus 14-bar ATR = 734 bars; Warm-up: 1000 bars (extra margin for the recursive Wilder/EMA indicators; startup_candle_count = 1000).",
+  "parameters": {
+    "timeframe": "1h",
+    "adx_period": 14,
+    "di_period": 14,
+    "atr_period": 14,
+    "atrp_median_lookback": 720,
+    "adx_trend_min": 25,
+    "adx_range_max": 20,
+    "ema_fast": 10,
+    "ema_slow": 30,
+    "ema_cross_buffer": 1.002,
+    "rsi_period": 14,
+    "rsi_entry_below": 30,
+    "rsi_exit_at_or_above": 50,
+    "stoploss_pct": 3.0,
+    "time_exit_bars": 24,
+    "cooldown_bars": 4,
+    "startup_candle_count": 1000
+  },
+  "rationale": "Source mechanism (honest): the QuantConnect forum reply is a template that switches between EMA-cross momentum and RSI mean reversion using ADX and volatility; it gives no economic argument and no backtest. The closest argument: when ADX is high with +DI dominant and hourly volatility is above its 30-day median, price is moving on news and herding/trend-chasing flow, so late participants keep pushing an established hourly leg and a fresh EMA10/EMA30 cross catches its continuation. When ADX is low (no directional pressure), liquidity providers dominate and oversold hourly pullbacks (RSI14<30) tend to revert toward the mean, consistent with short-horizon reversal evidence when order flow is not aggressive. Gating each signal by its regime is the risk control: it avoids trend entries in chop (the failed-breakout streaks seen in H-005/H-009) and dip-buying in high-ADX crashes. A 3% stop caps a single loss (8 consecutive stops ~ -22% with costs, under the 25% ceiling), and the 24-bar cap keeps every trade intraday. Expected frequency: hourly EMA10/30 crosses happen roughly 150-250 times a year per pair, of which perhaps a third fall in the TREND regime; RSI14<30 with ADX<20 is rarer; together roughly 100-200 trades per year per pair. Per-trade gross move: hourly trend legs and RSI<30 rebounds on these pairs typically span 1% or more, above the 0.30% base and 0.45% conservative round trip. No result was seen; all numbers are the scout's, fixed before any test. Success = the existing gates on at least 6 of 9 pairs.",
+  "novelty_vs_tried": "No family in the lab uses ADX/DI as a regime switch between two opposite entry types. Existing families are either single-mode trend/breakout (Donchian, WeeklyBreakoutRegime, VolatilitySqueezeBreakout, MultiTimeframeMACDTrend) or single-mode dip buying (DailyRSI2Dip, BollingerMeanReversionBaseline, EMASnapbackATR). H-003 bought RSI<30 dips with an SMA200 trend filter and no time cap; here the RSI dip is only bought when ADX<20 (trendless), and momentum entries are only allowed when ADX>=25, +DI>-DI and volatility is above its 720-bar median, with each trade's exit tied to its entry type and a hard 24h time exit.",
+  "sources": [
+    {
+      "title": "BTC intraday trading systems - QuantConnect.com forum (regime filters: ADX, ATR, momentum vs mean-reversion toggle)",
+      "url": "https://www.quantconnect.com/forum/discussion/19666/btc-intraday-trading-systems/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the research context file research/context/H-065.md (exploration summaries of earlier hypotheses) and the cited forum page, as of 2026-11-07."
+}
