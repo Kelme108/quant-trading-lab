@@ -1,0 +1,17 @@
+{
+  "title": "Large-coin daily cross-sectional momentum: hold the top-4 of nine pairs by prior UTC-day return for one day",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/eee/finana/v78y2021ics1057521921002349.html",
+    "title": "Up or down? Short-term reversal, momentum, and liquidity effects in cryptocurrency markets (Zaremba, Bilgin, Long, Mercik, Szczygielski, IRFA 78, 2021)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars, UTC. All nine pairs loaded as informative 1h pairs on the same timestamp. Once per day, at the close of the 23:00 UTC bar of day d-1, compute for each pair R = close(23:00 bar of d-1) / close(23:00 bar of d-2) - 1 (the prior 24-hour return, 24 bars). Rank the nine R values; ties broken by pair name. Pairs with any missing bar in the 25 needed closes are dropped from the ranking for that day. ENTRY: if the traded pair ranks in the top 4 of the nine, buy at the open of the 00:00 UTC bar of day d. EXIT: sell at the close of the 22:00 UTC bar of day d (filled at the 23:00 open, so every trade lasts 23 hours), or earlier by a fixed stop 5% below the entry price. The next day is a fresh decision; no carry-over. No trend filter, no other conditions. Lookbacks: 24 bars for the ranking; top-4 cut; 5% stop.",
+  "mechanism": "Zaremba et al. find that across thousands of coins the last day's return reverses, but the handful of largest, most tradeable coins show daily momentum instead, because reversal is a compensation for illiquidity that liquid coins do not carry. Begusic and Kostanjcar (arXiv 1904.00890, opened) also find strong momentum in the most liquid coins and tie it to investor herding. The other side is late, attention-limited buyers who chase yesterday's leaders the next day. All nine pairs are large and liquid. Each trade holds a liquid alt for almost a full day, with a typical daily move of 2-5%, so the gross move per trade is well above the 0.30-0.45% round trip. This is a relative-strength ranking, not a time-series or ratio-breakout rule.",
+  "timeframe": "1h",
+  "longest_lookback": 25,
+  "free_parameters": 3,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "CrossSectionalDailyMomentum"
+}

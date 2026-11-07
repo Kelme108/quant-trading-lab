@@ -1,0 +1,17 @@
+{
+  "title": "Low-volume cross-sectional loser reversal on 1h: buy the worst of nine pairs when its drop is not backed by volume",
+  "source": {
+    "type": "paper",
+    "url": "https://swopec.hhs.se/rbnkwp/abs/rbnkwp0413.htm",
+    "title": "Trading volume and liquidity provision in cryptocurrency markets (Bianchi, Babiak, Dickerson, Riksbank WP 413, 2022)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, fill at the open of t+1. All nine pairs loaded as informative 1h pairs on the same timestamp. For each pair: r4(t) = close(t)/close(t-4) - 1. V4(t) = volume summed over bars t-3..t. VN(t) = mean of V4(t-24k) for k = 1..14 (the same 4-hour window on the 14 previous days, so time of day is controlled). M(t) = median of the nine r4(t). ENTRY for the traded pair X when ALL hold: (1) r4_X(t) is the lowest of the nine; (2) r4_X(t) <= -0.02; (3) r4_X(t) <= M(t) - 0.015 (X fell much more than the group); (4) V4_X(t) <= 1.0 * VN_X(t) (the drop came on normal or below-normal volume); (5) no open position. Store P = close_X(t-4). EXIT at the first of: close >= P (full retrace of the 4-hour drop); 12 bars after entry (time exit, 12 hours); close <= entry * 0.96 (stop, checked at bar close). After an exit, no new entry on that pair for 4 bars.",
+  "mechanism": "Bianchi, Babiak and Dickerson show that short-term reversal returns, a proxy for the returns to liquidity provision, are concentrated where trading activity is low. The interaction of lagged return and volume predicts returns, which fits inventory-risk and adverse-selection models: a drop on thin volume is a liquidity shock (a forced or impatient seller) rather than news, so the buyer who absorbs it is paid by the seller's urgency. Ranking against the other eight pairs removes the market move. What remains is a pair-specific dislocation of at least 1.5% beyond the group and 2% in absolute terms. Recovering half of it already covers the 0.45% conservative cost. This differs from H-072, which uses a beta residual against BTC in a flat market, and from H-053, which uses one asset's own 12-hour drop.",
+  "timeframe": "1h",
+  "longest_lookback": 340,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "CrossSectionalLowVolReversal"
+}

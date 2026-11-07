@@ -1,0 +1,17 @@
+{
+  "title": "15m TTM squeeze fire with positive momentum histogram and closed-4h EMA filter, 8-hour time exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/ttm-squeeze.md",
+    "title": "LuxAlgo Library: TTM Squeeze",
+    "license": "Free to use with attribution (LuxAlgo library licence)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1. Indicators on 15m: basis SMA20 of close; Bollinger bands = SMA20 +/- 2.0 * population std20 of close; Keltner = SMA20 +/- 1.5 * ATR20 (Wilder). SQUEEZE ON at a bar when upper BB < upper KC and lower BB > lower KC. Momentum MOM(t) = value at bar t of the 20-bar least-squares line fitted to (close - Mid), where Mid = ((highest high of 20 bars + lowest low of 20 bars)/2 + SMA20)/2. 4h filter: 4h candles from closed 1h/15m data in UTC blocks 00,04,...,20, visible only after the block closes; EMA50 of 4h close. ENTRY at bar t when ALL hold: (1) squeeze was ON for each of bars t-6..t-1 (at least 6 bars of compression) and is OFF at t (the fire); (2) MOM(t) > 0 and MOM(t) > MOM(t-1); (3) close(t) > upper KC(t); (4) last closed 4h close > 4h EMA50 and that EMA50 is above its value one 4h bar earlier; (5) no open position. STOP: lowest low of bars t-6..t, fixed at entry. EXIT at the first bar close when MOM falls for 2 consecutive bars, or close < SMA20, or 32 bars (8 hours) after entry.",
+  "mechanism": "Volatility clusters: when the standard deviation shrinks below the average true range, the market is in a quiet coil. Resting stop and breakout orders pile up just outside the tight range, so the first expansion bar that closes outside the Keltner band tends to trigger a cascade of them. The source says the squeeze itself has no direction and that the histogram's sign and slope at the fire give the lean. A rising closed-4h trend keeps only fires with the larger trend. The other side is range traders who sold the top of the coil and must cover, plus late breakout buyers. A 6-bar minimum squeeze and an 8-hour hold aim at the 1-2% expansion that follows compression, well above the 0.45% cost. This is a 15m TTM definition (BB inside KC), not the 168-bar range-percentile squeeze of H-005/H-008.",
+  "timeframe": "15m",
+  "longest_lookback": 816,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "family_hint": "VolatilitySqueezeBreakout"
+}

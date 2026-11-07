@@ -1,0 +1,17 @@
+{
+  "title": "BTC-led 15m catch-up: buy an alt that has not yet followed a volume-backed BTC surge bar, 4-hour cap",
+  "source": {
+    "type": "paper",
+    "url": "https://research-information.bris.ac.uk/en/publications/cross-cryptocurrency-return-predictability/",
+    "title": "Cross-cryptocurrency return predictability (Guo, Sang, Tu, Wang, Journal of Economic Dynamics and Control 163, 2024)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1. Leader L = BTC/USDT for every traded pair except BTC/USDT, whose leader is ETH/USDT; L is an informative 15m pair on the same timestamp. b(t) = close_L(t)/close_L(t-1) - 1; sL(t) = sample std of b over bars t-672..t-1 (7 days, current excluded); VL(t) = volume_L(t) / median volume_L over bars t-96..t-1. x(t) = close_X(t)/close_X(t-1) - 1 for the traded pair X. ENTRY when ALL hold: (1) b(t) >= max(0.006, 2.5*sL(t)); (2) VL(t) >= 2.0; (3) x(t) <= 0.4*b(t) (X has moved less than 40% as much as the leader); (4) close_L(t) > SMA(96) of close_L (the leader is not in an intraday downtrend); (5) no open position. On entry store target T = close_X(t) * (1 + b(t) - x(t)) (X catching up the gap) and stop S = entry * (1 - 1.5*b(t)). EXIT at the first bar close with close >= T, or close <= S, or 16 bars (4 hours) after entry.",
+  "mechanism": "Guo et al. find that lagged returns of other cryptocurrencies predict a focal coin's returns on Binance data, and attribute this to slow information diffusion: common shocks hit the leading coin first, and investors with limited attention reprice the other coins later. BTC is where most market-wide news and flow lands first, so a BTC surge bar with twice the normal volume is a common shock that alts usually follow with some delay. The other side is the alt holders and market makers who have not yet updated their quotes. Requiring a BTC bar of at least 0.6% (and 2.5 sigma) and an alt lag of at least 60% of it puts the expected catch-up near 0.6-1.5%. This is a 15m, single-leader, volume-confirmed version, unlike H-031, which used 2-bar 1h returns averaged over two pairs.",
+  "timeframe": "15m",
+  "longest_lookback": 672,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "CrossPairCatchUp"
+}

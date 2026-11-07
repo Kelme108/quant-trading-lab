@@ -1,0 +1,17 @@
+{
+  "title": "Chaikin Money Flow confirmed 1h breakout of the 24-hour high, exit on distribution or after 24 hours",
+  "source": {
+    "type": "blog",
+    "url": "https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/chaikin-money-flow-cmf",
+    "title": "StockCharts ChartSchool: Chaikin Money Flow (CMF)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, fill at the open of t+1. Money Flow Multiplier MFM(i) = ((close-low) - (high-close)) / (high-low), set to 0 when high = low. Money Flow Volume MFV(i) = MFM(i) * volume(i). CMF20(t) = sum of MFV over bars t-19..t / sum of volume over bars t-19..t (the textbook 20-period length). H24(t) = highest high of bars t-24..t-1 (excluding t). ENTRY when ALL hold: (1) close(t) > H24(t); (2) CMF20(t) >= +0.05 (the published bullish buffer); (3) CMF20(t) > CMF20(t-6) (buying pressure is rising); (4) (H24(t) - lowest low of bars t-24..t-1) / close(t) >= 0.02 (the 24h range is wide enough for a meaningful move); (5) no open position; (6) at least 6 bars since the last exit. STOP: fixed 2.5% below entry. EXIT at the first bar close when CMF20 <= -0.05 (the published bearish buffer: distribution), or close < lowest low of bars t-6..t-1, or 24 bars after entry (time exit).",
+  "mechanism": "CMF weights each bar's volume by where it closes in its range. A positive, rising CMF means buyers kept closing bars near their highs on real volume, which reads as accumulation. The page gives the plus or minus 0.05 buffers and says positive CMF supports an uptrend. The other side is sellers who capped the 24-hour high and stops resting above it. Breakouts without volume-weighted buying tend to be stop runs that fail, so the filter keeps only the absorbed ones. A minimum 2% range and a 24-hour hold aim at moves of about 1-2%, above the 0.45% cost. This differs from H-002, which uses price only, and from H-046, which uses raw volume on a 240-bar pivot.",
+  "timeframe": "1h",
+  "longest_lookback": 30,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "MoneyFlowBreakout"
+}
