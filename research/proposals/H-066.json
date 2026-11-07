@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-066",
+  "family": "HourlyKeltnerMTFBreakout",
+  "title": "1h Keltner 2.5-ATR breakout gated by a rising 4h EMA50, ATR stop and target, 16-bar time exit",
+  "ex_ante_rule": "Chart 1h, closed bars only; a signal at the close of bar t is filled at the open of bar t+1. Long only, spot, one position at a time, whole balance. 1h indicators: EMA50 = EMA(50) of close; ATR50, ATR30, ATR20 = ATR with Wilder smoothing over 50, 30 and 20 bars; upper band U = EMA50 + 2.5*ATR50; RSI40 = RSI(40, Wilder) computed on the typical price (high+low+close)/3. 4h filter: 4h candles resampled from completed 1h bars in UTC blocks starting 00,04,08,12,16,20, merged with merge_informative_pair so that a 4h candle is visible only after its last 1h bar has closed. EMA4h = EMA(50) of 4h close. Filter holds at bar t if the last completed 4h close > EMA4h of that bar AND EMA4h of that bar > EMA4h of the completed 4h bar 6 bars earlier. ENTRY at the close of bar t when ALL hold: close(t) > U(t); close(t-1) <= U(t-1) (fresh close above the band); RSI40(t) > 50; the 4h filter holds; no open position. No cooldown. Let P = fill price (open of t+1), and freeze ATR20(t) and ATR30(t) of the signal bar. STOP-LOSS: native intrabar stop at P - 1.6*ATR20(t), i.e. a fixed percentage 1.6*ATR20(t)/P below the entry price set once at entry and never moved (custom_stoploss returning that constant). TARGET: sell when a bar's high touches P + 4.5*ATR30(t), filled at the target price (at the bar open if it gaps above). If stop and target are both touched in the same bar, assume the stop filled first. TIME EXIT: if neither is hit, exit signal at the close of the 16th bar held (bar t+16), filled at the open of bar t+17, so no position lasts more than 16 hours. No other filters, no pyramiding, no trailing. Same rule and parameters on all nine pairs. Warm-up: 1000 bars (longest raw lookback is the 4h EMA50 plus a 6-bar 4h slope = 56 4h bars = 224 1h bars; 1000 bars, about 250 4h bars, is set so recursive EMA/Wilder values converge).",
+  "parameters": {
+    "timeframe": "1h",
+    "informative_timeframe": "4h",
+    "ema_1h_period": 50,
+    "atr_band_period": 50,
+    "band_atr_mult": 2.5,
+    "rsi_period": 40,
+    "rsi_source": "typical_price",
+    "rsi_threshold": 50,
+    "ema_4h_period": 50,
+    "ema_4h_slope_bars": 6,
+    "atr_stop_period": 20,
+    "stop_atr_mult": 1.6,
+    "atr_target_period": 30,
+    "target_atr_mult": 4.5,
+    "time_exit_bars": 16,
+    "cooldown_bars": 0,
+    "startup_candle_count": 1000
+  },
+  "rationale": "Mechanism: intraday time-series momentum. Borgards (2021) finds that cryptocurrencies show longer and larger momentum periods than equities at intraday as well as daily frequencies, which he links to weak anchoring to intrinsic value and noise trading. A close 2.5 hourly ATR above the 50-hour mean, inside a rising 4h trend, marks such a volatility burst at a critical level. Late trend-followers, breakout buyers and short-covering keep feeding it for some hours, while mean-reversion traders who fade the extension are on the other side and give up the move. The source blog only says that multi-timeframe filters screen out weak breakouts. It gives no backtest, so the edge is unproven. Costs: the target is 4.5 hourly ATR, typically 2-4% on these pairs, against a 1.6 ATR stop (about 0.8-1.6%). Both are several times the 0.30% base and 0.45% conservative round trip. Time exits sit between the two. The gross move aimed at per trade is well above 0.8%. Trade count: a fresh close above the 2.5-ATR band, in a rising 4h trend, with RSI40 > 50, happens a few times a week in trending phases and rarely in bear phases. I expect about 60-150 trades per pair per year, which may fall below the owner's 150 target. Drawdown: each loss is capped near 1.6 ATR (about 1-2% of balance), so a streak of 10 losses costs about 10-18%, under the 25% ceiling. The 4h trend gate removes most entries in the bear phases where H-009 had its losing streaks.",
+  "novelty_vs_tried": "The only Keltner family tried, DailyKeltnerBreakout (H-025), works on daily bars, holds for days and trades a few times a year. This rule is intraday on 1h. It needs a fresh close above an hourly 2.5-ATR band, a momentum check on RSI of the typical price, and a 4h EMA trend that is both above and rising. Exits are volatility-scaled: an ATR stop and an ATR profit target fixed at entry, plus a hard 16-hour time exit. The slow breakout families (H-002, H-005/H-008, H-007, H-009) use Donchian channels with channel-low exits and multi-day holds. None of them uses a volatility-scaled target with a time cap of under one day.",
+  "sources": [
+    {"title": "How a Multi-Timeframe Keltner Breakout Strategy Filters Noise in Crypto (Crypto Threads)", "url": "https://crypto-threads-five.vercel.app/post/how-a-multi-timeframe-keltner-breakout-strategy-filters-noise-in-crypto/"},
+    {"title": "Borgards (2021), Dynamic time series momentum of cryptocurrencies, North American Journal of Economics and Finance 57 (IDEAS/RePEc)", "url": "https://ideas.repec.org/a/eee/ecofin/v57y2021ics1062940821000590.html"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-066.md (exploration summaries of earlier hypotheses) and the validation protocol, as of 2026-11-07."
+}
