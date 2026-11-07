@@ -1,0 +1,17 @@
+{
+  "title": "Volatility-scaled 24-hour momentum on 1h with a ratcheting 2.5-ATR trailing stop and a 24-hour time exit",
+  "source": {
+    "type": "paper",
+    "url": "https://arxiv.org/html/2602.11708v1",
+    "title": "Systematic Trend-Following with Adaptive Portfolio Construction (AdaptiveTrend, arXiv 2602.11708)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, filled at the open of t+1. Long only, one position, whole balance. M(t) = close(t)/close(t-24) - 1 (24-hour momentum, the length of four of the source's 6h bars). S(t) = sample std (ddof=1) of the overlapping 24-bar returns M over the 720 bars t-720..t-1 (current bar excluded). ATR(t) = Wilder ATR(14) on 1h bars. ENTRY when M(t) >= 1.5*S(t) AND M(t) >= 0.02 AND close(t) > close(t-1) AND no position AND at least 6 bars since the last exit. TRAILING STOP: at entry, stop = entry price - 2.5*ATR(entry bar); at each later close, stop = max(previous stop, close - 2.5*ATR(t)), so it only moves up. EXIT at the first close below the stop (filled at the next open), or at the close of the 24th bar after entry (time exit), whichever comes first. No take-profit, no other filters. All signals are hourly. Fixed choices replace the source's monthly re-optimized L and threshold: L = 24 bars, threshold 1.5 sigma, alpha = 2.5 (the centre of the source's reported plateau of 2.0-3.5).",
+  "mechanism": "The source trades 6h crypto momentum (move over L bars above a threshold) with a long-side ATR stop that only ratchets up, and reports that results are flat across alpha 2.0-3.5. The idea behind time-series momentum is slow diffusion of information and herding: late buyers and short-covering keep pushing a move that has already beaten its usual 24-hour range. The ratcheting stop cuts reversals early, and the 24-hour cap keeps the trade intraday. Requiring a move of at least 2% and 1.5 sigma means entries happen only in active trends, where the ride before a 2.5-ATR pullback is typically 1-3%, above the 0.30-0.45% round trip. It differs from Donchian and Keltner breakouts (H-002, H-066) in its vol-normalized momentum trigger and pure trailing exit.",
+  "timeframe": "1h",
+  "longest_lookback": 744,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "ATRTrailMomentum"
+}

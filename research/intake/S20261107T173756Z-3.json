@@ -1,0 +1,17 @@
+{
+  "title": "Idiosyncratic 6-hour drop versus BTC in a flat market: buy the beta-adjusted residual dislocation, 12-hour cap",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/gam/jjrfmx/v12y2019i1p31-d205554.html",
+    "title": "Statistical Arbitrage in Cryptocurrency Markets (Fischer, Krauss and Deinert, JRFM 2019)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, filled at the open of t+1. Long only, one position. Reference series B = BTC/USDT for every pair; for BTC/USDT itself, B = ETH/USDT (informative 1h, aligned on the same closed timestamp). Hourly log returns x(i) of the pair and b(i) of B. beta(t) = cov(x,b)/var(b) over the 720 bars t-720..t-1. Residual e6(t) = ln(C(t)/C(t-6)) - beta(t)*ln(CB(t)/CB(t-6)). s(t) = sample std (ddof=1) of e6 over the 720 bars t-720..t-1. ENTRY when ALL hold: (1) e6(t) <= -2.5*s(t); (2) e6(t) <= -0.02; (3) |ln(CB(t)/CB(t-6))| <= 0.01 (the reference was flat; not a market-wide selloff); (4) no position. At entry store beta_e = beta(t), E = |e6(t)|, P0 = entry price, B0 = reference price. EXIT at the first close where (a) ln(C/P0) - beta_e*ln(CB/B0) >= 0.6*E (60% of the gap closed), or (b) close <= 0.96*P0 (stop), or (c) 12 bars after entry (time exit). No cooldown beyond one position at a time.",
+  "mechanism": "When one coin falls 2% or more against a flat BTC, the move usually comes from coin-specific price pressure: a large holder unwinding, unlock or listing news, or a single venue's flow. Market makers and relative-value traders who hedge with BTC absorb it and are paid when the relative price recovers; Fischer et al. use the next 120-minute outperformance against the cross-section as their target. The practitioner audit by bryanvine (Alpha Research paper 3) warns that hourly residual reversion in liquid coins is small, and mostly reflects stale prices in illiquid ones. That is why this rule needs a 2.5-sigma and at least 2% dislocation and books 60% of it (about 1.2% or more), above the 0.30-0.45% round trip. The BTC-flat condition sets it apart from H-031, which buys laggards after a market jump.",
+  "timeframe": "1h",
+  "longest_lookback": 726,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 160,
+  "family_hint": "IdiosyncraticResidualReversal"
+}

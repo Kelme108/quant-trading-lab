@@ -1,0 +1,17 @@
+{
+  "title": "Negative realized skewness of the prior UTC day from 15m returns: buy at 00:00 UTC, hold under 24 hours",
+  "source": {
+    "type": "paper",
+    "url": "https://econpapers.repec.org/RePEc:eee:reveco:v:72:y:2021:i:c:p:483-499",
+    "title": "Do higher-order realized moments matter for cryptocurrency returns? (Ahmed and Al Mafrachi, International Review of Economics and Finance 2021)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only, UTC clock. A signal at a bar close is filled at the next bar open. DAILY STATISTIC (computed once, at the close of the 23:45 UTC bar of day d): r_i = ln(close_i / close_{i-1}) for the 96 15m bars of day d (00:00 to 23:45; the first return uses the 23:45 close of day d-1). RV = sum of r_i^2. RSK = sqrt(96) * (sum of r_i^3) / RV^1.5 (the Amaya et al. realized skewness). If any of the 96 bars is missing or RV = 0, there is no signal. ENTRY: if RSK <= -0.25 and no position is open, buy at the open of the 00:00 UTC bar of day d+1. EXIT: sell at the open of the 23:45 UTC bar of day d+1 (95 bars, 23h45m after entry; the signal is the close of the 23:30 bar). Entries happen only at 00:00 UTC, so positions never overlap or chain. No stop, no target, no trend filter. Only intraday 15m data is used; the daily statistic is built from the 96 bars of the completed UTC day.",
+  "mechanism": "The source finds that realized skewness from intraday crypto returns predicts the next returns in and out of sample, but its abstract does not give the sign. The sign used here (negative skew is bullish) follows Amaya et al. on stocks, and Lee and Wang (JFQA 2025), who find that positive jump variance (lottery-like up-spikes) predicts lower crypto returns. A strongly negative-skew day means the variance came from sharp down-bursts: forced sellers, liquidations and stop runs that liquidity providers absorb at a discount and are paid for in the next session's recovery. Buyers of lottery-like up-spikes are the overpaying side that is avoided. A 24-hour hold on these pairs moves 2-5%, far above the 0.30-0.45% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 97,
+  "free_parameters": 2,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "RealizedSkewnessDay"
+}

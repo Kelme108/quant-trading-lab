@@ -1,0 +1,17 @@
+{
+  "title": "New York close near 10-day high, overnight hold: buy at 16:00 New York time, sell at 10:00 the next morning",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/how-to-profitably-trade-bitcoins-overnight-sessions/",
+    "title": "How To Profitably Trade Bitcoin's Overnight Sessions?",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars only. Clock: America/New_York local time (DST handled per date), converted from each candle's UTC open time. Runs every calendar day, weekends included. SIGNAL BAR: the 1h bar opening at 15:00 New York time (it closes at 16:00, the US equity close). H10 = highest high of the 240 1h bars ending with the signal bar (signal bar included, about 10 days). ENTRY: at the close of the signal bar, if close >= 0.97 * H10 and no position is open, buy at the next bar open (16:00 New York). EXIT: sell at the open of the 1h bar opening at 10:00 New York time on the next calendar day (signal taken on the close of the 09:00 bar), about 18 hours after entry and always under 24 hours. No stop, no take-profit, no cooldown, no other filters. All signals come from hourly bars; no daily candles are used. Two adaptations from the source: (1) the source buys only at an exact local 10-day high; here 'within 3% of it' is used to reach the trade count; (2) the source's best hold, Friday to Monday, is longer than 24 hours, so every night is traded as a separate 18-hour hold.",
+  "mechanism": "Quantpedia found that the MAX(10) BTC rule (buy at the NYSE close when BTC is at a 10-day high, hold one day) earns most of its return in the hours outside NYSE trading. It explains this with a premium for holding through hours when traditional desks, ETF authorized participants and options dealers are away, and with institutional and ETF selling that clusters in US hours (see also the reported Coinbase discount at the US open). Near-high momentum then plays out while those sellers are absent. This differs from H-058, which buys after US-session weakness with no trend condition. On these pairs an 18-hour hold usually moves 2-4%, well above the 0.30-0.45% round trip.",
+  "timeframe": "1h",
+  "longest_lookback": 240,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "NYCloseNearHighOvernight"
+}
