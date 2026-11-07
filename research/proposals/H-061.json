@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-061",
+  "family": "DailyPivotS1Reclaim",
+  "title": "Daily floor-pivot S1 reclaim on 15m: buy the close back above S1, target the pivot, flat by UTC day end",
+  "ex_ante_rule": "Chart 15m, closed bars only, all times UTC; a signal at bar close fills at the next bar open. Long only, one position, whole allowed balance. DAILY LEVELS: from the previous completed UTC day (its 96 15m bars, 00:00-23:45; equivalently the closed 1d candle via merge_informative_pair, shifted so only the completed prior day is used) take high H, low L, close C. P=(H+L+C)/3, S1=2*P-H, S2=P-(H-L). These levels are constant for the whole current UTC day. ARMING: the day is armed only if (P-S1)/S1 >= 0.008. ENTRY at the close of bar t (open time 00:00 to 19:45 UTC inclusive) of an armed day when ALL hold: (1) min(low over bars t-3..t) < S1 (today's S1); (2) close(t) > S1 AND (close(t-1) <= S1 OR low(t) < S1); (3) no bar of the current UTC day from 00:00 through t has low <= S2; (4) no open position and no entry signal has already been taken earlier in the current UTC day (max one trade per UTC day). At entry record SweepLow = min(low over bars t-3..t) and the day's P. EXIT (signal at bar close, fill at next open) at the first of: (a) TARGET close >= P; (b) STRUCTURE STOP close < SweepLow; (c) TIME EXIT at the close of the 23:45 UTC bar of the entry day (fills at 00:00 open; maximum holding under 24 hours). STOP-LOSS: native fixed stop 3% below entry price (intrabar, catastrophic backstop only). No cooldown beyond the one-trade-per-day rule, no take-profit other than (a), no trailing, no pyramiding, no other filters. Lookback: 96 bars for the prior day plus 4 bars for the sweep window = 100 bars. Warm-up: 200 bars (two full UTC days plus the 4-bar window, so the first complete prior day is always available; no recursive indicators are used).",
+  "parameters": {
+    "timeframe": "15m",
+    "bars_per_day": 96,
+    "min_pivot_distance_pct": 0.8,
+    "sweep_window_bars": 4,
+    "entry_window_start_utc": "00:00",
+    "entry_window_end_utc": "19:45",
+    "time_exit_bar_utc": "23:45",
+    "max_trades_per_day": 1,
+    "stoploss_pct": 3.0,
+    "warmup_bars": 200
+  },
+  "rationale": "Floor pivots are a textbook formula computed identically by floor, retail and bot traders, so resting bids and protective sell stops cluster at and just below S1. Bulkowski's intraday test (55 stocks, 1-minute data) found price turned at S1 support 58% of the time, the best support rate among standard levels. When price sweeps below S1, it triggers stops and forced sellers supply liquidity at a temporary discount; a close back above S1 shows that supply is exhausted, and price tends to revert toward the day's equilibrium P. Sellers who dump into the stop cascade are the counterparty paying for immediacy. The source gives no trade rule; this is the scout's adaptation (I-049), formalised unchanged except for adding the mandatory fixed native stop (3%, a backstop wider than the structural stop at the sweep low). Cost: the target S1->P equals H-P, at least 0.8% by the arming filter and typically 1-2.5% on crypto days, versus 0.30% base and 0.45% conservative round trip; the structural stop sits just below the sweep low, typically 0.3-1% under entry, so reward/risk is above 1 before the time exit. Trade count: at most one per day; S1 is touched on a minority of armed days, so I expect roughly 80-200 trades per year per pair, at the low end of the owner's 150-500 band. Success criteria are the existing gates (positive net profit at base and conservative, drawdown under 25%, >=30 trades per split, on at least 6 of 9 pairs).",
+  "novelty_vs_tried": "No tried hypothesis uses prior-day floor pivot levels. RoundNumberSupportBounce uses psychological round prices, VolumeProfileValueAreaReject uses volume-derived value areas, HourlyFailedBreakdownReclaim reclaims a rolling swing low, LivermorePivotFailFast uses swing pivots not the (H+L+C)/3 formula, and OvernightDropReversal/DailyIBSDip are close-to-close dip rules. This rule's level comes from a fixed published formula on the prior UTC day, its target is an explicit price level (P) rather than a rolling indicator, it requires a sweep-and-reclaim of that level, it is disarmed after an S2 breach (trend-day protection), and it is flat by UTC day end.",
+  "sources": [
+    {
+      "title": "Pivot Points (Bulkowski, The Pattern Site)",
+      "url": "https://thepatternsite.com/PivotPoints.html"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-061.md (exploration-split summaries of earlier hypotheses) and the cited web page, as of 2026-11-07."
+}
