@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-088",
+  "family": "ElderTripleScreen",
+  "title": "Elder Triple Screen intraday: rising 4h tide, negative 1h Force Index wave, break of setup-bar high, 2R target",
+  "ex_ante_rule": "Chart 1h, closed bars only; a signal at a bar close is filled at the next bar open; spot, long only, one position at a time, whole balance. SCREEN 1 (tide, 4h): build 4h candles from completed 1h bars in UTC blocks starting 00,04,08,12,16,20 (informative 4h via merge_informative_pair, a 4h bar visible only after its last 1h bar has closed). On 4h closes: EMA13 = EMA(13); MACD line = EMA(12) - EMA(26); signal = EMA(9) of the MACD line; histogram H = MACD line - signal. TIDE UP when, on the last completed 4h bar k, EMA13(k) > EMA13(k-1) AND H(k) > H(k-1). SCREEN 2 (wave, 1h): FI(t) = (close(t) - close(t-1)) * volume(t); FI2 = EMA(2) of FI. A SETUP exists at bar s when TIDE UP at s and FI2(s) < 0. A setup lives for one bar only; every bar with FI2 < 0 under TIDE UP is a new setup. SCREEN 3 (trigger): entry signal at the close of bar s+1 if close(s+1) > high(s) AND TIDE UP at s+1 AND no open position; fill at open of bar s+2 (entry price P). Stop level L = min(low(s), low(s+1)); risk R = P - L. Skip the entry if R / P < 0.004 (includes R <= 0). STOP: fixed at entry as a percentage stop of (P - L)/P below P, never moved, triggered intrabar (custom_stoploss returning that fixed distance); native backstop stoploss -10%. EXITS, first hit: (a) stop at L intrabar; (b) take-profit limit at P + 2R, filled at that price when a bar's high reaches it; (c) tide turns down: at a 1h close where the last completed 4h bar has EMA13(k) < EMA13(k-1), exit at the next open; (d) time exit at the close of the 12th 1h bar counted from the entry bar (12 hours after the fill). No cooldown beyond one position at a time. No ROI table other than the rule above. Warm-up: 1000 bars (1h; = 250 4h bars, generous for the recursive EMA26+EMA9 MACD and EMA13 on 4h; longest raw lookback 4h EMA26+EMA9 = 35 4h bars = 140 1h bars).",
+  "parameters": {
+    "timeframe": "1h",
+    "tide_timeframe": "4h",
+    "tide_ema": 13,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "force_index_ema": 2,
+    "setup_life_bars": 1,
+    "min_risk_frac": 0.004,
+    "target_r_multiple": 2,
+    "time_exit_bars": 12,
+    "backstop_stoploss": -0.10,
+    "startup_candle_count": 1000
+  },
+  "rationale": "Elder's Triple Screen: trade only in the direction of the slower tide (4h EMA13 rising and 4h MACD histogram rising, the 4-5x timeframe ratio the source prescribes), enter on a pullback measured by the 2-period Force Index (price change times volume, so the pullback must carry real selling volume, not just a red bar), and buy only when price proves the pullback is exhausted by closing above the setup bar's high. Who gives the money away: short-horizon sellers and inventory-unloading liquidity providers who sell into a rising higher-timeframe trend; when their selling is exhausted, price resumes the trend and the buyer earns the trend premium. The structural stop below the two-bar low cuts failed resumptions fast, and the 2R target (source's minimum) caps the trade intraday. Costs: with R >= 0.4% of price the target is >= 0.8% and on these pairs a two-bar 1h range is typically 1-1.5%, giving targets of ~1.5-3%, well above the 0.30%/0.45% round trip; losers are bounded at -R. Expected frequency: FI2 < 0 on a large share of bars, tide up perhaps a third of the time, trigger and min-risk filter on a fraction of setups, one position at a time with holds of a few hours: roughly 300-700 trades per year per pair, within the owner's day-trade target. Deviation from the scout's idea: time exit is 12 bars instead of 24 because the owner's 2026-11-08 direction makes a <=12h close mandatory; everything else is as written by the scout. Stop is a per-trade fixed level set at entry (structural, as the source prescribes) rather than one global percentage, enforced intrabar.",
+  "novelty_vs_tried": "No family in the context uses a higher-timeframe slope-plus-MACD-histogram tide combined with a volume-weighted Force Index pullback and a prior-bar-high trigger. HourlyFailedBreakdownReclaim and VolumeSpikeCrashRebound buy reclaims after sweeps/crashes without a 4h trend gate; RegimeGatedPullbackTrend and UptrendPullbackRecovery use slow SMA regimes and price-only pullbacks with multi-day holds; MultiTimeframeMACDTrend uses MACD as the entry signal, not as a tide gate. Here the exit is risk-based (2R of a structural two-bar stop, 12h cap), not a channel or trend exit.",
+  "sources": [
+    {
+      "title": "Triple Screen Trading System by Alexander Elder (TakeProfit)",
+      "url": "https://takeprofitapp.com/en/learn/triple-screen-trading-system"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the context file research/context/H-088.md (exploration summaries of earlier hypotheses) through 2026-11-08"
+}
