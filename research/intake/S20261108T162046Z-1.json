@@ -1,0 +1,17 @@
+{
+  "title": "Hummingbot MACD-BB triple barrier on 15m: lower-band stretch plus fresh MACD histogram turn, vol-scaled TP/SL, 8h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://hummingbot.org/blog/directional-trading-with-macd-and-bollinger-bands/",
+    "title": "Directional Trading with MACD and Bollinger Bands (Hummingbot blog)",
+    "license": "unknown (page states none; Hummingbot repository is Apache-2.0)"
+  },
+  "rule_summary": "Chart 15m, closed bars, signal at close of bar t, fill at next open. Bollinger(100, 2.0) on close; %B = (close-lower)/(upper-lower). MACD fast 21, slow 42, signal 9 (Hummingbot macd_bb_v1 example values); hist = MACD - signal. ENTRY when all hold: (1) min %B over bars t-3..t < 0.2; (2) hist(t) > 0 and hist(t-1) <= 0 (fresh turn up); (3) MACD line(t) < 0; (4) flat. BARRIERS fixed at entry: sigma = sample std of 15m log returns over the 100 bars before t, times sqrt(16) (4-hour scale). Take-profit = entry*(1 + max(0.008, 1.5*sigma)); stop-loss = entry*(1 - 0.5*that TP distance) (the blog's 1.5 vs 0.75 sigma ratio). Time barrier: close at the open after 32 bars (8h) if neither price barrier is hit. No trend filter, no cooldown, no pyramiding. Spot long only.",
+  "mechanism": "Price below the lower 100-bar band means impatient sellers have pushed it far from its 25-hour mean. The positive MACD histogram turn while MACD is still below zero shows the selling has slowed, so the trade fades a slowing overshoot instead of catching a falling knife. The buyer is the liquidity provider that sellers pay for immediacy. The triple barrier (Lopez de Prado), as used in Hummingbot's directional controllers (examples page hummingbot.org/strategies/v2-strategies/examples), scales the target to volatility. The 0.8% floor keeps the gross target above the 0.30-0.45% round trip. The blog's own 1m test lost to fees, which is why this version uses 15m bars and the floor.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 10,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 500,
+  "family_hint": "MACDBBTripleBarrier"
+}

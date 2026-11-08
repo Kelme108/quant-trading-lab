@@ -1,0 +1,17 @@
+{
+  "title": "Market-wide liquidation washout on 15m: most of nine pairs crash together, buy each pair's first recovery bar, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://coinshares.com/insights/knowledge/billions-in-liquidations-what-happened/",
+    "title": "Billions in liquidations: what happened? (CoinShares)",
+    "license": "all rights reserved (rule restated in own words)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at close of bar t, fill at next open. All nine pairs are loaded as informative 15m pairs on the same timestamp. For each pair i: r16_i(t) = close/close(t-16) - 1; s_i(t) = sample std of the 84 non-overlapping 16-bar returns ending at t-16, t-32, ..., t-1344 (14 days). WASHOUT(t) is true when at least 6 of the 9 pairs have r16_i(t) <= -max(0.02, 2.0*s_i(t)) (pairs with missing data count as not crashing). TRADED pair X: ENTRY at close of the first bar t' with WASHOUT true at some bar in t'-8..t', AND close(t') > open(t'), AND (close-low)/(high-low) of bar t' >= 0.6, AND r16_X(t') <= -0.015, AND flat, AND no entry on X in the last 32 bars. STOP: lowest low of bars t'-16..t' minus 0.5%, fixed at entry. TARGET: close(t') + 0.5*(highest high of bars t'-16..t' - close(t')), at least +1.0%. TIME EXIT: open after 48 bars (12h).",
+  "mechanism": "CoinShares describes the cascade: cross-coin collateral and portfolio margining tighten margin across all coins at once, forced liquidations push prices down and trigger more of them, and market makers pull back so books thin. The sellers are forced and price-insensitive. When most of the nine pairs crash together, the move is a leverage shock, not news about one coin, and the recovery wick forms once positions are flushed and opportunistic buyers return. The buyer collects the forced sellers' liquidity premium. Requiring breadth across pairs separates this from the single-pair crash rebounds (H-032, H-062). The target of half the drop, at least 1%, sits well above cost. Fewer trades than the owner's target; kept for diversification.",
+  "timeframe": "15m",
+  "longest_lookback": 1360,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 60,
+  "family_hint": "MarketWideWashout"
+}

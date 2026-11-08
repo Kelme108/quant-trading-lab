@@ -1,0 +1,17 @@
+{
+  "title": "UTC-session VWAP 2-sigma band fade on 15m: close back inside the lower band, target VWAP, flat at day end",
+  "source": {
+    "type": "blog",
+    "url": "https://therighttrader.com/learn/trading-strategies/vwap-mean-reversion",
+    "title": "VWAP Mean Reversion (The Right Trader)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at close of bar t, fill at next open. SESSION VWAP resets at 00:00 UTC: typical price tp=(H+L+C)/3; VWAP(t)=sum(tp*vol)/sum(vol) over the session's bars up to t; SD(t)=sqrt(sum(vol*(tp-VWAP)^2)/sum(vol)) over the same bars; LB=VWAP-2.0*SD. Bars before 02:00 UTC (fewer than 8 session bars) or opening after 19:45 UTC give no signals. TREND-DAY FILTER: at least one bar of the session has closed above VWAP before the tag. TAG: a bar with low <= LB. ENTRY at close of the first bar t within 8 bars after the tag with close(t) > LB(t) AND close(t) < VWAP(t) AND (VWAP(t)-close(t))/close(t) >= 0.008 AND flat. Max 2 entries per session. STOP: lowest low from the tag bar to bar t, fixed at entry (intrabar). TARGET: exit when a bar's high reaches the current VWAP (or at the next open after a close >= VWAP). TIME EXIT: close at the 23:45 UTC bar close (before the reset) and in any case after 48 bars.",
+  "mechanism": "Large orders are executed and benchmarked against VWAP. A 2-sigma stretch below it usually comes from a burst of urgent selling (a metaorder or stops) that liquidity providers absorb at a discount, and price drifts back once the flow pauses. The close back inside the band is the sign of that pause. A one-sided day that never crossed VWAP is treated as a trend day and skipped. Second source: TradingView 'VWAP SD2 Reversion (Long)' by jswapnil, which uses the same 2-SD band, re-entry trigger and VWAP target on 5m FX. The required 0.8% distance to VWAP keeps the gross target above the 0.30-0.45% cost. The trade is anchored to the daily VWAP, not the weekly reclaim of H-041, and is a band overshoot rather than a cross.",
+  "timeframe": "15m",
+  "longest_lookback": 96,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "SessionVWAPBandFade"
+}

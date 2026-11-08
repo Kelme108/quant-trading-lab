@@ -1,0 +1,17 @@
+{
+  "title": "15m RSI(14) bullish pivot divergence from oversold, confirmed by a break of the pivot bar high, target the middle swing high",
+  "source": {
+    "type": "paper",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9920669/",
+    "title": "Effectiveness of the Relative Strength Index Signals in Timing the Cryptocurrency Market (Zatwarnicki, Zatwarnicki, Stolarski, Sensors 2023)",
+    "license": "CC BY 4.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at close of bar t, fill at next open. RSI14 with Wilder smoothing on close. PIVOT LOW at bar i: low(i) < low of each of bars i-3..i-1 and i+1..i+3, known only at the close of bar i+3. Take the two most recent pivot lows L1 (bar i1) and L2 (bar i2 > i1). BULLISH DIVERGENCE when: 6 <= i2-i1 <= 60 bars; low(i2) < low(i1); RSI14(i2) > RSI14(i1); RSI14(i1) < 30. M = highest high of the bars strictly between i1 and i2 (the middle swing high). ENTRY at close of the first bar t in i2+3..i2+11 with close(t) > high(i2), close(t) < M, low of bars i2+1..t all >= low(i2), and M/close(t)-1 >= 0.008, flat. STOP: low(i2)*0.998, fixed at entry. TARGET: M (limit). TIME EXIT: open after 48 bars (12h). One trade per divergence; no trend filter.",
+  "mechanism": "A lower price low made on weaker downside momentum means the second leg down had less selling behind it. Usually it is a run on the stop orders resting under the first low, which liquidity providers absorb. Once those forced sells are filled, there is no fresh supply and price snaps back toward the swing high between the two lows. Wilder's divergence idea, tested on crypto by Zatwarnicki et al. (pivot divergences 3-60 candles apart, RSI14). Second source: the StockSharp 0016 RSI Divergence example (pivot-based detection on intraday candles). Unlike the tried sweep-and-reclaim rules, no fixed level has to be reclaimed. The 0.8% minimum distance to the target keeps the gross move above cost.",
+  "timeframe": "15m",
+  "longest_lookback": 80,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "RSIPivotDivergence"
+}

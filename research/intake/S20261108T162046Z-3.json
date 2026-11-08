@@ -1,0 +1,17 @@
+{
+  "title": "Bullish fair-value-gap retest on 15m: buy the shallow pullback into a displacement gap, stop below the gap, target the impulse high",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/fvg-behavior-rules/",
+    "title": "FVG Behavior Rules (LuxAlgo Library)",
+    "license": "unknown (LuxAlgo terms; no open licence stated)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at close of bar t, fill at next open. ATR14 = Wilder ATR(14). GAP at bar k (known at close of k): low(k) > high(k-2); G_lo=high(k-2), G_hi=low(k), CE=(G_lo+G_hi)/2; gap size (G_hi-G_lo)/close(k) >= 0.003; DISPLACEMENT: middle bar k-1 has close>open and (high-low) >= 1.5*ATR14(k-2). Trend filter: last closed 1h close > 1h EMA(50). The gap is VOID if any later bar closes below G_lo, or 32 bars pass. ENTRY at close of the first bar t in k+2..k+32 with low(t) <= G_hi (price traded into the gap), close(t) >= CE, the gap not void, flat. TARGET T = highest high of bars k-1..t; skip if T/close(t)-1 < 0.008. STOP: G_lo*0.998, fixed at entry. EXIT at T (limit), at the stop, or at the open after 48 bars (12h). Each gap is used at most once.",
+  "mechanism": "The source gives no causal mechanism: it states the respect/CE/disrespect conventions and says there are no dependable published hit rates. The closest honest mechanism: a displacement gap is a range crossed by one-sided aggressive buying with almost no two-sided trade, usually a buy metaorder or a stop cascade. Metaorders are split over time, so buying pressure persists. The first pullback into the gap is liquidity providers unloading the inventory they sold into the impulse, and the remaining parent order or late buyers absorb it at the gap. The 0.8% minimum distance to the impulse high keeps the gross move above the 0.30-0.45% cost. Second source: the LuxAlgo Fair Value Gap concept page, which places entries inside the gap at the midpoint with invalidation beyond the far edge.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "family_hint": "FairValueGapRetest"
+}

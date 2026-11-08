@@ -1,0 +1,17 @@
+{
+  "title": "Breakout-pullback-continuation on 15m: 12-hour-high break on an expanded bar, held retest of the level, 2R target and 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/breakout-pullback-continuation.md",
+    "title": "Breakout-pullback-continuation (LuxAlgo Library)",
+    "license": "unknown (LuxAlgo terms; no open licence stated)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at close of bar t, fill at next open. ATR14 = Wilder ATR(14). BREAK at bar b: close(b) >= 1.002*P where P = highest high of bars b-48..b-1 (12 hours, excluding b) and high(b)-low(b) >= 1.5*ATR14(b-1). Store level P. Filter: last closed 1h close > 1h EMA(50) and 1h EMA(50) higher than 4 closed 1h bars earlier. RETEST: some bar r in b+1..b+16 with low(r) <= 1.003*P. INVALID if any bar after b closes below 0.995*P. ENTRY at close of the first bar t after r (t <= b+20) with close(t) > high(t-1), close(t) > P, and low(t-1) > lowest low of bars r..t-2 or t-1 = r (a higher low has formed), setup valid, flat. STOP: lowest low of bars r..t minus 0.2%, fixed at entry. TARGET: entry + 2*(entry - stop); skip if the target is less than 0.8% above entry. TIME EXIT: open after 48 bars (12h). One entry per break.",
+  "mechanism": "Role reversal. After resistance breaks, shorts covering and breakout buyers defending their entries turn the old ceiling into a floor. A retest that holds the level shows the break was real demand and not a stop run that fades, which the immediate-breakout rules (H-002, H-046) cannot tell apart. The buyer at the retest pays the passive sellers who took profit into the pullback. Second source: TradeZella break-and-retest playbooks (prior-day high/low as the key level, enter only after the retest, at least 2R). The 2R target with a 0.8% floor keeps the gross move above the 0.30-0.45% round trip, and the fixed stop under the retest swing caps the loss.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "BreakoutRetestHold"
+}

@@ -1,0 +1,17 @@
+{
+  "title": "Intraday return acceleration on 15m: buy when the last 4h return jumps far above the prior 4h return, 8-hour hold",
+  "source": {
+    "type": "paper",
+    "url": "https://cxoadvisory.com/momentum-investing/return-acceleration-more-effective-than-momentum",
+    "title": "Return Acceleration More Effective than Momentum? (CXO Advisory on Ardila-Alvarez, Forro, Sornette, 'The Acceleration Effect and Gamma Factor in Asset Pricing')",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at close of bar t, fill at next open. R1(t) = close(t)/close(t-16) - 1 (last 4 hours); R0(t) = close(t-16)/close(t-32) - 1 (previous 4 hours); A(t) = R1(t) - R0(t) (acceleration = first difference of successive returns). Z(t) = (A(t) - mean of A over bars t-2880..t-1) / sample std of A over the same 2880 bars (30 days, current bar excluded). ENTRY at close of t when Z(t) >= 2.0 AND Z(t-1) < 2.0 (fresh cross) AND R1(t) >= 0.01 AND close(t) > open(t) AND flat. STOP: lowest low of bars t-3..t minus 0.2%, fixed at entry; if that is more than 3% below the entry, use 3%. EXITS: at the open after Z first closes below 0 (momentum has stopped accelerating), or at the open after 32 bars (8h), whichever comes first. No take-profit, no higher-timeframe filter.",
+  "mechanism": "Ardila-Alvarez, Forro and Sornette link acceleration (a change in momentum) to positive-feedback trading. Trend chasers, stop-outs of shorts and late buyers react to the change in returns, and that buying is not sustainable, so it is transient. In crypto these feedback loops (short liquidations, breakout bots) work on an hours scale. Our buyer rides the feedback and the seller is the early contrarian or liquidity provider. The paper is cross-sectional and monthly on US stocks: moving it to 4-hour time-series windows is our assumption, not a published result. Requiring a 1% four-hour gain and a 2-sigma acceleration shock targets moves big enough to beat the 0.30-0.45% cost. The acceleration term, not the momentum level used in H-071, separates this from the tried rules. Second listing: ideas.repec.org/p/chf/rpseri/rp1530.",
+  "timeframe": "15m",
+  "longest_lookback": 2912,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "IntradayReturnAcceleration"
+}
