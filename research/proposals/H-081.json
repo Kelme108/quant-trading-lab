@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-081",
+  "family": "VolatilitySqueezeBreakout",
+  "title": "15m TTM squeeze fire with rising positive momentum and closed-4h EMA50 uptrend filter, 8-hour time exit",
+  "ex_ante_rule": "Chart 15m, closed bars only; signal at the close of bar t, fill at the open of bar t+1. Long only, spot, one position, whole balance. INDICATORS (15m): SMA20 = 20-bar simple mean of close. Population std20 = 20-bar standard deviation of close with ddof=0. Bollinger: BBU = SMA20 + 2.0*std20, BBL = SMA20 - 2.0*std20. ATR20 = Wilder ATR of 20 bars (true range smoothed with alpha 1/20). Keltner: KCU = SMA20 + 1.5*ATR20, KCL = SMA20 - 1.5*ATR20. SQUEEZE_ON(t) = BBU(t) < KCU(t) AND BBL(t) > KCL(t). Mid(t) = ((highest high of bars t-19..t + lowest low of bars t-19..t)/2 + SMA20(t))/2. MOM(t) = fitted value at the last point (bar t) of an ordinary least-squares line of (close - Mid) over bars t-19..t against x = 0..19 (i.e. linreg(close-Mid, 20, 0)). 4h FILTER: 4h candles resampled from 15m/1h data in UTC blocks starting 00,04,08,12,16,20, merged with merge_informative_pair so a 4h bar is visible only after it closes. EMA50_4h = 50-period EMA of 4h close (adjust=False). ENTRY at close of bar t when ALL hold: (1) SQUEEZE_ON for every bar t-6..t-1 (6 bars) AND SQUEEZE_ON(t) is false (the fire); (2) MOM(t) > 0 AND MOM(t) > MOM(t-1); (3) close(t) > KCU(t); (4) last closed 4h close > EMA50_4h of that bar AND EMA50_4h of that bar > EMA50_4h of the previous 4h bar; (5) no open position. EXIT at the close of the first bar after entry where any holds: (a) MOM fell on 2 consecutive bars (MOM(t) < MOM(t-1) AND MOM(t-1) < MOM(t-2)); (b) close(t) < SMA20(t); (c) 32 bars (8 hours) have elapsed since entry (time exit, closed at that bar's close / next open). STOP-LOSS: fixed 1.5% below entry price, engine native intrabar stop (this replaces the idea's 'lowest low of t-6..t' structural stop, which the engine cannot express as one fixed percentage; 1.5% is the round value chosen ex ante as roughly the width of a 7-bar 15m coil plus slippage). No cooldown, no take-profit, no pyramiding, no other filters. Longest lookback: 4h EMA50 with 1-bar slope = 51 4h bars = 816 15m bars; for EMA convergence (recursive gate) Warm-up: 2400 bars (150 4h bars).",
+  "parameters": {
+    "timeframe": "15m",
+    "informative_timeframe": "4h",
+    "bb_length": 20,
+    "bb_std": 2.0,
+    "kc_length": 20,
+    "kc_atr_mult": 1.5,
+    "atr_length": 20,
+    "mom_length": 20,
+    "min_squeeze_bars": 6,
+    "ema_4h_length": 50,
+    "ema_4h_slope_bars": 1,
+    "mom_fall_exit_bars": 2,
+    "time_exit_bars": 32,
+    "stoploss_pct": 1.5,
+    "cooldown_bars": 0,
+    "startup_candle_count": 2400
+  },
+  "rationale": "Mechanism: volatility clusters. When the 20-bar std of close shrinks inside 1.5 ATR (BB inside KC) the market coils; range traders sell the top of the coil and breakout traders rest buy-stops just above it. The first bar that expands out of the Keltner band with a positive, rising momentum histogram triggers those stops and forces range sellers to cover, which feeds a short continuation burst. The squeeze itself has no direction (per the source), so the histogram sign/slope and a rising closed-4h EMA50 trend keep only fires aligned with the larger trend, where late buyers and short covering add follow-through. The counterparties are mean-reverting range sellers caught on the wrong side and stop-triggered buyers paying the spread. Expected frequency: a 6-bar 15m squeeze followed by a fire occurs several times a week per pair; the momentum, close>KCU and 4h uptrend filters cut that to roughly 150-300 trades per year per pair. Target move: the post-compression expansion on 15m crypto typically runs 1-2% within a few hours, versus a round trip of 0.30% base / 0.45% conservative; the 8-hour time exit and momentum-fade exit cap holding time, and the fixed 1.5% stop caps each loss so a 10-trade losing streak stays near 15%, under the 25% drawdown ceiling. The source describes the TTM squeeze construction and fire trading; it gives no backtest evidence for crypto, so the edge is a hypothesis. Success criteria: the existing gates (positive net at base and conservative cost, drawdown < 25%, at least 30 trades per split, same rule on at least 6 of 9 pairs).",
+  "novelty_vs_tried": "Same family label as H-005/H-008 (VolatilitySqueezeBreakout, third and last variant) but structurally different: H-005/H-008 are slow 1h rules that define a squeeze as the 168-bar range in its bottom 20% percentile over 2160 bars, enter on a 168-bar high breakout above SMA2400 and hold for weeks with an 8% stop (31-36 trades in exploration). H-081 is an intraday 15m rule with the TTM definition (Bollinger inside Keltner for 6+ bars), a momentum-histogram direction gate, a closed-4h EMA50 slope filter, a 1.5% stop and a hard 8-hour time exit, aiming at 150-300 trades a year. It also differs from the Donchian/Keltner breakout families (no channel high, the trigger is the volatility state change).",
+  "sources": [
+    {"title": "LuxAlgo Library: TTM Squeeze", "url": "https://www.luxalgo.com/library/concept/ttm-squeeze.md"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-081.md (exploration-split summaries of earlier hypotheses on BTC, ETH, BNB) as of 2026-11-07."
+}
