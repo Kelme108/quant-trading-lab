@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-083",
+  "family": "SupertrendMTFIntraday",
+  "title": "15m Supertrend(10,3) up-flip above closed-1h EMA200, Supertrend-line stop, 2R target, 24h time exit",
+  "ex_ante_rule": "Chart: 15m, closed bars only; every signal is evaluated at the close of a 15m bar and filled at the next 15m bar open. Long only, spot, one position at a time, whole balance. 15m indicators: ATR10 = Wilder ATR(10) of 15m bars. hl2 = (high+low)/2. Basic upper band BU = hl2 + 3*ATR10; basic lower band BL = hl2 - 3*ATR10. Final upper band FU(t) = BU(t) if BU(t) < FU(t-1) or close(t-1) > FU(t-1), else FU(t-1). Final lower band FL(t) = BL(t) if BL(t) > FL(t-1) or close(t-1) < FL(t-1), else FL(t-1). Direction: direction(t) = UP if close(t) > FU(t-1); DOWN if close(t) < FL(t-1); otherwise direction(t) = direction(t-1). Supertrend line ST(t) = FL(t) when direction(t) = UP. 1h filter: EMA200 = EMA(200) of 1h closes from an informative 1h timeframe merged with merge_informative_pair so that a 15m bar only sees the last COMPLETED 1h bar. ENTRY signal at close of 15m bar t when: direction(t-1) = DOWN AND direction(t) = UP AND close(t) > EMA200_1h AND no open position. At signal store S = ST(t), the fixed stop price for the whole trade. At fill (next open, price P): R = P - S; reject the entry (e.g. in confirm_trade_entry) if R/P < 0.004. EXITS, first hit wins: (1) Stop: fixed price S, intrabar (sell as soon as price touches S), implemented as a per-trade fixed stop price via custom_stoploss/stoploss_from_absolute; native stoploss backstop -10% from entry, so the effective stop is the higher of S and 0.90*P. (2) Take-profit: price P + 2R, filled at that price as soon as a 15m bar's high reaches it. (3) Trend flip: at the close of a 15m bar where direction turns DOWN, exit at the next open. (4) Time exit: at the close of the 96th 15m bar after entry (24 hours after the fill). No cooldown, no pyramiding, no other filters. Warm-up: 3200 bars (15m; = 800 completed 1h bars, 4x the EMA200 length so the recursive EMA and Wilder ATR are converged; within the 4500 limit).",
+  "parameters": {
+    "timeframe": "15m",
+    "informative_timeframe": "1h",
+    "atr_period": 10,
+    "supertrend_factor": 3,
+    "ema_period_1h": 200,
+    "min_risk_fraction": 0.004,
+    "reward_risk_multiple": 2,
+    "time_exit_bars": 96,
+    "backstop_stoploss": -0.10,
+    "cooldown_bars": 0,
+    "startup_candle_count": 3200
+  },
+  "rationale": "Mechanism: short-horizon trend continuation. A Supertrend(10,3) up-flip needs a close more than 3 ATR10 above the bar midpoint band that ratcheted down during the prior down-leg, i.e. a move large enough to force late shorts and passive sellers who leaned on the down-move to reprice; order-flow and stop cascades from that repricing tend to carry some way. The closed-1h EMA200 keeps only flips aligned with the slower (about 8-day) trend, where breakouts are less often faded by mean-reversion liquidity. Risk control: the stop sits at the Supertrend line (about 1-3 ATR15 below entry), so losses per trade are bounded to roughly 0.4-3%, far below H-005's 6-8% losers, and a 10-loss streak stays well under the 25% ceiling; the 2R target and 24h time exit keep every trade intraday. Costs: the 0.4% minimum risk makes the 2R target at least 0.8% gross, usually 1-3%, several times the 0.30% base / 0.45% conservative round trip; trades with a sub-0.4% stop (where cost would dominate) are skipped. Frequency: a 15m Supertrend(10,3) flips up roughly once or twice a day; about half occur above the 1h EMA200 and the minimum-risk filter removes some, so I expect about 150-400 trades per year per pair. Sources: StockSharp's SuperTrade ST1 description (Supertrend 10/3, EMA200, 15m, long only) and marketcalls.in's Supertrend-with-EMA200 15m long-only rule; neither is evidence of an edge after costs. The FMZ strategy 486561 named by the scout was not verified by me and is not cited. Success criteria: the existing gates (positive net at base and conservative, drawdown under 25%, at least 6 of 9 pairs).",
+  "novelty_vs_tried": "The only Supertrend family tried is DailySupertrendFlip (H-027), a daily-bar flip that produced fewer than 30 trades. This is an intraday 15m flip with a multi-timeframe (closed 1h EMA200) filter, a per-trade structural stop at the Supertrend line instead of a fixed percentage, a fixed 2R take-profit and a hard 24h time exit. It is neither a dip-buy (it enters after an up-move against a short-term down-trend) nor a channel/Donchian breakout of a prior high; the trigger is a volatility-scaled band reversal and the exit is risk-multiple based.",
+  "sources": [
+    {"title": "StockSharp API examples: 1365 SuperTrade ST1", "url": "https://doc.stocksharp.com/en/api-examples/1365_SuperTrade_ST1"},
+    {"title": "marketcalls: Supertrend v4.0 with EMA filter TradingView Pine Script code", "url": "https://www.marketcalls.in/tradingview/supertrend-v4-0-with-ema-filter-tradingview-pinescript-code.html"},
+    {"title": "TradingView: SuperTrade ST1 Strategy", "url": "https://in.tradingview.com/script/AyY3vB17-SuperTrade-ST1-Strategy"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only research/context/H-083.md (exploration summaries of earlier hypotheses on BTC, ETH, BNB and the enabled pairs) and the validation protocol, as of 2026-11-07."
+}
