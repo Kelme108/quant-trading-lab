@@ -1,0 +1,17 @@
+{
+  "title": "US-open opening-range bracket on 15m: midpoint stop, 2R target, flat by 20:00 UTC, wide ranges only",
+  "source": {
+    "type": "repo",
+    "url": "https://github.com/jakeschincariol/day-trader-skill",
+    "title": "The Day Trader skill (trader-scanner, trader-entry, trader-exit, trader-timemachine)",
+    "license": "MIT"
+  },
+  "rule_summary": "15m chart, closed bars only, UTC clock, Monday to Friday. Opening range = the two 15m bars opening at 13:30 and 13:45 UTC (the first 30 minutes after the US equity open); RH = their highest high, RL = their lowest low, M = (RH + RL) / 2. The day is armed only if (RH - RL) / RL >= 0.02 (range at least 2%, so the midpoint stop is at least about 1% away and the 0.30% round trip stays under 0.3R). Entry: the first 15m bar opening between 14:00 and 17:45 UTC that CLOSES above RH, bought at the next open; one trade per day per pair. Exits: stop when price trades at or below M (the setup failed); take profit at entry + 2 x (entry - M); time exit: sell at the 20:00 UTC open whatever happens. Day limit: no new entry that day after any exit.",
+  "mechanism": "The repo's scanner/entry/exit chain trades the first close above the opening range with the stop at the range midpoint, a 1R-2R target and flat by the close. In crypto the US equity open (13:30 UTC) concentrates order flow from US funds, ETF arbitrage and macro releases, so a decisive break of its first 30 minutes tends to continue for hours while late participants chase. The repo's own Time Machine example found a near coin flip on narrow ranges; the 2% minimum range is this lab's answer to its finding that a close stop makes the cost a large share of each trade's risk.",
+  "timeframe": "15m",
+  "longest_lookback": 8,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 120,
+  "family_hint": "SessionOpeningRangeBreakout"
+}
