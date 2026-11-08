@@ -1,385 +1,394 @@
-# Como o Trading Lab funciona
+# Manual do Trading Lab: como o projeto funciona e como você pode ajudar
 
-Este documento explica o projeto inteiro, do começo ao fim: de onde vêm as ideias, como uma estratégia é testada, quem decide o quê, e o que falta para tudo rodar sozinho numa VPS. O README diz **o que** o projeto é. Este documento diz **como ele funciona**.
+Este é o manual completo do projeto. Ele explica, do começo ao fim, de onde vêm as ideias, como uma estratégia é
+testada, quem decide o quê, onde os robôs rodam, quais arquivos controlam cada parte e, no fim (seção 13), **o que você
+pode fazer para ajudar o Claude e os agentes a chegarem numa estratégia vencedora**.
 
-Estado descrito: 06/11/2026.
+Estado descrito: **08/11/2026**. Os números de cada seção são desta data.
+
+Como ler: as seções 1 a 3 dão a visão geral; 4 a 6 são o motor de pesquisa por dentro; 7 a 9 são a execução (dry-run,
+VPS); 10 a 12 são referência (situação atual, pastas, comandos); 13 é o seu papel; 14 é o glossário.
 
 ---
 
 ## 1. A ideia em uma página
 
-O projeto é uma **fábrica de estratégias com controle de qualidade**. Ela tem duas metades:
+O projeto é uma **fábrica de estratégias de trading com controle de qualidade**. Ela tem duas metades:
 
 ```
- PESQUISA (lab/)                                     EXECUÇÃO (Freqtrade, live/, ops/)
- ─────────────────────────────────────────           ─────────────────────────────────────
+ PESQUISA (lab/, agentes de IA)                      EXECUÇÃO (Freqtrade, ops/, live/)
+ ───────────────────────────────────────────         ───────────────────────────────────
 
- Internet ──► Scout ──► Triagem ──► Pesquisador        Estratégia aprovada
+ Internet ──► Scout ──► Triagem ──► Research           Estratégia que passou na validação
  (papers,    (ideias)  (código,    (hipótese                │
-  blogs)               regras)      formal H-NNN)           ▼
-                                        │              Freeze (hash do código)
+  repos de             sem IA)      formal H-NNN)           ▼
+  robôs)                                │              Freeze (hash de cada byte)
                                         ▼                   │
                                    Developer                ▼
-                                   (escreve o código)   Bot dry-run (ordens simuladas,
-                                        │               preço real, 24/7)
-                                        ▼                   │
-                         Checagem de causalidade            ▼
-                         (a regra olha o futuro?)       Holdout prospectivo
-                                        │               (≥ 2027-04-21, ≥ 30 trades)
-                                        ▼                   │
-                         Calibração + EXPLORAÇÃO            ▼
-                         (backtest 2017–2024,           Testnet → piloto real
-                          4 cenários de custo)          (só com sua liberação)
+                                   (código Freqtrade    Bot de dry-run (preço real,
+                                    + teste)            ordens simuladas, 24/7)
+                                        │                   │
+                                        ▼                   ▼
+                         Checagem de causalidade        Holdout prospectivo
+                         (olha o futuro? estável?)      (a partir de 2027-04-21)
+                                        │                   │
+                                        ▼                   ▼
+                         Calibração + EXPLORAÇÃO        Testnet → piloto real
+                         (backtest 2017–2024, 9 pares,  (SÓ com a sua liberação)
+                          4 cenários de custo)
                                         │
                      ┌──────────────────┴─────────────────┐
-                 reprovada                            passou
+                 reprovada                     passou em ≥ 6 dos 9 pares
                      │                                    │
-                 arquivada                AUTOPILOT lê a VALIDAÇÃO (política sua)
+                 arquivada               AUTOPILOT lê a VALIDAÇÃO (uma vez)
                                                           │
-                                          backtest 2024–2026 (lido UMA vez)
-                                                          │
-                                          AUTOPILOT sobe o dry-run nos pares
-                                          que passaram (dinheiro real: nunca)
+                                          ≥ 2 pares passaram? AUTOPILOT sobe
+                                          os bots de dry-run (dinheiro real: nunca)
 ```
 
-**A regra mais importante do projeto:** os agentes de IA **escrevem textos e código**, mas **nunca decidem**. Quem aprova ou reprova são regras fixas em código (os "portões"). Desde 06/11/2026, uma **política sua** (o autopilot, seção 7) libera sozinha a leitura da validação e o dry-run. **Dinheiro real continua exclusivamente com você.**
+**A regra mais importante:** os agentes de IA **escrevem textos e código, mas nunca decidem**. Quem aprova ou reprova são
+regras fixas em código (os **portões**, ou *gates*). Uma **política sua** (o autopilot, seção 6) libera sozinha a
+leitura da validação e o dry-run. **Dinheiro real é exclusivamente seu.**
 
 ---
 
-## 2. Por que tanta trava? (o problema que o projeto resolve)
+## 2. Por que tanta trava? O problema que o projeto resolve
 
-Quase qualquer estratégia parece ótima se você testá-la muitas vezes no mesmo histórico e ficar com a melhor. Isso se chama **overfitting**, ou sobreajuste: a regra decorou o passado em vez de aprender algo que se repete.
+Quase qualquer estratégia parece ótima se você testá-la muitas vezes no mesmo histórico e ficar com a melhor. Isso é
+**overfitting** (sobreajuste): a regra decorou o passado em vez de capturar algo que se repete.
 
-Exemplo: teste 50 regras aleatórias em 2017–2024. Por puro acaso, umas 2 ou 3 vão parecer lucrativas. Se você escolher essas e operar, vai perder dinheiro.
+Exemplo: teste 50 regras aleatórias em 2017–2024. Por puro acaso, 2 ou 3 parecem lucrativas. Opere essas e você perde.
 
-O projeto se defende de quatro formas:
+O projeto se defende de cinco formas:
 
-1. **Dados separados por período.** Uma parte do histórico é usada para procurar (exploração). Outra parte fica guardada e é lida **uma única vez** para confirmar (validação). Depois vem o futuro de verdade (holdout prospectivo), que ninguém viu.
-2. **Contagem de tentativas.** Cada regra testada entra no "N" do *Deflated Sharpe Ratio*. Quanto mais tentativas, mais exigente fica a régua. Hoje o N está acima de 60.
-3. **Regra escrita antes do teste.** A hipótese é registrada com todos os números **antes** de rodar. Mudar um número depois de ver o resultado cria uma **hipótese nova**, que conta como mais uma tentativa.
-4. **Portões fixos.** Os critérios de aprovação estão num arquivo protegido por hash (`lab/config/gates.json`). Nenhum agente consegue afrouxá-los.
+1. **Dados separados no tempo.** Uma parte do histórico serve para procurar (exploração). Outra fica guardada e é lida
+   **uma única vez** por hipótese (validação). Depois vem o futuro de verdade (holdout prospectivo).
+2. **Contagem de tentativas.** Toda configuração testada entra no **N** do *Deflated Sharpe Ratio*. Hoje N passa de 115.
+   Quanto maior o N, mais forte uma estratégia precisa ser para ser levada a sério.
+3. **Regra escrita antes do teste.** A hipótese é registrada com todos os números **antes** de rodar. Mudar um número
+   depois de ver o resultado cria uma **hipótese nova** (ID novo, conta no N).
+4. **Portões fixos.** Os critérios estão em `lab/config/gates.json`, protegido: nenhum agente consegue afrouxá-los.
+5. **Amplitude.** Com 9 pares, a regra precisa funcionar na maioria deles (6 de 9), não num par de sorte.
 
 ---
 
 ## 3. Os dados
 
-- **Pares:** BTC/USDT, ETH/USDT e BNB/USDT, spot da Binance, só comprado (sem short, sem alavancagem).
-- **Timeframes:** 1h e 15m (o 15m foi habilitado em 05/11/2026). Regras "diárias" usam candles diários fechados e executam no gráfico de 1h.
-- **Histórico:** de ago/2017 até hoje, em `user_data/data/binance/` (fora do git).
+### 3.1 Universo
+- **9 pares spot da Binance contra USDT** (desde 06/11/2026): BTC, ETH, BNB (os originais), XRP, ADA, LTC, LINK, DOGE e
+  SOL. Só comprado: sem short, sem alavancagem, sem margem.
+- **Timeframes:** `15m` e `1h`. Filtros de prazo maior (4h, 1d) são montados a partir de candles fechados.
+- **Histórico:** de 2017 (2018–2020 nos pares mais novos) até hoje, em `user_data/data/binance/` (fora do git).
+- Configuração: `lab/config/scenarios.json`.
 
-| Janela | Período (BTC) | Para que serve | Quem pode ler |
+### 3.2 As janelas de tempo (splits)
+
+| Janela | Período | Para que serve | Quem lê |
 |---|---|---|---|
-| **Exploração** | 2017-08 → 2024-07 | Procurar e calibrar | O pipeline, à vontade |
-| **Validação** | 2024-07 → 2026-10 | Confirmar, **uma vez** por hipótese | Só com a sua aprovação registrada |
-| **Holdout prospectivo** | 2026-10-21 → | A prova final, com dados que não existiam quando as regras foram criadas | Ninguém até 2027-04-21 |
+| **Exploração** | início de cada par → 04/07/2024 | procurar e calibrar | o pipeline, à vontade |
+| **Validação** | 05/07/2024 → 20/10/2026 | confirmar, **uma vez** por hipótese | o autopilot (política sua) ou você |
+| **Holdout prospectivo** | 21/10/2026 → | prova final, com dados que não existiam quando as regras foram criadas | ninguém até 21/04/2027 |
 
-Definição: `lab/config/splits.json` e `lab/config/holdout.json`.
+Todos os pares cortam a exploração no mesmo calendário (BNB tem uma diferença de 3 semanas, de antes). Arquivos:
+`lab/config/splits.json` e `lab/config/holdout.json` (protegidos).
 
 ---
 
 ## 4. O ciclo de pesquisa, passo a passo
 
-Um ciclo é rodado com `python -m lab.pipeline weekly`. O nome diz "semanal", mas ele pode rodar a qualquer hora. Cada passo:
+Um ciclo roda com `python -m lab.pipeline weekly --scout-count 10 --max-new 10`. O nome diz "semanal", mas roda a
+qualquer hora; hoje roda em **loop contínuo**, um ciclo atrás do outro. Um ciclo com 9 pares leva de 2 a 5 horas.
 
 ### 4.1 Scout: coletar ideias
-O agente **scout** pesquisa na internet (papers, blogs quantitativos, documentação de repositórios) e escreve cada ideia como um JSON em `research/intake/`. A ideia é uma regra **em palavras**, com o **mecanismo**: quem está do outro lado do trade e por que deixaria esse dinheiro na mesa. O scout é proibido de copiar código e de reportar desempenho, e não enxerga nenhum resultado do laboratório.
+O agente **scout** (modelo Opus) pesquisa na internet e escreve cada ideia como JSON em `research/intake/`.
+- **Onde procura:** repositórios e documentação de **robôs de day trade** (freqtrade-strategies, Jesse, Hummingbot,
+  OctoBot, QuantConnect), descrições de estratégias do TradingView, blogs de praticantes, artigos acadêmicos de cripto
+  intraday (SSRN, arXiv).
+- **Esforço mínimo:** pelo menos 10 buscas e 8 páginas abertas antes de dizer que não achou nada.
+- **O que escreve:** a regra **em palavras**, com o **mecanismo** (quem está do outro lado do trade e por que deixaria
+  esse dinheiro na mesa), a fonte com licença e uma estimativa de trades por ano.
+- **Proibido:** copiar código, reportar desempenho, ver qualquer resultado do laboratório.
 
-### 4.2 Triagem: filtro automático (sem IA)
-O código `lab/triage.py` descarta, sem gastar nada, as ideias que:
-- usam um timeframe que o laboratório não roda;
-- precisam de mais histórico de aquecimento do que o Freqtrade carrega (4.500 candles);
-- pedem short, alavancagem, martingale ou position sizing;
-- vão gerar poucos trades (abaixo de cerca de 5 por ano por par, o que não dá 30 no total);
-- repetem uma regra já testada (sobreposição de palavras);
-- pertencem a uma família que já gastou suas **3 variantes**.
+### 4.2 Triagem: filtro automático (sem IA, `lab/triage.py`)
+Descarta, sem gastar nada, a ideia que:
+- usa um timeframe que o lab não roda, ou precisa de mais de 4.500 candles de aquecimento;
+- pede short, alavancagem, martingale ou position sizing;
+- vai gerar poucos trades (não dá 30 na exploração);
+- repete uma regra já testada (sobreposição de palavras);
+- pertence a uma família que já gastou suas **3 variantes**.
 
-As restantes ganham uma nota (simplicidade, parâmetros fixos, fonte acadêmica, folga de trades) e entram na fila.
+As restantes ganham nota (simplicidade, parâmetros fixos, fonte acadêmica, folga de trades) e entram na fila.
 
-### 4.3 Pesquisador: formalizar a hipótese
-O agente **research** transforma a ideia numa hipótese formal (`research/proposals/H-NNN.json`), com regra completa, todos os números, mecanismo e fontes. O código valida o formato e registra a hipótese no banco (`research/lab.sqlite`) e no ledger (`research/hypothesis-ledger.md`), **antes de qualquer teste**. O pesquisador também não enxerga resultados de validação.
+### 4.3 Research: formalizar a hipótese
+O agente **research** (Opus) transforma a ideia numa hipótese formal, `research/proposals/H-NNN.json`: regra completa,
+todos os números, aquecimento declarado, mecanismo e critério de sucesso. O código valida e registra a hipótese em
+`research/lab.sqlite` e no `research/hypothesis-ledger.md` **antes de qualquer teste**. O research não vê validação.
 
 ### 4.4 Developer: escrever o código
-O agente **developer** escreve a estratégia Freqtrade (`user_data/strategies/<Familia>_H<NNN>_v1.py`) e um teste unitário. Uma checagem estática recusa:
-- imports proibidos;
-- acesso a arquivos ou rede;
-- `shift(-n)` (olhar o futuro);
-- métodos de sizing ou alavancagem.
+O agente **developer** (Opus) escreve a estratégia Freqtrade, `user_data/strategies/<Familia>_H<NNN>_v1.py`, e um teste
+unitário. Uma checagem estática (`lab/strategy_check.py`) recusa imports proibidos, rede e arquivos, `shift(-n)` (olhar o
+futuro), sizing e alavancagem. Depois **a suíte inteira** (580 testes) tem de passar. São 2 tentativas; se falhar, o
+código vai para `research/rejected/`.
 
-Depois a **suíte inteira de testes** precisa passar. Se falhar, o código é posto de lado em `research/rejected/`.
+Regras de contrato que valem para toda estratégia: `minimal_roi = {"0": 100}` (o alvo de lucro e a saída por tempo são
+feitos em `custom_exit`), `stoploss` negativo, `can_short = False`, só candles fechados.
 
 ### 4.5 Checagem de causalidade
-Duas análises do próprio Freqtrade:
-- **lookahead-analysis:** a regra usa alguma informação que só existiria no futuro?
+Duas análises do próprio Freqtrade, em BTC, ETH e BNB:
+- **lookahead-analysis:** a regra usa informação que só existiria no futuro?
 - **recursive-analysis:** os indicadores dão o mesmo valor com mais ou menos histórico carregado?
 
-Reprovar aqui significa que a regra está **tecnicamente errada**. Foi o que aconteceu com H-021, H-029 e H-037.
+Reprovar aqui quer dizer **erro técnico** na regra (aconteceu com 9 hipóteses).
 
 ### 4.6 Calibração e exploração
-1. **Calibração:** um backtest com exposição total na exploração, para obter a lista de trades. Menos de 30 trades em qualquer par descarta a hipótese.
-2. **Exposição:** um bootstrap (reamostragem dos trades) escolhe **qual fração da carteira** arriscar, num grid de 5%, para o drawdown simulado ficar abaixo de 25% em 95% dos casos. Exemplo: H-024 ficou com 25%, H-020 com 10%.
-3. **Exploração oficial:** um backtest com essa exposição, nos **4 cenários de custo**:
+1. **Calibração:** um backtest com exposição total, para obter a lista de trades. Menos de 30 trades em mais de 3 pares
+   descarta a hipótese.
+2. **Exposição:** um *bootstrap* (reamostragem dos trades, 4.000 vezes) escolhe **que fração da carteira** arriscar,
+   num grid de 5%, para o drawdown simulado ficar abaixo de 25% em 95% dos casos, em pelo menos 6 pares.
+3. **Carteira:** todos os backtests começam com **1.000 USDT simulados** (desde 08/11/2026; antes eram 100, e isso
+   descartava regras que pediam posições abaixo da ordem mínima de 10 USDT da Binance).
+4. **Exploração oficial:** backtest com essa exposição nos **4 cenários de custo**:
 
-| Cenário | Custo por ida e volta |
-|---|---|
-| otimista | menor |
-| **base** | **0,35%** |
-| conservador | maior |
-| stress | 0,95% |
+| Cenário | Taxa por lado | Slippage + spread por lado | **Ida e volta** |
+|---|---|---|---|
+| otimista | 0,075% | 0 | 0,15% |
+| **base** | 0,075% | 0,075% | **0,30%** |
+| conservador | 0,075% | 0,15% | 0,45% |
+| stress | 0,075% | 0,375% | 0,90% |
 
-### 4.7 Portões (o juiz)
-`lab/gates.py` aplica estas regras a cada par. Para virar **candidata**, precisa passar em **todas**, nos **três** pares:
+A taxa de 0,075% é a da Binance pagando em BNB (decisão sua de 06/11; a conta real precisa ter BNB para as taxas).
 
-| Portão | Exigência |
+### 4.7 Portões (o juiz, `lab/gates.py`)
+Cada par recebe uma decisão. Para a hipótese passar na exploração, **6 dos 9 pares** precisam ser candidatos.
+
+| Portão | Exigência por par |
 |---|---|
 | Lookahead / recursive | sem viés, indicadores estáveis |
-| Trades mínimos | ≥ 30 no período (abaixo disso é "inconclusiva") |
-| Lucro líquido | positivo nos cenários base e conservador (a régua sobe 10% a cada variante da mesma família) |
+| Trades mínimos | ≥ 30 no período (abaixo disso: "inconclusiva") |
+| Lucro líquido | > 10 USDT (1% da carteira) no base **e** no conservador; a régua sobe 10% a cada variante da mesma família |
 | Lucro sem o melhor trade | ainda positivo (não pode depender de um trade de sorte) |
-| Drawdown máximo | ≤ 25% em todos os cenários |
-| Benchmarks | comparar com caixa e com buy-and-hold (é obrigatório reportar, não é obrigatório vencer) |
+| Drawdown máximo | ≤ 25% no otimista, base e conservador (o stress é só reportado, desde 06/11) |
+| Benchmarks | comparar com caixa e com buy-and-hold (reportar é obrigatório; vencer não) |
 
-As decisões possíveis são só três: `rejected`, `inconclusive` e `candidate_for_portfolio`. **Não existe "aprovado para operar real"** no laboratório.
+Só existem três decisões: `rejected`, `inconclusive`, `candidate_for_portfolio`. **Não existe "aprovado para operar
+real"** no laboratório.
 
 ### 4.8 Revisão e arquivo
-- **Candidata:** três agentes revisores escrevem pareceres (`validator`, `quant`, `risk`). Eles comentam os números, mas não os mudam nem decidem. Depois o **autopilot** assume (seção 7).
-- **Reprovada** na exploração ou na validação: vai para o **arquivo**.
-  - O código vai para `user_data/strategies/_archive/`, com o hash registrado, e o teste vai para `tests/archive/`.
-  - O Freqtrade não carrega essa pasta, e a suíte de testes não roda esses testes.
-  - O **portal não mostra** arquivadas em nenhuma lista, ranking, curva ou comparação. Elas só entram nas contagens do funil.
-  - O arquivo existe para os agentes consultarem o que já foi tentado e não funcionou (as regras e os resultados de exploração vão no contexto deles).
-  - Nada é apagado, então tudo continua reproduzível.
+- **Candidata:** três agentes revisores (validator, quant, risk; modelo Sonnet) escrevem pareceres. Eles comentam, não
+  decidem. Depois o **autopilot** assume (seção 6).
+- **Reprovada:** vai para o **arquivo**. O código vai para `user_data/strategies/_archive/` com o hash registrado, o
+  teste para `tests/archive/`. O portal não mostra arquivadas (só nas contagens do funil). O arquivo serve para os
+  agentes consultarem o que já foi tentado. Nada é apagado: tudo é reproduzível.
 
-No fim, o ciclo grava um relatório em `research/pipeline/cycle-*.md` e faz commit de tudo.
+No fim, o ciclo grava `research/pipeline/cycle-*.md` e faz commit de tudo.
 
 ---
 
-## 5. Da candidata ao dinheiro real
+## 5. As regras do jogo hoje: day trade com muitos trades
 
-Cada degrau exige uma decisão sua, registrada com data e texto:
+Esta é a sua direção atual (08/11/2026), em `research/guidance.md` e nas instruções de cada agente:
 
-| Degrau | O que acontece | Quem libera | Comando |
-|---|---|---|---|
-| 1. Exploração | Automático no ciclo | o pipeline | `python -m lab.pipeline weekly` |
-| 2. **Validação** | Backtest em 2024–2026, lido uma vez | **autopilot** (política sua) ou você | automático no ciclo; manual: `approve.py H-NNN --stage validation` e `validate_once.py` |
-| 3. **Dry-run forward** | Bot com preço real e ordens simuladas, 24/7, só nos pares que passaram na validação | **autopilot** (política sua) ou você | automático no ciclo; manual: `approve.py --stage dryrun`, `forward_freeze.py` e `docker compose ... up -d` |
-| 4. Holdout | Avaliação formal com dados novos | data fixa | a partir de 2027-04-21, com ≥ 30 trades fechados |
-| 5. Testnet | Testa a mecânica (chaves, ordens, stop na corretora) com dinheiro fictício | você | `docker-compose.testnet.yml` |
-| 6. **Real** | Piloto pequeno | **só você**, com várias travas | ver `docs/runbook-ao-vivo.md` |
+- **Muitos trades por dia:** 1 a 4 por dia por par (400 a 1.500 por ano). Com 9 pares, de 10 a 35 trades por dia no
+  portfólio. Assim o dry-run junta evidência em semanas, não em anos.
+- **Gráfico de 15m** (ou 1h com saídas intraday). **Toda posição fecha em até 12 horas** (saída por tempo obrigatória).
+- **O custo manda:** a ida e volta custa 0,30% (base), então cada trade precisa render em média pelo menos ~0,5% bruto:
+  alvos de 0,8% a 2%, stop curto, entradas só em gatilhos intraday fortes (expansão de volatilidade ou volume,
+  aberturas de sessão 00:00/08:00/13:30 UTC, rompimentos de faixa, varridas de liquidez, VWAP).
+- **Blocos de montagem** estudados do projeto day-trader-skill (ver `docs/estudo-day-trader-skill.md`): faixa de
+  abertura com stop no meio da faixa e alvo em R, saída por horário, limite de entradas por dia, parada do dia após
+  perdas, e **distância mínima de stop de ~1% do preço**, para o custo não comer o R.
 
-**Freeze (congelamento):** antes do dry-run, o código, a configuração e o compose da estratégia são "fotografados" por SHA-256 (`research/forward/H-NNN-freeze.json`). Se qualquer byte mudar, o bot deixa de ser confiável e a checagem acusa. Ninguém pode "dar uma ajustadinha" numa estratégia que está sendo avaliada.
-
-**Portfólio:** `lab/portfolio.py` só aceita uma estratégia que:
-- é candidata em todos os pares, na exploração **e** na validação;
-- é consistente entre pares (o pior par rende pelo menos 25% do lucro diário do melhor);
-- tem correlação ≤ 0,7 com as estratégias que já estão no portfólio.
-
-Os pesos são iguais e a ordem de entrada é a de registro, nunca pelo retorno.
+**O que já sabemos (lições pagas):**
+- Regras com centenas de trades de movimento pequeno perdem tudo para o custo (H-002, H-041, H-044).
+- Regras lentas (H-004: 13 trades em 7 anos) não servem ao objetivo, por melhor que pareça o backtest.
+- A maioria das ideias de day trade testadas (H-050 a H-085) **não tinha vantagem nem antes do custo**.
+- Faixas de abertura estreitas em 15m: o custo vale 1 a 1,5R por trade (achado da Time Machine).
 
 ---
 
-## 6. Os agentes (quem são e o que podem fazer)
+## 6. Da candidata ao dinheiro real
 
-Todos são subagentes do Claude Code, definidos em `.claude/agents/*.md`. O código os chama em modo headless (`claude -p --agent <nome>`, em `lab/agents.py`).
+| Degrau | O que acontece | Quem libera |
+|---|---|---|
+| 1. Exploração | automático no ciclo | o pipeline |
+| 2. **Validação** | backtest 2024–2026 nos pares que passaram na exploração, lido uma vez | **autopilot** (política sua) |
+| 3. **Dry-run** | bot com preço real e ordens simuladas, 24/7, nos pares que passaram na validação (mínimo 2) | **autopilot** |
+| 4. Holdout | avaliação formal com dados novos, ≥ 30 trades fechados | data fixa: a partir de 21/04/2027 |
+| 5. Testnet | testa a mecânica (chaves, ordens, stop na corretora) com dinheiro fictício | você |
+| 6. **Real** | piloto pequeno, com várias travas | **só você** (`docs/runbook-ao-vivo.md`) |
 
-| Agente | Função | Pode escrever em | Não pode ver |
-|---|---|---|---|
-| scout | coletar ideias na web | `research/intake/` | qualquer resultado |
-| research | formalizar a hipótese | `research/proposals/` | resultados de validação, banco, relatórios |
-| developer | escrever a estratégia e o teste | `user_data/strategies/`, `tests/` | — |
-| validator, quant, risk | escrever pareceres | `research/experiments/*/` (um arquivo cada) | — |
+### 6.1 O autopilot (`lab/autopilot.py`, `lab/config/autopilot.json`)
+Sua política de 06/11: "toda candidata pode chegar até dry-run sozinha; operação real não".
+1. A hipótese passa na exploração (6 de 9 pares). O autopilot lê a validação **uma vez**, só nesses pares, com a
+   exposição calibrada. Nada é ajustado.
+2. Se **2 ou mais pares** passarem, ele gera a configuração de cada bot (carteira simulada de 1.000 USDT), faz o
+   freeze, commita e sobe os bots (`docker compose up -d`).
+3. Se nenhum ou só 1 par passar, a hipótese é arquivada.
+4. **Travas:** ordem mínima de 10 USDT; no máximo **20 bots** ao mesmo tempo (acima disso pede a você);
+   `real_money: false` obrigatório (senão o código recusa a política); nenhum agente pode editar a política; a
+   configuração base mantém `dry_run: true`.
+5. Tudo fica registrado como aprovação de `autopilot-policy`, com seu nome e a data da política.
 
-**Guard** (`lab/guard.py`): depois de **cada** chamada de agente, o código compara o repositório antes e depois. Se o agente escreveu fora do permitido, ou tocou num arquivo protegido, o ciclo inteiro **para** (`GuardAbort`). Por isso, outra pessoa ou sessão escrevendo no repositório enquanto um ciclo roda derruba o ciclo: o guard não tem como saber quem escreveu.
+### 6.2 Freeze (congelamento)
+Antes do dry-run, a estratégia, as configurações e o compose do bot são "fotografados" por SHA-256
+(`research/forward/H-NNN-freeze.json`). Se qualquer byte mudar, a checagem acusa e o bot deixa de valer como evidência.
+Ninguém pode "dar uma ajustadinha" numa estratégia em avaliação. Antes de religar um bot, eu sempre rodo essa checagem.
 
-**Orçamento** (`lab/config/budget.json`):
+### 6.3 Portfólio (`lab/portfolio.py`)
+Só entra a estratégia candidata na exploração **e** na validação, consistente entre pares, com correlação ≤ 0,7 com as
+que já estão dentro. Pesos iguais; ordem de entrada pelo registro, nunca pelo retorno.
+
+---
+
+## 7. Os agentes por dentro
+
+Todos são subagentes do Claude Code, definidos em `.claude/agents/*.md`, chamados em modo headless
+(`claude -p --agent <nome>`) por `lab/agents.py`.
+
+| Agente | Modelo | Função | Pode escrever em | Não pode ver |
+|---|---|---|---|---|
+| scout | Opus | coletar ideias na web | `research/intake/` | qualquer resultado |
+| research | Opus | formalizar a hipótese | `research/proposals/` | validação, banco, relatórios |
+| developer | Opus | estratégia + teste | `user_data/strategies/`, `tests/` | — |
+| validator, quant, risk | Sonnet | pareceres | um arquivo cada em `research/experiments/*/` | — |
+
+**O que cada agente lê ao começar:** um "arquivo de contexto" gerado pelo código (`lab/context.py`) com o escopo, os
+limites, os custos, as famílias e regras já tentadas (só texto e resultados de exploração), mais `research/guidance.md`.
+É por esses dois caminhos que a sua direção chega neles.
+
+**Guard (`lab/guard.py`):** depois de **cada** chamada de agente, o código compara o repositório antes e depois. Se o
+agente escreveu fora do permitido, ou alguém tocou num arquivo protegido, o ciclo **para** (`GuardAbort`). Por isso,
+**ninguém pode escrever no repositório enquanto um ciclo roda**: o guard não sabe quem escreveu.
+
+**Orçamento (`lab/config/budget.json`):**
 
 | Limite | Valor |
 |---|---|
-| Por chamada de agente | US$ 2 |
-| Por ciclo | US$ 15 |
-| Hipóteses novas por ciclo | até 3 |
+| Por chamada de agente | US$ 4 |
+| Por ciclo | US$ 60 |
+| Hipóteses novas por ciclo | até 10 |
 | Variantes por família | até 3 |
 | Tempo máximo por agente | 1.500 s |
 
-Na prática um ciclo tem custado entre US$ 0,40 e US$ 1,40.
+Gasto real: de US$ 3 a US$ 10 por ciclo. Total até hoje: cerca de US$ 79 em 245 chamadas.
 
 ---
 
-## 7. "Os agentes vão melhorando as estratégias sozinhos?"
+## 8. A execução: onde as estratégias rodam
 
-**Em parte, e de propósito só em parte.**
+### 8.1 Bots de dry-run (ligados hoje)
+- Rodam no **Docker Desktop** (precisa estar aberto; se ele parar, os bots param junto).
+- `docker-compose.forward.yml`: H-009 em BTC, ETH e BNB. `docker-compose.forward.h016.yml`: H-016 em ETH.
+  `docker-compose.forward.h047.yml`: H-047 em ETH.
+- Os 5 bots atuais têm carteira simulada de 100 USDT (congelada); bots novos nascem com 1.000.
+- Sem API exposta, sem chave de corretora, sem porta aberta. Cada bot tem seu banco `user_data/tradesv3.forward.*.sqlite`.
+- Relatório: `python research/tools/forward_report.py H-009`.
 
-O que **já é automático**:
-- buscar ideias novas, formalizar, programar, testar, reprovar e arquivar;
-- aprender com o que falhou: o pesquisador lê as regras e os resultados de **exploração** já tentados e recebe a sua direção em `research/guidance.md`;
-- tentar uma **variante** de uma família promissora (até 3 por família), com o motivo da mudança declarado antes do teste.
+### 8.2 Time Machine (`lab/timemachine.py`, desde 08/11)
+Ferramenta de pesquisa e acompanhamento portada do day-trader-skill: para um plano (par, dia, entrada, stop, alvo, hora
+de zerar) ela refaz o resto da sessão 10.000 vezes com os candles de 15m do próprio par e roda a mesma regra de faixa de
+abertura nos 60 dias anteriores. Dá as chances (alvo primeiro, stop primeiro, nenhum), o R médio **depois do custo** e
+um veredito honesto ("cara ou coroa", "tende ao stop"...). Não é portão.
 
-O que **não é automático, por desenho**:
-- **Ajustar parâmetros olhando o resultado.** "A H-024 perdeu em BNB, então vamos trocar 20 dias por 15" é exatamente o overfitting que o projeto existe para evitar. Uma melhoria vira uma **hipótese nova**, com ID novo, contada no N, e passa por todo o funil de novo.
-- **Ler a validação.** Cada leitura gasta um recurso que não volta: depois de lido, aquele período deixa de ser "não visto" para aquela hipótese.
-- **Pôr em dry-run e, principalmente, em dinheiro real.**
+### 8.3 Guarda de portfólio (`ops/freqtrade_guard.py`)
+Fora dos bots, a cada 5 minutos (cron, na VPS): verifica se os bots estão vivos, soma o prejuízo do dia e total, e para
+todos se um limite for atingido ou se existir `ops/state/STOP.<nome>`. Nada religa sozinho.
 
-### O autopilot (ligado desde 06/11/2026)
-A sua decisão "toda candidata pode chegar até dry-run sozinha; operação real não" está em `lab/config/autopilot.json` e é executada por `lab/autopilot.py`:
-
-1. Uma hipótese passa na exploração nos 3 pares, e o autopilot lê a validação **uma vez**, com a exposição calibrada. Nada é ajustado.
-2. Cada par que passar na validação recebe um bot de dry-run. O autopilot gera a configuração, faz o freeze por hash, commita e roda `docker compose up -d`.
-3. Se nenhum par passar, a hipótese é **arquivada**, como qualquer reprovada.
-4. **Travas:**
-   - não sobe o bot se a ordem ficar abaixo de 10 USDT, o mínimo da Binance;
-   - no máximo 12 bots de dry-run ao mesmo tempo (acima disso, ele pede a você);
-   - `real_money` precisa ser `false`, ou o código recusa a política;
-   - nenhum agente pode editar a política;
-   - a configuração base, protegida por hash, mantém `dry_run: true`.
-5. **Registro:** cada passo fica gravado como aprovação de `autopilot-policy`, com o seu nome e a data da política, então o ledger mostra o que foi automático.
-
-Para desligar: `"enabled": false` no arquivo. Para aplicar a candidatas antigas: `python -m lab.pipeline autopilot H-NNN`.
-
-### O que ainda dá para automatizar
-1. **Alertas.** Telegram ou e-mail quando um bot novo subir.
-2. **Ciclos contínuos.** Hoje eu rodo os ciclos em sequência manualmente. Na VPS isso vira um agendamento (cron).
-
-Dinheiro real **nunca** deve ser automático. O próprio teste `tests/test_live_readiness_safety.py` impede isso.
+### 8.4 Camada `live/` (MetaTrader 5)
+Motor próprio para MT5 (mini índice e mini dólar na B3, no futuro): gestor de risco (perda diária R$ 300, semanal R$ 900,
+2 contratos, 10 operações por dia), kill switch `live/STOP`, journal e reconciliação. Testado só em conta demo. Nenhuma
+estratégia do lab foi pesquisada para B3 ainda.
 
 ---
 
-## 8. A execução (onde as estratégias rodam)
+## 9. A VPS
 
-### 8.1 Bots Freqtrade em dry-run (o que está ligado hoje)
-- **Docker Desktop:** `docker-compose.forward.yml` (H-009 em BTC, ETH e BNB) e `docker-compose.forward.h016.yml` (H-016 em ETH).
-- **Carteira:** cada bot tem a sua carteira fictícia de 100 USDT e o seu banco SQLite (`user_data/tradesv3.forward.*.sqlite`).
-- **Restrições:** sem API, sem chave de corretora e sem porta exposta.
-- **Relatório de execução:** `python research/tools/forward_report.py H-009`.
+### 9.1 Pronto
+`ops/vps/bootstrap-ubuntu.sh` (Ubuntu 24.04, Azure Brazil South, ~US$ 52/mês): Docker, relógio UTC, firewall só SSH,
+rotação de logs, cron do guarda e backup diário. Com isso a VPS roda **os bots** 24/7 sem o seu PC.
 
-### 8.2 Guarda de portfólio (`ops/freqtrade_guard.py`)
-Fica **fora** dos bots e roda a cada 5 minutos por cron. Ele:
-- verifica se cada bot está vivo;
-- soma o prejuízo do dia e o total;
-- se um limite for atingido, ou se existir o arquivo `ops/state/STOP.<nome>`, **para todos os bots**.
-
-Nada religa sozinho.
-
-### 8.3 Camada `live/` (MetaTrader 5)
-Um motor próprio para operar via MT5, pensando em mini índice e mini dólar na B3 no futuro. Ele tem:
-- gestor de risco: perda diária de R$ 300, perda semanal de R$ 900, no máximo 2 contratos e 10 operações por dia;
-- kill switch por arquivo `live/STOP`;
-- journal, reconciliação e corretora simulada.
-
-Hoje só foi testado numa conta demo da MetaQuotes, que **não tem B3**. Nenhuma estratégia do laboratório foi pesquisada para B3 ainda.
-
----
-
-## 9. A VPS: como vai funcionar
-
-### 9.1 O que já está preparado
-Feito por outra sessão e descrito em `docs/runbook-ao-vivo.md`:
-- **Máquina:** Ubuntu 24.04 no Azure (Brazil South, B2als v2: 2 vCPU e 4 GB), cerca de US$ 52/mês.
-- **Script `ops/vps/bootstrap-ubuntu.sh`:** instala o Docker, deixa o relógio em UTC, liga o firewall só com SSH, ativa rotação de logs, o **cron do guarda** (a cada 5 min) e o **backup diário** dos bancos.
-- Com isso, a VPS fica pronta para rodar **os bots** (dry-run, testnet e, um dia, o real) 24/7, sem depender do seu notebook.
-
-### 9.2 O que **não** está configurado: a pesquisa automática
-O bootstrap **não** liga o pipeline de pesquisa. Para os agentes trabalharem sozinhos na VPS, faltam estes passos:
-
+### 9.2 Falta para a pesquisa rodar lá
 | # | Passo | Por quê |
 |---|---|---|
-| 1 | Instalar Python 3 + dependências do lab e o **Claude Code CLI** (`claude`) | os agentes são chamadas `claude -p --agent ...` |
-| 2 | **Autenticar o `claude` na VPS** com uma chave de API Anthropic com crédito, numa variável de ambiente, nunca no git | sem isso nenhum agente roda; o gasto sai dessa conta |
-| 3 | Baixar o histórico de candles (1h, 15m, 1d, 4h) | os dados não vão no git |
-| 4 | **Criar um repositório remoto privado** (GitHub) e dar push | hoje o repositório **não tem remote**; a VPS precisa clonar, e os resultados precisam voltar para o seu PC |
-| 5 | Agendar os ciclos no cron, por exemplo de 2 em 2 horas, com `python -m lab.pipeline weekly --max-new 3` seguido de `git push` | rodar sem você |
-| 6 | Alertas (Telegram) quando surgir uma candidata | você aprova pelo celular |
-| 7 | Ver se a máquina aguenta | backtests de 15m com 4 cenários × 3 pares são pesados; 2 vCPU e 4 GB podem deixar o ciclo lento. Sugestão: uma VM maior só para pesquisa, ou deixar a pesquisa no PC e só os bots na VPS |
-| 8 | **Uma única pessoa/processo escrevendo no repositório da VPS** | o guard derruba o ciclo se outra coisa escrever no meio |
-
-Nenhum desses passos é difícil. Posso preparar um script `ops/vps/research-setup.sh` e o cron quando você decidir.
-
-### 9.3 Como fica o dia a dia com a VPS
-```
-VPS (24/7)                                         Você (celular/PC)
-──────────                                         ─────────────────
-cron a cada N horas: ciclo de pesquisa ──alerta──► "H-0xx passou na exploração"
-                                                     │
-                                                     ▼
-                                       aprova a validação (1 comando, ou pelo
-                                       alerta se houver política automática)
-                                                     │
-validação roda ─────────────────────alerta──────► "passou / não passou"
-                                                     │
-                                                     ▼
-                                       aprova o dry-run
-                                                     │
-freeze + bot sobe ◄──────────────────────────────────┘
-guarda a cada 5 min (para tudo se perder demais)
-backup diário dos bancos
-```
+| 1 | Python, dependências e o **Claude Code CLI** | os agentes são chamadas `claude -p` |
+| 2 | **Chave de API Anthropic** com crédito, em variável de ambiente | sem ela nenhum agente roda; é de onde sai o gasto |
+| 3 | Baixar os candles dos 9 pares (1h e 15m) | os dados não vão no git |
+| 4 | **Repositório remoto privado** (GitHub) | hoje não existe remote; a VPS precisa clonar e devolver os resultados |
+| 5 | Ciclos no cron + `git push` | rodar sem você |
+| 6 | Alertas (Telegram) | saber quando surge candidata ou bot novo |
+| 7 | Máquina maior para a pesquisa (ou pesquisa no PC e só bots na VPS) | backtests de 15m em 9 pares × 4 cenários são pesados |
+| 8 | Um só processo escrevendo no repositório | o guard derruba o ciclo se outro escrever |
 
 ---
 
-## 10. Onde estamos (06/11/2026)
+## 10. Onde estamos (08/11/2026)
 
-- **Hipóteses registradas:** 39 (H-001 a H-039).
-- **Em dry-run:**
-  - **H-009** (WeeklyBreakoutRegime) em BTC, ETH e BNB. Passou na exploração; validação ainda não lida.
-  - **H-016** (momentum de 30 dias) em ETH. É a única com validação positiva, e só em ETH; o drawdown é alto.
-- **Candidatas da exploração, entregues ao autopilot:**
-  - H-020 (Double7ChannelDip): risco baixo, lucro pequeno.
-  - H-040 (DailyNR7Breakout): de 80 a 95 trades por par, exposição de 35%.
-- **Leram a validação e não passaram:** H-008, H-024 e H-025. As diárias geraram só 9 a 16 trades em 2 anos, abaixo do mínimo de 30.
-- **Rodada intradiária (H-028 a H-039):** as regras de alta frequência (150 a 700 trades) perdem para o custo de 0,35% por ida e volta. A direção recomendada é a faixa de **50 a 150 trades por ano** em 1h/4h.
-- **Corrigido em 06/11:** quando a exposição calibrada dá uma ordem abaixo de 10 USDT, a hipótese agora é descartada com o motivo certo ("exposição abaixo da ordem mínima"), em vez de virar um backtest sem trades.
+- **Hipóteses registradas:** 87 (H-001 a H-087). Gasto total com agentes: ~US$ 79.
+- **Funil:** 48 reprovadas nos portões, 14 descartadas pela ordem mínima (carteira de 100), 11 descartadas por outros
+  motivos (poucos trades, drawdown), 9 com erro de causalidade, 1 inválida, 1 candidata de exploração (H-009).
+- **Validação lida:** H-008, H-016, H-020, H-024, H-025, H-040, H-046, H-047. Passaram em algum par: **H-016** (ETH) e
+  **H-047** (ETH, força relativa entre pares, 74 trades e +10,7% na validação no custo base).
+- **Em dry-run:** H-009 (BTC, ETH, BNB), H-016 (ETH), H-047 (ETH).
+- **Próximos passos já decididos:** re-rodar, com o código idêntico e a carteira de 1.000, as 14 hipóteses descartadas
+  só pela ordem mínima (comando `recalibrate`; inclui H-069, o ORB da abertura de Nova York); testar a variante ORB com
+  faixa mínima de 2%; seguir o loop contínuo com a direção de muitos trades.
 
-**Até hoje nenhuma estratégia tem evidência suficiente para dinheiro real.** Isso é o resultado normal de um processo honesto: a maioria das ideias de trading não sobrevive a um teste justo.
+**Nenhuma estratégia tem, até hoje, evidência suficiente para dinheiro real.** É o resultado normal de um processo
+honesto: a maioria das ideias de trading não sobrevive a um teste justo. O lab existe para achar a minoria que sobrevive
+sem se enganar no caminho.
 
 ---
 
-## 11. Mapa de pastas
+## 11. Mapa de pastas e arquivos
 
 | Pasta / arquivo | O que tem |
 |---|---|
-| `lab/` | o motor de pesquisa: pipeline, orquestrador, portões, calibração, guard, registry |
-| `lab/config/` | regras: portões, splits, holdout, custos, orçamento, portfólio |
-| `.claude/agents/` | instruções de cada agente |
-| `research/` | tudo o que a pesquisa produz: ledger, propostas, ideias, experimentos, relatórios de ciclo, freezes |
-| `research/lab.sqlite` | banco com hipóteses, experimentos, métricas, decisões e aprovações (a fonte da verdade) |
-| `research/guidance.md` | **a sua direção para os agentes**: edite aqui para mudar o foco da pesquisa |
+| `lab/pipeline.py` | o ciclo completo (weekly, resume, recalibrate, autopilot) |
+| `lab/orchestrator.py` | chamadas aos agentes, registro, backtests, decisões |
+| `lab/gates.py`, `lab/calibrate.py`, `lab/bootstrap.py`, `lab/breadth.py` | portões, calibração, bootstrap, regra de 6 de 9 |
+| `lab/autopilot.py`, `lab/forward.py` | política até o dry-run; freeze e relatórios dos bots |
+| `lab/guard.py`, `lab/agents.py`, `lab/context.py` | guarda do repositório; chamada dos agentes; contexto que eles leem |
+| `lab/timemachine.py` | a Time Machine |
+| `lab/config/` | regras: `gates.json`, `splits.json`, `holdout.json` (protegidos), `scenarios.json`, `budget.json`, `breadth.json`, `autopilot.json`, `portfolio.json` |
+| `.claude/agents/*.md` | instruções de cada agente |
+| `research/guidance.md` | **a sua direção para os agentes** |
+| `research/lab.sqlite` | banco: hipóteses, experimentos, métricas, decisões, aprovações (a fonte da verdade) |
+| `research/hypothesis-ledger.md` | o livro de todas as hipóteses, legível |
+| `research/intake/`, `research/proposals/` | ideias do scout; hipóteses formais |
+| `research/pipeline/cycle-*.md` | relatório de cada ciclo |
+| `research/forward/` | freezes dos bots |
 | `user_data/strategies/` | estratégias ativas (`_archive/` guarda as reprovadas) |
-| `user_data/data/` | candles (fora do git) |
 | `forward/`, `docker-compose.forward*.yml` | configuração dos bots de dry-run |
-| `ops/` | guarda de portfólio, bootstrap da VPS |
-| `live/` | motor de execução MT5 |
-| `testnet/` | ensaio na testnet da Binance |
-| `tests/` | mais de 560 testes automáticos |
-| `docs/` | protocolos, checklist da operação real, runbook |
+| `ops/`, `live/`, `testnet/` | guarda e VPS; motor MT5; ensaio na testnet |
+| `tests/` | 580 testes automáticos |
+| `docs/` | este manual, protocolos, runbook da operação real, estudo do day-trader-skill |
 
 ---
 
 ## 12. Comandos do dia a dia
 
 ```bash
-# Um ciclo de pesquisa (até 3 hipóteses novas)
-python -m lab.pipeline weekly --scout-count 8 --max-new 3
+# Um ciclo de pesquisa
+python -m lab.pipeline weekly --scout-count 10 --max-new 10
 
-# Retomar hipóteses que falharam por problema de infraestrutura
-python -m lab.pipeline resume H-029 H-031
+# Retomar hipóteses que falharam por infraestrutura (Docker caiu, ciclo interrompido)
+python -m lab.pipeline resume H-085
 
-# Ver hipóteses, decisões e gasto
-python -m lab.orchestrator status
+# Re-rodar, com o código idêntico, hipóteses descartadas só pela ordem mínima
+python -m lab.pipeline recalibrate H-069 H-052
 
 # Aplicar o autopilot a candidatas antigas
-python -m lab.pipeline autopilot H-020 H-040
+python -m lab.pipeline autopilot H-020
 
-# Liberar a validação manualmente (leitura única), se o autopilot estiver desligado
-python research/tools/approve.py H-020 --stage validation
-python research/tools/validate_once.py H-020 --exposure 0.1
+# Estado: hipóteses, decisões, gasto
+python -m lab.orchestrator status
 
-# Colocar em dry-run
-python research/tools/approve.py H-020 --stage dryrun
-python research/tools/forward_freeze.py H-020
-docker compose -f docker-compose.forward.h020.yml up -d
+# Time Machine de um plano
+python -m lab.timemachine BTC/USDT --date 2023-03-13 --entry-time 14:15 --entry 22918.8 \
+    --stop 22380.3 --target 23995.9 --session-start 13:30 --session-hours 6.5
 
-# Conferir se um bot continua íntegro
+# Bots: conferir o freeze, ver o relatório
 python research/tools/forward_freeze.py H-009 --check
-
-# Relatório de execução do dry-run
 python research/tools/forward_report.py H-009
 
 # Testes
@@ -388,19 +397,73 @@ python -m unittest discover -s tests
 
 ---
 
-## 13. Glossário
+## 13. Como você pode ajudar o Claude e os agentes
+
+Os agentes são bons em pesquisar, escrever e testar rápido. O que eles **não** têm é o que só você tem: acesso a
+fontes fechadas, conhecimento de mercado, decisões de risco e a máquina ligada. Em ordem de impacto:
+
+### 13.1 Trazer ideias com mecanismo
+A melhor contribuição. Um link (repositório, artigo, vídeo, canal de trader) ou uma regra que você já viu funcionar.
+Quanto mais concreto, melhor: **entrada exata, saída exata, stop, horário, e por que funciona** (quem perde dinheiro
+para essa regra). Foi assim com o day-trader-skill: você mandou o link, eu estudei e virou Time Machine, uma hipótese
+nova e uma lição de custo. Mande no chat; eu transformo em ideia no formato do lab (ela passa pela triagem e conta no N
+como qualquer outra).
+
+### 13.2 Dar direção, não números
+Diga **o que** procurar ("sessão de Nova York", "altcoins voláteis", "reversão depois de liquidações", "não quero
+segurar mais de 4 horas"). Eu escrevo isso em `research/guidance.md` e nas instruções dos agentes. **Não** peça para
+"trocar o 20 por 15 na H-024": mudar um número depois de ver o resultado é overfitting; vira hipótese nova, e isso é
+caro em credibilidade estatística.
+
+### 13.3 Tomar as decisões que são suas
+Os portões, os custos, a carteira, o universo de pares, a política do autopilot e, acima de tudo, o dinheiro real são
+decisões de risco suas. Quando eu perguntar, a pergunta é sobre isso. Exemplos que você já tomou: taxa com BNB,
+drawdown de stress só reportado, 9 pares, carteira de 1.000, day trade. Cada uma ficou registrada com data no arquivo
+que ela muda.
+
+### 13.4 Cuidar da infraestrutura
+- **Deixar o Docker Desktop aberto** (e configurado para iniciar com o Windows): sem ele os bots e os backtests param.
+- **Não fechar a tampa nem desligar** durante um ciclo; se precisar, me peça para pausar (eu paro num ponto
+  retomável, como no dia 07/11).
+- **Não editar arquivos do projeto enquanto um ciclo roda** (nem outra sessão do Claude): o guard derruba o ciclo.
+- Quando decidir pela VPS: criar a conta, a chave de API Anthropic e o repositório privado no GitHub (seção 9.2). O
+  resto eu configuro.
+
+### 13.5 Acompanhar o dry-run
+Olhar o portal e os relatórios dos bots de vez em quando, e me avisar de qualquer coisa estranha (bot parado, trade
+absurdo). Resultado de dry-run é **monitoramento**: não mude nada por causa de uma semana boa ou ruim; a avaliação formal
+é o holdout.
+
+### 13.6 Preparar o caminho para o real
+Quando uma estratégia chegar ao holdout com evidência: conta na Binance com **BNB para as taxas**, chave de API só com
+permissão de trade (sem saque), na variável de ambiente (nunca no chat ou no git), limites de perda definidos por você.
+O passo a passo está em `docs/runbook-ao-vivo.md` e `docs/checklist-operacao-real.md`.
+
+### 13.7 Estudar
+Ler este manual, `research/guidance.md`, alguns relatórios em `research/pipeline/` e um par de hipóteses no ledger dá
+uma boa noção de como os agentes pensam. Os conceitos que mais importam: overfitting, custo por trade em relação ao
+movimento, drawdown, e por que a validação só pode ser lida uma vez.
+
+---
+
+## 14. Glossário
 
 - **Backtest:** simular a regra no histórico, candle a candle.
 - **Bootstrap:** reamostrar os trades milhares de vezes para estimar o pior caso provável.
-- **Candidata:** passou em todos os portões de uma janela. Não quer dizer aprovada para operar.
+- **Bracket:** entrada com stop e alvo definidos antes, como uma ordem só.
+- **Candidata:** passou em todos os portões de uma janela. Não é aprovação para operar.
+- **Custo de ida e volta:** taxas + slippage + spread de comprar e vender (0,30% no cenário base).
 - **Drawdown:** a maior queda do saldo a partir de um pico.
-- **Dry-run / forward test:** o bot roda ao vivo com preço real, mas as ordens são simuladas.
+- **Dry-run / forward test:** o bot roda ao vivo, com preço real, mas as ordens são simuladas.
 - **Exposição:** a fração da carteira usada em cada trade.
-- **Família:** um grupo de regras com a mesma ideia. São permitidas 3 variantes por família.
+- **Família:** grupo de regras com a mesma ideia; até 3 variantes.
+- **Faixa de abertura (opening range, ORB):** a máxima e a mínima dos primeiros minutos de uma sessão; o rompimento dela é um setup clássico de day trade.
 - **Freeze:** a foto por hash do código e da configuração de um bot.
 - **Holdout prospectivo:** dados que não existiam quando a regra foi criada; a prova final.
 - **Lookahead (viés de):** a regra usa informação do futuro sem perceber.
-- **N / Deflated Sharpe Ratio:** a correção estatística pelo número de tentativas feitas.
+- **N / Deflated Sharpe Ratio:** a correção estatística pelo número de tentativas.
 - **Overfitting:** a regra decorou o passado em vez de capturar algo que se repete.
-- **Portões (gates):** os critérios fixos de aprovação, em `lab/config/gates.json`.
-- **Split:** um pedaço do histórico com um uso definido: exploração, validação ou holdout.
+- **Portões (gates):** os critérios fixos de aprovação.
+- **R:** a unidade de risco de um trade (distância da entrada ao stop). Alvo de 2R = ganhar o dobro do que se arrisca.
+- **Split:** pedaço do histórico com uso definido: exploração, validação ou holdout.
+- **Time Machine:** a ferramenta que mede as chances de um plano antes de operá-lo (seção 8.2).

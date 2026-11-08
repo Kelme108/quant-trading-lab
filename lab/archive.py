@@ -37,6 +37,39 @@ def retarget_test(text: str) -> str:
     return text
 
 
+def unretarget_test(text: str) -> str:
+    """The inverse of retarget_test: the restored test lives in tests/ and loads the strategy from the strategy path."""
+    text = text.replace("Path(__file__).parents[2]", "Path(__file__).parents[1]")
+    return text.replace('"user_data" / "strategies" / "_archive" /', '"user_data" / "strategies" /')
+
+
+def restore_hypothesis(conn, hypothesis_id: str, *, root: Path = ROOT) -> dict:
+    """Move an archived strategy (and its test) back to the strategy path, byte-identical (SHA-256 checked against the
+    archive record), and drop the record. {'paths': [...], 'sha256': ...}; raises ValueError on any mismatch."""
+    row = conn.execute("SELECT * FROM archived_strategies WHERE hypothesis_id = ?", (hypothesis_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"{hypothesis_id} has no archived strategy")
+    source, target = root / row["archive_path"], root / row["original_path"]
+    if not source.is_file():
+        raise ValueError(f"{hypothesis_id}: {row['archive_path']} is missing")
+    sha = _sha256(source)
+    if sha != row["strategy_sha256"]:
+        raise ValueError(f"{hypothesis_id}: archived file sha {sha} != recorded {row['strategy_sha256']}")
+    if target.exists():
+        raise ValueError(f"{hypothesis_id}: {row['original_path']} already exists")
+    shutil.move(str(source), str(target))
+    paths = [row["archive_path"], row["original_path"]]
+    number = int(hypothesis_id.split("-")[1])
+    for test in sorted((root / "tests" / "archive").glob(f"test_*_h{number:03d}_v*.py")):
+        restored = root / "tests" / test.name
+        restored.write_bytes(unretarget_test(test.read_bytes().decode("utf-8")).encode("utf-8"))
+        test.unlink()
+        paths += [f"tests/archive/{test.name}", f"tests/{test.name}"]
+    conn.execute("DELETE FROM archived_strategies WHERE hypothesis_id = ?", (hypothesis_id,))
+    conn.commit()
+    return {"paths": paths, "sha256": sha}
+
+
 def archive_hypothesis(conn, hypothesis_id: str, *, root: Path = ROOT, run_test=_default_test_runner) -> dict:
     """{'archived': bool, 'reason': str, 'paths': [moved or created paths relative to root]}."""
     number = int(hypothesis_id.split("-")[1])

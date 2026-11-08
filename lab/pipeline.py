@@ -86,13 +86,14 @@ class Pipeline:
             return {**row, "outcome": "not formalised", "detail": str(error)[:200]}
         return self.process_hypothesis(hid, row)
 
-    def process_hypothesis(self, hid: str, row: dict | None = None) -> dict:
+    def process_hypothesis(self, hid: str, row: dict | None = None, *, implemented: bool = False) -> dict:
         """Implement, check, calibrate, explore and review one registered hypothesis. Never reads validation."""
         lab = self.lab
         row = {**(row or {"idea": "-", "outcome": "", "detail": ""}), "hypothesis": hid}
         name = None
         try:
-            lab.implement(hid)
+            if not implemented:
+                lab.implement(hid)
             name, strategy_file = lab.find_strategy(hid)
             timeframe = orchestrator.strategy_timeframe(self.root / strategy_file)
         except (GuardAbort, BudgetExhausted):
@@ -232,6 +233,34 @@ class Pipeline:
             stopped = f"{type(error).__name__}: {error}"
         return self.write_report(rows, [], [], stopped)
 
+    def recalibrate(self, hypothesis_ids: list[str]) -> Path:
+        """Re-run, with the byte-identical archived strategy, hypotheses dropped ONLY because the calibrated stake was
+        below the exchange minimum on the old 100 USDT wallet: a mechanical limit, not a result, so the exploration
+        backtest never ran and no gate decision exists. The code is not rewritten (no agent call)."""
+        lab = self.lab
+        lab.cycle_start, lab.proposed_this_cycle = _now(), 0
+        rows, stopped = [], ""
+        try:
+            for hid in hypothesis_ids:
+                found = registry.get_hypothesis(self.conn, hid)
+                if found is None:
+                    raise StepFailed(f"{hid} is not registered")
+                if not str(found["status"]).startswith("dropped: calibrated exposure below the minimum order"):
+                    raise StepFailed(f"{hid} was not dropped for the minimum order (status: {found['status']})")
+                if lab.conn.execute(
+                    "SELECT 1 FROM decisions d JOIN experiments e ON e.id = d.experiment_id WHERE e.hypothesis_id = ?",
+                    (hid,),
+                ).fetchone():
+                    raise StepFailed(f"{hid} already has a gate decision; re-running it would be a second draw")
+                restored = archive.restore_hypothesis(self.conn, hid, root=self.root)
+                self._commit(restored["paths"], f"recalibrate({hid}): byte-identical strategy restored from the archive "
+                                                f"(sha256 {restored['sha256'][:12]}) for the {calibrate.WALLET_QUOTE:g} USDT wallet")
+                registry.set_hypothesis_status(self.conn, hid, "implemented")
+                rows.append(self.process_hypothesis(hid, implemented=True))
+        except Exception as error:
+            stopped = f"{type(error).__name__}: {error}"
+        return self.write_report(rows, [], [], stopped)
+
     def weekly(self, *, scout_count: int = 5, max_new: int | None = None, do_scout: bool = True) -> Path:
         lab = self.lab
         lab.cycle_start, lab.proposed_this_cycle = _now(), 0
@@ -304,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     weekly.add_argument("--no-scout", action="store_true", help="skip the scout and work the existing queue")
     weekly.add_argument("--expand-data", action="store_true", help="download/extend candles first (needs Docker)")
     resume = sub.add_parser("resume", help="re-run registered hypotheses that failed outside the rule (no decision yet)")
+    recal = sub.add_parser("recalibrate", help="re-run, byte-identical, hypotheses dropped only for the minimum order")
+    recal.add_argument("hypotheses", nargs="+")
     resume.add_argument("hypotheses", nargs="+")
     auto = sub.add_parser("autopilot", help="apply the autopilot policy to exploration candidates waiting for the user")
     auto.add_argument("hypotheses", nargs="+")
@@ -313,6 +344,9 @@ def main(argv: list[str] | None = None) -> int:
     policy = autopilot.load_policy()
     if policy["enabled"]:
         pipeline.autopilot = functools.partial(autopilot.run, commit=pipeline._commit, root=lab.root, policy=policy)
+    if args.command == "recalibrate":
+        print(pipeline.recalibrate(args.hypotheses))
+        return 0
     if args.command == "resume":
         print(pipeline.resume(args.hypotheses))
         return 0
