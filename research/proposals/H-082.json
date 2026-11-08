@@ -1,0 +1,28 @@
+{
+  "hypothesis_id": "H-082",
+  "family": "HourlyTenDayExtreme",
+  "title": "Hourly 10-day closing extreme: buy a 1h close above its 240-bar closing high or below its 240-bar closing low, hold 24h",
+  "ex_ante_rule": "Chart 1h, closed bars only; signals are evaluated at the close of bar t and filled at the open of bar t+1. Long only, spot, one position at a time, whole balance, identical numbers on every pair, no per-pair tuning. Definitions (current bar excluded): MAX240(t) = highest close of bars t-240..t-1; MIN240(t) = lowest close of bars t-240..t-1 (240 hourly bars = 10 days). AT_MAX(t): close(t) > MAX240(t). AT_MIN(t): close(t) < MIN240(t). The two states cannot hold together. ENTRY: at the close of bar t when (AT_MAX(t) OR AT_MIN(t)) is true and no position is open; buy at the open of bar t+1. Both legs use the same entry and exit; there is no other filter (no trend, volume or volatility filter). EXIT: time exit only. Sell at the open of bar t+25, i.e. exactly 24 hours after the entry fill at the open of t+1 (equivalently: exit signal at the close of the 24th 1h bar after the entry signal bar, or exit when the trade has been open for >= 24 hours). No take-profit, no indicator exit, no trailing stop. STOP-LOSS: none in the rule; the engine's mandatory native stop is set to 99% below entry (stoploss = -0.99) so it never acts in practice. COOLDOWN: none (0 bars); after an exit, a new entry is allowed on the next signal, including a fresh AT_MAX or AT_MIN on the bar whose close produced the exit if the engine allows it, otherwise on the next bar. No pyramiding, no position adjustment. Warm-up: 240 bars (the 240-bar closing max/min excluding the current bar; no recursive indicators are used; the developer may set startup_candle_count to 240 or a slightly larger round value such as 300).",
+  "parameters": {
+    "timeframe": "1h",
+    "extreme_lookback_bars": 240,
+    "extreme_price_source": "close",
+    "exclude_current_bar": "true",
+    "hold_bars": 24,
+    "max_hold_hours": 24,
+    "stoploss": -0.99,
+    "cooldown_bars": 0,
+    "warmup_bars": 240,
+    "max_open_trades": 1
+  },
+  "rationale": "Padysak and Vojtko (summarised by Quantpedia) find that bitcoin's next-day return is better after a close at its local 10-day maximum (momentum: breakout and attention buyers arrive late, trend followers add, shorts cover) and that buying at a close at the 10-day minimum is a lower-risk rebound bet (reversion: forced or capitulating sellers pay liquidity providers to take the other side). The two states are mutually exclusive, so the authors combine them, and the shortest lookback (10 days) worked best. This rule moves the signal from the UTC daily close to the hour it happens and keeps the one-day hold, which makes it day-trade length (every position closes after exactly 24h). Who pays: late momentum buyers and stop-driven or forced sellers at the extremes. Expected frequency: hourly closes beyond the 10-day closing range cluster in trending or crashing phases. With a 24h hold blocking re-entry, I expect roughly 100-250 trades per year per pair, inside or near the owner's 150-500 target. Move per trade: a 24h hold on these pairs typically spans an absolute move of 2-5%, and conditional on a 10-day extreme it is larger, well above the 0.30% base and 0.45% conservative round trip, so a modest directional edge can cover costs. Risks stated ex ante: the authors warn that the minimum leg partly reflects bitcoin's past recoveries and that black-swan events are costly; there is no stop, so a crash continuation during a 24h hold is the main drawdown source, and the 25% gate will decide. Success is judged only by the existing gates (positive net at base and conservative cost, drawdown <= 25%, >= 30 trades per split, at least 6 of 9 pairs). The source page does not show the exact holding period formula; I take the next-day (1-day) evaluation it describes as the 24h hold.",
+  "novelty_vs_tried": "No tried family combines symmetric extremes: it buys both new 10-day closing highs (momentum) and new 10-day closing lows (reversion) with the same pure 24h time exit and no trend filter, stop or indicator exit. Donchian/Weekly breakouts (H-002, H-009) are long-only breakouts of the high range with channel or trend exits and multi-day holds. Dip rules (DailyRSI2Dip, Double7ChannelDip, ThreeDayLowerRangeDip) work on daily bars, need a trend filter and exit on an indicator. VolatilitySqueezeBreakout (capped) needs a squeeze. This rule has two fixed numbers (240-bar closing lookback, 24-bar hold), uses closes rather than highs and lows, and has a fixed holding time, which makes it structurally different.",
+  "sources": [
+    {
+      "title": "Trend-following and Mean-reversion in Bitcoin (Quantpedia, Padysak and Vojtko)",
+      "url": "https://quantpedia.com/trend-following-and-mean-reversion-in-bitcoin/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-082.md (exploration summaries of earlier hypotheses) and the Quantpedia article, as of 2026-11-07."
+}
