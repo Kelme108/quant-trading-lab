@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-084",
+  "family": "HourlyIchimokuTrend",
+  "title": "Hourly Ichimoku 20/60/120/30: TK cross or cloud break above the cloud, Kijun exit, 3% stop, 24h cap",
+  "ex_ante_rule": "Chart 1h, closed bars only; every signal is evaluated at the close of bar t and filled at the open of bar t+1. Spot, long only, one position at a time, whole balance. No higher-timeframe filter. INDICATORS (all windows include the current closed bar t): Tenkan T(t) = (max high of bars t-19..t + min low of bars t-19..t)/2 (20 bars). Kijun K(t) = same over bars t-59..t (60 bars). SpanA_raw(t) = (T(t)+K(t))/2. SpanB_raw(t) = (max high + min low of bars t-119..t)/2 (120 bars). Displacement 30: the cloud at bar t is SpanA(t) = SpanA_raw(t-30) and SpanB(t) = SpanB_raw(t-30); CloudTop(t) = max(SpanA(t), SpanB(t)). Lagging-line confirmation: close(t) > close(t-30). ENTRY at close of bar t when flat and all of: close(t) > CloudTop(t) AND close(t) > close(t-30) AND at least one of (A) TK cross: T(t-1) <= K(t-1) and T(t) > K(t); or (B) cloud break: close(t-1) <= CloudTop(t-1) and T(t) > K(t). Buy at open of bar t+1. EXITS, whichever comes first: (1) native hard stop-loss 3% below the entry fill price, triggered intrabar as soon as price touches it (stoploss = -0.03); (2) Kijun exit: a closed 1h bar with close < K of that bar, sold at the next bar open; (3) time exit: when the trade has been open 24 hours (i.e. at the close of the 24th 1h bar counted from the entry bar, the entry bar being bar 1), sold at the next open, so no position is held more than 24 hours. No take-profit, no trailing stop, no cooldown, no pyramiding; a new entry may be taken on any later bar that meets the entry condition. Warm-up: 150 bars (120-bar SpanB plus 30-bar displacement; all indicators are rolling max/min, non-recursive).",
+  "parameters": {
+    "timeframe": "1h",
+    "tenkan_period": 20,
+    "kijun_period": 60,
+    "spanb_period": 120,
+    "displacement": 30,
+    "lagging_lookback": 30,
+    "stoploss_pct": 3.0,
+    "max_hold_bars": 24,
+    "warmup_bars": 150
+  },
+  "rationale": "Trend-following on the hourly chart. Being above a cloud built from 60- and 120-hour range midpoints (displaced 30 hours) means price has left its recent equilibrium; a Tenkan-Kijun cross or a first close above the cloud marks the start of a new leg. Counterparty: the source gives none; the closest honest mechanism is slow reaction to new information plus range-anchored sellers (mean-reversion traders and makers selling at range tops) who are run over when a multi-day range breaks, and late trend followers who buy after the move is visible. Expected frequency: a 20/60 TK cross happens roughly every few days on 1h, and requiring the price and lagging-line to be above the cloud plus allowing the cloud-break trigger gives an estimated 100-250 entries per pair per year. Move per trade: a signal fires after price has cleared a 120-hour midpoint, and the Kijun exit plus 24h cap let winners run for up to a day; hourly crypto ranges over 24h are typically 2-5%, so winners should aim at 1-3%, well above the 0.30% base / 0.45% conservative round trip, while the 3% intrabar stop caps each loss (8 consecutive full stops ~ -22%, under the 25% ceiling). Risk control: the Kijun exit usually cuts failed breakouts well before the stop. The periods 20/60/120/30 are taken as given in the QuantInsti article (which notes the choice is somewhat arbitrary); the exact TK-cross/cloud-break/Kijun-exit rules are standard practitioner rules from other pages, not from QuantInsti, and no backtest evidence for this exact rule was found. Success = existing gates on at least 6 of 9 pairs.",
+  "novelty_vs_tried": "No Ichimoku-based hypothesis exists in the lab. Unlike the Donchian/weekly breakout families (H-002, H-009, WeeklyBreakoutRegime), the trigger is a crossing of two range midpoints (20h vs 60h) gated by a displaced 120h cloud and a 30-bar lagging-close confirmation, not a break of an extreme high. Unlike SmaTrendBaseline or MultiTimeframeMACDTrend it uses midpoints of high/low ranges rather than averages of closes, uses no higher-timeframe filter, and it is a strict day trade: Kijun exit, a 3% stop and a 24-hour time cap, versus the multi-day holds of the earlier trend rules.",
+  "sources": [
+    {"title": "The Ichimoku Cloud and Trading Strategy (QuantInsti)", "url": "https://blog.quantinsti.com/ichimoku-cloud-trading-strategy/"},
+    {"title": "Ichimoku Cloud: Trading Trends (Incredible Charts)", "url": "https://www.incrediblecharts.com/indicators/ichimoku-cloud.php"},
+    {"title": "Ichimoku trading strategy (The Right Trader)", "url": "https://therighttrader.com/learn/indicator-strategies/ichimoku-trading-strategy"},
+    {"title": "Trading strategy: Ichimoku TKC (WH SelfInvest)", "url": "https://mobile.whselfinvest.com/en-de/trading-platform/free-trading-strategies/tradingsystem/17-ichimoku-tkc"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summaries in research/context/H-084.md (BTC, ETH, BNB results of earlier hypotheses), as of 2026-11-07"
+}
