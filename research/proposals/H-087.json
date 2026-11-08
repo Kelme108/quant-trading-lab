@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-087",
+  "family": "IntradayReturnAcceleration",
+  "title": "Intraday return acceleration on 15m: buy a 2-sigma jump of the last-4h return over the prior 4h, max 8h hold",
+  "ex_ante_rule": "Chart 15m, closed bars only; a signal at the close of bar t is filled at the open of bar t+1. No informative timeframe. Definitions: R1(t) = close(t)/close(t-16) - 1 (last 4 hours); R0(t) = close(t-16)/close(t-32) - 1 (previous 4 hours); A(t) = R1(t) - R0(t). mu(t) = mean of A over bars t-2880..t-1 and sd(t) = sample standard deviation (ddof=1) of A over the same 2880 bars (30 days; current bar excluded, i.e. rolling(2880) of A shifted by 1). Z(t) = (A(t) - mu(t)) / sd(t); if sd(t) is 0 or NaN, no signal. ENTRY (long, only when flat): Z(t) >= 2.0 AND Z(t-1) < 2.0 (fresh cross) AND R1(t) >= 0.01 AND close(t) > open(t). EXIT SIGNAL: at the close of the first bar after entry where Z < 0, exit at the next open. TIME EXIT: close the position at the open of the 33rd bar after the entry bar, i.e. after 32 bars = 8 hours held (implement as exit when trade age >= 480 minutes, checked at bar open/close; no position may stay open more than 8h15m). STOP-LOSS: fixed native stop 2.0% below the entry price, triggered intrabar (stoploss = -0.02). This replaces the idea's variable 'lowest low of last 4 bars minus 0.2%, capped at 3%' stop, because the engine supports only one fixed percentage; 2% is the round midpoint-level value inside that cap, chosen ex ante. No take-profit, no trailing stop, no higher-timeframe filter, no cooldown beyond the flat requirement. One open trade at a time per pair, whole balance per trade. Warm-up: 3000 bars (longest need is 2880-bar Z window + 32-bar return lag + 1 bar for Z(t-1) = 2913, rounded up to 3000).",
+  "parameters": {
+    "timeframe": "15m",
+    "return_window_bars": 16,
+    "zscore_lookback_bars": 2880,
+    "z_entry": 2.0,
+    "z_exit": 0.0,
+    "min_r1": 0.01,
+    "require_bullish_bar": "close>open",
+    "time_exit_bars": 32,
+    "time_exit_minutes": 480,
+    "stoploss_pct": 2.0,
+    "startup_candle_count": 3000
+  },
+  "rationale": "Ardila-Alvarez, Forro and Sornette show that return acceleration (the change of momentum between two consecutive windows) predicts returns and subsumes momentum, and link it to positive-feedback trading: trend chasers, short stop-outs and late buyers react to the change in returns, producing a transient continuation. In crypto these feedback loops (short liquidations on perps that spill into spot, breakout bots, momentum alerts) act over hours, so we transfer the effect to 4-hour windows on a 15m chart; this transfer is our assumption, not a published result (the paper is monthly cross-sectional US stocks, gross of costs, and flags snooping). The counterparty is the early contrarian / liquidity provider selling into the burst. Exit when Z falls below 0 (acceleration has reversed) or after 8h, so we hold only the feedback phase. Cost: requiring R1 >= 1% and a 2-sigma acceleration shock selects bursts where continuation of 0.5-1.5% is plausible, above the 0.30%/0.45% round trip; the 2% stop bounds each loss. Expected frequency: fresh 2-sigma crosses with a 1% 4h gain occur roughly a few times a week per pair, about 100-300 trades per year per pair, below the owner's 400-1500 target but with a larger move per trade; we state this honestly rather than loosening the thresholds.",
+  "novelty_vs_tried": "No tried family uses the acceleration term (difference of two consecutive return windows) standardised against its own 30-day distribution. H-071 ATRTrailMomentum and the TimeSeriesMomentum / IntradayEarlySessionMomentum / IntradayJumpContinuation families trigger on the momentum level or a single-bar jump; HourlyRangeExpansionDrift and VolatilitySqueezeBreakout use range/volatility expansion; Donchian/Keltner families use price-level breakouts. Here the trigger is a shock in the second difference of price, which fires when a flat or falling 4h window is followed by a strong rising one, and the exit is tied to the acceleration reverting (Z < 0) rather than to a price level or trailing stop.",
+  "sources": [
+    {
+      "title": "Return Acceleration More Effective than Momentum? (CXO Advisory on Ardila-Alvarez, Forro, Sornette, The Acceleration Effect and Gamma Factor in Asset Pricing)",
+      "url": "https://cxoadvisory.com/momentum-investing/return-acceleration-more-effective-than-momentum"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-087.md (exploration-split summaries of earlier hypotheses) and the cited web page, as of 2026-11-08."
+}
