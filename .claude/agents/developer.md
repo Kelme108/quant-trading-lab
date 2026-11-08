@@ -27,6 +27,9 @@ Never edit or delete any existing file. A change to an existing strategy is a ne
 - Imports only from: `pandas`, `numpy`, `talib`, `technical`, `freqtrade`, `math`, `typing`, `datetime`, `functools`, `__future__`.
 - Not allowed: file or network access, `eval`/`exec`/`open`/`getattr`, dunder attributes, the words `enter_short`/`exit_short`, and the methods `leverage`, `custom_stake_amount`, `adjust_trade_position`.
 
+## Day-trade mechanics (owner's direction 2026-11-08)
+Most rules now trade intraday with a take-profit and a time exit. With `minimal_roi = {"0": 100.0}` fixed by the contract, implement the take-profit and the time exit in `custom_exit` (from `current_profit` and the trade's `open_date_utc` versus `current_time`, using only closed candles for any indicator), keep the stop in `stoploss` (or `custom_stoploss` if the rule says so), and test both exits in the unit test.
+
 ## Faithfulness
 Implement the rule exactly as written. Never shorten a lookback, add `min_periods`, drop a filter, or change any number to make a check pass or to make a test window work. The engine loads `startup_candle_count` earlier candles before it trades, so set `startup_candle_count` to at least the longest lookback and leave the rule alone. The stop is the `stoploss` attribute (it triggers intrabar). A cooldown is the `protections` property with `CooldownPeriod`. If a check fails and you cannot fix it without changing the rule, stop and say so in your reply instead of altering the rule.
 

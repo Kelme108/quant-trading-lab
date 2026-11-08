@@ -16,13 +16,14 @@
   },
   "net_profit": {
     "required_positive_in_scenarios": ["base", "conservative"],
-    "base_threshold_quote": 1.0,
+    "base_threshold_quote": 10.0,
+    "_base_threshold_amended": "2026-11-08 by the owner: 1.0 -> 10.0 with the 1000 USDT paper wallet, so the bar stays 1% of the wallet. Decisions before that date used 1.0 on a 100 USDT wallet.",
     "multiple_testing_penalty": {
       "per_variant_increase": 0.1,
       "formula": "required_net_profit_quote = base_threshold_quote * (1 + per_variant_increase * variants_tested_in_family)",
       "_rationale": "Each extra variant tested in the same family is another draw from the same noisy history, so the best of N draws looks better by chance alone (multiple comparisons / backtest overfitting; see Bailey and Lopez de Prado, 'The Deflated Sharpe Ratio', Journal of Portfolio Management 2014, and Bailey, Borwein, Lopez de Prado and Zhu, 'Pseudo-Mathematics and Financial Charlatanism', Notices of the AMS 2014). This linear rule is a deliberately simple stand-in, NOT a formal deflated Sharpe ratio: it only makes the bar rise as the family grows. variants_tested_in_family counts hypotheses registered in the same family BEFORE the one being decided, as given by registry.count_prior_variants()."
     },
-    "rule": "Net profit (quote currency) must be strictly greater than required_net_profit_quote in both the base and conservative cost scenarios. With zero prior variants the bar is base_threshold_quote; it rises with every earlier variant in the family. base_threshold_quote is in the stake currency of the 100 USDT dry-run wallet (1.0 = 1% of the wallet) and is a PROPOSED value."
+    "rule": "Net profit (quote currency) must be strictly greater than required_net_profit_quote in both the base and conservative cost scenarios. With zero prior variants the bar is base_threshold_quote; it rises with every earlier variant in the family. base_threshold_quote is in the stake currency of the 1000 USDT backtest wallet (10.0 = 1% of the wallet) and is a PROPOSED value."
   },
   "profit_excluding_best_trade": {
     "required_positive": true,

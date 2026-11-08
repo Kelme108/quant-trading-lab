@@ -102,8 +102,8 @@ def validate_idea(idea: dict) -> list[str]:
     if not isinstance(idea["fixed_parameters"], bool):
         errors.append("fixed_parameters must be true or false")
     trades = idea["expected_trades_per_year"]
-    if isinstance(trades, bool) or not isinstance(trades, (int, float)) or not 0 <= trades <= 1000:
-        errors.append("expected_trades_per_year must be a number from 0 to 1000")
+    if isinstance(trades, bool) or not isinstance(trades, (int, float)) or not 0 <= trades <= 5000:
+        errors.append("expected_trades_per_year must be a number from 0 to 5000")
     if not isinstance(idea["family_hint"], str) or not FAMILY.match(idea["family_hint"]):
         errors.append("family_hint must be 3-40 letters/digits, starting with a letter")
     return errors

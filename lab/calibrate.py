@@ -18,7 +18,7 @@ from lab import breadth, bootstrap, costs, experiment, registry, runner
 
 ROOT = Path(__file__).parents[1]
 MIN_TRADES = 30
-WALLET_QUOTE = 100.0  # the --dry-run-wallet of every lab backtest (lab/runner.py)
+WALLET_QUOTE = runner.BACKTEST_WALLET  # the --dry-run-wallet of every lab backtest (lab/runner.py)
 MIN_STAKE_QUOTE = 10.0  # smallest stake Freqtrade places on Binance spot here (5 USDT notional plus its reserves)
 
 

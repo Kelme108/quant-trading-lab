@@ -347,7 +347,8 @@ class CalibrateTests(unittest.TestCase):
 
     def test_an_exposure_below_the_minimum_order_drops_instead_of_running_a_backtest_with_no_trades(self) -> None:
         explorer = FakeExplorer()
-        with mock.patch.object(calibrate.bootstrap, "choose_exposure", return_value={"exposure": 0.05, "p95_by_pair": {}}):
+        # With the 1000 USDT wallet (2026-11-08) the 5% grid floor is a 50 USDT stake; the rule is checked on a 100 one.
+        with mock.patch.object(calibrate.bootstrap, "choose_exposure", return_value={"exposure": 0.05, "p95_by_pair": {}}),                 mock.patch.object(calibrate, "WALLET_QUOTE", 100.0):
             result = self.run_calibration(100, explorer)
         self.assertEqual(result["outcome"], "dropped_exposure")
         self.assertEqual(result["status"], "dropped: calibrated exposure below the minimum order")

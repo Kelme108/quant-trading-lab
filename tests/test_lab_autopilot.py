@@ -100,7 +100,8 @@ class AutopilotPipelineTests(PipelineTestCase):
             self.assertNotIn(forbidden, compose.lower())
         for key in ("btc", "eth"):
             overlay = json.loads((self.root / forward.overlay_path("H-001", key)).read_text(encoding="utf-8"))
-            self.assertEqual(set(overlay), {"bot_name", "strategy", "db_url", "tradable_balance_ratio", "exchange"})
+            self.assertEqual(set(overlay), {"bot_name", "strategy", "db_url", "tradable_balance_ratio", "dry_run_wallet", "exchange"})
+            self.assertEqual(overlay["dry_run_wallet"], 100.0)  # the test policy's wallet_quote
         self.assertEqual(git(["status", "--porcelain", "--", "forward", "research/forward", "docker-compose.forward.h001.yml"],
                              self.root).strip(), "")
         self.assertNotIn("approve.py H-001 --stage validation", text)

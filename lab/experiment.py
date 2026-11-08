@@ -214,6 +214,7 @@ def run_experiment(
     data["backtest"]["fee_rate_per_side"] = base_scenario.fee_per_side
     data["backtest"]["slippage_rate_per_side"] = base_scenario.slippage_per_side
     data["backtest"]["spread_rate"] = base_scenario.spread_total
+    data["backtest"]["initial_wallet"] = runner.BACKTEST_WALLET
     data["backtest"]["order_types"] = {"entry": "limit", "exit": "limit", "stoploss": "market"}
     data["data"]["path"] = str(data_path.relative_to(ROOT)).replace("\\", "/")
     data["data"]["sha256"] = ohlcv["sha256"]

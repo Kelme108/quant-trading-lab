@@ -13,10 +13,10 @@ def make_metrics(**overrides) -> dict:
     }
     for scenario in ("optimistic", "base", "conservative", "stress"):
         metrics[f"trades__{scenario}"] = 40
-        metrics[f"net_profit_quote__{scenario}"] = 10.0
+        metrics[f"net_profit_quote__{scenario}"] = 100.0  # 10% of the 1000 USDT wallet
         metrics[f"max_drawdown_pct__{scenario}"] = 5.0
         metrics[f"max_relative_drawdown_pct__{scenario}"] = 5.0
-    metrics["net_profit_excl_best_trade__base"] = 4.0
+    metrics["net_profit_excl_best_trade__base"] = 40.0
     metrics.update(overrides)
     return metrics
 

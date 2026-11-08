@@ -122,7 +122,8 @@ def compose_name(hypothesis_id: str) -> str:
 
 
 def write_forward_files(hypothesis_id: str, pairs: list[str], exposure: float, strategy_class: str,
-                        root: Path = ROOT, image: str = "freqtradeorg/freqtrade:2026.9") -> list[str]:
+                        root: Path = ROOT, image: str = "freqtradeorg/freqtrade:2026.9",
+                        wallet_quote: float = runner.BACKTEST_WALLET) -> list[str]:
     """Per-pair overlays and the hypothesis' own compose file, in the shape of the H-016 ones. Returns the paths."""
     tag = forward.tag(hypothesis_id)
     written = []
@@ -134,6 +135,7 @@ def write_forward_files(hypothesis_id: str, pairs: list[str], exposure: float, s
             "strategy": strategy_class,
             "db_url": f"sqlite:///{forward.database_path(hypothesis_id, key)}",
             "tradable_balance_ratio": exposure,
+            "dry_run_wallet": float(wallet_quote),
             "exchange": {"pair_whitelist": [pair]},
         }
         path = root / forward.overlay_path(hypothesis_id, key)
@@ -232,7 +234,7 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
         result.update(outcome=f"validation passed on {', '.join(passed)}; dry-run waits for the user", detail=summary)
         return result
     min_stake = float(policy.get("min_stake_quote", 10.0))
-    wallet = float(policy.get("wallet_quote", 100.0))
+    wallet = float(policy.get("wallet_quote", runner.BACKTEST_WALLET))
     if exposure * wallet < min_stake:
         result.update(outcome=f"validation passed on {', '.join(passed)}; no dry-run (stake {exposure * wallet:g} "
                               f"below the minimum order {min_stake:g})", detail=summary)
@@ -246,7 +248,7 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
     registry.add_approval(conn, hypothesis_id=hypothesis_id, stage="dryrun", approved_by=ACTOR,
                           note=f"{note}; pairs {', '.join(passed)}"[:300], created_at_utc=_now())
     strategy = forward.find_strategy(hypothesis_id, root)
-    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root)
+    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root, wallet_quote=wallet)
     commit(files + [str(strategy.relative_to(root)).replace("\\", "/")],
            f"forward({hypothesis_id}): dry-run files written by the autopilot policy ({', '.join(passed)})")
     frozen = freeze(conn, hypothesis_id, root)

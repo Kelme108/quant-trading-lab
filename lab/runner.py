@@ -19,6 +19,10 @@ import subprocess
 import zipfile
 from pathlib import Path
 
+# Owner's decision 2026-11-08: every lab backtest and new dry-run bot starts with a 1000 USDT PAPER wallet (was
+# 100): calibrated stakes stay above the 10 USDT minimum order. Results before that date used 100.
+BACKTEST_WALLET = 1000.0
+
 ROOT = Path(__file__).parents[1]
 USER_DATA = ROOT / "user_data"
 EXPERIMENTS_DIR = ROOT / "research" / "experiments"
@@ -162,7 +166,7 @@ def run_backtest(
     fee: float,
     pair: str = "BTC/USDT",
     timeframe: str = "1h",
-    dry_run_wallet: float = 100.0,
+    dry_run_wallet: float = BACKTEST_WALLET,
     stake_amount: float | str = "unlimited",
     exposure: float = 1.0,
 ) -> dict:
@@ -255,7 +259,7 @@ def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, s
             "--timeframe", "1h",
             "--pairs", pair,
             "--timerange", timerange,
-            "--dry-run-wallet", "100",
+            "--dry-run-wallet", f"{BACKTEST_WALLET:g}",
             "--stake-amount", "unlimited",
             "--fee", "0.001",
             "--export", "none",

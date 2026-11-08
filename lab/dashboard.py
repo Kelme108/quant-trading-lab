@@ -622,6 +622,16 @@ def _relative(path: Path, root: Path) -> str:
         return path.name
 
 
+def _starting_wallet(root: Path, artifact_path: str | None, default: float) -> float:
+    """The wallet a backtest started with (100 before 2026-11-08, 1000 after), from its export."""
+    if not artifact_path:
+        return default
+    try:
+        return runner.read_starting_balance(root / artifact_path) or default
+    except (ValueError, KeyError, OSError):
+        return default
+
+
 def _cell_analytics(root: Path, row, wallet: float, run_trades: dict) -> dict | None:
     """Per-backtest metrics from the exported trades; None when the export is not readable."""
     facts = _run_facts(root, row["artifact_path"], row["pair"])
@@ -659,7 +669,8 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
             if not cells:
                 continue
             trades = [t for c in cells for t in run_trades.get(c["experiment_id"], [])]
-            pooled = analytics.trade_metrics(trades, wallet * len(cells))
+            capital = sum(float(c.get("wallet") or wallet) for c in cells)
+            pooled = analytics.trade_metrics(trades, capital)
             per_pair = []
             for c in cells:
                 a = c["analytics"]
@@ -670,7 +681,7 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
                     "max_dd_pct": c.get("max_drawdown_pct"), "expectancy_pct": a.get("expectancy_pct"),
                     "expectancy_abs": a.get("expectancy_abs"), "sharpe": a.get("sharpe"), "net_profit_abs": a.get("net_profit_abs"),
                     "profit_excl_best_abs": a.get("profit_excl_best_abs"),
-                    "roi_stress_pct": stress / wallet * 100 if isinstance(stress, (int, float)) else None,
+                    "roi_stress_pct": stress / float(c.get("wallet") or wallet) * 100 if isinstance(stress, (int, float)) else None,
                 })
             by_year: dict[str, float] = {}
             for t in trades:
@@ -680,7 +691,6 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
             dds = [p["max_dd_pct"] for p in per_pair if isinstance(p["max_dd_pct"], (int, float))]
             sharpes = [p["sharpe"] for p in per_pair if isinstance(p["sharpe"], (int, float))]
             decisions = [p["decision"] for p in per_pair]
-            capital = wallet * len(cells)
             row = {
                 "key": f"{hy['id']}:{split}", "id": hy["id"], "family": hy["family"], "status": hy["status"], "stage": split,
                 "candidate": is_candidate(hy["status"], hy["in_portfolio"]),
@@ -771,6 +781,7 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
                 reasons = json.loads(row["reasons_json"])
                 failing = _failing_gates(reasons)
                 base_profit = metrics.get("net_profit_quote__base")
+                cell_wallet = _starting_wallet(root, row["artifact_path"], wallet)
                 cells.append(
                     {
                         "pair": pair,
@@ -778,7 +789,8 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
                         "experiment_id": row["experiment_id"],
                         "decision": row["decision"],
                         "trades": metrics.get("trades__base"),
-                        "return_pct": (base_profit / wallet * 100) if isinstance(base_profit, (int, float)) else None,
+                        "return_pct": (base_profit / cell_wallet * 100) if isinstance(base_profit, (int, float)) else None,
+                        "wallet": cell_wallet,
                         "max_drawdown_pct": metrics.get("max_drawdown_pct__base"),
                         "buy_and_hold_pct": metrics.get("benchmark_buy_and_hold_return_pct"),
                         "profit_by_cost": {
@@ -798,8 +810,8 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
                         "failing_gates": failing,
                         "failing_detail": _failing_detail(reasons),
                         "reasons": reasons,
-                        "equity": _equity(root, row["artifact_path"], wallet),
-                        "analytics": _cell_analytics(root, row, wallet, run_trades),
+                        "equity": _equity(root, row["artifact_path"], cell_wallet),
+                        "analytics": _cell_analytics(root, row, cell_wallet, run_trades),
                     }
                 )
                 if not invalid:
