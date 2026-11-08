@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-085",
+  "family": "RSIOverboughtMomentum",
+  "title": "Overbought-is-strength: buy the 1h RSI(14) cross above 70, exit at +3%, RSI below 55, or after 24 hours",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at bar close, fill at the next 1h bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs. No informative timeframe. INDICATOR: RSI14 = Wilder RSI of length 14 on 1h closes (standard talib/ta-lib RSI, Wilder smoothing alpha = 1/14). ENTRY at the close of 1h bar t when RSI14(t-1) <= 70 AND RSI14(t) > 70 (fresh cross into the overbought zone) AND no position is open; buy at the open of bar t+1. A new entry requires a new cross from at or below 70 (a bar where RSI14 stays above 70 is never an entry). EXITS, whichever comes first: (a) TAKE-PROFIT: a limit at entry fill price * 1.03 (+3.0%), filled intrabar as soon as the high touches it (implement via minimal_roi = {\"0\": 0.03}); (b) RSI EXIT: a 1h bar closes with RSI14 < 55, sell at the next 1h open; (c) TIME EXIT: at the close of the 24th 1h bar after the entry bar (trade age >= 24 hours), sell at the next 1h open, so no position is held past about 25 hours from the signal and every position is closed within 24 hours of fill plus one bar of execution. If both (b) and (c) are true on the same bar, one exit order is sent. STOP-LOSS: none in the published rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, a non-binding stop that is never intended to trigger (the RSI-55 and 24-hour exits bound the loss). No trailing stop, no cooldown, no trend filter, no volume filter, no other condition. All numbers fixed ex ante from the source rule (moved from 4h to 1h with the target scaled from 6% to 3%), no grid: RSI length 14, entry level 70, exit level 55, take-profit 3%, time exit 24 bars. Warm-up: 300 bars (RSI(14) needs 15 bars; 300 are taken so the recursive Wilder smoothing has converged and the recursive-indicator gate passes; startup_candle_count = 300, far under the 4500 limit).",
+  "parameters": {
+    "timeframe": "1h",
+    "rsi_length": 14,
+    "rsi_entry_cross_level": 70,
+    "rsi_exit_level": 55,
+    "take_profit_pct": 3.0,
+    "time_exit_bars": 24,
+    "stoploss": -0.99,
+    "cooldown_bars": 0,
+    "startup_candle_count": 300
+  },
+  "rationale": "Mechanism: a 1h RSI(14) crossing above 70 marks a multi-hour run of one-sided buying. In crypto such runs tend to persist for hours: attention- and FOMO-driven retail flow arrives with a lag after the first move, and shorts on derivative venues cover into strength, pushing spot further. The other side is the classical RSI user who sells or fades 'overbought' readings and supplies liquidity too early; the source author (Coinrule) states this reasoning, and Bernstein's Stochastic POP systems buy an oscillator's move into its high zone on the same idea. Cost: the exit set aims at a 1-3% continuation (take-profit +3%), against a 0.30% base and 0.45% conservative round trip; the RSI-55 exit removes trades that stall before they become large losses, and the 24-hour exit keeps it a day trade. Expected count: on 1h, fresh crosses above 70 occur a few times a week per pair; with one position at a time and exits within a day, I expect roughly 150-300 trades per year per pair, inside the owner's 150-500 target. Risk: with no hard stop, the loss per trade is bounded only by how far price falls before an hourly close with RSI < 55 or 24 hours pass; gaps on a crash bar can produce losses of several percent, and in choppy markets crosses above 70 can fail repeatedly, which is the main risk to the 25% drawdown gate. Success is judged only by the existing gates (positive net at base and conservative cost, drawdown <= 25%, at least 6 of 9 pairs).",
+  "novelty_vs_tried": "No family in the context buys an oscillator entering its overbought zone. RSI is used in the lab only as a dip/oversold trigger (H-003 Bollinger + RSI<30, DailyRSI2Dip, DailyR3Streak buys RSI(2)<10 on daily bars). Breakout families (Donchian, Keltner, WeeklyBreakoutRegime, squeeze) enter on price exceeding a channel, with slow channel or trend exits; this rule enters on the momentum of the last ~14 hours regardless of any price level, has no trend filter, and exits on a fixed +3% target, momentum decay (RSI<55) or a hard 24-hour time limit, making it a pure intraday momentum-continuation trade.",
+  "sources": [
+    {
+      "title": "Trend-following RSI Strategy (Coinrule, TradingView open-source script)",
+      "url": "https://www.tradingview.com/script/hjHwHStD-Trend-following-RSI-Strategy/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the exploration-split summary results listed in research/context/H-085.md (BTC, ETH, BNB and others) and the source web page."
+}
