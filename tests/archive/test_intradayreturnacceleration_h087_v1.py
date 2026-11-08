@@ -26,13 +26,13 @@ sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 FILENAME = "IntradayReturnAcceleration_H087_v1.py"
 CLASS_NAME = "IntradayReturnAcceleration_H087_v1"
 
 
 def load_strategy(filename: str, class_name: str):
-    path = ROOT / "user_data" / "strategies" / filename
+    path = ROOT / "user_data" / "strategies" / "_archive" / filename
     spec = importlib.util.spec_from_file_location(class_name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
