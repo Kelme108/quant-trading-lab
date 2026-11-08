@@ -1,0 +1,17 @@
+{
+  "title": "Hourly Ichimoku (crypto 20/60/120/30): Tenkan-Kijun cross or cloud break above the cloud, Kijun exit, 24h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://blog.quantinsti.com/ichimoku-cloud-trading-strategy/",
+    "title": "The Ichimoku Cloud and Trading Strategy (QuantInsti)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at bar close, fill at next bar open; long only, one position. Periods as in the source: Tenkan T(t) = (highest high + lowest low of bars t-19..t)/2; Kijun K(t) = same over bars t-59..t; SpanA(t) = (T+K)/2; SpanB(t) = (highest high + lowest low of bars t-119..t)/2; displacement 30, so the cloud at bar t uses SpanA(t-30) and SpanB(t-30); CloudTop(t) = max of the two; lagging line confirmation: close(t) > close(t-30). ENTRY at close of bar t, if flat and close(t) > CloudTop(t) and close(t) > close(t-30), when either (A) TK cross: T(t-1) <= K(t-1) and T(t) > K(t); or (B) cloud break: close(t-1) <= CloudTop(t-1) and T(t) > K(t). EXITS, first of: hard stop 3% below entry fill (intrabar); a 1h close below K(t), sold next open; time exit at the close of the 24th 1h bar after entry. Hourly signals only; no higher-timeframe filter.",
+  "mechanism": "Trend-following on the hourly chart: being above a cloud built from 60- and 120-hour range midpoints means price has left its recent equilibrium, and a Tenkan-Kijun cross or cloud break marks the first hours of a new leg. The source gives no paying counterparty; the closest honest one is slow reaction to new information and range-anchored sellers (mean-reversion traders who sell at range tops) who are run over when a range breaks. QuantInsti gives the crypto-adapted 20/60/120/30 periods (practitioners note the 9/26/52 defaults assume a 6-day trading week). The Kijun exit lets winners run for up to a day; a cross above the cloud typically needs a 1-3% move to pay off, above the round trip.",
+  "timeframe": "1h",
+  "longest_lookback": 150,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 170,
+  "family_hint": "HourlyIchimokuTrend"
+}

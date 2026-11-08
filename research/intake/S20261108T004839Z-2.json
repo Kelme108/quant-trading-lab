@@ -1,0 +1,17 @@
+{
+  "title": "Hourly 10-day extreme rule: buy a 1h close at its 240-bar closing high or closing low, hold exactly 24 hours",
+  "source": {
+    "type": "blog",
+    "url": "https://quantpedia.com/trend-following-and-mean-reversion-in-bitcoin/",
+    "title": "Trend-following and Mean-reversion in Bitcoin (Quantpedia, Padysak and Vojtko)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at bar close, fill at the next bar open; long only, one position, same numbers on every pair. MAX240(t) = highest close of bars t-240..t-1; MIN240(t) = lowest close of bars t-240..t-1 (240 hourly bars = 10 days, current bar excluded). AT-MAX at bar t: close(t) > MAX240(t). AT-MIN at bar t: close(t) < MIN240(t). ENTRY at the close of bar t when AT-MAX or AT-MIN holds and no position is open (the two states cannot hold together). EXIT: time exit only, at the close of the 24th 1h bar after the entry bar (sell at the next open), so every position lasts 24 hours. No stop, no target, no trend or other filters. After an exit, a new entry is allowed on the same bar's close if a fresh AT-MAX or AT-MIN holds then. Hourly signals only; the 10-day window is the published daily lookback (10 days) re-expressed in hourly bars, and the 24-hour hold is the published one-day holding period.",
+  "mechanism": "Padysak and Vojtko (SSRN 'Seasonality, Trend-following, and Mean reversion in Bitcoin', summarised by Quantpedia) find that BTC continues after closes at its local 10-day maximum (momentum: breakout and attention buyers arrive late, shorts cover) and rebounds after closes at its local 10-day minimum (reversion: forced and capitulating sellers pay liquidity providers), with the shortest lookback strongest; the authors warn the minimum leg partly reflects BTC's past recoveries. Taking the signal on the hour it happens instead of at the UTC daily close makes it day-trade length. A 24-hour hold at a 10-day extreme spans a typical daily move of 2-5% on these pairs, far above the 0.30-0.45% round trip.",
+  "timeframe": "1h",
+  "longest_lookback": 240,
+  "free_parameters": 2,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 150,
+  "family_hint": "HourlyTenDayExtreme"
+}

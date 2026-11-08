@@ -1,0 +1,17 @@
+{
+  "title": "15m Supertrend(10,3) up-flip above the closed-1h EMA200, Supertrend-line stop, 2R target, 24-hour time exit",
+  "source": {
+    "type": "repo",
+    "url": "https://doc.stocksharp.com/en/api-examples/1365_SuperTrade_ST1",
+    "title": "SuperTrade ST1 (StockSharp API examples: Supertrend 10/3 with EMA200 filter on 15-minute candles)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next bar open; long only, one position. 15m indicators: ATR10 = Wilder ATR(10); Supertrend with factor 3 on hl2 = (high+low)/2: basic upper = hl2 + 3*ATR10, basic lower = hl2 - 3*ATR10, with the standard ratchet (final lower band can only rise while close stays above it, final upper band can only fall while close stays below it); direction turns UP when close crosses above the final upper band and DOWN when close crosses below the final lower band; the Supertrend line is the final lower band in UP direction. 1h filter: EMA200 of 1h closes, using only the last COMPLETED 1h bar (informative 1h, merged so no partial bar is seen). ENTRY at close of 15m bar t when direction(t-1) = DOWN, direction(t) = UP, close(t) > EMA200_1h, and no position. At entry store S = Supertrend line at t (fixed stop) and R = entry fill - S; skip the trade if R/entry < 0.004. EXITS (first hit): stop at S (intrabar); take-profit limit at entry + 2R; 15m direction flips to DOWN (exit next open); time exit at the close of the 96th 15m bar after entry (24 hours).",
+  "mechanism": "Short-horizon trend continuation: a Supertrend flip needs a close more than 3 ATRs from the bar midpoint against the prior trend, i.e. a move that forces late shorts and passive sellers to reprice; the closed-1h EMA200 keeps only flips in the direction of the slower trend, where breakouts are less often faded by mean-reversion liquidity providers. Same rule (15m Supertrend 10/3, EMA200 filter) is described by FMZ strategy 486561 (15m Supertrend + 1h EMA200, stop at the Supertrend line, risk-reward target) and by marketcalls.in (Supertrend with EMA filter, long-only, 15m). The stop sits about 1-3 ATR15 below entry, so the 2R target is usually 1-3% away, several times the 0.30-0.45% round trip; the 0.4% minimum risk keeps the target at or above 0.8%.",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 6,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 300,
+  "family_hint": "SupertrendMTFIntraday"
+}

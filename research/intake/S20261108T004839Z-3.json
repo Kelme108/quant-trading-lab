@@ -1,0 +1,17 @@
+{
+  "title": "Elder Triple Screen intraday: rising 4h tide, negative 1h Force Index wave, break of the setup-bar high, 2R and 24h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://takeprofitapp.com/en/learn/triple-screen-trading-system",
+    "title": "Triple Screen Trading System by Alexander Elder",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at bar close, fill at next bar open; long only, one position. SCREEN 1 (tide, 4h): 4h candles from completed 1h bars in UTC blocks 00,04,...,20, visible only after the block's last 1h bar closes. EMA13 of 4h close; MACD histogram H = (EMA12-EMA26) - EMA9 of that line, on 4h closes. TIDE UP when, on the last completed 4h bar k, EMA13(k) > EMA13(k-1) AND H(k) > H(k-1). SCREEN 2 (wave, 1h): FI(t) = (close(t)-close(t-1))*volume(t); FI2 = EMA(2) of FI. A SETUP exists at bar s when TIDE UP and FI2(s) < 0. SCREEN 3 (trigger): ENTRY at the close of bar s+1 if close(s+1) > high(s), TIDE is still UP and no position (a setup lives one bar only; each new bar with FI2<0 makes a new setup). Stop L = min(low(s), low(s+1)); risk R = entry fill - L; skip if R/entry < 0.004. EXITS, first hit: stop at L (intrabar); limit target entry + 2R; tide turns down (last completed 4h EMA13 lower than the one before) -> exit next open; time exit at the close of the 24th 1h bar after entry.",
+  "mechanism": "Elder's design: trade only with the slower (4h) trend, enter on a short-term pullback measured by the 2-period Force Index (price change times volume, so it needs selling volume, not just a red bar), and buy only when price proves the pullback is over by trading above the setup bar. Pullback sellers inside a rising higher-timeframe trend are usually short-horizon traders or liquidity providers who unload inventory; buying when they exhaust earns the trend premium. The source gives the 4-5x timeframe ratio, the EMA13/MACD-histogram tide, the Force Index EMA(2) wave, the buy-stop above the prior bar and the 2R minimum target; this version maps them to 4h/1h. With the 0.4% minimum risk the 2R target is at least 0.8% and normally 1.5-3% on these pairs, well above the 0.30-0.45% round trip.",
+  "timeframe": "1h",
+  "longest_lookback": 160,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 220,
+  "family_hint": "ElderTripleScreen"
+}
