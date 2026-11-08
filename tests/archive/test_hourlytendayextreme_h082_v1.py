@@ -23,8 +23,8 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
-PATH = ROOT / "user_data" / "strategies" / "HourlyTenDayExtreme_H082_v1.py"
+ROOT = Path(__file__).parents[2]
+PATH = ROOT / "user_data" / "strategies" / "_archive" / "HourlyTenDayExtreme_H082_v1.py"
 spec = importlib.util.spec_from_file_location("HourlyTenDayExtreme_H082_v1", PATH)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
