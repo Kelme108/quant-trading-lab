@@ -25,13 +25,13 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[2]
+ROOT = Path(__file__).parents[1]
 FILENAME = "VolumeSpikeCrashRebound_H062_v1.py"
 CLASS_NAME = "VolumeSpikeCrashRebound_H062_v1"
 
 
 def load_module():
-    path = ROOT / "user_data" / "strategies" / "_archive" / FILENAME
+    path = ROOT / "user_data" / "strategies" / FILENAME
     spec = importlib.util.spec_from_file_location(CLASS_NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
