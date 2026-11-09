@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-089",
+  "family": "WeeklyBreakoutRegime",
+  "title": "Fast 14-hour breakout in a 60h/180h SMA uptrend, forced flat within the UTC day (1h)",
+  "ex_ante_rule": "Chart 1h, closed candles only; signals evaluated at the close of bar t, orders filled at the open of bar t+1. Spot, long only, one position per pair, no pyramiding, no DCA. All times UTC; a bar's time is its open time. REGIME(t): SMA(60)(t) > SMA(180)(t) AND close(t) > SMA(60)(t), SMAs of close. ENTRY signal at close of bar t when ALL hold: REGIME(t); close(t) > max(high over bars t-14..t-1) (prior 14 bars, current bar excluded); no open position; bar t opens between 00:00 and 15:00 inclusive (so every entry fill is at an open from 01:00 to 16:00); fewer than 2 entries already filled on this pair on the same UTC date; cooldown satisfied. COOLDOWN: no re-entry for 2 candles after any exit (Freqtrade CooldownPeriod, stop_duration_candles = 2). EXIT signal at close of bar t (filled at next open) when close(t) < min(low over bars t-6..t-1) (prior 6 bars, current excluded) OR close(t) < SMA(60)(t). STOP-LOSS: fixed 2% below the entry price, native intrabar stop (stoploss = -0.02), no trailing. No take-profit (minimal_roi disabled). TIME EXIT (mandatory): the position is sold at the open of the bar opening at 23:00, or at the open of the 12th bar after the entry bar (entry fill time + 12 hours), whichever comes first; equivalently an exit signal at the close of the bar opening 22:00, or at the close of the 11th bar after the entry bar. No position is ever held past 23:00 or longer than 12 hours. The first of stop, signal exit and time exit to trigger closes the trade. No other filters. Warm-up: 200 bars (longest lookback SMA(180) plus a 20-bar margin; all indicators are non-recursive). Single-cell grid: no other parameter values are run. EXPOSURE: fixed share of the account by the lab rule (largest 5% grid value whose seeded block-bootstrap p95 closed-trade drawdown is <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; fewer than 30 trades on a pair drops the hypothesis, no retuning).",
+  "parameters": {
+    "timeframe": "1h",
+    "regime_sma_fast": 60,
+    "regime_sma_slow": 180,
+    "breakout_lookback_bars": 14,
+    "exit_low_lookback_bars": 6,
+    "stoploss_pct": 2.0,
+    "cooldown_candles": 2,
+    "entry_signal_bar_first_hour_utc": 0,
+    "entry_signal_bar_last_hour_utc": 15,
+    "max_entries_per_pair_per_utc_day": 2,
+    "forced_exit_bar_open_hour_utc": 23,
+    "max_hold_bars": 12,
+    "take_profit": "none",
+    "warmup_bars": 200
+  },
+  "rationale": "Mechanism: short-horizon time-series momentum. In an hourly uptrend (60h mean above 180h mean, price above the 60h mean), a close above the prior 14-hour high marks new buyers arriving while sellers and stops above the range are forced. Hourly crypto studies (Caporale & Plastun on BTC/ETH/LTC) find prices tend to keep moving in the direction of an abnormal move until the end of the day; Shen et al. find intraday momentum in Bitcoin tied to liquidity provision. Counterparties: range sellers and liquidity providers selling into the break, and late followers who buy higher. This is H-009 (7-day breakout, 30d/90d regime, 3-day low exit) with every horizon divided by 12, plus a day-trade frame closing each trade within 12 hours. Costs: 0.30% base / 0.45% conservative round trip against a 2% stop is about 0.15-0.23R. With no take-profit, winners run up to 12 hours; 12h moves on these pairs in an hourly uptrend are typically about 1-3%. Expected trades: the regime holds roughly 35-50% of hours and new 14-bar highs occur several times a day inside it; with the 01:00-16:00 fill window and the 2-per-day cap I expect about 200-450 trades per year per pair, at the low end of the owner's target. Risk: the average gross move may not clear 0.5%, as in H-002 (unfiltered Donchian, lost to costs); the regime filter and forced flat are the difference. I could not find a tradingstrategy.ai page for the idea source, so the cited sources are the closest real pages found.",
+  "novelty_vs_tried": "This is the third and last allowed variant of WeeklyBreakoutRegime (H-009, H-017). Both parents hold trades for days to weeks with a 168-bar breakout, a 720/2160 regime, a 72-bar-low exit and a 6% stop. This variant changes the holding horizon and frame, not a filter: every lookback is divided by 12 (14/60/180/6), the stop is 2%, and it adds a mandatory intraday time exit (23:00 UTC or 12 bars), an entry window of 01:00-16:00 fills and a cap of 2 entries per day. It addresses audit items 1 and 3 (profit concentrated in one bull cycle, multi-month losing streaks) by turning a few long trades into many short, independent ones. It differs from H-002 (plain 20-bar Donchian breakout, no regime, 10-bar exit, -10% stop, no time exit) by the trend regime, the tight stop and the forced flat. It differs from the session opening-range families because it uses no session range: the trigger is a rolling 14-hour high at any hour in the window.",
+  "sources": [
+    {"title": "Caporale & Plastun - Momentum effects in the cryptocurrency market after one-day abnormal returns (Financial Markets and Portfolio Management)", "url": "https://link.springer.com/doi/10.1007/s11408-020-00357-1"},
+    {"title": "Shen, Urquhart & Wang - Bitcoin intraday time-series momentum", "url": "https://centaur.reading.ac.uk/100181"},
+    {"title": "QuantInsti - Donchian Channels: How to Turn a Simple Idea Into Working Strategies", "url": "https://blog.quantinsti.com/donchian-channel-strategy/"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened. Only the exploration-split summaries in research/context/H-089.md (BTC, ETH, BNB per-hypothesis results and the H-009 audit); no validation or final-test data."
+}
