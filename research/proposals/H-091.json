@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-091",
+  "family": "DailyRSI2Dip",
+  "title": "Fast RSI(2) dip above the 200-candle mean on closed 2-hour candles, flat within the day",
+  "ex_ante_rule": "Chart: 1h, spot, long only, one position per pair, whole allowed balance, no pyramiding. Signal frame: informative 2h candles aligned to UTC blocks 00,02,...,22, merged with merge_informative_pair (ffill), so a 2h candle is visible only after both its 1h bars have closed. The 2h close is the close of the block's second 1h bar. Indicators on 2h closes: RSI2 = Wilder RSI(2) (alpha 1/2, seeded with the simple average of the first 2 changes); SMA200 = SMA(200); SMA5 = SMA(5). Signals are checked only on the 1h bar that completes a 2h block (1h bars opening at 01,03,...,23 UTC); orders fill at the next 1h open. ENTRY when a 2h candle closes with close > SMA200 AND RSI2 < 10 AND no open position AND the fill bar opens between 00:00 and 16:00 UTC inclusive AND fewer than 2 entries have already filled on this pair in this UTC day (counted by fill date). EXIT SIGNAL when a 2h candle closes with close > SMA5 OR close < SMA200: sell at the next 1h open. STOP-LOSS: native fixed stop 2% below the entry price (stoploss = -0.02), triggers intrabar as soon as price touches it. TIME EXIT (mandatory): sell at the open of the 23:00 UTC 1h bar, or at the open of the 12th 1h bar after the entry bar (entry at the open of bar E means sale at the open of bar E+12, max hold 12 hours), whichever comes first; implement by raising the exit at the close of the 22:00 bar or of bar E+11. First exit hit wins (stop, signal, time). No take-profit, no trailing, no cooldown (after any exit a new entry is allowed at the next qualifying 2h close if the daily limit allows). No other filters, no sizing hooks. All numbers fixed ex ante from the parent rule (RSI 2, threshold 10, SMA 5 and 200) plus the lab's common day-trade frame (2% stop, 00:00-16:00 entry window, 2 entries per day, 23:00 UTC / 12-bar exit); no grid. Warm-up: 800 bars (1h; = 400 closed 2h candles: 200 for SMA(200) plus 200 for the Wilder RSI to converge; within the 4500 limit).",
+  "parameters": {
+    "timeframe": "1h",
+    "signal_timeframe": "2h",
+    "rsi_length": 2,
+    "rsi_entry_below": 10,
+    "trend_sma_length": 200,
+    "exit_sma_length": 5,
+    "stoploss_pct": 2.0,
+    "entry_window_start_utc": "00:00",
+    "entry_window_end_utc": "16:00",
+    "max_entries_per_pair_per_utc_day": 2,
+    "forced_exit_bar_open_utc": "23:00",
+    "max_hold_1h_bars": 12,
+    "cooldown_bars": 0,
+    "startup_candle_count": 800
+  },
+  "rationale": "Mechanism: a sharp short-term dip (two 2h closes driving RSI(2) under 10) inside an established uptrend (close above the 200-candle mean, about 17 days of 2h candles) is often driven by forced or impatient selling (stop cascades, liquidations on derivatives venues spilling into spot, hurried rebalancing); liquidity providers and dip buyers absorb it and price tends to revert toward its 5-candle mean within hours. The impatient seller pays for immediacy; the rule supplies liquidity and is paid for waiting. This is Connors' RSI(2) rule (published for daily bars) with the candle shrunk to 2 hours; the source itself warns that an intraday version is a different system that must be tested on its own, which is exactly what this hypothesis does. Parent H-019 on daily bars had ~55 trades per pair and was thin but positive on BTC and BNB. Expected count: RSI(2) under 10 above the SMA200 on 2h bars fires on very roughly 5-8% of 2h closes; with the 00:00-16:00 window, one position at a time and 2 entries per day, roughly 250-450 trades per year per pair (1-2 per day on active days). Move per trade: a 2h candle on these pairs moves on average about 0.8-1.5%, and the reversion from an RSI(2)<10 low to above the 5-candle mean is typically about one 2h range, so the expected gross gain on winners is about 0.6-1.2% against a 0.30% base / 0.45% conservative round trip; losers are capped near -2.3% after costs by the 2% stop and the 12-hour time exit. This is marginal versus cost, and the gates decide; no number was tuned. Success criteria are the existing gates (positive net at base and conservative cost, drawdown under 25%, at least 6 of 9 pairs).",
+  "novelty_vs_tried": "Second variant of DailyRSI2Dip (H-019 is the only one). H-019 used closed daily candles, no stop and multi-day holds (~55 trades per pair in exploration). This variant keeps every number of the published rule (RSI 2 < 10, SMA 200 trend, SMA 5 exit) but evaluates them on closed 2h candles, adds a native 2% stop, and wraps the trade in a day-trade frame (entries 00:00-16:00 UTC, max 2 per day, forced sale at 23:00 UTC or after 12 hours). The holding period falls from days to hours and the trade count rises roughly fivefold, which is a structural change in the horizon of the reversion being harvested, not a parameter retune. It differs from the other intraday reversion attempts in the lab (SessionVWAPBandFade, EMASnapbackATR, HourlyShockOverreaction, VolumeSpikeCrashRebound) by using an oscillator extreme on a 2h aggregate with a long-mean trend gate rather than a band/VWAP distance, ATR shock or volume trigger.",
+  "sources": [
+    {
+      "title": "RSI 2 Strategy (therighttrader.com)",
+      "url": "https://therighttrader.com/learn/trading-strategies/rsi-2-strategy"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data opened; only the exploration-split summaries in research/context/H-091.md (BTC, ETH, BNB and other enabled pairs, 1h/15m) as provided on 2026-11-09, and the therighttrader.com RSI(2) page."
+}
