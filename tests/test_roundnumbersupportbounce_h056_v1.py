@@ -37,13 +37,13 @@ persistence_module = types.ModuleType("freqtrade.persistence")
 persistence_module.Trade = _TradeStub
 sys.modules.setdefault("freqtrade.persistence", persistence_module)
 
-ROOT = Path(__file__).parents[2]
+ROOT = Path(__file__).parents[1]
 FILENAME = "RoundNumberSupportBounce_H056_v1.py"
 CLASS_NAME = "RoundNumberSupportBounce_H056_v1"
 
 
 def load_module():
-    path = ROOT / "user_data" / "strategies" / "_archive" / FILENAME
+    path = ROOT / "user_data" / "strategies" / FILENAME
     spec = importlib.util.spec_from_file_location(CLASS_NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
