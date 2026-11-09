@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-090",
+  "family": "RelativeStrengthRatioRotation",
+  "title": "Fast 1h relative-strength ratio breakout vs BTC/ETH/BNB basket, flat within the UTC day",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at close of bar t, order filled at open of bar t+1. Long only, spot, one position per pair, no pyramiding, no take-profit. BASKET: for traded pair X, Y(t) = geometric mean of the 1h closes of BTC/USDT, ETH/USDT, BNB/USDT excluding X: if X is BTC, ETH or BNB, Y = sqrt(close_A*close_B) of the other two; for every other pair, Y = cbrt(close_BTC*close_ETH*close_BNB). Basket pairs loaded as informative 1h pairs aligned on the same closed-candle timestamp. R(t) = close_X(t)/Y(t). ENTRY signal at close of bar t when ALL hold: (1) R(t) > SMA(40) of R at t; (2) R(t) >= max(R over t-9..t), i.e. highest R of the last 10 bars including t; (3) close_X(t) > SMA(40) of close_X at t; (4) no open position; (5) cooldown: no re-entry for 1 candle after any exit; (6) session: bar t opens between 00:00 and 15:00 UTC inclusive (so fills happen at opens 01:00-16:00 UTC); (7) day limit: fewer than 2 entries already filled for this pair on the current UTC calendar day (counted by entry fill time). EXIT signal at close of bar t (filled at next open) when R(t) < SMA(4) of R at t, OR close_X(t) < SMA(40) of close_X at t. TIME EXIT (mandatory): sell at the open of the 23:00 UTC bar, i.e. exit signal at the close of the bar opening 22:00 UTC, OR sell at the open of the bar 12 hours after the entry fill (exit signal at the close of a bar when that close time minus entry fill time >= 12 hours), whichever comes first; never held overnight, maximum hold 12 hours. STOP-LOSS: fixed 2% below entry price (native intrabar stop, triggers on touch). All SMAs are simple means of completed bars; no recursive indicators, no other filters. Warm-up: 40 bars (longest lookback SMA(40) of R and of close; the 10-bar max and SMA(4) are shorter); startup_candle_count = 50. Same rule and numbers on all nine pairs.",
+  "parameters": {
+    "ratio_sma_bars": 40,
+    "ratio_high_bars": 10,
+    "price_sma_bars": 40,
+    "ratio_exit_sma_bars": 4,
+    "stoploss_pct": 2.0,
+    "cooldown_bars": 1,
+    "entry_signal_first_hour_utc": 0,
+    "entry_signal_last_hour_utc": 15,
+    "max_entries_per_pair_per_utc_day": 2,
+    "forced_exit_open_hour_utc": 23,
+    "max_hold_hours": 12,
+    "basket": "BTC,ETH,BNB",
+    "basket_mean": "geometric_excl_self",
+    "warmup_bars": 40,
+    "startup_candle_count": 50
+  },
+  "rationale": "A pair whose ratio to the major basket makes a fresh 10-hour high above its 40-hour mean, while its own price is above its 40-hour mean, is absorbing flow the majors are not (pair-specific news, listings, rotation into a narrative). Such flow is slow to be fully priced because many participants act on lagging daily/4h signals or only after a move becomes visible on screeners; liquidity providers who sell into the early leg give up part of the continuation. Hourly Bitcoin intraday momentum (Shen, Urquhart and Wang) is attributed to liquidity provision, consistent with this. The parent H-047 holds days to weeks; this variant compresses the horizons by 12 (480->40, 120->10, 48->4) and forces flat within the day, so it measures whether leadership persists over hours. Expected frequency: signals limited to 16 hourly bars and 2 entries per day; with a 10-bar ratio high firing often in trending hours, roughly 1-2 trades on active days, about 250-500 trades per year per pair. Cost: round trip 0.30% base / 0.45% conservative; the stop is 2% and hourly ranges on these pairs are 0.6-1.5%, so a held breakout running 3-12 hours can plausibly average a gross winner of 1-2%. Risk honestly stated: the SMA(4) ratio exit is tight and may cut many trades after a small move, so the average gross move could fall below cost; a daily-horizon cross-sectional relative-strength study on large coins (Erasmus thesis) found negative returns, which is counter-evidence. This proposal formalises scout idea I-081 without tuning or adding filters.",
+  "novelty_vs_tried": "Second variant of RelativeStrengthRatioRotation (H-047). H-047 used SMA(480)/120-bar high/SMA(48) exit, a 6% stop, 12-bar cooldown and no time exit, holding days to weeks on BTC/ETH/BNB only. This variant is structurally a day-trade: all horizons compressed by 12, a 2% stop, session window for entries, max 2 entries per UTC day, mandatory exit at 23:00 UTC or after 12 hours, and a 3-major basket denominator for the six non-basket pairs. Unlike CrossPairCatchUp (lagging alt buys after a BTC move) it buys the leader, not the laggard; unlike Donchian/breakout families it breaks out in relative (ratio) space, not absolute price.",
+  "sources": [
+    {"title": "Ratio Charts (LuxAlgo library)", "url": "https://www.luxalgo.com/library/concept/ratio-charts.md"},
+    {"title": "Shen, Urquhart, Wang - Bitcoin Intraday Time-Series Momentum", "url": "https://reading-9.eprints-hosting.org/100181/3/21Sep2021Bitcoin%20Intraday%20Time-Series%20Momentum.R2.pdf"},
+    {"title": "Cross-Sectional Momentum in Crypto: How to Trade the Strongest Trends (FXEmpire)", "url": "https://www.fxempire.com/education/article/cross-sectional-momentum-in-crypto-how-to-trade-the-strongest-trends-1535830"},
+    {"title": "Erasmus thesis on statistical arbitrage / relative strength across large cryptocurrencies (counter-evidence)", "url": "https://thesis.eur.nl/pub/59629/Final_Thesis_Draft_494850-1-.pdf"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the research context file H-090.md (exploration summaries of earlier hypotheses, including H-047 exploration on BTC, ETH, BNB 1h) as of 2026-11-09."
+}
