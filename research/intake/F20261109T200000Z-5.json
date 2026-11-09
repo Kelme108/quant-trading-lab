@@ -1,0 +1,17 @@
+{
+  "title": "Fast Double-7 channel dip on 2-hour candles, flat within the day",
+  "source": {
+    "type": "blog",
+    "url": "https://strategyquant.com/blog/larry-connors-double-7-strategy-tested-on-spy-and-8-other-m",
+    "title": "Larry Connors Double 7 Strategy (StrategyQuant), via lab hypothesis H-020",
+    "license": "n/a (public method)"
+  },
+  "rule_summary": "Signals on CLOSED 2-hour candles built from completed 1h bars (UTC blocks 00,02,..,22), fill at the next 1h open. ENTRY when a 2h candle closes with close > SMA(200) of 2h closes AND close <= lowest 2h close of the last 7 candles (including itself) AND no open position. EXIT when a 2h candle closes with close >= highest 2h close of the last 7 candles (including itself). STOP: fixed 2% below entry (native). No cooldown. DAY-TRADE FRAME (same for every fast variant): entries only on bars opening 00:00-16:00 UTC, at most 2 entries per pair per UTC day; any open position is sold at the open of the 23:00 UTC bar or 12 hourly bars after entry, whichever comes first (never held overnight). Long only, spot, one position per pair, no pyramiding.",
+  "mechanism": "Buy a 7-candle closing low inside an uptrend and sell the 7-candle closing high; the parent's lookbacks kept, candle shrunk from 1 day to 2 hours so the swing is about 14 hours. Fast variant of a tried rule: the parent holds days or weeks; this one is forced flat within the day so the dry-run reaches 60 trades in weeks. Costs (0.30% round trip) are NOT relaxed.",
+  "timeframe": "1h",
+  "longest_lookback": 400,
+  "free_parameters": 0,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 300,
+  "family_hint": "Double7ChannelDip"
+}

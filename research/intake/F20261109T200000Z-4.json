@@ -1,0 +1,17 @@
+{
+  "title": "Fast RSI(2) dip above the 200-candle mean on 2-hour candles, flat within the day",
+  "source": {
+    "type": "blog",
+    "url": "https://therighttrader.com/learn/trading-strategies/rsi-2-strategy",
+    "title": "RSI 2 Strategy (therighttrader.com), via lab hypothesis H-019",
+    "license": "n/a (public method)"
+  },
+  "rule_summary": "Signals on CLOSED 2-hour candles built from completed 1h bars (UTC blocks 00,02,..,22; informative 2h, visible only after the block closes); fill at the next 1h open. Wilder RSI(2) (alpha 1/2); SMA(200) and SMA(5) of 2h closes. ENTRY when a 2h candle closes with close > SMA(200) AND RSI(2) < 10 AND no open position. EXIT when a 2h candle closes with close > SMA(5) OR close < SMA(200). STOP: fixed 2% below entry (native). No cooldown. DAY-TRADE FRAME (same for every fast variant): entries only on bars opening 00:00-16:00 UTC, at most 2 entries per pair per UTC day; any open position is sold at the open of the 23:00 UTC bar or 12 hourly bars after entry, whichever comes first (never held overnight). Long only, spot, one position per pair, no pyramiding.",
+  "mechanism": "Mean reversion of a deep short-term dip inside an uptrend; the parent's numbers (RSI 2, under 10, SMA 5 and 200) are kept and only the candle shrinks from 1 day to 2 hours, so the dip-and-bounce cycle lasts hours. Fast variant of a tried rule: the parent holds days or weeks; this one is forced flat within the day so the dry-run reaches 60 trades in weeks. Costs (0.30% round trip) are NOT relaxed.",
+  "timeframe": "1h",
+  "longest_lookback": 400,
+  "free_parameters": 0,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 300,
+  "family_hint": "DailyRSI2Dip"
+}

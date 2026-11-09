@@ -1,0 +1,17 @@
+{
+  "title": "Fast Livermore pivot break with volume and 2-bar fail-fast, flat within the day",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md",
+    "title": "Livermore Pivotal Point (LuxAlgo library), via lab hypothesis H-046",
+    "license": "n/a (public method)"
+  },
+  "rule_summary": "Chart 1h, closed bars only, fill at next open. P = highest high of the prior 20 bars (excluding current). VolAvg = mean volume of the previous 4 bars. ENTRY at bar close when close > 1.002*P AND volume >= 2.0*VolAvg AND close > SMA(40) AND no open position AND 1 bar since last exit. Store P_entry. FAIL-FAST: if either of the next 2 bars closes below P_entry, exit at the next open. After those 2 bars, exit at the next open when close < lowest low of the prior 4 bars. STOP: fixed 2% below entry (native). DAY-TRADE FRAME (same for every fast variant): entries only on bars opening 00:00-16:00 UTC, at most 2 entries per pair per UTC day; any open position is sold at the open of the 23:00 UTC bar or 12 hourly bars after entry, whichever comes first (never held overnight). Long only, spot, one position per pair, no pyramiding.",
+  "mechanism": "A volume-confirmed break of a pivot should hold at once; if price falls back under the pivot in 2 bars the break failed and the position is cut. The parent's 240/48/480-bar windows are compressed by 12. Fast variant of a tried rule: the parent holds days or weeks; this one is forced flat within the day so the dry-run reaches 60 trades in weeks. Costs (0.30% round trip) are NOT relaxed.",
+  "timeframe": "1h",
+  "longest_lookback": 40,
+  "free_parameters": 0,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 300,
+  "family_hint": "LivermorePivotFailFast"
+}

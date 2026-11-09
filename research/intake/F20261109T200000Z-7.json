@@ -1,0 +1,17 @@
+{
+  "title": "Fast Keltner breakout above the 100-candle mean on 2-hour candles, flat within the day",
+  "source": {
+    "type": "repo",
+    "url": "https://doc.stocksharp.com/en/api-examples/0955_Keltner_Channel",
+    "title": "Keltner Channel Strategy (StockSharp API examples), via lab hypothesis H-025",
+    "license": "n/a (public method)"
+  },
+  "rule_summary": "Signals on CLOSED 2-hour candles built from completed 1h bars; fill at next 1h open. EMA20 (span 20), TR = max(high-low, |high-prevclose|, |low-prevclose|), ATR20 (Wilder), Upper = EMA20 + 1.5*ATR20, SMA100 of 2h closes. ENTRY when a 2h candle closes with close > Upper AND the previous close <= previous Upper (fresh cross) AND close > SMA(100) AND no open position. EXIT when a 2h close < EMA20. STOP: fixed 2% below entry (native). No cooldown. DAY-TRADE FRAME (same for every fast variant): entries only on bars opening 00:00-16:00 UTC, at most 2 entries per pair per UTC day; any open position is sold at the open of the 23:00 UTC bar or 12 hourly bars after entry, whichever comes first (never held overnight). Long only, spot, one position per pair, no pyramiding.",
+  "mechanism": "A fresh close above the volatility band while trending up is a momentum burst; the parent's numbers (EMA 20, ATR 20, 1.5x, SMA 100) kept, candle shrunk from 1 day to 2 hours. Fast variant of a tried rule: the parent holds days or weeks; this one is forced flat within the day so the dry-run reaches 60 trades in weeks. Costs (0.30% round trip) are NOT relaxed.",
+  "timeframe": "1h",
+  "longest_lookback": 400,
+  "free_parameters": 0,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 300,
+  "family_hint": "DailyKeltnerBreakout"
+}
