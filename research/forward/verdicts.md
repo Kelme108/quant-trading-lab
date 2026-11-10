@@ -6,9 +6,13 @@ Mínimo para decidir: 60 trades fechados e 14 dias; reprova cedo com 30+ trades 
 
 | Hipótese | Veredito | Trades | Dias | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| H-001 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-009 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-016 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-047 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
+
+## H-001: collecting
+- 0/60 closed trades, 0.0/14 days
 
 ## H-009: collecting
 - 0/60 closed trades, 0.0/14 days
