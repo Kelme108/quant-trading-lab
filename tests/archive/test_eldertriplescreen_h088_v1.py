@@ -23,11 +23,11 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / "ElderTripleScreen_H088_v1.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / "ElderTripleScreen_H088_v1.py"
     spec = importlib.util.spec_from_file_location("ElderTripleScreen_H088_v1", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
