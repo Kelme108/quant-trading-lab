@@ -20,7 +20,7 @@ import re
 import statistics
 from collections import Counter, defaultdict
 
-from lab import registry
+from lab import registry, sources
 
 SLIPPAGE_GAP = 0.0010          # optimistic -> base: 2 x 0.05% slippage per round trip
 BASE_ROUND_TRIP_PCT = 0.30
@@ -124,6 +124,7 @@ def digest(conn) -> str:
               "| id | family | chart | trades/pair | gross move % | net edge % |", "|---|---|---|---|---|---|"]
     for r in ordered[::-1][:12]:
         lines.append(f"| {r['id']} | {r['family']} | {r['timeframe']} | {_fmt(r['trades'], 0)} | {_fmt(r['gross_pct'])} | {_fmt(r['net_pct'])} |")
+    lines += ["", sources.yield_markdown(conn)]
     lines += ["", "Use this to aim higher, not to copy: a mechanism that came close is a reason to look for a stronger trigger "
               "of the same kind (a volatility or volume filter, a better session, a cleaner exit), never to repeat the rule.", ""]
     return "\n".join(lines)

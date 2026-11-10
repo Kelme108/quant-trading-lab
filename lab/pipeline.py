@@ -344,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     recal = sub.add_parser("recalibrate", help="re-run, byte-identical, hypotheses dropped only for the minimum order")
     recal.add_argument("hypotheses", nargs="+")
     recal.add_argument("--rule-change-reason", default="", help="owner-authorised re-run of a rejected hypothesis after a rule change; the text is recorded")
+    sub.add_parser("sources", help="refresh the GitHub survey of trading projects (research/sources-catalog.json, research/sources-new.md)")
     sub.add_parser("dryrun", help="judge every frozen dry-run bot by trades and metrics (lab/config/dryrun.json) and write research/forward/verdicts.md")
     resume.add_argument("hypotheses", nargs="+")
     auto = sub.add_parser("autopilot", help="apply the autopilot policy to exploration candidates waiting for the user")
@@ -354,6 +355,10 @@ def main(argv: list[str] | None = None) -> int:
     policy = autopilot.load_policy()
     if policy["enabled"]:
         pipeline.autopilot = functools.partial(autopilot.run, commit=pipeline._commit, root=lab.root, policy=policy)
+    if args.command == "sources":
+        from lab import sources
+        print(sources.run_and_commit(pipeline))
+        return 0
     if args.command == "dryrun":
         from lab import dryrun
         print(dryrun.run_and_commit(pipeline))
