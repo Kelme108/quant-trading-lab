@@ -233,7 +233,7 @@ class Pipeline:
             stopped = f"{type(error).__name__}: {error}"
         return self.write_report(rows, [], [], stopped)
 
-    def recalibrate(self, hypothesis_ids: list[str]) -> Path:
+    def recalibrate(self, hypothesis_ids: list[str], *, rule_change_reason: str = "") -> Path:
         """Re-run, with the byte-identical archived strategy, hypotheses dropped ONLY because the calibrated stake was
         below the exchange minimum on the old 100 USDT wallet: a mechanical limit, not a result, so the exploration
         backtest never ran and no gate decision exists. The code is not rewritten (no agent call)."""
@@ -245,13 +245,21 @@ class Pipeline:
                 found = registry.get_hypothesis(self.conn, hid)
                 if found is None:
                     raise StepFailed(f"{hid} is not registered")
-                if not str(found["status"]).startswith("dropped: calibrated exposure below the minimum order"):
-                    raise StepFailed(f"{hid} was not dropped for the minimum order (status: {found['status']})")
-                if lab.conn.execute(
-                    "SELECT 1 FROM decisions d JOIN experiments e ON e.id = d.experiment_id WHERE e.hypothesis_id = ?",
-                    (hid,),
-                ).fetchone():
-                    raise StepFailed(f"{hid} already has a gate decision; re-running it would be a second draw")
+                status = str(found["status"])
+                if rule_change_reason:
+                    # Owner-authorised re-run after a gate or universe change: the archived code is untouched, only the
+                    # rules it is judged by changed. The reason is written into the hypothesis notes.
+                    if not (status.startswith("rejected at exploration") or status.startswith("dropped")):
+                        raise StepFailed(f"{hid}: a rule-change re-run needs a hypothesis rejected or dropped at exploration (status: {status})")
+                    registry.set_hypothesis_notes(self.conn, hid, f"{found['notes'] or ''} [Re-run {_now()[:10]}: {rule_change_reason}]".strip())
+                else:
+                    if not status.startswith("dropped: calibrated exposure below the minimum order"):
+                        raise StepFailed(f"{hid} was not dropped for the minimum order (status: {status})")
+                    if lab.conn.execute(
+                        "SELECT 1 FROM decisions d JOIN experiments e ON e.id = d.experiment_id WHERE e.hypothesis_id = ?",
+                        (hid,),
+                    ).fetchone():
+                        raise StepFailed(f"{hid} already has a gate decision; re-running it would be a second draw")
                 restored = archive.restore_hypothesis(self.conn, hid, root=self.root)
                 self._commit(restored["paths"], f"recalibrate({hid}): byte-identical strategy restored from the archive "
                                                 f"(sha256 {restored['sha256'][:12]}) for the {calibrate.WALLET_QUOTE:g} USDT wallet")
@@ -335,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:
     resume = sub.add_parser("resume", help="re-run registered hypotheses that failed outside the rule (no decision yet)")
     recal = sub.add_parser("recalibrate", help="re-run, byte-identical, hypotheses dropped only for the minimum order")
     recal.add_argument("hypotheses", nargs="+")
+    recal.add_argument("--rule-change-reason", default="", help="owner-authorised re-run of a rejected hypothesis after a rule change; the text is recorded")
+    sub.add_parser("dryrun", help="judge every frozen dry-run bot by trades and metrics (lab/config/dryrun.json) and write research/forward/verdicts.md")
     resume.add_argument("hypotheses", nargs="+")
     auto = sub.add_parser("autopilot", help="apply the autopilot policy to exploration candidates waiting for the user")
     auto.add_argument("hypotheses", nargs="+")
@@ -344,8 +354,12 @@ def main(argv: list[str] | None = None) -> int:
     policy = autopilot.load_policy()
     if policy["enabled"]:
         pipeline.autopilot = functools.partial(autopilot.run, commit=pipeline._commit, root=lab.root, policy=policy)
+    if args.command == "dryrun":
+        from lab import dryrun
+        print(dryrun.run_and_commit(pipeline))
+        return 0
     if args.command == "recalibrate":
-        print(pipeline.recalibrate(args.hypotheses))
+        print(pipeline.recalibrate(args.hypotheses, rule_change_reason=args.rule_change_reason))
         return 0
     if args.command == "resume":
         print(pipeline.resume(args.hypotheses))

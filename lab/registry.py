@@ -292,6 +292,11 @@ def set_hypothesis_status(conn: sqlite3.Connection, hypothesis_id: str, status: 
     conn.commit()
 
 
+def set_hypothesis_notes(conn: sqlite3.Connection, hypothesis_id: str, notes: str) -> None:
+    conn.execute("UPDATE hypotheses SET notes = ? WHERE id = ?", (notes, hypothesis_id))
+    conn.commit()
+
+
 def get_hypothesis(conn: sqlite3.Connection, hypothesis_id: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM hypotheses WHERE id = ?", (hypothesis_id,)
