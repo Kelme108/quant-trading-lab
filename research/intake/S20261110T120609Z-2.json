@@ -1,0 +1,18 @@
+{
+  "title": "15m bullish fair-value-gap retest after a volume-backed displacement, 2R target, 12-hour time exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/fair-value-gap.md",
+    "title": "LuxAlgo Library: Fair Value Gap",
+    "license": "LuxAlgo Library: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1; spot long only, one position per pair. All signals are 15m. GAP: for bars k-1, k, k+1, a bullish gap exists when low(k+1) > high(k-1). Gap bottom GL = high(k-1), top GH = low(k+1), midpoint CE = (GL+GH)/2. It is valid only if (GH-GL)/close(k+1) >= 0.003 and close(k) > open(k) and volume(k) >= 2.0 x mean volume of bars k-20..k-1 (activity filter b on the displacement bar). The gap is known at the close of k+1 and stays active for the next 32 bars, until used, or until a bar closes below GL (invalidated). Only the most recent active gap is tracked. ENTRY at the close of bar t (t >= k+2) when low(t) <= CE and close(t) > GL, and flat. STOP = min(0.998 x GL, 0.99 x entry) so the stop is at least 1% away; TARGET = entry + 2 x (entry - stop); both fixed at entry, checked intrabar. TIME EXIT at the close of the 48th bar after entry (12 hours). At most 4 entries per pair per UTC day.",
+  "mechanism": "A gap left by a high-volume displacement bar is a span where only buyers traded: the move outran resting sell liquidity, so part of the aggressive buyers' demand is unfilled. When price retraces to the gap midpoint (consequent encroachment), these buyers and late participants re-enter, and the gap acts as support (LuxAlgo; the same continuation logic as the order-block footprint). The sellers on the other side are short-term mean-reversion traders who fade the displacement. The volume filter keeps only displacements with real participation. The 1% minimum stop and 2R target give exits near -1% or +2%: at a hit rate near 40%, the average gross move is about 0.5-0.6%, and the cost stays at 0.3R.",
+  "timeframe": "15m",
+  "longest_lookback": 80,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.55,
+  "family_hint": "FairValueGapRetest"
+}

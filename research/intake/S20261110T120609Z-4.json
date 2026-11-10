@@ -1,0 +1,18 @@
+{
+  "title": "Hourly pocket pivot: up bar out-volumes every recent down bar at the 10-bar mean, 4h uptrend, 2R or 12h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/pocket-pivot/",
+    "title": "LuxAlgo Library: Pocket Pivot (Morales and Kacher)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, fill at the open of t+1; spot long only, one position per pair. Hourly signals; one 4h filter. DOWN BAR: close(i) < close(i-1). VD(t) = highest volume among the down bars in t-10..t-1; if there is no down bar, no signal. SMA10 = mean of the last 10 1h closes. POCKET PIVOT at t when all hold: close(t) > close(t-1); volume(t) > VD(t); close(t) > SMA10(t) and low(t) <= 1.005 x SMA10(t) (the bar fires at or up through the 10-bar mean, not extended). FILTER (d): the last completed 4h candle (UTC blocks from 00:00, built from closed 1h bars) closes above the SMA(50) of 4h closes. ENTRY at the close of t when the pivot and the filter hold and the pair is flat. STOP = min(low(t), 0.99 x entry); if low(t) is more than 2.5% below close(t), skip (an extended signal). TARGET = entry + 2 x (entry - stop). Both fixed at entry, checked intrabar. TIME EXIT at the close of the 12th 1h bar after entry. At most 2 entries per pair per UTC day.",
+  "mechanism": "Morales and Kacher's premise (summarised by LuxAlgo and therighttrader): institutional accumulation leaves a volume footprint larger than any recent selling, so an up bar that out-volumes every down bar of the last 10, fired at the short mean rather than after a run, marks a buyer who is still working an order. The other side are sellers who supplied the down bars and short-horizon reversal traders. The threshold adapts to each pair's own recent down-volume, so it works across pairs of different liquidity. The 4h uptrend filter keeps trades with the higher-timeframe flow. The stop is 1-2.5% away and the target 2R (2-5%), so exits are well above the 0.30% cost: at a hit rate near 38% the average gross move is about 0.6%.",
+  "timeframe": "1h",
+  "longest_lookback": 200,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "PocketPivotVolume"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Crabel stretch breakout at the Asia, Europe and US session opens on 15m, opposite-stretch stop, session-end exit",
+  "source": {
+    "type": "blog",
+    "url": "https://oxfordstrat.com/trading-strategies/narrow-range/",
+    "title": "Oxford Capital Strategies: Narrow Range (Toby Crabel opening range breakout with stretch)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at the close of bar t, fill at the open of t+1; spot long only, one position per pair. All signals are 15m. SESSIONS each UTC day: A = bars 00:00-07:45, E = bars 08:00-13:15, U = bars 13:30-23:45. O = open of the session's first bar. For a completed session, noise = min(H - O, O - L)/O, with H and L its highest high and lowest low. STRETCH S = 2.0 x mean noise of the last 10 completed sessions of the same type (10 days; the current session is excluded). If any of those sessions is missing, no trade. ENTRY: at the close of the first bar t of the session with close(t) >= O x (1 + S), if t lies in the first half of the session (A: before 04:00, E: before 10:45, U: before 18:45), the pair is flat and no trade was taken in this session. STOP = min(O x (1 - S), 0.99 x entry), fixed at entry, checked intrabar. EXIT at the close of the session's last bar (07:45, 13:15 or 23:45), or at the stop. No target. At most one trade per session, three per pair per day.",
+  "mechanism": "Crabel's stretch (restated by Oxford Capital Strategies; daytradingtoolkit.com cites the same 1990 book) measures how far price normally strays from the open before it picks a direction. A move past twice that noise soon after a session open, when a new region's traders arrive, signals directional order flow that tends to last through the session. The other side are range traders and liquidity providers who fade the open. The stretch is a volatility-expansion test scaled to each pair's own session history, so it is the activity filter. This is a variant of HourlyWilliamsVolBreakout with session anchors and intraday exits. The stop is 2S away (typically 1.5-3%), so the cost is small in R; session-end exits on true breakouts give an average absolute exit near 1% and an estimated average gross move near 0.5%.",
+  "timeframe": "15m",
+  "longest_lookback": 1000,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 420,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "HourlyWilliamsVolBreakout"
+}

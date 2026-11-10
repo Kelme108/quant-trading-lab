@@ -1,0 +1,18 @@
+{
+  "title": "15m bullish order-block retest after a structure-breaking displacement, target the displacement high",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/bullish-bearish-order-block.md",
+    "title": "LuxAlgo Library: Bullish/bearish Order Block",
+    "license": "LuxAlgo Library: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1; spot long only, one position per pair. All signals are 15m. ATR = Wilder ATR(14). DISPLACEMENT bar d: close(d) > highest high of bars d-16..d-1 (break of the 4-hour structure), high(d)-low(d) >= 1.5 x ATR(d-1), and (close(d)-low(d))/(high(d)-low(d)) >= 0.7. ORDER BLOCK: the most recent bar j in d-5..d-1 with close(j) < open(j); if none, no setup. Zone OL = low(j), OH = high(j), mean threshold MT = (OH+OL)/2. The setup is active for 32 bars after d, until used, or until a bar closes below OL; a new displacement replaces it. ENTRY at the close of bar t > d when low(t) <= MT, close(t) > OL, ATR(t)/close(t) >= 0.004 (activity filter a), and flat. STOP = min(0.998 x OL, 0.99 x entry), at least 1% away. TARGET = max(highest high of bars d..t, 1.015 x entry), the swing high the displacement made. Both fixed at entry, checked intrabar. TIME EXIT at the close of the 48th bar after entry (12 hours). At most 4 entries per pair per UTC day.",
+  "mechanism": "LuxAlgo describes the order block as the footprint of position building: large buyers absorbed supply in the last down candle before an impulsive move broke structure, and unfilled orders tend to defend the zone when price returns. The other side are sellers who fade the breakout and the breakout buyers whose stops sit just below; their selling brings price back into the block where the remaining demand sits. Requiring a structure break, a wide bar closing near its high and a minimum volatility keeps only impulsive moves. The stop is at least 1% away and the target is at least 1.5% (usually the old high, a liquidity pool), so exits are near -1% or +1.5-2.5%; at a hit rate near 45% the average gross move is about 0.6%.",
+  "timeframe": "15m",
+  "longest_lookback": 64,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "OrderBlockRetest"
+}

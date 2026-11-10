@@ -1,0 +1,18 @@
+{
+  "title": "15m MACD-Bollinger oversold momentum turn with volatility-scaled triple barrier (Hummingbot controller)",
+  "source": {
+    "type": "blog",
+    "url": "https://hummingbot.org/blog/directional-trading-with-macd-and-bollinger-bands/",
+    "title": "Directional Trading with MACD and Bollinger Bands (Hummingbot blog)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of t+1; spot long only, one position per pair. All signals are 15m. Indicators: Bollinger Bands of close, length 100, 2.0 std; %B = (close - lower)/(upper - lower). MACD = EMA12 - EMA26 of close, signal = EMA9 of MACD, hist = MACD - signal. s(t) = std of the last 100 closes divided by close(t). ATRp = Wilder ATR(14)/close. ENTRY when all hold: %B(t) < 0.2; hist(t) > 0 and hist(t-1) <= 0 (fresh upturn); MACD(t) < 0 (still below zero); ATRp(t) >= 0.004 (activity filter a); flat; fewer than 4 entries on this pair in the current UTC day. EXIT, whichever comes first: take-profit at entry x (1 + max(1.5 x s, 0.012)); stop at entry x (1 - max(0.75 x s, 0.008)); both fixed at entry and checked intrabar; time exit at the close of the 24th bar after entry (6 hours). No trailing, no re-entry on the same bar as an exit.",
+  "mechanism": "The source's rationale: price near the lower band of a 25-hour band is overextended, and a MACD histogram turning up while MACD is still negative shows sellers losing momentum; the other side are late momentum sellers and stop-outs who sold into the extension. The Hummingbot controllers (also listed on hummingbot.org v2 examples, macd_bb_v1) exit with a triple barrier where take-profit is 1.5x and stop 0.75x the recent standard deviation. Floors of 1.2% target and 0.8% stop, plus the ATR >= 0.4% filter, make the cost 0.30% under 0.4R. With typical exits near +1.2-2% or -0.8-1%, the average absolute move is about 1%; a hit rate near 45% implies an average gross move around 0.5%.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 12,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 500,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "MACDBollingerTurn"
+}
