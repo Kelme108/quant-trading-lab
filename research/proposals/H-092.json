@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-092",
+  "family": "SessionOpeningRangeBreakout",
+  "title": "US-open 30-minute opening-range bracket on 15m: midpoint stop, 2R target, flat at 20:00 UTC, ranges >= 2% only",
+  "ex_ante_rule": "Chart 15m, closed bars only, UTC clock (fixed UTC, no DST conversion). A signal at a bar close is filled at the next bar open. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no other filters (no 1h/4h/1d filter). DAYS: trade only when the UTC date is Monday to Friday. OPENING RANGE of a UTC day: the two 15m bars opening at 13:30 and 13:45 UTC. RH = max of their highs, RL = min of their lows, M = (RH + RL) / 2. If either bar is missing or has zero volume, the day is not armed. RH, RL and M are frozen for the day. ARMED: the day is armed only if (RH - RL) / RL >= 0.02. ENTRY: on an armed day, the FIRST 15m bar whose open time is between 14:00 and 17:45 UTC inclusive and whose close > RH gives the entry signal; buy at the next bar open (latest fill 18:00 UTC). Later bars of the same day never signal, so there is at most one entry per day per pair and no new entry that day after any exit. STOP (per-trade, intrabar): at entry, the stop price is fixed at M and is never moved. This is a constant fraction s = (fill - M) / fill below the fill price for that trade (s >= about 1% because RH - M >= 1% of RL). It triggers intrabar as soon as the price touches M or lower, filled at M (or at the bar open if the bar opens below M). If fill <= M, exit at once. Safety net: the engine's native fixed stoploss is -10% below entry, used only if M cannot be read. TAKE PROFIT (intrabar): T = fill + 2.0 x (fill - M). Exit as soon as the price touches T, filled at T. TIME EXIT: the close of the 15m bar opening at 19:45 UTC on the entry day gives an exit signal, sold at the 20:00 UTC open whatever happens. As a safety against missing bars, any bar with open time >= 19:45 UTC on the entry date, or on a later date, also triggers the exit. Holding is at most 5h45m (entry 14:15 at the earliest, exit 20:00), under the 12-hour limit. If stop and target are touched in the same bar, the stop counts first. Cooldown: none beyond the one-entry-per-day rule. No indicators. Longest lookback is the 13:30 bar, 17 bars before a 17:45 signal bar. Warm-up: 96 bars.",
+  "parameters": {
+    "timeframe": "15m",
+    "opening_range_first_bar_utc": "13:30",
+    "opening_range_bars": 2,
+    "min_range_fraction": 0.02,
+    "entry_window_first_bar_open_utc": "14:00",
+    "entry_window_last_bar_open_utc": "17:45",
+    "stop_price": "range midpoint M, fixed at entry",
+    "target_r_multiple": 2.0,
+    "time_exit_signal_bar_open_utc": "19:45",
+    "time_exit_fill_utc": "20:00",
+    "max_entries_per_day_per_pair": 1,
+    "trading_days": "Monday-Friday (UTC date)",
+    "safety_stoploss_fraction": 0.10,
+    "startup_candle_count": 96
+  },
+  "rationale": "Mechanism: 13:30 UTC is the US cash-equity open in US daylight time. US funds, spot-ETF creation/redemption flow, basis traders and macro-news reactions are concentrated in the US session (a study cited below finds 13:00-21:59 UTC carries about half of BTC's daily realized variance in 2022-2025). When the first 30 minutes produce a wide range (>= 2%) and a later 15m bar closes above its high, sellers who capped the open have been absorbed. Late participants who chase the break, and shorts who placed stops above the opening high, provide the follow-through. That is who gives the money away: participants forced to buy after the break. The repo's opening-range bracket puts the stop at the range midpoint and flattens by a fixed time. Its own Time Machine replay on TSLA was 'close to a coin flip' (13 targets, 15 stops, 5 open in 33 trades), so the edge is not established. The evidence is also mixed: a 2022 Bespoke note reported BTC weakness during US hours. Cost: the 2% minimum range puts M at least about 1% below the fill, so R >= 1%, and the 2R target is >= 2% gross. The 0.30% base and 0.45% conservative round trips are at most 0.30R and 0.45R. A win nets about +1.7R, a stop about -1.3R, so break-even needs a hit rate of roughly 43% among stop/target exits (time exits fall in between). Trades: ranges >= 2% in 30 minutes are rare. I expect roughly 5-20 trades per year on BTC/ETH/BNB and 15-50 on DOGE/SOL/ADA/LINK. That is far below the owner's 400-1500 target, and some splits may end up inconclusive (<30 trades). This is the price of the cost floor, and the rule is formalised as given without loosening it.",
+  "novelty_vs_tried": "Third variant of SessionOpeningRangeBreakout, with a different structure from both earlier ones. H-034 used the 00:00 UTC 1h candle as the range (0.8% minimum), a closed-bar exit at the midpoint, a 1.5H target and a 4% fixed stop, and produced 0 trades. H-069 used a single 09:30 ET 15m bar with 0.3-2.5% ranges, a closed-bar ORL exit and a 3% catastrophe stop with no target. It produced 600-1000 tiny-move trades per pair and lost to costs. This rule uses a 30-minute (two-bar) US-open range at fixed 13:30 UTC. It requires a wide range (>= 2%) and has no upper cap, so the stop distance is at least about 1% and the cost is at most 0.3R. The stop is intrabar at the midpoint and the target is a 2R take-profit, which neither earlier variant had. In the limited set of trades it takes, it attacks H-069's cost failure directly. It differs from H-036 (USOpenVolumeContinuation: a volume-multiple signal on the 14:00 1h bar with a fixed 4-bar hold) because it has a range-breakout trigger and a bracket exit.",
+  "sources": [
+    {"title": "jakeschincariol/day-trader-skill (MIT): opening-range breakout with midpoint stop, R target, time exit, Time Machine replay", "url": "https://github.com/jakeschincariol/day-trader-skill"},
+    {"title": "Crypto never closes, but Bitcoin, Ethereum, XRP and Solana now move on Wall Street time", "url": "https://cryptoslate.com/?p=561774"},
+    {"title": "Bitcoin Falls When the US Market Opens, Pointing to Cash Raising (Advisor Perspectives / Bespoke, 2022)", "url": "https://www.advisorperspectives.com/articles/2022/05/24/bitcoin-falls-when-the-us-market-opens-pointing-to-cash-raising"},
+    {"title": "Overnight Crypto Returns", "url": "https://efalken.substack.com/p/overnight-crypto-returns"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data was inspected. Only research/context/H-092.md (exploration-split summaries of earlier hypotheses), the validation protocol, and the archived strategy H067 code were read."
+}
