@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-095",
+  "family": "SessionVWAPFirstPullback",
+  "title": "First pullback to session VWAP after a high-volume opening drive, three UTC sessions, 15m",
+  "ex_ante_rule": "Chart 15m, closed bars, UTC; a bar's time is its open time; a signal at a bar close fills at the next bar open. Spot, long only, one position per pair, no sizing hooks, no higher-timeframe filter, same numbers on all pairs. SESSIONS (every UTC day): A = bars 00:00-07:45 (32 bars), E = 08:00-13:15 (22 bars), U = 13:30-23:45 (42 bars). Bar i = i-th bar of its session (i=1 is the session open). O = open of bar 1. tp=(high+low+close)/3; VWAP(t)=sum(tp*volume)/sum(volume) over the session's bars 1..t (bar t included). DRIVE, known after bar 8 closes: D = summed volume of bars 1-8. The session is a drive session if max(high of bars 1-8) >= 1.012*O AND D >= 1.5 * mean of D of the same session (A, E or U) on the 14 previous UTC dates (all 14 must exist, else no drive). TEST: in a drive session, s = the first bar with i >= 9 and low(s) <= VWAP(s). The session is void (no trade) if close(s) < VWAP(s) OR volume(s) > mean volume of the session's bars 1..s-1. No test bar: no trade. TRIGGER: t = s+1 if close(s+1) > high(s); else t = s+2 if close(s+2) > high(s); both must lie inside the session; otherwise no trade. H = max high of the session's bars 1..t. The signal is valid only if H >= 1.01*close(t) AND bar t+1 opens at least 4 bars before session end (A: t+1 opens <= 07:00, E: <= 12:15, U: <= 22:45) AND no position is open. Buy at the open of t+1 (fill price P). FILL CHECKS (confirm_trade_entry with P = fill rate): skip if low(s) < 0.975*P, or if P >= H. STOP: SP = min(low(s), 0.99*P); d = (P-SP)/P (between 1% and 2.5%) is computed once at the fill and frozen: a fixed percentage d below the entry price, triggered intrabar (custom_stoploss returning the constant d). Native stoploss -0.03 is only a backstop. TAKE-PROFIT: limit at H, filled at H when a bar's high reaches it (at the open if a bar opens above H). If stop and H are touched in the same bar, the stop counts first. TIME EXIT: counting the fill bar as held bar 1, an exit signal at the close of held bar 12 (3 hours), or at the close of the session's last bar (07:45, 13:15 or 23:45), whichever comes first, filled at the next open. Only the first VWAP test of a session counts, so at most one trade per session (max 3 per day per pair). No cooldown, no trailing, no grid (single cell). Warm-up: 1440 bars (14 previous days of same-session drive volume = 1344 bars plus up to one current day of 96 bars; VWAP is non-recursive).",
+  "parameters": {
+    "timeframe": "15m",
+    "session_A_start_utc": "00:00",
+    "session_E_start_utc": "08:00",
+    "session_U_start_utc": "13:30",
+    "drive_bars": 8,
+    "drive_min_excursion": 0.012,
+    "drive_volume_multiple": 1.5,
+    "drive_volume_lookback_days": 14,
+    "trigger_window_bars": 2,
+    "min_room_to_session_high": 0.01,
+    "min_bars_before_session_end": 4,
+    "min_stop_fraction": 0.01,
+    "max_stop_fraction": 0.025,
+    "backstop_stoploss": -0.03,
+    "time_exit_bars": 12,
+    "max_trades_per_session": 1,
+    "warmup_bars": 1440
+  },
+  "rationale": "Mechanism: execution algorithms benchmarked to VWAP and traders who missed the opening drive treat a return to session VWAP as a fair price, so resting demand sits there; a pullback on lighter volume than the session so far shows sellers are not pressing, and the seller in that dip is a short-term profit taker paying for immediacy. The opening drive (1.2% excursion on 1.5x the normal 2-hour volume for that session) marks a session with real directional demand at the Asian, European and US equity opens, and intraday momentum is stronger on high-volume, volatile days (Gao, Han, Li, Zhou 2018, cited by the source). Cost: the target is the session high, at least 1% above the trigger close, and the stop is 1-2.5% below entry, so the 0.30%/0.45% round trip is at most about 0.3R/0.45R at the tightest stop; a gross win is >= 1%, well above cost. Expected count: about 1095 sessions per year per pair; perhaps 10-20% pass the drive filter, and about a third of those give a light-volume test and a trigger with room, so roughly 40-120 trades per year per pair, fewer on BTC, more on alts. That is below the owner's 400/year target; the rule is formalised as given without loosening. Honest caveat: the source is a US equity day-trading blog with its own simulation, not crypto evidence.",
+  "novelty_vs_tried": "H-086 (SessionVWAPBandFade) buys a 2-sigma overshoot below VWAP in a single 00:00 session and targets the VWAP itself; this rule buys the first touch of VWAP from above, only after a measured high-volume upward opening drive, targets the session high, and runs three separate sessions. H-041 reclaimed a weekly anchored VWAP (slow, tiny moves). Opening-range rules (H-067, H-092, SessionOpeningRangeBreakout cap) buy a breakout of the range itself; this buys a pullback after the drive. H-094 (EMA20 pullback in ADX trend) uses an indicator trend, not a session anchor with a volume-surprise drive.",
+  "sources": [
+    {"title": "Trading the First Pullback to VWAP in a Trending Stock (Day Trading Toolkit)", "url": "https://daytradingtoolkit.com/strategies/first-pullback-to-vwap-trend-strategy"},
+    {"title": "Market intraday momentum (Gao, Han, Li, Zhou, JFE 2018) - RePEc", "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:129:y:2018:i:2:p:394-414"},
+    {"title": "Intraday Momentum: The First Half-Hour Return Predicts the Last Half-Hour Return (Alpha Architect)", "url": "https://alphaarchitect.com/2014/08/attention-prop-traders-the-first-half-hour-of-trading-predicts-the-last-half-hour/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the context file research/context/H-095.md (exploration summaries of earlier hypotheses) and existing strategy code. Timeframe kept at 15m as in idea I-089 because the rule's 8-bar drive and 12-bar exit are defined on 15m bars."
+}
