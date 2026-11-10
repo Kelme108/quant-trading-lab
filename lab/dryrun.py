@@ -117,6 +117,16 @@ def verdict(m: dict, cfg: dict, execution: dict | None = None) -> tuple[str, lis
 
 
 def _wallet(hypothesis_id: str, key: str, cfg: dict, root: Path) -> float:
+    """The wallet one pair trades with. A multi-pair bot's wallet is shared by its N pairs (wallet = 1000 x N, N
+    slots), so each pair gets its per-pair equivalent (wallet / N): drawdowns stay a percent of the same 1000 USDT
+    as on a one-pair bot, and the pooled wallet (the sum) is the bot's whole wallet."""
+    if forward.layout(hypothesis_id, root) == forward.MULTI_PAIR:
+        try:
+            overlay = forward.multi_overlay(hypothesis_id, root)
+            pairs = len(overlay["exchange"]["pair_whitelist"]) or 1
+            return float(overlay.get("dry_run_wallet", cfg["default_wallet_quote"] * pairs)) / pairs
+        except (ValueError, OSError, KeyError, TypeError):
+            return float(cfg["default_wallet_quote"])
     overlay = root / forward.overlay_path(hypothesis_id, key)
     if overlay.is_file():
         try:
@@ -127,11 +137,12 @@ def _wallet(hypothesis_id: str, key: str, cfg: dict, root: Path) -> float:
 
 
 def evaluate_hypothesis(hypothesis_id: str, cfg: dict | None = None, root: Path = ROOT) -> dict:
-    """Pool the closed trades of every pair bot of a frozen hypothesis and judge them together."""
+    """Pool the closed trades of every pair of a frozen hypothesis and judge them together (one database per pair,
+    or the single database of a multi-pair bot split by pair)."""
     cfg = cfg or load_config()
     pooled, per_pair, wallet, raw_trades, raw_orders = [], {}, 0.0, [], []
     for key in forward.pair_keys(hypothesis_id, root):
-        trades, orders = forward.read_database(root / forward.database_path(hypothesis_id, key))
+        trades, orders = forward.read_pair(hypothesis_id, key, root)
         bot_wallet = _wallet(hypothesis_id, key, cfg, root)
         closed = forward.closed_as_backtest_trades(trades)
         wallet += bot_wallet

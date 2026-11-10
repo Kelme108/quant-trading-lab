@@ -215,6 +215,105 @@ class ReadingTests(unittest.TestCase):
         self.assertIn("monitoramento, NÃO avaliado", shown)
 
 
+MULTI_OVERLAY = {
+    "bot_name": "forward-h105", "strategy": "Multi_H105_v1", "db_url": "sqlite:///user_data/tradesv3.forward.h105.sqlite",
+    "max_open_trades": 3, "stake_amount": "unlimited", "tradable_balance_ratio": 0.25, "dry_run_wallet": 3000.0,
+    "exchange": {"pair_whitelist": ["ETH/USDT", "SOL/USDT", "BTC/USDT"]},
+}
+
+
+def write_multi_bot(root: Path) -> None:
+    files = {
+        "user_data/strategies/Multi_H105_v1.py": "# strategy\n",
+        "docker-compose.forward.h105.yml": "services:\n  forward-h105:\n    image: freqtradeorg/freqtrade:2026.9\n",
+        forward.multi_overlay_path("H-105"): json.dumps(MULTI_OVERLAY),
+    }
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text, encoding="utf-8")
+
+
+class MultiPairLayoutTests(unittest.TestCase):
+    """One container for all the pairs of a hypothesis: one overlay, one database split by the pair column."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        git(["init", "-q"], self.root)
+        git(["config", "user.email", "t@example.com"], self.root)
+        git(["config", "user.name", "T"], self.root)
+        for name, text in {"docker-compose.yml": "base\n", "user_data/config.dryrun.json": "{}\n"}.items():
+            (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / name).write_text(text, encoding="utf-8")
+        write_multi_bot(self.root)
+        git(["add", "-A"], self.root)
+        git(["commit", "-q", "-m", "h105"], self.root)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_the_layout_and_the_pairs_come_from_the_single_overlay(self) -> None:
+        self.assertEqual(forward.layout("H-105", self.root), forward.MULTI_PAIR)
+        self.assertEqual(forward.pair_keys("H-105", self.root), ["btc", "eth", "sol"])  # PAIR_KEYS order
+        self.assertEqual(forward.container_name("H-105"), "forward-h105")
+        self.assertEqual(forward.pair_database("H-105", "eth", self.root), "user_data/tradesv3.forward.h105.sqlite#ETH_USDT")
+        # a hypothesis with per-pair overlays (or none at all) keeps the old layout
+        self.assertEqual(forward.layout("H-009", self.root), forward.PER_PAIR)
+        self.assertEqual(forward.pair_keys("H-009", self.root), ["btc", "eth", "bnb"])
+        self.assertEqual(forward.pair_database("H-009", "eth", self.root), "user_data/tradesv3.forward.h009.eth.sqlite")
+
+    def test_the_freeze_describes_one_bot_and_lists_every_pair(self) -> None:
+        frozen = forward.build_freeze("H-105", self.root, now="2026-11-10T00:00:00+00:00")
+        self.assertEqual(frozen["layout"], forward.MULTI_PAIR)
+        self.assertEqual(frozen["bot"]["container"], "forward-h105")
+        self.assertEqual(frozen["bot"]["database"], "user_data/tradesv3.forward.h105.sqlite")
+        self.assertEqual(frozen["bot"]["max_open_trades"], 3)
+        self.assertEqual(frozen["bot"]["wallet_per_pair"], 1000.0)
+        self.assertEqual(frozen["exposure_by_pair"], {"BTC/USDT": 0.25, "ETH/USDT": 0.25, "SOL/USDT": 0.25})
+        self.assertEqual(frozen["databases"]["SOL/USDT"], "user_data/tradesv3.forward.h105.sqlite#SOL_USDT")
+        self.assertEqual(set(frozen["files"]), {"user_data/strategies/Multi_H105_v1.py", "docker-compose.forward.h105.yml",
+                                                "docker-compose.yml", "user_data/config.dryrun.json", "forward/config.h105.json"})
+        path = forward.freeze_path("H-105", self.root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(frozen), encoding="utf-8")
+        git(["add", "-A"], self.root)
+        git(["commit", "-q", "-m", "freeze"], self.root)
+        self.assertEqual(forward.check_freeze("H-105", self.root), [])
+        overlay = self.root / forward.multi_overlay_path("H-105")
+        overlay.write_bytes(overlay.read_bytes() + b" ")
+        self.assertTrue(any("forward/config.h105.json" in p for p in forward.check_freeze("H-105", self.root)))
+
+    def test_an_overlay_whose_slots_do_not_match_its_pairs_is_refused(self) -> None:
+        (self.root / forward.multi_overlay_path("H-105")).write_text(json.dumps({**MULTI_OVERLAY, "max_open_trades": 1}), encoding="utf-8")
+        git(["commit", "-q", "-am", "one slot"], self.root)
+        with self.assertRaises(ValueError):
+            forward.build_freeze("H-105", self.root)
+
+    def test_the_single_database_is_split_by_pair_with_its_orders(self) -> None:
+        db = self.root / forward.multi_database_path("H-105")
+        eth = {**CLOSED, "id": 1, "pair": "ETH/USDT"}
+        sol = {**CLOSED, "id": 2, "pair": "SOL/USDT", "close_profit": -0.01, "close_profit_abs": -2.5}
+        sol_open = {**OPEN, "id": 3, "pair": "SOL/USDT"}
+        orders = [{"ft_trade_id": i, "ft_order_side": "buy", "status": "closed", "filled": 1.0,
+                   "order_date": "2026-11-01 10:00:00.000000", "order_filled_date": "2026-11-01 10:01:00.000000"} for i in (1, 2, 3)]
+        make_database(db, [eth, sol, sol_open], orders)
+        trades, order_rows = forward.read_pair("H-105", "sol", self.root)
+        self.assertEqual([t["id"] for t in trades], [2, 3])
+        self.assertEqual([o["ft_trade_id"] for o in order_rows], [2, 3])
+        trades, order_rows = forward.read_pair("H-105", "eth", self.root)
+        self.assertEqual(([t["id"] for t in trades], [o["ft_trade_id"] for o in order_rows]), ([1], [1]))
+        self.assertEqual(forward.read_pair("H-105", "btc", self.root), ([], []))
+        # the freeze's selector path is read the same way by readers that only know `databases` (dashboard, report)
+        trades, _ = forward.read_database(self.root / "user_data/tradesv3.forward.h105.sqlite#SOL_USDT")
+        self.assertEqual(len(trades), 2)
+        # the whole database without a selector
+        self.assertEqual(len(forward.read_database(db)[0]), 3)
+        self.assertEqual(len(forward.read_database(db, "ETH/USDT")[0]), 1)
+
+    def test_a_missing_multi_database_reads_as_empty(self) -> None:
+        self.assertEqual(forward.read_pair("H-105", "eth", self.root), ([], []))
+
+
 class RealFilesTests(unittest.TestCase):
     """The files the user will actually start."""
 
@@ -259,6 +358,16 @@ class RealFilesTests(unittest.TestCase):
     def test_the_h009_strategy_and_all_tracked_files_exist(self) -> None:
         for name in forward.tracked_files("H-009", ROOT):
             self.assertTrue((ROOT / name).is_file(), name)
+
+    def test_every_bot_frozen_so_far_keeps_its_per_pair_layout_and_records(self) -> None:
+        for record in sorted((ROOT / "research" / "forward").glob("H-*-freeze.json")):
+            hid = record.name.removesuffix("-freeze.json")
+            frozen = json.loads(record.read_text(encoding="utf-8"))
+            if frozen.get("layout") == forward.MULTI_PAIR:
+                continue
+            self.assertEqual(forward.layout(hid, ROOT), forward.PER_PAIR, hid)
+            self.assertEqual({forward.PAIR_KEYS[k]: forward.pair_database(hid, k, ROOT) for k in forward.pair_keys(hid, ROOT)},
+                             frozen["databases"], hid)
 
 
 if __name__ == "__main__":

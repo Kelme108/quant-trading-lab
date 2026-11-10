@@ -4,8 +4,9 @@ approval. It never reaches real money.
 Policy (lab/config/autopilot.json, written by the owner, never by an agent):
   - a hypothesis that is `candidate_for_portfolio` on every pair in exploration gets its single validation read,
     at the exposure calibrated on exploration (nothing is tuned);
-  - every pair whose validation decision is `candidate_for_portfolio` gets a dry-run bot: per-pair overlay,
-    its own compose file, a freeze by hash, and `docker compose up -d`;
+  - the pairs whose validation decision is `candidate_for_portfolio` get dry-run: since 2026-11-10 ONE bot (one
+    container, one overlay, one database) trading all of them (layout multi_pair, lab/forward.py); the bots frozen
+    before keep one container per pair. Its own compose file, a freeze by hash, and `docker compose up -d`;
   - pairs that were rejected or inconclusive get nothing; a calibrated stake below the exchange minimum gets nothing.
 
 Each step is recorded as an approval by `autopilot-policy` (with the policy's owner and date in the note), so the
@@ -121,10 +122,69 @@ def compose_name(hypothesis_id: str) -> str:
     return f"docker-compose.forward.{forward.tag(hypothesis_id)}.yml"
 
 
+def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: float, strategy_class: str,
+                            root: Path, image: str, wallet_quote: float) -> list[str]:
+    """ONE overlay and ONE service for all the pairs (lab/forward.py, layout multi_pair).
+
+    Same stake per trade as a one-pair bot with `wallet_quote`: Freqtrade's unlimited stake is
+    (wallet + closed profit) x tradable_balance_ratio / max_open_trades, so a wallet of wallet_quote x N with N slots
+    gives wallet_quote x ratio per trade, and N slots let every pair hold its one position at the same time."""
+    tag, n = forward.tag(hypothesis_id), len(pairs)
+    for pair in pairs:
+        KEY_OF[pair]  # an unknown pair is refused before anything is written
+    overlay = {
+        "bot_name": forward.container_name(hypothesis_id),
+        "strategy": strategy_class,
+        "db_url": f"sqlite:///{forward.multi_database_path(hypothesis_id)}",
+        "max_open_trades": n,
+        "stake_amount": "unlimited",
+        "tradable_balance_ratio": exposure,
+        "dry_run_wallet": float(wallet_quote) * n,
+        "exchange": {"pair_whitelist": list(pairs)},
+    }
+    path = root / forward.multi_overlay_path(hypothesis_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(overlay, indent=2) + "\n", encoding="utf-8")
+    name = forward.container_name(hypothesis_id)
+    header = (
+        f"# Dry-run evidence collection for {hypothesis_id} ({strategy_class}), written by the autopilot policy\n"
+        f"# (lab/autopilot.py, lab/config/autopilot.json) on the pairs whose single validation read was a candidate:\n"
+        f"# {', '.join(pairs)}. Exposure {exposure} is the one calibrated on exploration. ONE bot for all {n} pairs\n"
+        f"# (layout multi_pair, lab/forward.py): max_open_trades {n} and a {float(wallet_quote) * n:g} USDT paper wallet,\n"
+        f"# so each pair trades {float(wallet_quote):g} x {exposure} per trade, as in its one-pair backtest. Base config\n"
+        f"# first, the overlay changes only bot name, strategy, database, slots, wallet, exposure and pairs.\n"
+        f"# No API server, no exchange keys, no real money.\n"
+        f"# Check the freeze first:  python research/tools/forward_freeze.py {hypothesis_id} --check\n"
+        f"name: trading-lab-forward-{tag}\n\nservices:\n"
+    )
+    service = (
+        f"  {name}:\n"
+        f"    image: {image}\n"
+        f"    restart: \"no\"\n"
+        f"    container_name: {name}\n"
+        f"    volumes:\n"
+        f"      - \"./user_data:/freqtrade/user_data\"\n"
+        f"      - \"./forward:/freqtrade/forward:ro\"\n"
+        f"    command: >-\n"
+        f"      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/{forward.multi_overlay_path(hypothesis_id)}\n"
+        f"      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/{name}.log\n"
+    )
+    (root / compose_name(hypothesis_id)).write_text(header + service, encoding="utf-8")
+    return [forward.multi_overlay_path(hypothesis_id), compose_name(hypothesis_id)]
+
+
 def write_forward_files(hypothesis_id: str, pairs: list[str], exposure: float, strategy_class: str,
                         root: Path = ROOT, image: str = "freqtradeorg/freqtrade:2026.9",
-                        wallet_quote: float = runner.BACKTEST_WALLET) -> list[str]:
-    """Per-pair overlays and the hypothesis' own compose file, in the shape of the H-016 ones. Returns the paths."""
+                        wallet_quote: float = runner.BACKTEST_WALLET, layout: str = forward.MULTI_PAIR) -> list[str]:
+    """The hypothesis' overlay(s) and its own compose file. Returns the paths.
+
+    layout multi_pair (default for new bots): one overlay and one container for all the pairs.
+    layout per_pair (every bot frozen up to 2026-11-10): one overlay and one service per pair, in the shape of the
+    H-016 ones; its bytes are unchanged so the old freezes stay reproducible."""
+    if layout == forward.MULTI_PAIR:
+        return _write_multi_pair_files(hypothesis_id, pairs, exposure, strategy_class, root, image, wallet_quote)
+    if layout != forward.PER_PAIR:
+        raise ValueError(f"unknown forward layout {layout!r}")
     tag = forward.tag(hypothesis_id)
     written = []
     services = []
@@ -168,12 +228,32 @@ def write_forward_files(hypothesis_id: str, pairs: list[str], exposure: float, s
     return written
 
 
+def bots_of_freeze(frozen: dict) -> int:
+    """Containers a freeze record runs: 1 for a multi_pair bot, one per pair for a per_pair one."""
+    if frozen.get("layout") == forward.MULTI_PAIR:
+        return 1
+    return len(frozen.get("databases", {}))
+
+
 def running_forward_bots(root: Path = ROOT) -> int:
-    """Bots already frozen for dry-run (one per pair in every freeze record)."""
+    """Dry-run bots already frozen, counted as CONTAINERS (one per pair for the per_pair freezes, one per hypothesis
+    for the multi_pair ones).
+
+    Note on the cap (lab/config/autopilot.json `max_forward_bots`): it exists because each container costs about
+    0.5 GiB of the Docker VM, so it counts memory units, not pairs. A multi-pair bot is ONE bot under the cap however
+    many pairs it trades; that is honest because its pairs share one process (one Python, one exchange connection,
+    one database), and the extra pairs cost a small fraction of a container. The pairs under dry-run are still listed
+    pair by pair in every freeze (`databases`), so nothing is hidden: `running_forward_pairs` counts them."""
     total = 0
     for path in sorted((root / "research" / "forward").glob("H-*-freeze.json")):
-        total += len(json.loads(path.read_text(encoding="utf-8")).get("databases", {}))
+        total += bots_of_freeze(json.loads(path.read_text(encoding="utf-8")))
     return total
+
+
+def running_forward_pairs(root: Path = ROOT) -> int:
+    """Pair streams under dry-run (every pair of every freeze record, whatever the layout)."""
+    return sum(len(json.loads(p.read_text(encoding="utf-8")).get("databases", {}))
+               for p in sorted((root / "research" / "forward").glob("H-*-freeze.json")))
 
 
 def start_bots(compose: str, root: Path = ROOT) -> tuple[bool, str]:
@@ -199,12 +279,18 @@ def freeze(conn, hypothesis_id: str, root: Path = ROOT) -> dict:
 
 def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], root: Path = ROOT,
         policy: dict | None = None, read: Callable = read_validation, start: Callable = start_bots,
-        pairs: list[str] | None = None) -> dict:
+        pairs: list[str] | None = None, layout: str | None = None) -> dict:
     """Apply the policy to one exploration candidate. {'outcome', 'detail', 'pairs'}; never raises for a policy
-    refusal (it is reported), only for a broken repository."""
+    refusal (it is reported), only for a broken repository.
+
+    `layout` is the dry-run bot layout (lab/forward.py): multi_pair (one container for all the pairs that passed) by
+    default, or the policy's `forward_layout` when it sets one; per_pair is the old one-container-per-pair layout."""
     policy = policy if policy is not None else load_policy(root / "lab" / "config" / "autopilot.json")
     if policy.get("real_money") is not False:
         raise PolicyError("real_money must be false")
+    layout = layout or policy.get("forward_layout") or forward.MULTI_PAIR
+    if layout not in (forward.MULTI_PAIR, forward.PER_PAIR):
+        raise PolicyError(f"unknown forward layout {layout!r}")
     result = {"outcome": "candidate: awaiting the user's approval to read the validation", "detail": "", "pairs": []}
     if not (policy["enabled"] and policy["auto_validation"]):
         result["detail"] = "autopilot off"
@@ -240,7 +326,8 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
                               f"below the minimum order {min_stake:g})", detail=summary)
         return result
     cap = int(policy.get("max_forward_bots", 12))
-    if running_forward_bots(root) + len(passed) > cap:
+    new_bots = 1 if layout == forward.MULTI_PAIR else len(passed)
+    if running_forward_bots(root) + new_bots > cap:
         result.update(outcome=f"validation passed on {', '.join(passed)}; no dry-run (the {cap}-bot cap would be "
                               f"exceeded: ask the user)", detail=summary)
         return result
@@ -248,7 +335,7 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
     registry.add_approval(conn, hypothesis_id=hypothesis_id, stage="dryrun", approved_by=ACTOR,
                           note=f"{note}; pairs {', '.join(passed)}"[:300], created_at_utc=_now())
     strategy = forward.find_strategy(hypothesis_id, root)
-    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root, wallet_quote=wallet)
+    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root, wallet_quote=wallet, layout=layout)
     commit(files + [str(strategy.relative_to(root)).replace("\\", "/")],
            f"forward({hypothesis_id}): dry-run files written by the autopilot policy ({', '.join(passed)})")
     frozen = freeze(conn, hypothesis_id, root)

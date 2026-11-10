@@ -283,6 +283,15 @@ Gasto real: de US$ 3 a US$ 10 por ciclo. Total até hoje: cerca de US$ 79 em 245
 - Os 5 bots atuais têm carteira simulada de 100 USDT (congelada); bots novos nascem com 1.000.
 - Sem API exposta, sem chave de corretora, sem porta aberta. Cada bot tem seu banco `user_data/tradesv3.forward.*.sqlite`.
 - Relatório: `python research/tools/forward_report.py H-009`.
+- **Layout novo (bots criados a partir de 10/11/2026): um contêiner por hipótese**, não por par. Um só overlay
+  `forward/config.<tag>.json` com todos os pares aprovados, `max_open_trades` = nº de pares, carteira = 1.000 × nº de
+  pares e stake `unlimited`; um só banco `user_data/tradesv3.forward.<tag>.sqlite` e um só contêiner `forward-<tag>`.
+  Memória medida: ~417 MiB com 9 pares após 3 min (um bot de um par usa ~440-640 MiB).
+- O stake do Freqtrade (`(carteira + lucro fechado) × tradable_balance_ratio / max_open_trades`) dá a cada par os mesmos
+  1.000 × exposição por trade do backtest de um par, e cada par sempre tem sua vaga (testado na imagem 2026.9).
+- Os relatórios separam os trades pela coluna `pair`; o veredito usa 1.000 USDT por par, então o drawdown (% da
+  carteira) é comparável ao dos bots antigos. O teto `max_forward_bots` conta contêineres: um bot multi-par conta 1.
+- Os bots já congelados continuam um por par, sem mudança (o congelamento por SHA-256 deles segue valendo).
 
 ### 8.2 Time Machine (`lab/timemachine.py`, desde 08/11)
 Ferramenta de pesquisa e acompanhamento portada do day-trader-skill: para um plano (par, dia, entrada, stop, alvo, hora

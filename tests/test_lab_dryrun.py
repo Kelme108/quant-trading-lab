@@ -1,6 +1,14 @@
+import json
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
-from lab import dryrun
+sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parent))
+
+from lab import dryrun, forward  # noqa: E402
+from test_lab_forward import CLOSED, OPEN, make_database  # noqa: E402
 
 CFG = dryrun.load_config()
 
@@ -60,6 +68,60 @@ class DryRunVerdictTests(unittest.TestCase):
         a = dryrun.bootstrap_prob_positive([0.01, -0.005, 0.02, -0.01], 500, 1)
         self.assertEqual(a, dryrun.bootstrap_prob_positive([0.01, -0.005, 0.02, -0.01], 500, 1))
         self.assertEqual(dryrun.bootstrap_prob_positive([], 10, 1), 0.0)
+
+
+def multi_pair_root(root: Path, pairs: list[str], wallet_per_pair: float = 1000.0) -> None:
+    overlay = {"bot_name": "forward-h105", "strategy": "X_H105_v1", "db_url": f"sqlite:///{forward.multi_database_path('H-105')}",
+               "max_open_trades": len(pairs), "stake_amount": "unlimited", "tradable_balance_ratio": 0.25,
+               "dry_run_wallet": wallet_per_pair * len(pairs), "exchange": {"pair_whitelist": pairs}}
+    path = root / forward.multi_overlay_path("H-105")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(overlay), encoding="utf-8")
+    (root / "user_data").mkdir(exist_ok=True)
+
+
+class MultiPairBotTests(unittest.TestCase):
+    """One bot for several pairs is judged exactly like several one-pair bots with 1000 USDT each."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = Path(self.tmp.name)
+        multi_pair_root(self.root, ["ETH/USDT", "SOL/USDT", "BTC/USDT"])
+        eth_loss = {**CLOSED, "id": 1, "pair": "ETH/USDT", "close_profit": -0.2, "close_profit_abs": -50.0,
+                    "close_date": "2026-11-02 10:00:00.000000"}
+        eth_win = {**CLOSED, "id": 2, "pair": "ETH/USDT", "close_profit": 0.1, "close_profit_abs": 25.0}
+        sol = {**CLOSED, "id": 3, "pair": "SOL/USDT", "close_profit": 0.04, "close_profit_abs": 10.0}
+        sol_open = {**OPEN, "id": 4, "pair": "SOL/USDT"}
+        make_database(self.root / forward.multi_database_path("H-105"), [eth_loss, eth_win, sol, sol_open], [])
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_the_wallet_is_the_per_pair_equivalent_and_the_trades_are_split_by_pair(self) -> None:
+        result = dryrun.evaluate_hypothesis("H-105", CFG, self.root)
+        self.assertEqual(result["wallet"], 3000.0)                      # 3 pairs x 1000, as three one-pair bots
+        self.assertEqual(set(result["per_pair"]), {"BTC/USDT", "ETH/USDT", "SOL/USDT"})
+        self.assertEqual(result["per_pair"]["ETH/USDT"]["trades"], 2)
+        self.assertEqual(result["per_pair"]["SOL/USDT"]["trades"], 1)   # the open trade is not counted
+        self.assertEqual(result["per_pair"]["BTC/USDT"]["trades"], 0)
+        self.assertAlmostEqual(result["per_pair"]["ETH/USDT"]["max_drawdown_pct"], 5.0)   # 50 of 1000, not of 3000
+        self.assertEqual(result["pooled"]["trades"], 3)
+        self.assertAlmostEqual(result["pooled"]["net_profit"], -15.0)
+        self.assertAlmostEqual(result["pooled"]["max_drawdown_pct"], 100 * 50 / 3000)
+        self.assertEqual(result["verdict"], "collecting")
+
+    def test_same_trades_same_numbers_in_either_layout(self) -> None:
+        per_pair = Path(self.tmp.name) / "per_pair"
+        for key, pair in (("eth", "ETH/USDT"), ("sol", "SOL/USDT"), ("btc", "BTC/USDT")):
+            path = per_pair / forward.overlay_path("H-105", key)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"dry_run_wallet": 1000.0, "exchange": {"pair_whitelist": [pair]}}), encoding="utf-8")
+            (per_pair / "user_data").mkdir(exist_ok=True)
+            trades, _ = forward.read_pair("H-105", key, self.root)
+            make_database(per_pair / forward.database_path("H-105", key), trades, [])
+        a = dryrun.evaluate_hypothesis("H-105", CFG, self.root)
+        b = dryrun.evaluate_hypothesis("H-105", CFG, per_pair)
+        self.assertEqual((a["wallet"], a["per_pair"], a["pooled"]), (b["wallet"], b["per_pair"], b["pooled"]))
 
 
 if __name__ == "__main__":

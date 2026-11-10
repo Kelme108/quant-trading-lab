@@ -64,9 +64,10 @@ def disk_candles(pair: str, tf: str, limit: int = 400, root: Path = ROOT) -> lis
 
 
 def _bot_trades(hid: str, root: Path) -> dict[str, list[dict]]:
+    """{pair: trades} for both layouts: a per-pair database each, or a multi-pair bot's one database split by pair."""
     out = {}
     for key in forward.pair_keys(hid, root):
-        trades, _ = forward.read_database(root / forward.database_path(hid, key))
+        trades, _ = forward.read_pair(hid, key, root)
         out[forward.PAIR_KEYS.get(key, key)] = trades
     return out
 

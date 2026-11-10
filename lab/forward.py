@@ -7,6 +7,17 @@ Freeze: SHA-256 of the strategy, the per-pair overlays, the forward compose, the
 image tag and the git commit, written to research/forward/<H>-freeze.json. `check_freeze` fails when any of them
 changed, so a bot is never trusted after an edit.
 
+Two bot layouts (decided by the files present, recorded in the freeze):
+  per_pair    (every bot frozen up to 2026-11-10) one container per pair: forward/config.<tag>.<key>.json, database
+              user_data/tradesv3.forward.<tag>.<key>.sqlite, container forward-<tag>-<key>, a wallet each (100 USDT before 2026-11-08, 1000 after);
+  multi_pair  (new bots) ONE container per hypothesis trading all its pairs: forward/config.<tag>.json with the pair list,
+              max_open_trades = N pairs, dry_run_wallet = 1000 x N and stake "unlimited", database
+              user_data/tradesv3.forward.<tag>.sqlite, container forward-<tag>. Freqtrade's unlimited stake is
+              (wallet + closed profit) x tradable_balance_ratio / max_open_trades, so every pair still trades
+              1000 x ratio per trade, as in its single-pair backtest, and the N pairs never starve each other (one
+              open trade per pair at most, N slots). The trades of one pair are read from the single database by its
+              `pair` column; the freeze lists them as `<database>#<BASE>_<QUOTE>` so per-pair readers keep working.
+
 Read: the Freqtrade SQLite of each bot, opened read-only. The report is about EXECUTION (fills, slippage, fees,
 missed entries). It does not aggregate returns unless asked, and then it says "monitoring, not evaluated": the formal
 evaluation is the prospective holdout (lab/config/holdout.json). A signal-by-signal comparison with a backtest over
@@ -58,6 +69,67 @@ def database_path(hypothesis_id: str, key: str) -> str:
     return f"user_data/tradesv3.forward.{tag(hypothesis_id)}.{key}.sqlite"
 
 
+PER_PAIR = "per_pair"
+MULTI_PAIR = "multi_pair"
+SELECTOR = "#"
+
+
+def multi_overlay_path(hypothesis_id: str) -> str:
+    """The single overlay of a multi-pair bot (all its pairs in one whitelist)."""
+    return f"forward/config.{tag(hypothesis_id)}.json"
+
+
+def multi_database_path(hypothesis_id: str) -> str:
+    """The single database of a multi-pair bot (every pair's trades, told apart by the `pair` column)."""
+    return f"user_data/tradesv3.forward.{tag(hypothesis_id)}.sqlite"
+
+
+def container_name(hypothesis_id: str, key: str | None = None) -> str:
+    """forward-<tag> for a multi-pair bot, forward-<tag>-<key> for a per-pair one."""
+    return f"forward-{tag(hypothesis_id)}" + (f"-{key}" if key else "")
+
+
+def _per_pair_present(hypothesis_id: str, root: Path) -> list[str]:
+    return [key for key in PAIR_KEYS if (root / overlay_path(hypothesis_id, key)).is_file()]
+
+
+def layout(hypothesis_id: str, root: Path = ROOT) -> str:
+    """multi_pair when the hypothesis has the single overlay and no per-pair overlay; per_pair otherwise (the old
+    bots, and the legacy three-pair default)."""
+    if not _per_pair_present(hypothesis_id, root) and (root / multi_overlay_path(hypothesis_id)).is_file():
+        return MULTI_PAIR
+    return PER_PAIR
+
+
+def multi_overlay(hypothesis_id: str, root: Path = ROOT) -> dict:
+    return json.loads((root / multi_overlay_path(hypothesis_id)).read_text(encoding="utf-8"))
+
+
+def pair_selector(database: str, pair: str) -> str:
+    """'user_data/x.sqlite' + 'ETH/USDT' -> 'user_data/x.sqlite#ETH_USDT': one pair's rows inside a shared database."""
+    return f"{database}{SELECTOR}{pair.replace('/', '_')}"
+
+
+def split_selector(db: Path) -> tuple[Path, str | None]:
+    """The inverse of `pair_selector` on a path: (real database, pair or None)."""
+    base, sep, selected = db.name.partition(SELECTOR)
+    if not sep or not selected:
+        return db, None
+    return db.with_name(base), selected.replace("_", "/")
+
+
+def pair_database(hypothesis_id: str, key: str, root: Path = ROOT) -> str:
+    """Where one pair's trades are: its own database (per_pair) or a selector into the shared one (multi_pair)."""
+    if layout(hypothesis_id, root) == MULTI_PAIR:
+        return pair_selector(multi_database_path(hypothesis_id), PAIR_KEYS[key])
+    return database_path(hypothesis_id, key)
+
+
+def read_pair(hypothesis_id: str, key: str, root: Path = ROOT) -> tuple[list[dict], list[dict]]:
+    """(trades, orders) of one pair of a hypothesis, whatever the layout. Read-only."""
+    return read_database(root / pair_database(hypothesis_id, key, root))
+
+
 def compose_path(hypothesis_id: str, root: Path = ROOT) -> str:
     """docker-compose.forward.<tag>.yml when the hypothesis has its own file, else the shared one (H-009).
 
@@ -68,9 +140,15 @@ def compose_path(hypothesis_id: str, root: Path = ROOT) -> str:
 
 
 def pair_keys(hypothesis_id: str, root: Path = ROOT) -> list[str]:
-    """The pairs this hypothesis runs on: those with an overlay file (the original three when none exists)."""
-    present = [key for key in PAIR_KEYS if (root / overlay_path(hypothesis_id, key)).is_file()]
-    return present or list(LEGACY_KEYS)
+    """The pairs this hypothesis runs on: those with a per-pair overlay file, else the whitelist of the multi-pair
+    overlay (in PAIR_KEYS order), else the original three."""
+    present = _per_pair_present(hypothesis_id, root)
+    if present:
+        return present
+    if (root / multi_overlay_path(hypothesis_id)).is_file():
+        whitelist = multi_overlay(hypothesis_id, root)["exchange"]["pair_whitelist"]
+        return [key for key, pair in PAIR_KEYS.items() if pair in whitelist]
+    return list(LEGACY_KEYS)
 
 
 def find_strategy(hypothesis_id: str, root: Path = ROOT) -> Path:
@@ -85,6 +163,8 @@ def tracked_files(hypothesis_id: str, root: Path = ROOT) -> list[str]:
     """Every file whose bytes decide what the bots do."""
     files = [str(find_strategy(hypothesis_id, root).relative_to(root)).replace("\\", "/"),
              compose_path(hypothesis_id, root), *BASE_FILES]
+    if layout(hypothesis_id, root) == MULTI_PAIR:
+        return files + [multi_overlay_path(hypothesis_id)]
     files += [overlay_path(hypothesis_id, key) for key in pair_keys(hypothesis_id, root)]
     return files
 
@@ -110,6 +190,8 @@ def build_freeze(hypothesis_id: str, root: Path = ROOT, now: str | None = None) 
     if dirty:
         raise ValueError("these files are not committed, so the freeze would not match a commit:\n" + dirty)
     strategy_file = files[0]
+    if layout(hypothesis_id, root) == MULTI_PAIR:
+        return _build_multi_freeze(hypothesis_id, files, root, now)
     exposures = {key: json.loads((root / overlay_path(hypothesis_id, key)).read_text(encoding="utf-8"))["tradable_balance_ratio"]
                  for key in pair_keys(hypothesis_id, root)}
     return {
@@ -119,6 +201,35 @@ def build_freeze(hypothesis_id: str, root: Path = ROOT, now: str | None = None) 
         "strategy": {"class": Path(strategy_file).stem, "file": strategy_file, "sha256": sha256_file(root / strategy_file)},
         "exposure_by_pair": {PAIR_KEYS[k]: v for k, v in exposures.items()},
         "databases": {PAIR_KEYS[k]: database_path(hypothesis_id, k) for k in pair_keys(hypothesis_id, root)},
+        "files": {f: sha256_file(root / f) for f in files},
+    }
+
+
+def _build_multi_freeze(hypothesis_id: str, files: list[str], root: Path, now: str | None) -> dict:
+    """Freeze record of a multi-pair bot: the same keys as a per-pair one (so every reader keeps working), plus
+    `layout` and `bot`. `databases` maps each pair to a selector into the one database."""
+    overlay = multi_overlay(hypothesis_id, root)
+    keys = pair_keys(hypothesis_id, root)
+    pairs = [PAIR_KEYS[k] for k in keys]
+    database = multi_database_path(hypothesis_id)
+    if overlay.get("db_url") != f"sqlite:///{database}":
+        raise ValueError(f"{multi_overlay_path(hypothesis_id)}: db_url must be sqlite:///{database}")
+    if int(overlay.get("max_open_trades", 0)) != len(pairs):
+        raise ValueError(f"{multi_overlay_path(hypothesis_id)}: max_open_trades must equal the {len(pairs)} pairs")
+    strategy_file = files[0]
+    wallet = float(overlay["dry_run_wallet"])
+    return {
+        "hypothesis": hypothesis_id, "label": LABEL, "rules": list(RULES),
+        "frozen_at_utc": now or datetime.now(timezone.utc).isoformat(),
+        "git_commit": _git(["rev-parse", "HEAD"], root), "image": image_tag(root, compose_path(hypothesis_id, root)),
+        "strategy": {"class": Path(strategy_file).stem, "file": strategy_file, "sha256": sha256_file(root / strategy_file)},
+        "layout": MULTI_PAIR,
+        "bot": {"container": container_name(hypothesis_id), "overlay": multi_overlay_path(hypothesis_id),
+                "database": database, "pairs": pairs, "max_open_trades": len(pairs), "dry_run_wallet": wallet,
+                "wallet_per_pair": wallet / len(pairs), "stake_amount": overlay.get("stake_amount", "unlimited"),
+                "tradable_balance_ratio": overlay["tradable_balance_ratio"]},
+        "exposure_by_pair": {pair: overlay["tradable_balance_ratio"] for pair in pairs},
+        "databases": {pair: pair_selector(database, pair) for pair in pairs},
         "files": {f: sha256_file(root / f) for f in files},
     }
 
@@ -155,8 +266,13 @@ def _connect_ro(db: Path) -> sqlite3.Connection:
     return conn
 
 
-def read_database(db: Path) -> tuple[list[dict], list[dict]]:
-    """(trades, orders) from a Freqtrade SQLite, read-only. ([], []) when the file does not exist yet."""
+def read_database(db: Path, pair: str | None = None) -> tuple[list[dict], list[dict]]:
+    """(trades, orders) from a Freqtrade SQLite, read-only. ([], []) when the file does not exist yet.
+
+    With a pair (given, or as a `#BASE_QUOTE` selector at the end of the path) only that pair's trades are kept, and
+    only the orders of those trades: a multi-pair bot keeps every pair in one database."""
+    db, selected = split_selector(db)
+    pair = pair or selected
     if not db.is_file():
         return [], []
     conn = _connect_ro(db)
@@ -165,6 +281,10 @@ def read_database(db: Path) -> tuple[list[dict], list[dict]]:
         orders = [dict(r) for r in conn.execute("SELECT * FROM orders ORDER BY order_date")]
     finally:
         conn.close()
+    if pair is not None:
+        trades = [t for t in trades if t.get("pair") == pair]
+        ids = {t.get("id") for t in trades}
+        orders = [o for o in orders if o.get("ft_trade_id") in ids]
     return trades, orders
 
 
