@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-099",
+  "family": "TimeSeriesMomentum",
+  "title": "Sixty-hour momentum sign with a rising-bar trigger, intraday entries 00:00-16:00 UTC, flat by 23:00 UTC or 12 bars",
+  "ex_ante_rule": "Chart: 1h, closed candles only; every signal is computed at the close of bar t and filled at the open of bar t+1. Spot, long only, one open position per pair, whole allowed balance per trade, no pyramiding, no take-profit, no other filters. Definitions on bar t: MOM(t) = close(t) / close(t-60) - 1 (close of the bar 60 bars earlier). ENTRY signal at the close of bar t when ALL hold: (1) close(t) > close(t-60); (2) close(t) > close(t-1); (3) no open position on the pair; (4) cooldown satisfied: at least 2 candles have elapsed since the last exit on the pair (Freqtrade CooldownPeriod, stop_duration_candles = 2); (5) session window: the FILL bar t+1 opens at 00:00, 01:00, ..., 16:00 UTC inclusive (equivalently the signal bar t opens at 23:00 UTC or at 00:00-15:00 UTC); (6) day cap: fewer than 2 entries have been filled on this pair with a fill time on the same UTC calendar day as bar t+1 (count by entry fill date; reject the third and later entries in confirm_trade_entry). EXIT (first one that occurs): (a) momentum exit: at the close of bar t, close(t) <= close(t-60) -> sell at the open of t+1; (b) stop-loss: fixed 2% below the entry fill price, native Freqtrade stoploss = -0.02, triggered intrabar as soon as price touches it; (c) evening exit: any position still open is sold at the open of the 23:00 UTC bar (signal raised at the close of the 22:00 UTC bar); (d) time exit: any position still open is sold at the open of the bar that starts 12 hours after the entry fill (i.e. 12 bars after the purchase), whichever of (c) and (d) comes first. Because the last allowed fill is 16:00 UTC, every position is closed the same UTC day, and no position is held more than 12 hours. The momentum lookback is fixed at 60 bars and the trigger at 1 bar; no parameter grid is run (single configuration). No recursive indicators are used. Warm-up: 100 bars (60-bar lookback plus 1-bar lag, rounded up to 100 for safety; startup_candle_count = 100).",
+  "parameters": {
+    "timeframe": "1h",
+    "momentum_lookback_bars": 60,
+    "trigger_lag_bars": 1,
+    "stoploss_pct": 2.0,
+    "cooldown_candles": 2,
+    "entry_fill_window_start_utc": "00:00",
+    "entry_fill_window_end_utc": "16:00",
+    "max_entries_per_pair_per_utc_day": 2,
+    "evening_exit_bar_open_utc": "23:00",
+    "max_hold_bars": 12,
+    "take_profit": "none",
+    "warmup_bars": 100
+  },
+  "rationale": "Mechanism: time-series momentum. Moskowitz, Ooi and Pedersen show that an asset's own past return sign predicts its next return, which they attribute to slow diffusion of information and to under-reaction followed by delayed buying (trend-chasing capital, rebalancing and hedging flows arriving late). In crypto the same delayed-flow story is reported intraday (Shen, Urquhart and Wang: Bitcoin intraday time-series momentum, strongest in high-volume sessions). The counterparty is the slow or late trader who keeps buying a rising coin over the following hours, and the liquidity provider who sells into a rising market early. The parent rule in this lab (H-016, 30-day sign on closed daily candles) produced the largest gross move per trade among frequent rules in exploration; this rule compresses the horizon by twelve (30 days -> 60 hours) so it fits the owner's day-trade mandate, and adds a rising-bar trigger so entries occur when the short-term push is already under way. Activity filter: the scout's fixed session window (fills 00:00-16:00 UTC, covering Asia, Europe and the US open at 13:30 UTC) is the single activity filter (type c); it was not scanned. Expected trades: the sign is positive roughly half the time and the rising bar about half of that, capped at 2 entries per pair per day, so about 1-2 trades per day per pair, roughly 300-600 per year per pair. Expected gross move: a design estimate of about +0.6% on winners against a 2% stop and a 12-hour cap; this is not a result. Risk stated plainly: the lab's 1h median gross move per trade is 0.16%, below the 0.30%/0.45% round trip, so this rule only survives if the 60-hour sign carries enough drift to lift the average move above about 0.5%; if it does not, the gates will reject it.",
+  "novelty_vs_tried": "Third and last variant of TimeSeriesMomentum. H-015/H-016 used the sign of a 30-to-180-DAY return on closed daily candles, held positions for days to weeks while the sign stayed positive, had no stop, no session window and no time exit. H-099 uses a 60-HOUR sign on the 1h chart, requires a rising last bar as the entry trigger, uses a fixed 2% native stop, restricts fills to 00:00-16:00 UTC with at most two entries per pair per UTC day, and forces every position flat at the 23:00 UTC open or after 12 bars. It is therefore an intraday trade, not a regime hold. It differs from H-087 (IntradayReturnAcceleration, 15m, tiny moves) by the long 60-hour sign condition and from breakout families (Donchian, WeeklyBreakoutRegime, squeeze) because it needs no new high, only a positive multi-day-scale return.",
+  "sources": [
+    {"title": "Time Series Momentum (Moskowitz, Ooi, Pedersen), SSRN abstract", "url": "https://papers.ssrn.com/abstract=2089463"},
+    {"title": "AQR: Time Series Momentum Original Paper Data", "url": "https://www.aqr.com/Insights/Datasets/Time-Series-Momentum-Original-Paper-Data?aqrPDF=1"},
+    {"title": "Bitcoin intraday time-series momentum (Shen, Urquhart, Wang)", "url": "https://research.birmingham.ac.uk/en/publications/bitcoin-intraday-time-series-momentum/"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data opened; only the exploration-split summaries in research/context/H-099.md (through 2026-11-10) for the nine enabled pairs; no validation or final-test results."
+}
