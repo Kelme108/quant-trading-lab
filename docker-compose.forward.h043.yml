@@ -1,0 +1,29 @@
+# Dry-run evidence collection for H-043 (HourlyWilliamsVolBreakout_H043_v1), written by the autopilot policy
+# (lab/autopilot.py, lab/config/autopilot.json) on the pairs whose single validation read was a candidate:
+# ETH/USDT, XRP/USDT. Exposure 0.15 is the one calibrated on exploration. Same rules as
+# docker-compose.forward.yml: base config first, the overlay changes only bot name, strategy, database,
+# exposure and pair. No API server, no exchange keys, no real money.
+# Check the freeze first:  python research/tools/forward_freeze.py H-043 --check
+name: trading-lab-forward-h043
+
+services:
+  forward-h043-eth:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: forward-h043-eth
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./forward:/freqtrade/forward:ro"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h043.eth.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h043-eth.log
+  forward-h043-xrp:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: forward-h043-xrp
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./forward:/freqtrade/forward:ro"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h043.xrp.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h043-xrp.log
