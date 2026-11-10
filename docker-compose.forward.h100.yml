@@ -1,0 +1,29 @@
+# Dry-run evidence collection for H-100 (RSIOverboughtMomentumRVol_H100_v1), written by the autopilot policy
+# (lab/autopilot.py, lab/config/autopilot.json) on the pairs whose single validation read was a candidate:
+# ETH/USDT, BNB/USDT. Exposure 0.2 is the one calibrated on exploration. Same rules as
+# docker-compose.forward.yml: base config first, the overlay changes only bot name, strategy, database,
+# exposure and pair. No API server, no exchange keys, no real money.
+# Check the freeze first:  python research/tools/forward_freeze.py H-100 --check
+name: trading-lab-forward-h100
+
+services:
+  forward-h100-eth:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: forward-h100-eth
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./forward:/freqtrade/forward:ro"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h100.eth.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h100-eth.log
+  forward-h100-bnb:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: forward-h100-bnb
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./forward:/freqtrade/forward:ro"
+    command: >-
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h100.bnb.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h100-bnb.log
