@@ -107,7 +107,7 @@ lab/registry.py instead.
 5) ENTRY TRIGGER: the first bar t in p..p+3 (p included, 4 bars) with close(t) > high(t-1). None: no trade. The signal is valid only if no trade is open on the pair. Buy at open(t+1) = entry.
 6) TRADE CHECKS at the fill (confirm_trade_entry, with entry = the fill rate): LL = lowest low of bars f..t. STOP = min(LL*0.998, entry*0.99), so it is always at least 1% below entry. Skip if STOP < entry*0.97 (more than 3% below). TP = highest high of setup bars f..n9. Skip if TP < entry*1.01.
 7) EXITS: (a) Stop: STOP is a fixed price level set at entry and never moved. It triggers intrabar as soon as low <= STOP (custom_stoploss via stoploss_from_absolute; the native stoploss = -0.03 is the backstop). (b) Take-profit: exit at TP intrabar as soon as high >= TP. If a bar touches both, the stop counts first. (c) Time exit: an exit signal at the close of the 32nd bar held (bar t+32), filled at the next open, so the hold is at most 8 hours.
-One trade per setup. No other cooldown, filter or trailing. | No price data. Only the context file research/context/H-093.md (exploration-split summaries of earlier hypotheses for BTC/ETH/BNB 1h) and the TD Setup definitions from the web sources. | 0 | proposed | DeMark TD buy setup 9 with perfection on 15m: seller-exhaustion count after a 1.5% decline, 8-hour exit |
+One trade per setup. No other cooldown, filter or trailing. | No price data. Only the context file research/context/H-093.md (exploration-split summaries of earlier hypotheses for BTC/ETH/BNB 1h) and the TD Setup definitions from the web sources. | 0 | implemented | DeMark TD buy setup 9 with perfection on 15m: seller-exhaustion count after a 1.5% decline, 8-hour exit |
 
 ## Rules
 
