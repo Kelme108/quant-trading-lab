@@ -1,0 +1,18 @@
+{
+  "title": "Volatility-band thrust through a two-hour exponential average",
+  "source": {
+    "type": "repo",
+    "url": "https://doc.stocksharp.com/en/api-examples/0955_Keltner_Channel",
+    "title": "Keltner Channel Strategy (StockSharp API examples), via lab hypothesis H-025",
+    "license": "n/a (public method)"
+  },
+  "rule_summary": "Two-hour blocks from finished hourly bars (even UTC hours), orders at the next hourly open. Centre line is a 20-block exponential average; width is 1.5 times a 20-block Wilder average true range; upper band is centre plus width. Buy when a block closes above the upper band while the previous block closed at or under its own upper band, and the close is above the 100-block mean, nothing open. Sell when a block closes under the centre line. Stop two percent under the fill. Buys only in blocks opening 00:00 to 16:00 UTC; flat by the 23:00 UTC open or after twelve hours.",
+  "mechanism": "A fresh close outside the volatility band while trending up marks a burst of directional demand; stop orders and momentum followers add to it for several hours. Parent numbers kept, block length cut from one day to two hours. Expected gross move about 0.8% on winners; a design estimate.",
+  "timeframe": "1h",
+  "longest_lookback": 400,
+  "free_parameters": 0,
+  "fixed_parameters": true,
+  "expected_trades_per_year": 200,
+  "expected_gross_move_pct": 0.8,
+  "family_hint": "DailyKeltnerBreakout"
+}

@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS ideas (
     free_parameters INTEGER NOT NULL,
     fixed_parameters INTEGER NOT NULL,   -- 1 when the numbers are textbook values fixed before any test
     expected_trades_per_year REAL NOT NULL,  -- the scout's design estimate per pair, NOT a result
+    expected_gross_move_pct REAL,        -- the scout's estimate of the average gross move per trade (percent), NOT a result; NULL for older ideas
     family_hint TEXT NOT NULL,
     rule_hash TEXT NOT NULL,
     state TEXT NOT NULL,                 -- new | queued | dropped | registered
@@ -148,6 +149,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE experiments ADD COLUMN pair TEXT NOT NULL DEFAULT 'BTC/USDT'"
         )
+        conn.commit()
+    idea_columns = {row["name"] for row in conn.execute("PRAGMA table_info(ideas)")}
+    if "expected_gross_move_pct" not in idea_columns:
+        conn.execute("ALTER TABLE ideas ADD COLUMN expected_gross_move_pct REAL")
         conn.commit()
 
 
@@ -193,11 +198,11 @@ def add_idea(conn: sqlite3.Connection, *, idea_id: str, run_id: str, idea: dict,
     conn.execute(
         "INSERT INTO ideas (id, run_id, title, source_type, source_url, source_title, license, rule_summary, mechanism, "
         "timeframe, longest_lookback, free_parameters, fixed_parameters, expected_trades_per_year, family_hint, "
-        "rule_hash, state, created_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)",
+        "rule_hash, state, created_at_utc, expected_gross_move_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)",
         (idea_id, run_id, idea["title"], source["type"], source["url"], source["title"], source["license"],
          idea["rule_summary"], idea["mechanism"], idea["timeframe"], int(idea["longest_lookback"]),
          int(idea["free_parameters"]), int(bool(idea["fixed_parameters"])), float(idea["expected_trades_per_year"]),
-         idea["family_hint"], rule_hash, created_at_utc),
+         idea["family_hint"], rule_hash, created_at_utc, float(idea["expected_gross_move_pct"])),
     )
     conn.commit()
 

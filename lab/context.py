@@ -18,7 +18,7 @@ import csv
 import json
 from pathlib import Path
 
-from lab import breadth, costs, registry, runner
+from lab import breadth, costs, learnings, registry, runner
 
 ROOT = Path(__file__).parents[1]
 
@@ -123,6 +123,7 @@ def research_context(
             *(["## Direction from the owner (steers the search; does not change any gate or limit)", guidance.strip(), ""] if guidance.strip() else []),
             *(["## Audit diagnosis (exploration-only facts; deterministic code produced every number)", audit_diagnosis.strip(), ""] if audit_diagnosis.strip() else []),
             *([idea_block, ""] if idea_block.strip() else []),
+            learnings.digest(conn),
             "## Hypotheses already tried",
             *(entries or ["none"]),
             "",
@@ -147,7 +148,7 @@ def idea_block(idea) -> str:
 
 
 def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: int, years: float) -> str:
-    """Markdown the scout agent reads before collecting ideas. Rule text and counts only: no result of any kind."""
+    """Markdown the scout agent reads before collecting ideas: rule text, counts and the exploration-only learnings digest."""
     from lab import triage  # local import: triage imports runner, keep context light
 
     cap = budget["max_variants_per_family"]
@@ -181,6 +182,7 @@ def scout_context(conn, *, run_id: str, budget: dict, count: int, min_trades: in
         "## Families already used (variant cap)",
         *family_lines,
         "",
+        learnings.digest(conn),
         "## Rules already tried (do not repeat them or a close variation)",
         *(tried or ["none"]),
         "",

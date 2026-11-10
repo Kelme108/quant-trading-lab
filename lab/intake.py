@@ -26,7 +26,7 @@ INTAKE_DIR = ROOT / "research" / "intake"
 
 REQUIRED_KEYS = (
     "title", "source", "rule_summary", "mechanism", "timeframe", "longest_lookback", "free_parameters",
-    "fixed_parameters", "expected_trades_per_year", "family_hint",
+    "fixed_parameters", "expected_trades_per_year", "expected_gross_move_pct", "family_hint",
 )
 SOURCE_KEYS = ("type", "url", "title", "license")
 SOURCE_TYPES = ("paper", "blog", "repo")
@@ -104,6 +104,9 @@ def validate_idea(idea: dict) -> list[str]:
     trades = idea["expected_trades_per_year"]
     if isinstance(trades, bool) or not isinstance(trades, (int, float)) or not 0 <= trades <= 5000:
         errors.append("expected_trades_per_year must be a number from 0 to 5000")
+    move = idea["expected_gross_move_pct"]
+    if isinstance(move, bool) or not isinstance(move, (int, float)) or not 0 <= move <= 50:
+        errors.append("expected_gross_move_pct must be a number from 0 to 50 (percent of price)")
     if not isinstance(idea["family_hint"], str) or not FAMILY.match(idea["family_hint"]):
         errors.append("family_hint must be 3-40 letters/digits, starting with a letter")
     return errors

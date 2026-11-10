@@ -98,7 +98,7 @@ SCOUT_IDEAS = [
         "rule_summary": "Enter long when the daily close is above the highest close of the previous fifty days and the thirty day average is rising; exit when the close falls under the lowest close of the previous twenty days.",
         "mechanism": "Slow investors react late to news so large moves persist, and trend followers are paid for providing liquidity to them.",
         "timeframe": "1d", "longest_lookback": 50, "free_parameters": 3, "fixed_parameters": True,
-        "expected_trades_per_year": 12, "family_hint": "FiftyDayBreakout",
+        "expected_trades_per_year": 12, "expected_gross_move_pct": 1.5, "family_hint": "FiftyDayBreakout",
     },
     {
         "title": "Volume surge after a quiet week",
@@ -106,7 +106,7 @@ SCOUT_IDEAS = [
         "rule_summary": "Buy at the next hourly open when the hourly volume is four times its seventy two hour average right after a week of low realised volatility, and sell after one hundred and twenty hours or on a five percent stop.",
         "mechanism": "Quiet markets hide accumulation; a volume surge shows that informed buyers are crossing the spread and the move tends to continue for days.",
         "timeframe": "1h", "longest_lookback": 168, "free_parameters": 4, "fixed_parameters": False,
-        "expected_trades_per_year": 20, "family_hint": "VolumeSurge",
+        "expected_trades_per_year": 20, "expected_gross_move_pct": 1.0, "family_hint": "VolumeSurge",
     },
 ]
 

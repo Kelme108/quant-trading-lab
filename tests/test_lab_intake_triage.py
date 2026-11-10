@@ -29,6 +29,7 @@ IDEA = {
     "free_parameters": 3,
     "fixed_parameters": True,
     "expected_trades_per_year": 12,
+    "expected_gross_move_pct": 1.2,
     "family_hint": "FiftyDayBreakout",
 }
 BUDGET = {"max_variants_per_family": 3}
@@ -139,6 +140,12 @@ class TriageTests(unittest.TestCase):
     def run_one(self, idea: dict, tried=(), families=None) -> dict:
         return triage.triage_idea(idea, tried_rules=list(tried), family_counts=families or {}, family_cap=3,
                                   min_trades=30, years=self.years)
+
+    def test_a_small_expected_move_is_dropped_before_any_backtest(self) -> None:
+        result = self.run_one(self.row(expected_gross_move_pct=0.3))
+        self.assertEqual(result["state"], "dropped")
+        self.assertTrue(any("gross move" in r for r in result["reasons"]))
+        self.assertEqual(self.run_one(self.row(expected_gross_move_pct=0.45))["state"], "queued")
 
     def test_exploration_years_come_from_the_splits(self) -> None:
         self.assertAlmostEqual(self.years, 7.0, delta=0.1)

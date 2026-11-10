@@ -29,6 +29,7 @@ from lab.strategy_check import MAX_STARTUP_CANDLES
 ROOT = Path(__file__).parents[1]
 MAX_LOOKBACK = {"15m": MAX_STARTUP_CANDLES, "1h": MAX_STARTUP_CANDLES, "1d": 200}
 TRADES_MARGIN = 1.3          # expected trades must exceed the requirement by 30%
+MIN_GROSS_MOVE_PCT = 0.45    # the scout's expected average gross move per trade must be at least 1.5x the 0.30% base round trip
 OVERLAP_LIMIT = 0.55         # Jaccard overlap of content words above which an idea repeats a tried rule
 SCORE_MAX = 4.5
 
@@ -105,6 +106,11 @@ def triage_idea(
         reasons.append(
             f"expected {idea['expected_trades_per_year']:g} trades/year/pair is below the {needed:.1f} needed "
             f"for {min_trades} trades in {years:.1f} years"
+        )
+    move = idea.get("expected_gross_move_pct")
+    if move is not None and move < MIN_GROSS_MOVE_PCT:
+        reasons.append(
+            f"expected gross move {move:g}% per trade is below {MIN_GROSS_MOVE_PCT:g}% (1.5x the base round trip): the cost would eat it"
         )
     family = idea["family_hint"]
     if family_counts.get(family, 0) >= family_cap:
