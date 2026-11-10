@@ -1,0 +1,17 @@
+{
+  "title": "15m pocket pivot after a volume dry-up at the rising 20 EMA: up-bar volume beats every recent down-bar volume",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/pocket-pivot.md",
+    "title": "LuxAlgo Library: Pocket Pivot (concept)",
+    "license": "LuxAlgo Library: free to use with attribution (luxalgo.com/library/license)"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. EMA20 = EMA(20) of 15m closes. Vmed(t) = median volume of bars t-96..t-1. Filter from closed 1h bars only: last completed 1h close > EMA(50) of 1h closes. Conditions at bar t, all required: (1) DRY-UP: mean volume of bars t-8..t-1 <= 0.6 x Vmed(t); (2) RISING AVERAGE: EMA20(t) > EMA20(t-8); (3) TOUCH: min low of bars t-3..t <= 1.003 x EMA20 at that bar, and close(t) > EMA20(t); (4) NOT EXTENDED: close(t) <= 1.01 x EMA20(t); (5) POCKET PIVOT: close(t) > close(t-1), close(t) > open(t), and volume(t) > the largest volume among bars t-10..t-1 that closed below their prior close (no signal if none of them did); (6) volume(t) >= 1.5 x Vmed(t). ENTRY: buy at the next open if flat; at most 3 entries per pair per UTC day. STOP: the lower of (lowest low of bars t-7..t) and 0.99 x close(t), so the stop is at least 1% away; skip the trade if it is more than 2.5% away. Risk R = close(t) - stop. TAKE PROFIT: limit at close(t) + 1.5R. TIME EXIT: sell at the open 48 bars (12 hours) after entry. Stop and target are intrabar; if both are touched in one bar, assume the stop.",
+  "mechanism": "Kacher and Morales (Trade Like an O'Neil Disciple, 2010) read an up bar whose volume exceeds every down-bar volume of the last 10 bars as a buying footprint larger than any recent selling; LuxAlgo and TradingSim (VDU and pocket pivots, applied intraday) add the context that volume first dries up on a pullback to a rising average, showing sellers have stepped back. The trade buys when a larger buyer starts lifting offers after supply is exhausted, before a range breakout: sellers are the weak holders who sold the quiet pullback and passive offers that get lifted. Requiring 1.5x median volume and a rising EMA keeps it to strong triggers. The stop is at least 1% away, so the target is at least 1.5% gross, five times the 0.30% base round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 12,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "PocketPivotVolume"
+}

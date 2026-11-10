@@ -1,0 +1,17 @@
+{
+  "title": "15m bullish fair-value-gap retrace: buy the midpoint fill after a volume-backed displacement bar, 1.5R or 12h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/fair-value-gap.md",
+    "title": "LuxAlgo Library: Fair Value Gap (concept)",
+    "license": "LuxAlgo Library: free to use with attribution (luxalgo.com/library/license)"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. Bullish FVG known at the close of bar k (the third candle): low(k) > high(k-2). Gap bottom GB = high(k-2), gap top GT = low(k), midpoint CE = (GB+GT)/2. The gap is valid only if (GT-GB)/GB >= 0.004, the middle (displacement) bar k-1 has close > open with close/open - 1 >= 0.01, and volume(k-1) >= 1.5 x median volume of the 96 bars k-97..k-2. Filter from closed 1h bars only: last completed 1h close > EMA(50) of 1h closes. ENTRY: in the window k+1..k+16 (4 hours), at the close of the first bar t with low(t) <= CE and close(t) >= GB, buy at the next open. The gap is dropped without a trade if a bar in the window closes below GB first, or when the window ends. One entry per gap, newest valid gap only, at most 3 entries per pair per UTC day, only when flat. STOP: low(k-2) (bottom of candle 1). Risk R = close(t) - stop; skip the trade if R/close(t) < 0.008 or > 0.03. TAKE PROFIT: limit at close(t) + 1.5R. TIME EXIT: sell at the open 48 bars (12 hours) after entry. Stop and target are intrabar; if both are touched in the same bar, assume the stop.",
+  "mechanism": "A displacement bar that leaves a three-candle gap is a burst of aggressive, volume-backed buying that ran through resting offers faster than liquidity refilled (the ICT 'imbalance'; LuxAlgo and Backtrex give the same definition and the midpoint 'consequent encroachment' entry). The retrace into the gap lets the bot buy at a discount to an informed-looking move: the sellers are profit-takers and short-horizon mean-reverters selling into the pullback, while late buyers who missed the impulse rest bids in the gap. The edge claim is practitioner folklore with no published test; the closest honest mechanism is short-horizon continuation after volume-backed jumps. Cost: the stop is at least 0.8% away, so the target is at least 1.2% gross and the 0.30% round trip is at most 0.375R.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 11,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "family_hint": "FairValueGapRetrace"
+}

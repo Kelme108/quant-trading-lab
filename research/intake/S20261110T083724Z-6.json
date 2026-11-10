@@ -1,0 +1,17 @@
+{
+  "title": "Candle range theory on 4h blocks: next 4h candle sweeps only the low and closes back inside, target the far extreme",
+  "source": {
+    "type": "blog",
+    "url": "https://www.eltraderfinanciado.com/ar/blog/crt-trading",
+    "title": "El Trader Financiado: CRT trading, Candle Range Theory and Turtle Soup",
+    "license": "none (all rights reserved)"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signals at bar close, fills at the next bar open. 4h candles are built from closed 15m bars in UTC blocks starting 00,04,08,12,16,20; a 4h candle is usable only after its 16th 15m bar has closed. Let C1 = the 4h candle before the one just completed (high H1, low L1, range R1 = H1-L1, midpoint M1 = L1 + R1/2) and C2 = the 4h candle just completed. SETUP at the close of C2, all required: (1) R1/L1 >= 0.015; (2) low(C2) < L1 (C2 swept the low); (3) high(C2) <= H1 (C2 did not also take the high); (4) close(C2) > L1 (closed back inside the range); (5) close(C2) < M1 (room to the target). ENTRY: buy at the open of the first 15m bar of the next 4h block, if flat. STOP: low(C2) (the swept extreme); if that is less than 0.8% below close(C2), use 0.992 x close(C2); skip if more than 3% below. TAKE PROFIT: limit at H1 (the opposite extreme of the reference candle). TIME EXIT: sell at the open 48 bars (12 hours) after entry. Stop and target are intrabar; if both are touched in one bar, assume the stop. At most one entry per 4h block.",
+  "mechanism": "CRT, as the source says, is Turtle Soup (Connors and Raschke, Street Smarts) applied to one candle's range: candle 2 takes the sell stops under candle 1's low, then closes back inside, so the sellers who broke the low are trapped and the stop liquidity has been absorbed by larger buyers. Covering and fresh bids drive price back across the range toward the untouched high, where buy stops rest. Counterparties are breakdown sellers and stopped-out longs selling at the sweep. It uses the previous 4h candle as the reference, not multi-day lows or session ranges, so it fires about once a day per pair. The source's targets are 50% of the range and the opposite extreme; using the far extreme of a range of at least 1.5% from a close below the midpoint gives a gross target above 0.75%, typically 1-2%, versus a stop of 0.8-3%.",
+  "timeframe": "15m",
+  "longest_lookback": 32,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "family_hint": "HourlyFailedBreakdownReclaim"
+}

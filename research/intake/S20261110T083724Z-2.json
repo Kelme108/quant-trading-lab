@@ -1,0 +1,17 @@
+{
+  "title": "15m inverse FVG: buy the first close back above a bearish displacement gap, trapped-seller reversal, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.tradezella.com/strategies/ifvg-trading-model",
+    "title": "Tradezella: iFVG trading model",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. No higher-timeframe filter. Bearish FVG known at the close of bar k: high(k) < low(k-2). Gap top GT = low(k-2), gap bottom GB = high(k). Valid only if (GT-GB)/GB >= 0.004 and the middle bar k-1 is a down displacement: close(k-1) < open(k-1) and open(k-1)/close(k-1) - 1 >= 0.01. Only the most recent valid bearish gap is tracked. INVERSION ENTRY: in the window k+1..k+24 (6 hours), at the close of the first bar t with close(t) > GT and close(t) > open(t), buy at the next open (a wick above GT does not count; the gap is dropped if the window ends first). Swing low SL = lowest low of bars k-2..t. STOP: SL. Risk R = close(t) - SL; skip the trade if R/close(t) < 0.008 or > 0.03. TAKE PROFIT: limit at close(t) + 1.5R. TIME EXIT: sell at the open 48 bars (12 hours) after entry. One entry per gap, at most 3 entries per pair per UTC day, only when flat. Stop and target are intrabar; if both are touched in one bar, assume the stop.",
+  "mechanism": "A bearish displacement gap is aggressive selling, often stop-driven or forced liquidation. When price closes back above the whole gap within hours, the sellers who chased the drop are underwater with stops above, and the flow that created the gap has been fully absorbed by buyers. Their covering and the stop orders above the gap push price further, the same trapped-trader logic as Turtle Soup but anchored to the imbalance rather than a prior low (Tradezella describes the inversion as a close through the gap after a sweep; LuxAlgo's FVG page gives the gap definition). Counterparties are momentum sellers and liquidated longs who sold the drop. This is a reversal, so it should be uncorrelated with the bullish-gap retrace. The stop is at least 0.8% away, so the target is at least 1.2% gross, well above the 0.30-0.45% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 30,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 300,
+  "family_hint": "InverseFVGReclaim"
+}

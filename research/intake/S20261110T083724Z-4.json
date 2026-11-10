@@ -1,0 +1,17 @@
+{
+  "title": "15m OBV leads price: buy a 48-hour on-balance-volume high while price is still just below its 48-hour high",
+  "source": {
+    "type": "blog",
+    "url": "https://therighttrader.com/learn/indicator-strategies/obv-breakout",
+    "title": "The Right Trader: OBV breakout",
+    "license": "none (all rights reserved; rule credited to Granville 1963)"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. OBV = cumulative sum of volume(i) when close(i) > close(i-1), minus volume(i) when close(i) < close(i-1), unchanged when equal (no smoothing; the start level does not matter). HH(t) = highest high of bars t-192..t-1 (48 hours, current bar excluded). Filter from closed 1h bars only: last completed 1h close > EMA(50) of 1h closes. ENTRY at the close of bar t when all hold: (1) OBV(t) > max OBV of bars t-192..t-1 (a fresh 48-hour OBV high); (2) close(t) < HH(t) (price has not broken out yet); (3) close(t) >= 0.985 x HH(t) (price within 1.5% of the high); (4) close(t) > open(t); (5) flat, at least 16 bars since the last exit, fewer than 3 entries on this pair in this UTC day. Buy at the next open. STOP: lowest low of bars t-9..t (10 bars ending on the signal bar); risk R = close(t) - stop; skip if R/close(t) < 0.008 or > 0.03. TAKE PROFIT: limit at close(t) + 1.5R. Early exit: sell at the next open if OBV closes at a new 192-bar low. TIME EXIT: sell at the open 48 bars (12 hours) after entry. Stop and target are intrabar; if both are touched in one bar, assume the stop.",
+  "mechanism": "Granville's premise (restated by The Right Trader's OBV breakout rule, a 50-bar OBV extreme with a 10-bar-low stop, and by Barchart: OBV breakouts normally precede price breakouts) is that volume leads price. Volume piling onto up bars while price stays capped just under a recent high means a buyer is absorbing the offers parked below resistance. When those offers are used up, price breaks the high and breakout bots and short stops add fuel. The rule buys before that crowd; the sellers are holders taking profit below the old high and range mean-reverters. Using a 48-hour window on 15m gives roughly one strong signal a day per pair. The stop is at least 0.8% away and the target 1.5R, so the gross move per winner is at least 1.2%, well above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "OBVLeadBreakout"
+}

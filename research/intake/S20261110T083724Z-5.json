@@ -1,0 +1,17 @@
+{
+  "title": "15m SMT divergence: BTC sweeps its 12-hour low but the alt holds a higher low, buy the alt's structure break",
+  "source": {
+    "type": "blog",
+    "url": "https://www.altrady.com/blog/crypto-trading-strategies/what-is-smt-divergence-in-trading",
+    "title": "Altrady: What is SMT divergence in trading",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. Reference B = BTC/USDT for every pair except BTC/USDT, whose reference is ETH/USDT; B is an informative 15m pair on the same timestamp (no signal if its bar is missing). For a series S: PL_S(t) = lowest low of bars t-52..t-5 (48 bars = 12 hours, excluding the last 4 bars); SL4_S(t) = min low of bars t-3..t. SETUP at bar s, both required: B sweeps, SL4_B(s) < 0.998 x PL_B(s); the traded pair X holds, SL4_X(s) >= PL_X(s) (no new 12-hour low on X). The setup stays armed for bars s..s+8. ENTRY at the close of the first armed bar t with close_X(t) > highest high of X over bars t-4..t-1 AND close_B(t) > close_B(t-1); buy X at the next open, if flat and fewer than 2 entries on X in this UTC day. One entry per setup. STOP: lowest low of X over bars t-12..t; if that is less than 0.8% below close_X(t), use 0.992 x close_X(t); skip if more than 3% below. Risk R = close_X(t) - stop. TAKE PROFIT: limit at close_X(t) + 1.5R. TIME EXIT: sell at the open 48 bars (12 hours) after entry. Stop and target are intrabar; if both are touched in one bar, assume the stop.",
+  "mechanism": "SMT ('smart money technique') divergence, described by Altrady for BTC/ETH and named by Tradezella as a confluence for sweep setups: correlated markets normally confirm each other, so when BTC runs its 12-hour low, the stops beneath it fire and alts are usually dragged to new lows too. An alt that refuses to make a lower low during that sweep shows its sellers are already absorbed (limit buyers defending it). When BTC's sweep fails and it ticks back up, the alt has less overhead supply and the BTC-led rebound carries it further. Counterparties are stop-loss sellers and momentum shorts reacting to BTC's break. This differs from the existing catch-up rules: it buys relative strength at a BTC liquidity sweep, not a laggard after a BTC surge. The stop is at least 0.8% away, so the target is at least 1.2% gross.",
+  "timeframe": "15m",
+  "longest_lookback": 52,
+  "free_parameters": 10,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "family_hint": "SMTDivergenceSweep"
+}
