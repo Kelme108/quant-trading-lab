@@ -1,0 +1,45 @@
+{
+  "hypothesis_id": "H-096",
+  "family": "SessionRangeJudasSweep",
+  "title": "Judas sweep: buy the quick reclaim of a pre-open range low swept at the London or US open, target the range high",
+  "ex_ante_rule": "Chart 15m, closed bars, UTC, bar time = open time; a signal at a bar close fills at the next bar open. Spot, long only, one position per pair, no pyramiding, no sizing hooks, no other filters, every calendar day, same numbers on all pairs. Two setups per UTC day. A (Asia->London): range bars 00:00-06:45 (28 bars), sweep window 07:00-10:45 (16 bars), exit bar 14:45. L (London->US): range bars 07:00-13:15 (26 bars), window 13:30-16:45 (14 bars), exit bar 20:45. Per setup: RH = max high, RL = min low of its range bars; if any range bar is missing the setup is off. ARMED only if (RH-RL)/RL >= 0.012. SWEEP: a window bar with low < 0.999*RL; the first such bar activates the setup. From then on SL(t) = lowest low of the window bars from window start through t, and K(t) = the latest bar at or before t whose low equals SL(t). DEAD: any window bar t after the first sweep bar with close(t) < 0.995*SL(t-1) kills the setup (no trade). RECLAIM: the first window bar t, at or after the first sweep bar, setup not dead, with t-K(t) <= 4 bars AND close(t) > RL AND high(t) > low(t) AND (close(t)-low(t))/(high(t)-low(t)) >= 0.5. Signal at close of t; buy at the open of t+1 (fill P) only if no position is open; otherwise the setup is consumed with no trade. The first reclaim consumes the setup (one trade per setup, at most 2 per day). FILL CHECKS (confirm_trade_entry, P = fill rate, SL = SL(t)): skip if 0.998*SL < 0.97*P (stop more than 3% away), or if RH < 1.01*P. STOP: SP = min(0.998*SL, 0.99*P); d = (P-SP)/P (between 1% and 3%) is computed once at the fill and frozen: a fixed percentage below the entry price, intrabar (custom_stoploss returning d; triggers as soon as price touches SP). Native stoploss -0.03 as backstop only. TAKE-PROFIT: limit at RH, filled at RH when a bar high reaches it (at the open if a bar opens above RH). If stop and RH are touched in the same bar, the stop counts first. TIME EXIT: exit signal at the close of the setup's exit bar on the entry date (A: 14:45, L: 20:45), sold at the next open (15:00 / 21:00); any later bar also triggers it. Max hold: A fills 07:15-11:00 and exits by 15:00; L fills 13:45-17:00 and exits by 21:00, so at most 7h45m. No trailing, no cooldown beyond one trade per setup, single cell, no grid. Warm-up: 96 bars (longest lookback 44 bars, 00:00 to 10:45; no recursive indicators).",
+  "parameters": {
+    "timeframe": "15m",
+    "asia_range_start_utc": "00:00",
+    "asia_range_end_bar_utc": "06:45",
+    "asia_window_start_utc": "07:00",
+    "asia_window_end_bar_utc": "10:45",
+    "asia_exit_bar_utc": "14:45",
+    "london_range_start_utc": "07:00",
+    "london_range_end_bar_utc": "13:15",
+    "london_window_start_utc": "13:30",
+    "london_window_end_bar_utc": "16:45",
+    "london_exit_bar_utc": "20:45",
+    "min_range_width": 0.012,
+    "sweep_depth_factor": 0.999,
+    "dead_close_factor": 0.995,
+    "max_bars_after_low": 4,
+    "min_close_location": 0.5,
+    "stop_buffer_factor": 0.998,
+    "min_stop_distance": 0.01,
+    "max_stop_distance": 0.03,
+    "min_target_distance": 0.01,
+    "native_backstop_stoploss": -0.03,
+    "max_trades_per_setup": 1,
+    "warmup_bars": 96
+  },
+  "rationale": "Mechanism: stop-loss sell orders cluster just below a visible level, here the low of the quiet pre-open session range (Asia before London, London morning before the US open). When the next session opens and volume steps up, a push through that low sets off these stops in a cascade, and liquidity providers absorb the forced selling at a discount. Osler (FRBNY Staff Report 150) documents stop-loss clustering near visible levels and the self-reinforcing cascades they cause in FX. The idea cites her SR 125; SR 150 is the closely related paper I actually found. A close back inside the range within 4 bars of the extreme, in the upper half of its bar, shows the cascade is spent. The long then buys from sellers who were forced out, not from informed sellers. The source (The Right Trader) says the evidence for the pattern is anecdotal and that it is not proof of bank behaviour. This is a liquidity-provision bet, not a proven edge. Cost: the target is the range high, at least 1% above entry, and the stop is 1-3% below, so a winner grosses at least 1% (often 1.2-2.5%) against the 0.30% base / 0.45% conservative round trip. Cost is under 0.3R whenever the stop is at least 1.5%, and never more than 0.45R. Expected count: each pair has 2 setups a day, about 730 a year. I expect the 1.2% width filter to arm maybe half of them, a sweep in maybe half of those, and the reclaim/target checks to pass in maybe a third to a half. That is roughly 60-200 trades a year per pair, below the owner's 400-1500 target. I state this openly rather than loosen the rule. Every trade is flat within 7h45m.",
+  "novelty_vs_tried": "H-038 and H-055 (HourlyFailedBreakdownReclaim) fade a sweep of the rolling 24-hour low on 1h at any time of day. Here the level is a fixed pre-open session range and the trigger is limited to the London and US open windows, where the volume step-up is what drives the stop cascade. H-067 (AsianRangeLondonBreakout) and the capped SessionOpeningRangeBreakout family buy upward breaks of a session range (momentum). This rule does the opposite: it buys a failed downward break back into the range and targets the opposite edge of the range. H-093 (TDSetupExhaustion) uses a similar stop and target frame, but its trigger is a count-based exhaustion, not a session-level liquidity sweep. H-086 and H-095 use session VWAP, not range extremes. This is a new family.",
+  "sources": [
+    {
+      "title": "Judas Swing (The Right Trader)",
+      "url": "https://therighttrader.com/learn/smart-money-concepts/judas-swing"
+    },
+    {
+      "title": "Osler, Stop-Loss Orders and Price Cascades in Currency Markets, FRBNY Staff Report 150",
+      "url": "https://www.newyorkfed.org/research/staff_reports/sr150.html"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data viewed; only exploration-split summary metrics of earlier hypotheses in research/context/H-096.md (through 2026-11-10)."
+}
