@@ -2321,6 +2321,15 @@ I read the strategy against the proposal and it looks faithful. I did not read t
 `python -m unittest tests.test_weeklybreakoutregime_h089_v1` ran 6 tests and passed. The full suite (`python -m unittest discover -s tests`) ran 629 tests and passed.
 
 If you want a fresh implementation rather than the existing files, delete them or give me a new file name and I''ll write it from scratch.','2026-11-10T14:04:25.720960+00:00');
+INSERT INTO "agent_runs" VALUES(288,'developer','H-098','implement attempt 1','completed',0.0895702,9,3.966825221999315544e+02,'2e410778-633e-4901-bf76-ced006c5d793','Both files for H-098 were already in the repo, so I wrote nothing new. I didn''t touch either one, since the rules forbid editing existing files. Both are already committed in `04d67ae`.
+
+I did not check the strategy line by line against every clause of the proposal. I read it and the test, and ran the verification:
+- `python -m unittest tests.test_hourlyfailedbreakdownreclaim_h098_v1` ran 8 tests, all passed.
+- `python -m unittest discover -s tests` ran 623 tests, all passed.
+
+The two files are:
+- `D:\Trade-Initial\user_data\strategies\HourlyFailedBreakdownReclaim_H098_v1.py`
+- `D:\Trade-Initial\tests\test_hourlyfailedbreakdownreclaim_h098_v1.py`','2026-11-10T14:43:35.225126+00:00');
 CREATE TABLE approvals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     hypothesis_id TEXT NOT NULL REFERENCES hypotheses(id),
@@ -2339,6 +2348,7 @@ INSERT INTO "approvals" VALUES(6,'H-040','validation','autopilot-policy','standi
 INSERT INTO "approvals" VALUES(7,'H-046','validation','autopilot-policy','standing policy of Luiz Kelme (2026-11-06T12:00:00+00:00): toda candidata pode chegar ate dry-run sozinha; operacao real nao (decisao do usuario em 2026-11-06)','2026-11-06T16:33:43.206625+00:00');
 INSERT INTO "approvals" VALUES(8,'H-047','validation','autopilot-policy','standing policy of Luiz Kelme (2026-11-06T12:00:00+00:00): toda candidata pode chegar ate dry-run sozinha; operacao real nao (decisao do usuario em 2026-11-06)','2026-11-06T17:17:36.990372+00:00');
 INSERT INTO "approvals" VALUES(9,'H-047','dryrun','autopilot-policy','standing policy of Luiz Kelme (2026-11-06T12:00:00+00:00): toda candidata pode chegar ate dry-run sozinha; operacao real nao (decisao do usuario em 2026-11-06); pairs ETH/USDT','2026-11-06T17:22:42.140107+00:00');
+INSERT INTO "approvals" VALUES(10,'H-043','validation','autopilot-policy','standing policy of Luiz Kelme (2026-11-06T12:00:00+00:00): toda candidata pode chegar ate dry-run sozinha; operacao real nao (decisao do usuario em 2026-11-06)','2026-11-10T14:50:42.302492+00:00');
 CREATE TABLE archived_strategies (
     hypothesis_id TEXT PRIMARY KEY REFERENCES hypotheses(id),
     strategy_class TEXT NOT NULL,
@@ -2852,6 +2862,10 @@ INSERT INTO "decisions" VALUES(404,'20261110T112808Z-h-043-exploration-ltc-usdt'
 INSERT INTO "decisions" VALUES(405,'20261110T112808Z-h-043-exploration-link-usdt','rejected','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (257.0 >= 30)", "minimum_trades[base]: pass (257.0 >= 30)", "minimum_trades[conservative]: pass (257.0 >= 30)", "minimum_trades[stress]: pass (257.0 >= 30)", "net_profit[base]: FAIL (net_profit_quote=-0.05167554999998458 <= required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: FAIL (net_profit_quote=-56.31330629000004 <= required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: FAIL (value=-30.367897063681085)", "max_drawdown[optimistic]: pass (15.265063626304231% <= 25.0%)", "max_drawdown[base]: pass (17.46475545349995% <= 25.0%)", "max_drawdown[conservative]: pass (19.639956553783335% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=2374.9309119621%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T11:56:55.274830+00:00');
 INSERT INTO "decisions" VALUES(406,'20261110T112808Z-h-043-exploration-doge-usdt','candidate_for_portfolio','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (176.0 >= 30)", "minimum_trades[base]: pass (176.0 >= 30)", "minimum_trades[conservative]: pass (176.0 >= 30)", "minimum_trades[stress]: pass (176.0 >= 30)", "net_profit[base]: pass (net_profit_quote=102.97321235000001 > required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: pass (net_profit_quote=60.085481269999946 > required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: pass (value=14.353968319429327)", "max_drawdown[optimistic]: pass (14.327128539319158% <= 25.0%)", "max_drawdown[base]: pass (15.982400894846771% <= 25.0%)", "max_drawdown[conservative]: pass (17.607948670265046% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=2575.736961451247%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T11:56:55.281245+00:00');
 INSERT INTO "decisions" VALUES(407,'20261110T112808Z-h-043-exploration-sol-usdt','rejected','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (194.0 >= 30)", "minimum_trades[base]: pass (194.0 >= 30)", "minimum_trades[conservative]: pass (194.0 >= 30)", "minimum_trades[stress]: pass (194.0 >= 30)", "net_profit[base]: FAIL (net_profit_quote=-89.54428700000003 <= required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: FAIL (net_profit_quote=-128.4473712 <= required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: FAIL (value=-113.1025954215379)", "max_drawdown[optimistic]: pass (11.05932041654597% <= 25.0%)", "max_drawdown[base]: pass (13.130512072932651% <= 25.0%)", "max_drawdown[conservative]: pass (15.156990466213877% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=4232.034558698967%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T11:56:55.286964+00:00');
+INSERT INTO "decisions" VALUES(408,'20261110T145042Z-h-043-validation-btc-usdt','rejected','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (58.0 >= 30)", "minimum_trades[base]: pass (58.0 >= 30)", "minimum_trades[conservative]: pass (58.0 >= 30)", "minimum_trades[stress]: pass (58.0 >= 30)", "net_profit[base]: FAIL (net_profit_quote=-17.74530523 <= required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: FAIL (net_profit_quote=-30.503600880000004 <= required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: FAIL (value=-25.199173882734044)", "max_drawdown[optimistic]: pass (2.2874979562835653% <= 25.0%)", "max_drawdown[base]: pass (3.330786243618917% <= 25.0%)", "max_drawdown[conservative]: pass (4.369786499304508% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=41.84342463774649%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T14:53:36.028078+00:00');
+INSERT INTO "decisions" VALUES(409,'20261110T145042Z-h-043-validation-eth-usdt','candidate_for_portfolio','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (79.0 >= 30)", "minimum_trades[base]: pass (79.0 >= 30)", "minimum_trades[conservative]: pass (79.0 >= 30)", "minimum_trades[stress]: pass (79.0 >= 30)", "net_profit[base]: pass (net_profit_quote=28.755587760000008 > required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: pass (net_profit_quote=10.630378909999996 > required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: pass (value=4.976713360480858)", "max_drawdown[optimistic]: pass (2.167800201193227% <= 25.0%)", "max_drawdown[base]: pass (2.6651951362957926% <= 25.0%)", "max_drawdown[conservative]: pass (3.2107600734732866% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=-20.88585106176797%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T14:55:50.408545+00:00');
+INSERT INTO "decisions" VALUES(410,'20261110T145042Z-h-043-validation-bnb-usdt','rejected','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (66.0 >= 30)", "minimum_trades[base]: pass (66.0 >= 30)", "minimum_trades[conservative]: pass (66.0 >= 30)", "minimum_trades[stress]: pass (66.0 >= 30)", "net_profit[base]: pass (net_profit_quote=15.806586930000012 > required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: FAIL (net_profit_quote=0.8627529800000033 <= required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: pass (value=1.228058165181892)", "max_drawdown[optimistic]: pass (2.3460660520000034% <= 25.0%)", "max_drawdown[base]: pass (3.1107825629999977% <= 25.0%)", "max_drawdown[conservative]: pass (3.8645350509999963% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=31.996796583021904%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T14:58:02.303359+00:00');
+INSERT INTO "decisions" VALUES(411,'20261110T145042Z-h-043-validation-xrp-usdt','candidate_for_portfolio','["lookahead: pass (has_bias=False)", "recursive: pass (is_stable=True)", "minimum_trades[optimistic]: pass (74.0 >= 30)", "minimum_trades[base]: pass (74.0 >= 30)", "minimum_trades[conservative]: pass (74.0 >= 30)", "minimum_trades[stress]: pass (74.0 >= 30)", "net_profit[base]: pass (net_profit_quote=56.299588140000004 > required 10.0000, after 0 prior variant(s) in family)", "net_profit[conservative]: pass (net_profit_quote=38.80952101000001 > required 10.0000, after 0 prior variant(s) in family)", "profit_excluding_best_trade[base]: pass (value=37.247898499533676)", "max_drawdown[optimistic]: pass (2.940204081682224% <= 25.0%)", "max_drawdown[base]: pass (3.1753761239359344% <= 25.0%)", "max_drawdown[conservative]: pass (3.69719456628793% <= 25.0%)", "benchmark_comparison: reported (cash=0.0%, buy_and_hold=211.59318871005362%); beating the benchmark is not required"]','b7ed06b5c507b715e48ba4c384f08bbc7d91b16f611674e5d1dd249674945974','2026-11-10T15:00:10.707470+00:00');
 CREATE TABLE experiments (
     id TEXT PRIMARY KEY,                 -- experiment id, e.g. "2026-10-27-donchian-h002-explore"
     hypothesis_id TEXT NOT NULL REFERENCES hypotheses(id),
@@ -3262,6 +3276,10 @@ INSERT INTO "experiments" VALUES('20261110T142055Z-h-089-exploration-bnb-usdt','
 INSERT INTO "experiments" VALUES('20261110T142055Z-h-089-exploration-xrp-usdt','H-089','user_data/strategies/WeeklyBreakoutRegime_H089_v1.py','f1aedc0fe5bb4b217f2a68f897fb4f2a8b64bb88d2b9a00897d61b3ef03d7a9d','multi:optimistic,base,conservative,stress','exploration','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T142055Z-h-089-exploration-xrp-usdt/raw/backtest-result-2026-11-10_14-38-00.zip','completed','2026-11-10T14:37:07.623381+00:00','XRP/USDT');
 INSERT INTO "experiments" VALUES('20261110T142055Z-h-089-exploration-ada-usdt','H-089','user_data/strategies/WeeklyBreakoutRegime_H089_v1.py','f1aedc0fe5bb4b217f2a68f897fb4f2a8b64bb88d2b9a00897d61b3ef03d7a9d','multi:optimistic,base,conservative,stress','exploration','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T142055Z-h-089-exploration-ada-usdt/raw/backtest-result-2026-11-10_14-40-44.zip','completed','2026-11-10T14:39:53.121914+00:00','ADA/USDT');
 INSERT INTO "experiments" VALUES('20261110T142055Z-h-089-exploration-ltc-usdt','H-089','user_data/strategies/WeeklyBreakoutRegime_H089_v1.py','f1aedc0fe5bb4b217f2a68f897fb4f2a8b64bb88d2b9a00897d61b3ef03d7a9d','multi:optimistic,base,conservative,stress','exploration','see raw/*.stdout.txt per cost scenario',NULL,'pending','2026-11-10T14:43:20.978664+00:00','LTC/USDT');
+INSERT INTO "experiments" VALUES('20261110T145042Z-h-043-validation-btc-usdt','H-043','user_data/strategies/HourlyWilliamsVolBreakout_H043_v1.py','8d56d89aec81714a56bdaf2f72581325572f3ea201f33c28077be77edb09eb17','multi:optimistic,base,conservative,stress','validation','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T145042Z-h-043-validation-btc-usdt/raw/backtest-result-2026-11-10_14-51-43.zip','completed','2026-11-10T14:50:45.023638+00:00','BTC/USDT');
+INSERT INTO "experiments" VALUES('20261110T145042Z-h-043-validation-eth-usdt','H-043','user_data/strategies/HourlyWilliamsVolBreakout_H043_v1.py','8d56d89aec81714a56bdaf2f72581325572f3ea201f33c28077be77edb09eb17','multi:optimistic,base,conservative,stress','validation','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T145042Z-h-043-validation-eth-usdt/raw/backtest-result-2026-11-10_14-54-15.zip','completed','2026-11-10T14:53:36.039179+00:00','ETH/USDT');
+INSERT INTO "experiments" VALUES('20261110T145042Z-h-043-validation-bnb-usdt','H-043','user_data/strategies/HourlyWilliamsVolBreakout_H043_v1.py','8d56d89aec81714a56bdaf2f72581325572f3ea201f33c28077be77edb09eb17','multi:optimistic,base,conservative,stress','validation','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T145042Z-h-043-validation-bnb-usdt/raw/backtest-result-2026-11-10_14-56-30.zip','completed','2026-11-10T14:55:50.419282+00:00','BNB/USDT');
+INSERT INTO "experiments" VALUES('20261110T145042Z-h-043-validation-xrp-usdt','H-043','user_data/strategies/HourlyWilliamsVolBreakout_H043_v1.py','8d56d89aec81714a56bdaf2f72581325572f3ea201f33c28077be77edb09eb17','multi:optimistic,base,conservative,stress','validation','see raw/*.stdout.txt per cost scenario','research/experiments/20261110T145042Z-h-043-validation-xrp-usdt/raw/backtest-result-2026-11-10_14-58-38.zip','completed','2026-11-10T14:58:02.311866+00:00','XRP/USDT');
 CREATE TABLE hypotheses (
     id TEXT PRIMARY KEY,                 -- e.g. "H-004"
     family TEXT NOT NULL,
@@ -13248,9 +13266,109 @@ INSERT INTO "metrics" VALUES(9818,'20261110T142055Z-h-089-exploration-ada-usdt',
 INSERT INTO "metrics" VALUES(9819,'20261110T142055Z-h-089-exploration-ada-usdt','recursive_is_stable',NULL,'true');
 INSERT INTO "metrics" VALUES(9820,'20261110T142055Z-h-089-exploration-ada-usdt','benchmark_cash_return_pct',0.0,NULL);
 INSERT INTO "metrics" VALUES(9821,'20261110T142055Z-h-089-exploration-ada-usdt','benchmark_buy_and_hold_return_pct',3.587608760876088354e+01,NULL);
+INSERT INTO "metrics" VALUES(9822,'20261110T145042Z-h-043-validation-btc-usdt','exposure',0.15,NULL);
+INSERT INTO "metrics" VALUES(9823,'20261110T145042Z-h-043-validation-btc-usdt','trades__optimistic',58.0,NULL);
+INSERT INTO "metrics" VALUES(9824,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_quote__optimistic',-4.885094570000005021e+00,NULL);
+INSERT INTO "metrics" VALUES(9825,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_excl_best_trade__optimistic',-1.271794617887803724e+01,NULL);
+INSERT INTO "metrics" VALUES(9826,'20261110T145042Z-h-043-validation-btc-usdt','max_drawdown_pct__optimistic',2.287497956283565336e+00,NULL);
+INSERT INTO "metrics" VALUES(9827,'20261110T145042Z-h-043-validation-btc-usdt','max_relative_drawdown_pct__optimistic',2.287497956283565336e+00,NULL);
+INSERT INTO "metrics" VALUES(9828,'20261110T145042Z-h-043-validation-btc-usdt','trades__base',58.0,NULL);
+INSERT INTO "metrics" VALUES(9829,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_quote__base',-17.74530523,NULL);
+INSERT INTO "metrics" VALUES(9830,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_excl_best_trade__base',-2.519917388273404413e+01,NULL);
+INSERT INTO "metrics" VALUES(9831,'20261110T145042Z-h-043-validation-btc-usdt','max_drawdown_pct__base',3.330786243618916843e+00,NULL);
+INSERT INTO "metrics" VALUES(9832,'20261110T145042Z-h-043-validation-btc-usdt','max_relative_drawdown_pct__base',3.330786243618916843e+00,NULL);
+INSERT INTO "metrics" VALUES(9833,'20261110T145042Z-h-043-validation-btc-usdt','trades__conservative',58.0,NULL);
+INSERT INTO "metrics" VALUES(9834,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_quote__conservative',-3.050360088000000403e+01,NULL);
+INSERT INTO "metrics" VALUES(9835,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_excl_best_trade__conservative',-3.760935904476855285e+01,NULL);
+INSERT INTO "metrics" VALUES(9836,'20261110T145042Z-h-043-validation-btc-usdt','max_drawdown_pct__conservative',4.369786499304508354e+00,NULL);
+INSERT INTO "metrics" VALUES(9837,'20261110T145042Z-h-043-validation-btc-usdt','max_relative_drawdown_pct__conservative',4.369786499304508354e+00,NULL);
+INSERT INTO "metrics" VALUES(9838,'20261110T145042Z-h-043-validation-btc-usdt','trades__stress',58.0,NULL);
+INSERT INTO "metrics" VALUES(9839,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_quote__stress',-6.760719542999999022e+01,NULL);
+INSERT INTO "metrics" VALUES(9840,'20261110T145042Z-h-043-validation-btc-usdt','net_profit_excl_best_trade__stress',-7.356925990774925594e+01,NULL);
+INSERT INTO "metrics" VALUES(9841,'20261110T145042Z-h-043-validation-btc-usdt','max_drawdown_pct__stress',7.405232044951085335e+00,NULL);
+INSERT INTO "metrics" VALUES(9842,'20261110T145042Z-h-043-validation-btc-usdt','max_relative_drawdown_pct__stress',7.405232044951085335e+00,NULL);
+INSERT INTO "metrics" VALUES(9843,'20261110T145042Z-h-043-validation-btc-usdt','lookahead_has_bias',NULL,'false');
+INSERT INTO "metrics" VALUES(9844,'20261110T145042Z-h-043-validation-btc-usdt','recursive_is_stable',NULL,'true');
+INSERT INTO "metrics" VALUES(9845,'20261110T145042Z-h-043-validation-btc-usdt','benchmark_cash_return_pct',0.0,NULL);
+INSERT INTO "metrics" VALUES(9846,'20261110T145042Z-h-043-validation-btc-usdt','benchmark_buy_and_hold_return_pct',4.184342463774648735e+01,NULL);
+INSERT INTO "metrics" VALUES(9847,'20261110T145042Z-h-043-validation-eth-usdt','exposure',0.15,NULL);
+INSERT INTO "metrics" VALUES(9848,'20261110T145042Z-h-043-validation-eth-usdt','trades__optimistic',79.0,NULL);
+INSERT INTO "metrics" VALUES(9849,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_quote__optimistic',4.724866317999999409e+01,NULL);
+INSERT INTO "metrics" VALUES(9850,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_excl_best_trade__optimistic',2.278086995605951869e+01,NULL);
+INSERT INTO "metrics" VALUES(9851,'20261110T145042Z-h-043-validation-eth-usdt','max_drawdown_pct__optimistic',2.167800201193227139e+00,NULL);
+INSERT INTO "metrics" VALUES(9852,'20261110T145042Z-h-043-validation-eth-usdt','max_relative_drawdown_pct__optimistic',2.167800201193227139e+00,NULL);
+INSERT INTO "metrics" VALUES(9853,'20261110T145042Z-h-043-validation-eth-usdt','trades__base',79.0,NULL);
+INSERT INTO "metrics" VALUES(9854,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_quote__base',2.875558776000000805e+01,NULL);
+INSERT INTO "metrics" VALUES(9855,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_excl_best_trade__base',4.976713360480857773e+00,NULL);
+INSERT INTO "metrics" VALUES(9856,'20261110T145042Z-h-043-validation-eth-usdt','max_drawdown_pct__base',2.665195136295792633e+00,NULL);
+INSERT INTO "metrics" VALUES(9857,'20261110T145042Z-h-043-validation-eth-usdt','max_relative_drawdown_pct__base',2.665195136295792633e+00,NULL);
+INSERT INTO "metrics" VALUES(9858,'20261110T145042Z-h-043-validation-eth-usdt','trades__conservative',79.0,NULL);
+INSERT INTO "metrics" VALUES(9859,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_quote__conservative',1.063037890999999569e+01,NULL);
+INSERT INTO "metrics" VALUES(9860,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_excl_best_trade__conservative',-1.248054312384908826e+01,NULL);
+INSERT INTO "metrics" VALUES(9861,'20261110T145042Z-h-043-validation-eth-usdt','max_drawdown_pct__conservative',3.210760073473286625e+00,NULL);
+INSERT INTO "metrics" VALUES(9862,'20261110T145042Z-h-043-validation-eth-usdt','max_relative_drawdown_pct__conservative',3.210760073473286625e+00,NULL);
+INSERT INTO "metrics" VALUES(9863,'20261110T145042Z-h-043-validation-eth-usdt','trades__stress',79.0,NULL);
+INSERT INTO "metrics" VALUES(9864,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_quote__stress',-41.92440969,NULL);
+INSERT INTO "metrics" VALUES(9865,'20261110T145042Z-h-043-validation-eth-usdt','net_profit_excl_best_trade__stress',-6.291700257666684593e+01,NULL);
+INSERT INTO "metrics" VALUES(9866,'20261110T145042Z-h-043-validation-eth-usdt','max_drawdown_pct__stress',5.033645505102174233e+00,NULL);
+INSERT INTO "metrics" VALUES(9867,'20261110T145042Z-h-043-validation-eth-usdt','max_relative_drawdown_pct__stress',5.033645505102174233e+00,NULL);
+INSERT INTO "metrics" VALUES(9868,'20261110T145042Z-h-043-validation-eth-usdt','lookahead_has_bias',NULL,'false');
+INSERT INTO "metrics" VALUES(9869,'20261110T145042Z-h-043-validation-eth-usdt','recursive_is_stable',NULL,'true');
+INSERT INTO "metrics" VALUES(9870,'20261110T145042Z-h-043-validation-eth-usdt','benchmark_cash_return_pct',0.0,NULL);
+INSERT INTO "metrics" VALUES(9871,'20261110T145042Z-h-043-validation-eth-usdt','benchmark_buy_and_hold_return_pct',-2.088585106176796913e+01,NULL);
+INSERT INTO "metrics" VALUES(9872,'20261110T145042Z-h-043-validation-bnb-usdt','exposure',0.15,NULL);
+INSERT INTO "metrics" VALUES(9873,'20261110T145042Z-h-043-validation-bnb-usdt','trades__optimistic',66.0,NULL);
+INSERT INTO "metrics" VALUES(9874,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_quote__optimistic',3.0992549020000002e+01,NULL);
+INSERT INTO "metrics" VALUES(9875,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_excl_best_trade__optimistic',1.600090779755032599e+01,NULL);
+INSERT INTO "metrics" VALUES(9876,'20261110T145042Z-h-043-validation-bnb-usdt','max_drawdown_pct__optimistic',2.3460660520000034e+00,NULL);
+INSERT INTO "metrics" VALUES(9877,'20261110T145042Z-h-043-validation-bnb-usdt','max_relative_drawdown_pct__optimistic',2.3460660520000034e+00,NULL);
+INSERT INTO "metrics" VALUES(9878,'20261110T145042Z-h-043-validation-bnb-usdt','trades__base',66.0,NULL);
+INSERT INTO "metrics" VALUES(9879,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_quote__base',1.580658693000001236e+01,NULL);
+INSERT INTO "metrics" VALUES(9880,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_excl_best_trade__base',1.228058165181892037e+00,NULL);
+INSERT INTO "metrics" VALUES(9881,'20261110T145042Z-h-043-validation-bnb-usdt','max_drawdown_pct__base',3.110782562999997669e+00,NULL);
+INSERT INTO "metrics" VALUES(9882,'20261110T145042Z-h-043-validation-bnb-usdt','max_relative_drawdown_pct__base',3.110782562999997669e+00,NULL);
+INSERT INTO "metrics" VALUES(9883,'20261110T145042Z-h-043-validation-bnb-usdt','trades__conservative',66.0,NULL);
+INSERT INTO "metrics" VALUES(9884,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_quote__conservative',8.627529800000033334e-01,NULL);
+INSERT INTO "metrics" VALUES(9885,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_excl_best_trade__conservative',-1.322595435102596184e+01,NULL);
+INSERT INTO "metrics" VALUES(9886,'20261110T145042Z-h-043-validation-bnb-usdt','max_drawdown_pct__conservative',3.86453505099999628e+00,NULL);
+INSERT INTO "metrics" VALUES(9887,'20261110T145042Z-h-043-validation-bnb-usdt','max_relative_drawdown_pct__conservative',3.86453505099999628e+00,NULL);
+INSERT INTO "metrics" VALUES(9888,'20261110T145042Z-h-043-validation-bnb-usdt','trades__stress',66.0,NULL);
+INSERT INTO "metrics" VALUES(9889,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_quote__stress',-4.266908832000000728e+01,NULL);
+INSERT INTO "metrics" VALUES(9890,'20261110T145042Z-h-043-validation-bnb-usdt','net_profit_excl_best_trade__stress',-5.527761937994876006e+01,NULL);
+INSERT INTO "metrics" VALUES(9891,'20261110T145042Z-h-043-validation-bnb-usdt','max_drawdown_pct__stress',6.160704806000000922e+00,NULL);
+INSERT INTO "metrics" VALUES(9892,'20261110T145042Z-h-043-validation-bnb-usdt','max_relative_drawdown_pct__stress',6.160704806000000922e+00,NULL);
+INSERT INTO "metrics" VALUES(9893,'20261110T145042Z-h-043-validation-bnb-usdt','lookahead_has_bias',NULL,'false');
+INSERT INTO "metrics" VALUES(9894,'20261110T145042Z-h-043-validation-bnb-usdt','recursive_is_stable',NULL,'true');
+INSERT INTO "metrics" VALUES(9895,'20261110T145042Z-h-043-validation-bnb-usdt','benchmark_cash_return_pct',0.0,NULL);
+INSERT INTO "metrics" VALUES(9896,'20261110T145042Z-h-043-validation-bnb-usdt','benchmark_buy_and_hold_return_pct',3.199679658302190433e+01,NULL);
+INSERT INTO "metrics" VALUES(9897,'20261110T145042Z-h-043-validation-xrp-usdt','exposure',0.15,NULL);
+INSERT INTO "metrics" VALUES(9898,'20261110T145042Z-h-043-validation-xrp-usdt','trades__optimistic',74.0,NULL);
+INSERT INTO "metrics" VALUES(9899,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_quote__optimistic',7.403977653000001169e+01,NULL);
+INSERT INTO "metrics" VALUES(9900,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_excl_best_trade__optimistic',5.443092995758001962e+01,NULL);
+INSERT INTO "metrics" VALUES(9901,'20261110T145042Z-h-043-validation-xrp-usdt','max_drawdown_pct__optimistic',2.940204081682224135e+00,NULL);
+INSERT INTO "metrics" VALUES(9902,'20261110T145042Z-h-043-validation-xrp-usdt','max_relative_drawdown_pct__optimistic',2.940204081682224135e+00,NULL);
+INSERT INTO "metrics" VALUES(9903,'20261110T145042Z-h-043-validation-xrp-usdt','trades__base',74.0,NULL);
+INSERT INTO "metrics" VALUES(9904,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_quote__base',5.629958814000000444e+01,NULL);
+INSERT INTO "metrics" VALUES(9905,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_excl_best_trade__base',3.724789849953367593e+01,NULL);
+INSERT INTO "metrics" VALUES(9906,'20261110T145042Z-h-043-validation-xrp-usdt','max_drawdown_pct__base',3.175376123935934381e+00,NULL);
+INSERT INTO "metrics" VALUES(9907,'20261110T145042Z-h-043-validation-xrp-usdt','max_relative_drawdown_pct__base',3.175376123935934381e+00,NULL);
+INSERT INTO "metrics" VALUES(9908,'20261110T145042Z-h-043-validation-xrp-usdt','trades__conservative',74.0,NULL);
+INSERT INTO "metrics" VALUES(9909,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_quote__conservative',3.880952101000001164e+01,NULL);
+INSERT INTO "metrics" VALUES(9910,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_excl_best_trade__conservative',2.032898635914773422e+01,NULL);
+INSERT INTO "metrics" VALUES(9911,'20261110T145042Z-h-043-validation-xrp-usdt','max_drawdown_pct__conservative',3.69719456628793,NULL);
+INSERT INTO "metrics" VALUES(9912,'20261110T145042Z-h-043-validation-xrp-usdt','max_relative_drawdown_pct__conservative',3.69719456628793,NULL);
+INSERT INTO "metrics" VALUES(9913,'20261110T145042Z-h-043-validation-xrp-usdt','trades__stress',74.0,NULL);
+INSERT INTO "metrics" VALUES(9914,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_quote__stress',-1.194332335999999196e+01,NULL);
+INSERT INTO "metrics" VALUES(9915,'20261110T145042Z-h-043-validation-xrp-usdt','net_profit_excl_best_trade__stress',-2.864466996705391467e+01,NULL);
+INSERT INTO "metrics" VALUES(9916,'20261110T145042Z-h-043-validation-xrp-usdt','max_drawdown_pct__stress',5.669004494690651263e+00,NULL);
+INSERT INTO "metrics" VALUES(9917,'20261110T145042Z-h-043-validation-xrp-usdt','max_relative_drawdown_pct__stress',5.669004494690651263e+00,NULL);
+INSERT INTO "metrics" VALUES(9918,'20261110T145042Z-h-043-validation-xrp-usdt','lookahead_has_bias',NULL,'false');
+INSERT INTO "metrics" VALUES(9919,'20261110T145042Z-h-043-validation-xrp-usdt','recursive_is_stable',NULL,'true');
+INSERT INTO "metrics" VALUES(9920,'20261110T145042Z-h-043-validation-xrp-usdt','benchmark_cash_return_pct',0.0,NULL);
+INSERT INTO "metrics" VALUES(9921,'20261110T145042Z-h-043-validation-xrp-usdt','benchmark_buy_and_hold_return_pct',2.115931887100536244e+02,NULL);
 DELETE FROM "sqlite_sequence";
-INSERT INTO "sqlite_sequence" VALUES('metrics',9821);
-INSERT INTO "sqlite_sequence" VALUES('decisions',407);
-INSERT INTO "sqlite_sequence" VALUES('agent_runs',287);
-INSERT INTO "sqlite_sequence" VALUES('approvals',9);
+INSERT INTO "sqlite_sequence" VALUES('metrics',9921);
+INSERT INTO "sqlite_sequence" VALUES('decisions',411);
+INSERT INTO "sqlite_sequence" VALUES('agent_runs',288);
+INSERT INTO "sqlite_sequence" VALUES('approvals',10);
 COMMIT;
