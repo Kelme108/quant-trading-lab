@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "H-100",
+  "family": "RSIOverboughtMomentumRVol",
+  "title": "Overbought-is-strength with a relative-volume confirmation: 1h RSI(14) cross above 70 on at least twice the usual volume",
+  "ex_ante_rule": "Chart 1h, closed bars only; signal at bar close, fill at the next 1h bar open. Long only, spot, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs. No informative timeframe. INDICATOR: RSI14 = Wilder RSI of length 14 on 1h closes (standard talib/ta-lib RSI, Wilder smoothing alpha = 1/14). ENTRY at the close of 1h bar t when RSI14(t-1) <= 70 AND RSI14(t) > 70 (fresh cross into the overbought zone) AND no position is open; buy at the open of bar t+1. A new entry requires a new cross from at or below 70 (a bar where RSI14 stays above 70 is never an entry). EXITS, whichever comes first: (a) TAKE-PROFIT: a limit at entry fill price * 1.03 (+3.0%), filled intrabar as soon as the high touches it (implement via minimal_roi = {\"0\": 0.03}); (b) RSI EXIT: a 1h bar closes with RSI14 < 55, sell at the next 1h open; (c) TIME EXIT: at the close of the 24th 1h bar after the entry bar (trade age >= 24 hours), sell at the next 1h open, so no position is held past about 25 hours from the signal and every position is closed within 24 hours of fill plus one bar of execution. If both (b) and (c) are true on the same bar, one exit order is sent. STOP-LOSS: none in the published rule; the strategy sets stoploss = -0.99 only to satisfy the engine contract, a non-binding stop that is never intended to trigger (the RSI-55 and 24-hour exits bound the loss). No trailing stop, no cooldown, no trend filter, no volume filter, no other condition. All numbers fixed ex ante from the source rule (moved from 4h to 1h with the target scaled from 6% to 3%), no grid: RSI length 14, entry level 70, exit level 55, take-profit 3%, time exit 24 bars. Warm-up: 300 bars (RSI(14) needs 15 bars; 300 are taken so the recursive Wilder smoothing has converged and the recursive-indicator gate passes; startup_candle_count = 300, far under the 4500 limit). ADDED RULE (the only change from H-085): the ENTRY also requires relative volume RV(t) >= 2.0 at the signal bar t, where RV(t) = volume(t) / mean(volume(t-120..t-1)) (the previous 120 closed 1h bars, the current bar excluded); no other change: exits, stops, timing, windows and the 24-hour/day limits are exactly those of H-085. The 2.0 and the 120 are fixed ex ante (twice the 5-day mean volume), no grid.",
+  "parameters": {
+    "parent": "H-085",
+    "change": "rvol>=2.0 over 120 bars"
+  },
+  "rationale": "Review requested by the owner (2026-11-10). On the exploration-split trades of H-085 (all nine pairs), gross move per trade rose monotonically with the relative volume of the signal bar: the lowest quartile earned about zero and the highest roughly twice the cost. Volume confirmation is the classic day-trading 'in play' filter: a breakout without volume is a drift, not a demand burst. One rule, fixed at the conventional 2x, not tuned further. NOTE the filter was chosen after looking at exploration trades, so the exploration result of this version is partly in-sample for that one choice; the validation read is the honest test.",
+  "novelty_vs_tried": "Same entries and exits as H-085 with one added filter/number; it asks whether the parent's edge concentrates where the filter says.",
+  "sources": [
+    {
+      "title": "lab hypothesis H-085",
+      "url": "research/proposals/H-085.json"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Exploration-split trade statistics of H-085 only (research/learnings digest and its backtest artifacts). Validation and holdout data were not opened."
+}

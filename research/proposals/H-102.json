@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "H-102",
+  "family": "IntradayJumpContinuationStrong",
+  "title": "Intraday positive-jump continuation on 15m with a stronger jump (statistic at least 6.0 instead of 4.0)",
+  "ex_ante_rule": "Chart: 15m, closed bars only, UTC clock; signal at the close of bar t, order at the open of bar t+1. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no sizing hooks, no other filters. DEFINITIONS: r(i) = ln(close(i)/close(i-1)). Local volatility s(t) = sqrt((pi/2) * mean over i = t-96..t-1 of |r(i)|*|r(i-1)|) (bipower variation over the previous 96 bars; the current bar t is excluded; needs closes t-98..t-1). Jump statistic J(t) = r(t)/s(t); if s(t) is 0 or undefined there is no signal. DAILY FILTER: build UTC daily candles from the 15m data (informative 1d via merge_informative_pair, forward-filled, so a daily close is visible only after its day has closed). The filter holds when the last completed daily close (the previous UTC day) is strictly above the simple mean of the last 30 completed daily closes (that day included). ENTRY at the close of bar t when ALL hold: (1) J(t) >= 4.0; (2) r(t) >= 0.006; (3) bar t opens between 00:00 and 17:45 UTC inclusive; (4) daily filter true; (5) no position open; (6) no trade has already been entered on this UTC day (the day of bar t). Store L = low of the jump bar t at signal time. EXIT, first of: (a) on any 15m bar u >= t+1 (the entry bar included) whose close < L, sell at the open of bar u+1; (b) time exit: at the close of the 23:45 UTC bar of the signal day, sell at the open of the 00:00 UTC bar of the next day, so every position is closed within 24 hours. STOP-LOSS: one fixed 3% below the entry price, the engine's native intrabar stop (a catastrophic backstop; exit (a) is the designed loss exit). COOLDOWN: none beyond the one-trade-per-UTC-day rule. All numbers fixed ex ante, no grid: return window 1 bar, bipower window 96 bars, jump threshold 4.0, minimum bar return 0.006 log, entry window 00:00-17:45 UTC, daily mean 30 days, time exit 23:45 bar close, stop 3%. Warm-up: 3072 bars (30 completed daily closes need up to 31 UTC days = 2976 15m bars; the bipower window needs 98 bars; 3072 = 32 days gives margin; no recursive indicators; under the 4500 limit). CHANGED NUMBER (the only change from H-059): the jump statistic threshold is J(t) >= 6.0 instead of 4.0; everything else is exactly as in H-059.",
+  "parameters": {
+    "parent": "H-059",
+    "change": "jump threshold 6.0"
+  },
+  "rationale": "Review requested by the owner (2026-11-10). On the exploration-split trades of H-059, gross move per trade rose with the size of the jump statistic (top quartile, J above about 6, earned the only clearly positive net result); the bar volume itself was not informative. One number changed, fixed at 6.0. NOTE chosen after looking at exploration trades, so the exploration result is partly in-sample for that one choice; the validation read is the honest test.",
+  "novelty_vs_tried": "Same entries and exits as H-059 with one added filter/number; it asks whether the parent's edge concentrates where the filter says.",
+  "sources": [
+    {
+      "title": "lab hypothesis H-059",
+      "url": "research/proposals/H-059.json"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "Exploration-split trade statistics of H-059 only (research/learnings digest and its backtest artifacts). Validation and holdout data were not opened."
+}

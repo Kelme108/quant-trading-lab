@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "H-101",
+  "family": "HourlyIchimokuTrendRVol",
+  "title": "Hourly Ichimoku 20/60/120/30 trend entry confirmed by at least twice the usual volume",
+  "ex_ante_rule": "Chart 1h, closed bars only; every signal is evaluated at the close of bar t and filled at the open of bar t+1. Spot, long only, one position at a time, whole balance. No higher-timeframe filter. INDICATORS (all windows include the current closed bar t): Tenkan T(t) = (max high of bars t-19..t + min low of bars t-19..t)/2 (20 bars). Kijun K(t) = same over bars t-59..t (60 bars). SpanA_raw(t) = (T(t)+K(t))/2. SpanB_raw(t) = (max high + min low of bars t-119..t)/2 (120 bars). Displacement 30: the cloud at bar t is SpanA(t) = SpanA_raw(t-30) and SpanB(t) = SpanB_raw(t-30); CloudTop(t) = max(SpanA(t), SpanB(t)). Lagging-line confirmation: close(t) > close(t-30). ENTRY at close of bar t when flat and all of: close(t) > CloudTop(t) AND close(t) > close(t-30) AND at least one of (A) TK cross: T(t-1) <= K(t-1) and T(t) > K(t); or (B) cloud break: close(t-1) <= CloudTop(t-1) and T(t) > K(t). Buy at open of bar t+1. EXITS, whichever comes first: (1) native hard stop-loss 3% below the entry fill price, triggered intrabar as soon as price touches it (stoploss = -0.03); (2) Kijun exit: a closed 1h bar with close < K of that bar, sold at the next bar open; (3) time exit: when the trade has been open 24 hours (i.e. at the close of the 24th 1h bar counted from the entry bar, the entry bar being bar 1), sold at the next open, so no position is held more than 24 hours. No take-profit, no trailing stop, no cooldown, no pyramiding; a new entry may be taken on any later bar that meets the entry condition. Warm-up: 150 bars (120-bar SpanB plus 30-bar displacement; all indicators are rolling max/min, non-recursive). ADDED RULE (the only change from H-084): the ENTRY also requires relative volume RV(t) >= 2.0 at the signal bar t, where RV(t) = volume(t) / mean(volume(t-120..t-1)) (the previous 120 closed 1h bars, the current bar excluded); no other change: exits, stops, timing, windows and the 24-hour/day limits are exactly those of H-084. The 2.0 and the 120 are fixed ex ante (twice the 5-day mean volume), no grid.",
+  "parameters": {
+    "parent": "H-084",
+    "change": "rvol>=2.0 over 120 bars"
+  },
+  "rationale": "Review requested by the owner (2026-11-10). On the exploration-split trades of H-084 (all nine pairs), gross move per trade rose monotonically with the relative volume of the signal bar: the lowest quartile earned about zero and the highest roughly twice the cost. Volume confirmation is the classic day-trading 'in play' filter: a breakout without volume is a drift, not a demand burst. One rule, fixed at the conventional 2x, not tuned further. NOTE the filter was chosen after looking at exploration trades, so the exploration result of this version is partly in-sample for that one choice; the validation read is the honest test.",
+  "novelty_vs_tried": "Same entries and exits as H-084 with one added filter/number; it asks whether the parent's edge concentrates where the filter says.",
+  "sources": [
+    {
+      "title": "lab hypothesis H-084",
+      "url": "research/proposals/H-084.json"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Exploration-split trade statistics of H-084 only (research/learnings digest and its backtest artifacts). Validation and holdout data were not opened."
+}

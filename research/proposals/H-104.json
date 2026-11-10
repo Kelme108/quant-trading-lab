@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "H-104",
+  "family": "HourlyWilliamsVolBreakoutRVol",
+  "title": "Williams-style volatility breakout (day open + 0.6 x prior range) taken only on at least twice the usual volume",
+  "ex_ante_rule": "Closed 1h candles only; signal at bar close, order at next bar open. Long only, one position, whole allowed balance. UTC days built from 1h bars. For UTC day D: O = open of the 00:00 bar of D; R = (highest high - lowest low) of the 24 bars of day D-1; level = O + 0.6*R; TrendDay = close of the last bar (23:00) of day D-1 > SMA(50) of daily closes, where the daily closes are the 23:00-bar closes of the last 50 completed UTC days up to and including D-1 (equivalent to a 1h series of 1200 bars sampled at day ends; all use completed days only). ENTRY at the close of a 1h bar whose open time is between 01:00 and 18:00 UTC inclusive on day D when ALL hold: close > level; R/O >= 0.02; TrendDay true; no open position; no trade already entered on day D. The buy fills at the next bar open. At most one entry per day, no re-entry on the same day after an exit. EXIT, whichever first: (a) a 1h bar closes < O - 0.5*R (exit executed at next bar open); (b) time exit: the 23:00 bar's close is the last signal of day D, so the position is sold at the open of the 00:00 UTC bar of day D+1 (flat at midnight); (c) native fixed stop-loss 5% below the entry price (intrabar), added as the engine-required fixed-percentage protection against gaps between the closed-bar exit checks. No cooldown beyond the one-trade-per-day rule, no take-profit, no pyramiding, no other filters. Fixed parameters: 0.6 trigger multiple, 0.5 stop multiple, 0.02 min range ratio, SMA 50 days, entry window 01:00-18:00 UTC. Warm-up: 1300 bars (1200 bars for SMA(50) of daily closes + 24 bars for prior-day range + margin). ADDED RULE (the only change from H-043): the ENTRY also requires relative volume RV(t) >= 2.0 at the signal bar t, where RV(t) = volume(t) / mean(volume(t-120..t-1)) (the previous 120 closed 1h bars, the current bar excluded); no other change: exits, stops, timing, windows and the 24-hour/day limits are exactly those of H-043. The 2.0 and the 120 are fixed ex ante (twice the 5-day mean volume), no grid.",
+  "parameters": {
+    "parent": "H-043",
+    "change": "rvol>=2.0 over 120 bars"
+  },
+  "rationale": "Review requested by the owner (2026-11-10). On the exploration-split trades of H-043 (all nine pairs), gross move per trade rose monotonically with the relative volume of the signal bar: the lowest quartile earned about zero and the highest roughly twice the cost. Volume confirmation is the classic day-trading 'in play' filter: a breakout without volume is a drift, not a demand burst. One rule, fixed at the conventional 2x, not tuned further. NOTE the filter was chosen after looking at exploration trades, so the exploration result of this version is partly in-sample for that one choice; the validation read is the honest test.",
+  "novelty_vs_tried": "Same entries and exits as H-043 with one added filter/number; it asks whether the parent's edge concentrates where the filter says.",
+  "sources": [
+    {
+      "title": "lab hypothesis H-043",
+      "url": "research/proposals/H-043.json"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Exploration-split trade statistics of H-043 only (research/learnings digest and its backtest artifacts). Validation and holdout data were not opened."
+}

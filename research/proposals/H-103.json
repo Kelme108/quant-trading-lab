@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "H-103",
+  "family": "AbnormalDayContinuationRVol",
+  "title": "Abnormal-day continuation: first intraday crossing of the volatility band, only on at least twice the usual volume",
+  "ex_ante_rule": "Timeframe 1h, closed bars only, all times UTC; a signal at a bar close is filled at the next bar open. Long only, one position, whole allowed balance. DAILY STATISTICS (built from completed 1h bars, no lookahead): for each completed UTC day k, C(k) = close of that day's 23:00 bar (if that bar is missing, the close of the last bar of that day). Daily return R(k) = C(k)/C(k-1) - 1. For the current UTC day d, m = mean and s = sample standard deviation (ddof=1) of R(k) over the 30 completed days k = d-30 .. d-1 (needs 31 daily closes = 744 bars); m and s are fixed for the whole of day d. INTRADAY: O = open of day d's 00:00 bar (if missing, the open of the first bar of day d). D(t) = close(t)/O - 1 for every bar t of day d. Threshold T = m + 0.75*s. ENTRY at the close of bar t when ALL hold: (1) the open time of bar t is between 01:00 and 18:00 UTC inclusive; (2) D(t) >= T; (3) D(t) >= 0.01; (4) D(t-1) < T, where t-1 is the previous bar of the same UTC day (first crossing); (5) no position is open; (6) no entry has been made earlier in the same UTC day (at most one entry per UTC day). Buy at the next bar open. EXIT, whichever comes first: (a) TIME EXIT: 24 hours after the entry fill, i.e. the exit signal is raised at the close of the 24th bar of the trade (the bar opening 23 hours after the entry bar) and the position is sold at the next open, so no position is held longer than 24 hours; (b) FAILURE EXIT: a bar closes below O, the open of the UTC day on which the entry signal fired (the move has fully failed); sell at the next open. STOP-LOSS: fixed 4% below the entry price, native intrabar stop (a disaster stop only; exit (b) normally triggers first). No cooldown beyond the one-entry-per-UTC-day rule, no take-profit, no trailing, no pyramiding, no other filters. Warm-up: 800 bars (744 bars for 31 daily closes plus up to 24 bars of the current day, rounded up; no recursive indicators are used). ADDED RULE (the only change from H-057): the ENTRY also requires relative volume RV(t) >= 2.0 at the signal bar t, where RV(t) = volume(t) / mean(volume(t-120..t-1)) (the previous 120 closed 1h bars, the current bar excluded); no other change: exits, stops, timing, windows and the 24-hour/day limits are exactly those of H-057. The 2.0 and the 120 are fixed ex ante (twice the 5-day mean volume), no grid.",
+  "parameters": {
+    "parent": "H-057",
+    "change": "rvol>=2.0 over 120 bars"
+  },
+  "rationale": "Review requested by the owner (2026-11-10). On the exploration-split trades of H-057 (all nine pairs), gross move per trade rose monotonically with the relative volume of the signal bar: the lowest quartile earned about zero and the highest roughly twice the cost. Volume confirmation is the classic day-trading 'in play' filter: a breakout without volume is a drift, not a demand burst. One rule, fixed at the conventional 2x, not tuned further. NOTE the filter was chosen after looking at exploration trades, so the exploration result of this version is partly in-sample for that one choice; the validation read is the honest test.",
+  "novelty_vs_tried": "Same entries and exits as H-057 with one added filter/number; it asks whether the parent's edge concentrates where the filter says.",
+  "sources": [
+    {
+      "title": "lab hypothesis H-057",
+      "url": "research/proposals/H-057.json"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "Exploration-split trade statistics of H-057 only (research/learnings digest and its backtest artifacts). Validation and holdout data were not opened."
+}
