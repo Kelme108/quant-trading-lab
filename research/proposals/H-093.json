@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-093",
+  "family": "TDSetupExhaustion",
+  "title": "DeMark TD buy setup 9 with perfection on 15m: seller-exhaustion count after a 1.5% decline, 8-hour exit",
+  "ex_ante_rule": "Chart 15m, closed bars only. A signal at a bar close fills at the next bar's open. Each pair is traded on its own. No indicators. Warm-up: 100 bars (the longest lookback is about 21 bars: 5 before the flip plus up to 15 after it; 100 bars is a safe margin).\n1) BEARISH PRICE FLIP at bar f: close(f) < close(f-4) AND close(f-1) > close(f-5). Bar f is setup count 1.\n2) BUY SETUP: bars f+1..f+8 (counts 2..9) each have close < close 4 bars earlier. If a bar fails this before count 9, the setup is cancelled; a new one starts only at a later flip. Name nK = f+K-1, so n6=f+5, n7=f+6, n8=f+7, n9=f+8. A setup ends at count 9 (no count beyond 9). Setups are tracked one at a time; the timings make overlap impossible.\n3) DECLINE FILTER, checked at n9: close(f-1)/close(n9) - 1 >= 0.015, else no trade.\n4) PERFECTION: P = min(low(n6), low(n7)). Perfected at n9 if min(low(n8), low(n9)) <= P; the perfecting bar p = n9. If not, the first bar among n9+1..n9+4 with low <= P is p. If none, no trade.\n5) ENTRY TRIGGER: the first bar t in p..p+3 (p included, 4 bars) with close(t) > high(t-1). None: no trade. The signal is valid only if no trade is open on the pair. Buy at open(t+1) = entry.\n6) TRADE CHECKS at the fill (confirm_trade_entry, with entry = the fill rate): LL = lowest low of bars f..t. STOP = min(LL*0.998, entry*0.99), so it is always at least 1% below entry. Skip if STOP < entry*0.97 (more than 3% below). TP = highest high of setup bars f..n9. Skip if TP < entry*1.01.\n7) EXITS: (a) Stop: STOP is a fixed price level set at entry and never moved. It triggers intrabar as soon as low <= STOP (custom_stoploss via stoploss_from_absolute; the native stoploss = -0.03 is the backstop). (b) Take-profit: exit at TP intrabar as soon as high >= TP. If a bar touches both, the stop counts first. (c) Time exit: an exit signal at the close of the 32nd bar held (bar t+32), filled at the next open, so the hold is at most 8 hours.\nOne trade per setup. No other cooldown, filter or trailing.",
+  "parameters": {
+    "timeframe": "15m",
+    "flip_lag_bars": 4,
+    "setup_count": 9,
+    "decline_min_pct": 1.5,
+    "perfection_late_bars": 4,
+    "entry_window_bars": 4,
+    "stop_buffer_pct": 0.2,
+    "stop_min_pct": 1.0,
+    "stop_max_pct": 3.0,
+    "tp_min_pct": 1.0,
+    "time_exit_bars": 32,
+    "native_stoploss": -0.03,
+    "warmup_bars": 100
+  },
+  "rationale": "Mechanism (weak; from practitioner literature, not from a study): a TD buy setup is nine closes in a row below the close four bars earlier, after a flip from positive to negative momentum. DeMark reads this as exhaustion: the sellers who wanted out on this horizon (about 2.25 hours on 15m) have mostly sold. Perfection requires bar 8 or 9, or a later bar, to undercut the lows of bars 6-7, so the stops resting under them are taken. The trigger (a close above the prior bar's high) asks for evidence that buyers have returned. On the other side of the trade are late sellers: stop-outs and impatient holders who sell into a persistent decline and pay for immediacy at the end of it. The long side supplies that liquidity. This trigger counts persistence, not the size of one shock, which is how it differs from the lab's drop-size rules. Costs: the 1.5% decline filter and the requirement that TP (the top of the setup range) be at least 1% above the fill give each trade at least 1% gross upside. The stop is 1-3% away, so the 0.30% base / 0.45% conservative round trip is at most 0.3-0.45R. A winning trade's gross move is therefore about 2-5 times the cost. Frequency: on 15m a buy setup 9 appears several times a day. The 1.5% decline, perfection, the reversal trigger and the TP check should each remove a large share, so I expect roughly 100-300 trades per year per pair, all flat within 8 hours. That may be below the owner's 400/year target; I report it as is and do not loosen any number. No parameter was tuned. The numbers come from the scout's idea and the standard DeMark definitions (lag 4, count 9, bars 6-9 for perfection).",
+  "novelty_vs_tried": "No family in the context uses a sequential-count (TD Setup) trigger. VolumeSpikeCrashRebound, HourlyShockOverreaction and OvernightDropReversal trigger on the size of one move or one bar. DailyRSI2Dip, Double7ChannelDip and ThreeDayLowerRangeDip use daily oscillators or channel dips, and UptrendPullbackRecovery and EMASnapbackATR use distance from a mean. HourlyFailedBreakdownReclaim and RoundNumberSupportBounce use a fixed support level. This rule needs nine closes in a row below the close four bars earlier, with a stop-run perfection on bars 8-9 and a reversal-bar confirmation. Its target is structural (the top of the setup) rather than a fixed ROI, and it has an 8-hour time exit. It also uses no trend filter, so it is not a copy of the dip-in-uptrend candidates.",
+  "sources": [
+    {"title": "#DeMARK #Sequential Tutorial 1 (TradingView, based on Jason Perl, DeMARK Indicators)", "url": "https://kr.tradingview.com/chart/BTCUSD/YlndncbQ-DeMARK-Sequential-Tutorial-1"},
+    {"title": "TD Sequential (LuxAlgo library)", "url": "https://www.luxalgo.com/library/concept/td-sequential.md"},
+    {"title": "TD Sequential - Setup (ProRealCode indicator)", "url": "https://www.prorealcode.com/prorealtime-indicators/td-sequential-setup"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data. Only the context file research/context/H-093.md (exploration-split summaries of earlier hypotheses for BTC/ETH/BNB 1h) and the TD Setup definitions from the web sources."
+}
