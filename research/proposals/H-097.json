@@ -1,0 +1,46 @@
+{
+  "hypothesis_id": "H-097",
+  "family": "RSIBullDivergence",
+  "title": "15m RSI bullish divergence at confirmed pivot lows, hourly RSI below 40, structure-break entry, 2R target, 12h time exit",
+  "ex_ante_rule": "Chart 15m, closed bars only, each pair alone, one position at a time. A signal at the close of bar t fills at the open of t+1. RSI14 = Wilder RSI(14) of 15m closes. H1RSI = Wilder RSI(14) of 1h closes (informative 1h via merge_informative_pair, last completed hour only). PIVOT LOW at bar i: low(i) < low(j) for j=i-3..i-1 and low(i) <= low(j) for j=i+1..i+3. A pivot is known only at the close of i+3. DIVERGENCE: i2 = a newly confirmed pivot low, i1 = the confirmed pivot low just before it. It holds if 6 <= i2-i1 <= 25, low(i2) < low(i1), RSI14(i2) > RSI14(i1) and RSI14(i1) < 40. ENTRY: the first bar t in i2+3..i2+8 with close(t) > max(high of bars i2..t-1) AND H1RSI(t) < 40 AND flat. If no bar triggers, the divergence expires. At most one trade per divergence. STOP: at the signal bar R = 1 - low(i2)*0.998/close(t). Skip if R > 0.03. Otherwise D = max(0.01, R). The stop is a fixed percentage D below the entry fill for that trade (custom_stoploss returns -D from the open rate). It triggers intrabar on touch. The native stoploss is -0.03 as a hard cap. EXITS, first of: (a) the stop; (b) the first bar close >= entry*(1+2D) exits at the next open; (c) the first bar where RSI14 closes >= 70 exits at the next open; (d) time exit: still open at the close of the 48th 15m bar after entry, so exit at the next open (at most 12 hours). No cooldown and no other filters. Same numbers on all nine pairs. Warm-up: 1200 bars (15m). The raw lookback is about 40 bars; the margin is for the recursive Wilder RSI on 1h (300 hours) and on 15m to converge. EXPOSURE: the lab's standard calibration (largest 5% grid share with block-bootstrap p95 closed-trade drawdown <= 25% from this rule's exploration trades at base cost). Fewer than 30 trades on a pair means it is dropped, with no retuning. Parameters come from the source and the scout's idea, fixed before any result.",
+  "parameters": {
+    "timeframe": "15m",
+    "informative_timeframe": "1h",
+    "rsi_period": 14,
+    "h1_rsi_period": 14,
+    "pivot_left_bars": 3,
+    "pivot_right_bars": 3,
+    "min_pivot_gap_bars": 6,
+    "max_pivot_gap_bars": 25,
+    "rsi_first_pivot_max": 40,
+    "h1_rsi_max": 40,
+    "entry_window_start_offset": 3,
+    "entry_window_end_offset": 8,
+    "stop_buffer_below_pivot": 0.002,
+    "min_stop_distance": 0.01,
+    "max_stop_distance": 0.03,
+    "take_profit_R_multiple": 2,
+    "rsi_exit_level": 70,
+    "time_exit_bars": 48,
+    "hard_stoploss": -0.03,
+    "startup_candle_count": 1200
+  },
+  "rationale": "The source gives no mechanism. The closest honest one: the second, lower pivot low runs the stops parked under the first low, but the selling behind it is weaker (a higher RSI low). Forced and late sellers are running out while passive buyers absorb them, and shorts who sold the breakdown cover once price closes above the post-pivot structure. That close is the trigger, so the rule does not buy while price is still making new lows. Hourly RSI < 40 limits entries to an hour-scale selloff, where a rebound has room to exceed 1%. Cost: the stop is 1-3% below entry, so the 0.30% base / 0.45% conservative round trip is at most 0.30R / 0.45R. The 2R target is a 2-6% gross move. A 15m RSI rising from below 40 to 70 usually takes about a 1% move, so the average gross winner should be well above 0.5%. Expected frequency (an estimate, not measured): about 100-300 trades a year per pair. That may be below the owner's 400 target, but the idea is formalised as given, with no filters added or loosened. Every trade is closed within 12h, and a loss is capped near 3% plus costs. Success is judged only by the existing gates on at least 6 of 9 pairs. Published evidence for intraday divergence is thin (scripts and guides only), so the parameters stay at the source's and scout's defaults.",
+  "novelty_vs_tried": "There is no RSIBullDivergence family in the lab. The dip rules (DailyRSI2Dip, EMASnapbackATR, VolumeSpikeCrashRebound, HourlyShockOverreaction, OvernightDropReversal) trigger on the size of a drop. This rule triggers on momentum failing to confirm a new price low between two confirmed 15m pivots, followed by a structure break. TripleBottomReversal (H-011/H-013) used 5-bar pivots on 1h/4h with three equal bottoms and a neckline, and left divergence OFF. Here divergence is the core condition, the second low must be lower (a sweep, not equal support), and the trade is intraday with a 12h time exit. HourlyFailedBreakdownReclaim and SessionRangeJudasSweep reclaim a price level or session range. This rule needs an oscillator divergence plus an hourly oversold gate, with no fixed level or session clock. The timeframe stays 15m as the idea specifies, because its pivots, windows and 48-bar time exit are defined in 15m bars.",
+  "sources": [
+    {
+      "title": "Bullish Divergence Short-term Long Trade Finder (TradingView public script, nickzeus9)",
+      "url": "https://www.tradingview.com/script/cKm43ohC-Bullish-Divergence-Short-term-Long-Trade-Finder"
+    },
+    {
+      "title": "RSI divergences: What they are and how they work (Kraken Learn)",
+      "url": "https://www.kraken.com/au/learn/rsi-divergences-what-they-how-they-work"
+    },
+    {
+      "title": "0016 RSI Divergence (StockSharp API example)",
+      "url": "https://doc.stocksharp.com/en/api-examples/0016_RSI_Divergence"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed. Only research/context/H-097.md (exploration-split summaries of earlier hypotheses, as of 2026-11-10), the validation protocol, and the cited web pages."
+}
