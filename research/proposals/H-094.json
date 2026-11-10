@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-094",
+  "family": "HolyGrailADXPullback",
+  "title": "Raschke Holy Grail on 15m: ADX above 30 and rising, first pullback to EMA20, buy the break of the prior bar high",
+  "ex_ante_rule": "Chart 15m, closed bars only, UTC clock; a signal at the close of bar t is filled at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no higher-timeframe filter. Same rule and numbers on all nine pairs. INDICATORS (15m): ADX(14), +DI(14), -DI(14) with Wilder smoothing (alpha 1/14); EMA20 = EMA(20) of close (adjust=False). TOUCH BAR s (all must hold): ADX(s-1) > 30; ADX(s-1) > ADX(s-5); +DI(s-1) > -DI(s-1); EMA20(s) > EMA20(s-4); close(s-1) > EMA20(s-1); low(s) <= EMA20(s). TRIGGER at bar t: there is a touch bar s with t-3 <= s <= t-1 that is not consumed, AND close(t) > high(t-1) AND close(t) > EMA20(t). If several unconsumed touch bars lie in t-3..t-1, use the earliest one as s. LL = lowest low of bars s..t (both included). SKIP: if LL < 0.975*close(t), no trade; this setup and all touch bars <= t are consumed. ENTRY: on a valid trigger, if no position is open and fewer than 3 entries have been signalled on this pair on the UTC date of bar t, buy at the open of t+1 (fill price P); all touch bars <= t are then consumed (a setup is used once). STOP: SP = min(LL, 0.99*P); stop distance d = (P - SP)/P (always >= 1%), computed once at the fill and frozen for the trade: a fixed percentage d below the entry price, intrabar (custom_stoploss returning the constant d; triggers as soon as price touches SP). Native stoploss = -0.03 as a backstop (binds only if a gap makes d > 3%). TAKE-PROFIT: TP = P + 1.5*(P - SP); exit as a limit when a bar's high reaches TP, filled at TP (at the open if a bar opens above TP). If stop and TP are touched in the same bar, assume the stop filled. TIME EXIT: with the fill bar counted as bar 1, the exit signal is raised at the close of bar 32 and filled at the next open (8 hours held). No trailing, no cooldown beyond the setup consumption and the 3-entries-per-UTC-day cap. Single cell, no grid. Warm-up: 500 bars (longest raw lookback is ADX(14) at s-5, about 33 bars; 500 bars lets the recursive Wilder ADX/DI and EMA20 converge for the recursive check).",
+  "parameters": {
+    "timeframe": "15m",
+    "adx_period": 14,
+    "adx_min": 30,
+    "adx_rise_lag_bars": 4,
+    "ema_period": 20,
+    "ema_slope_lag_bars": 4,
+    "trigger_window_bars": 3,
+    "max_stop_from_close_pct": 2.5,
+    "min_stop_pct": 1.0,
+    "native_backstop_stoploss_pct": 3.0,
+    "take_profit_R": 1.5,
+    "time_exit_bars": 32,
+    "max_entries_per_utc_day": 3,
+    "warmup_bars": 500
+  },
+  "rationale": "Mechanism: ADX(14) above 30 and rising with +DI over -DI marks a strong directional run on 15m, where informed or forced buyers (liquidations of shorts, momentum and trend bots) keep arriving. The first dip to the 20 EMA comes from short-term profit takers and mean-reversion sellers who pay for immediacy; latecomers to the trend and resting limit bids absorb it. Requiring a close above the prior bar's high (and above EMA20) waits until that selling pauses, so the trade buys the resumption, not the dip itself. The other side is the impatient seller who sells into a strong trend at a temporary low. This is Raschke and Connors' Holy Grail (Street Smarts, 1995), restated by the cited pages; no reliable published win rate exists, so this is an untested mechanism, not a claimed edge. Costs: the stop is at least 1% below entry, so the 0.30% base round trip is at most 0.3R (0.45R conservative); the 1.5R target is a gross move of at least 1.5%, and stops are at most about 2.5%. Breakeven win rate with R about 1.3% is roughly 48-50% at base cost. Expected frequency: ADX(14) > 30 and rising on 15m holds a minority of the time, with several EMA20 tags per trend leg, capped at 3 entries per UTC day; roughly 1 trade per day per pair, about 250-500 per year per pair, all closed within 8 hours.",
+  "novelty_vs_tried": "No family in the context is a trend-strength-gated first pullback with a stop-entry trigger. ADXRegimeSwitch (H-065) uses ADX on 1h only to choose between an EMA10/30 cross and an RSI dip, with fixed 3% stop and no structural stop or target. EMASnapbackATR and dip families buy stretches below a mean; this buys only the first tag of EMA20 from above inside an ADX-confirmed 15m uptrend, and only after price closes above the prior bar's high. HourlyBullFlagBreak (H-075) is a 1h pole/flag breakout above the pole high; this enters at the moving average, not a new high. The stop is structural (pullback low, floored at 1%) with a 1.5R target and an 8-hour time exit on 15m.",
+  "sources": [
+    {"title": "Holy Grail Setup (therighttrader.com, restating Raschke and Connors, Street Smarts 1995)", "url": "https://therighttrader.com/learn/trading-strategies/holy-grail-setup"},
+    {"title": "The Holy Grail Trading Setup (Trading Setups Review)", "url": "https://www.tradingsetupsreview.com/the-holy-grail-trading-setup/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the exploration-split summary results of earlier hypotheses listed in research/context/H-094.md (nine pairs, 15m/1h), as of 2026-11-10."
+}
