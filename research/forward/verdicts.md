@@ -9,6 +9,7 @@ Mínimo para decidir: 60 trades fechados e 14 dias; reprova cedo com 30+ trades 
 | H-001 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-009 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-016 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
+| H-043 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 | H-047 | collecting | 0 | 0.0 | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
 
 ## H-001: collecting
@@ -18,6 +19,9 @@ Mínimo para decidir: 60 trades fechados e 14 dias; reprova cedo com 30+ trades 
 - 0/60 closed trades, 0.0/14 days
 
 ## H-016: collecting
+- 0/60 closed trades, 0.0/14 days
+
+## H-043: collecting
 - 0/60 closed trades, 0.0/14 days
 
 ## H-047: collecting
