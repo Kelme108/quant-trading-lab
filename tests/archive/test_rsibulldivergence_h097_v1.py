@@ -27,7 +27,7 @@ sys.modules.setdefault("talib.abstract", talib_abstract)
 if not hasattr(sys.modules["freqtrade.strategy"], "merge_informative_pair"):
     sys.modules["freqtrade.strategy"].merge_informative_pair = lambda *a, **k: None
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "RSIBullDivergence_H097_v1"
 
 
@@ -46,7 +46,7 @@ def fake_merge(dataframe, informative, tf, tf_inf, ffill=True):
 
 
 def load_module():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
