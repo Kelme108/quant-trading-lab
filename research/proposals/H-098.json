@@ -1,0 +1,29 @@
+{
+  "hypothesis_id": "H-098",
+  "family": "HourlyFailedBreakdownReclaim",
+  "title": "CRT on 4h UTC blocks: next 4h candle sweeps only the low, closes inside below mid, target far high",
+  "ex_ante_rule": "Chart 15m, closed bars only, UTC, bar time = open time. Spot, long only, one position per pair, no pyramiding, no sizing hooks, same numbers on all nine pairs, no other filters. 4H BLOCKS: built from closed 15m bars in UTC blocks starting 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 (16 bars each: open = open of first bar, high = max high, low = min low, close = close of the 16th bar). A block is usable only after its 16th bar has closed; if any of its 16 bars is missing the block is unusable. At the close of the 16th bar of block C2 (the block just completed), let C1 = the block immediately before C2: H1 = high(C1), L1 = low(C1), R1 = H1-L1, M1 = L1 + R1/2. SETUP, all required: (1) R1/L1 >= 0.015; (2) low(C2) < L1; (3) high(C2) <= H1; (4) close(C2) > L1; (5) close(C2) < M1; (6) low(C2) >= 0.97*close(C2) (swept low no more than 3% below close; otherwise skip). ENTRY: signal at the close of C2's 16th bar, buy at the open of the next bar (first 15m bar of the next block), fill P, only if no position is open; otherwise the setup is dropped (no queue). At most one entry per 4h block. Fill checks: skip if P >= H1 or P <= SP. STOP: SP = min(low(C2), 0.992*close(C2)); d = (P-SP)/P computed once at the fill and frozen, i.e. a fixed percentage below the entry price for that trade, intrabar (custom_stoploss returning d, triggers as soon as price touches SP). Native stoploss -0.04 as backstop only. TAKE-PROFIT: limit sell at H1, filled intrabar when a bar high reaches H1 (at the open if a bar opens above H1). If stop and target are touched in the same bar, the stop counts. TIME EXIT: with entry filled at the open of bar e, exit signal at the close of bar e+47, sold at the open of bar e+48 (12 hours). No trailing stop, no cooldown beyond the one-position rule. Single cell, no grid. Warm-up: 64 bars (longest lookback 32 bars for C1+C2 plus up to 15 bars of block alignment = 47; no recursive indicators; startup_candle_count = 64).",
+  "parameters": {
+    "timeframe": "15m",
+    "block_hours": 4,
+    "bars_per_block": 16,
+    "block_starts_utc": "00,04,08,12,16,20",
+    "min_ref_range_frac": 0.015,
+    "min_stop_frac": 0.008,
+    "max_sweep_depth_frac": 0.03,
+    "take_profit_level": "H1",
+    "time_exit_bars": 48,
+    "backstop_stoploss": -0.04,
+    "max_entries_per_block": 1,
+    "warmup_bars": 64
+  },
+  "rationale": "Candle Range Theory is, as the source says, Turtle Soup (Connors and Raschke, Street Smarts) applied to a single candle's range. 4h candle C2 trades below the low of reference candle C1. That triggers the sell stops resting under that low and draws in breakdown sellers. C2 then closes back inside C1's range without taking C1's high. The close back inside shows the stop-driven selling was absorbed by larger buyers. Breakdown sellers are now trapped below value, and their covering, plus fresh bids, tends to push price across the range toward the untouched high, where buy stops rest. The other side of the trade is the stopped-out longs and late breakdown sellers who sold into the sweep. Cost check: the reference range must be at least 1.5% and entry is below the midpoint, so the gross distance to the target H1 is at least about 0.75%, typically 1-2%. That is 2.5-6x the 0.30% base round trip. The stop sits at the swept low but at least 0.8% and at most 3% away, so the cost is at most about 0.3-0.4R. Frequency: six 4h blocks a day; I expect a qualifying low-only sweep with a range of 1.5% or more about once every 1-2 days per pair, roughly 150-350 trades per year per pair. That is fewer in calm regimes on BTC and more on alts. Every trade closes within 12 hours. These numbers are not tuned: they are the scout's numbers, taken from the source's structure (4h reference candle, target at the opposite extreme, stop behind the swept extreme).",
+  "novelty_vs_tried": "Earlier variants of this family were H-038 (a 480-bar 1h low swept, target at the 24-bar high, fixed 3% stop) and H-055 (a 24h 15m low with depth cap and SMA384 trend gate, fixed +1.2% target). H-096 (SessionRangeJudasSweep) used session ranges (Asia/London) with a close-location reclaim. This rule's reference level is the previous single 4h candle in fixed UTC blocks, not a multi-day or session low. It is evaluated only at the close of the sweeping 4h candle, so it needs no intrabar reclaim timing. It needs a one-sided sweep: C2 must not take C1's high, so outside bars are excluded. The close must sit inside the range and below its midpoint. The target is the structural opposite extreme of the reference candle, not a fixed percentage or a rolling high. The stop is the swept extreme with a 0.8% floor and a 3% cap.",
+  "sources": [
+    {"title": "El Trader Financiado: CRT trading, Candle Range Theory and Turtle Soup", "url": "https://www.eltraderfinanciado.com/ar/blog/crt-trading"},
+    {"title": "LuxAlgo library: Turtle Soup", "url": "https://www.luxalgo.com/library/concept/turtle-soup/"},
+    {"title": "StockCharts: Combining Relative Rotation Graphs and the Turtle Soup setup", "url": "https://articles.stockcharts.com/article/articles-rrg-2018-06-combining-relative-rotation-graphs-and-the-turtle-soup-setup/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-098.md (exploration-split summaries of earlier hypotheses) and the web sources listed, as of 2026-11-10."
+}
