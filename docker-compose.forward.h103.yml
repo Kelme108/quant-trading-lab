@@ -1,29 +1,21 @@
 # Dry-run evidence collection for H-103 (AbnormalDayContinuationRVol_H103_v1), written by the autopilot policy
 # (lab/autopilot.py, lab/config/autopilot.json) on the pairs whose single validation read was a candidate:
-# ETH/USDT, BTC/USDT. Exposure 0.1 is the one calibrated on exploration. Same rules as
-# docker-compose.forward.yml: base config first, the overlay changes only bot name, strategy, database,
-# exposure and pair. No API server, no exchange keys, no real money.
+# ETH/USDT, BTC/USDT, BNB/USDT. Exposure 0.1 is the one calibrated on exploration. ONE bot for all 3 pairs
+# (layout multi_pair, lab/forward.py): max_open_trades 3 and a 3000 USDT paper wallet,
+# so each pair trades 1000 x 0.1 per trade, as in its one-pair backtest. Base config
+# first, the overlay changes only bot name, strategy, database, slots, wallet, exposure and pairs.
+# No API server, no exchange keys, no real money.
 # Check the freeze first:  python research/tools/forward_freeze.py H-103 --check
 name: trading-lab-forward-h103
 
 services:
-  forward-h103-eth:
+  forward-h103:
     image: freqtradeorg/freqtrade:2026.9
     restart: "no"
-    container_name: forward-h103-eth
+    container_name: forward-h103
     volumes:
       - "./user_data:/freqtrade/user_data"
       - "./forward:/freqtrade/forward:ro"
     command: >-
-      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h103.eth.json
-      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h103-eth.log
-  forward-h103-btc:
-    image: freqtradeorg/freqtrade:2026.9
-    restart: "no"
-    container_name: forward-h103-btc
-    volumes:
-      - "./user_data:/freqtrade/user_data"
-      - "./forward:/freqtrade/forward:ro"
-    command: >-
-      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h103.btc.json
-      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h103-btc.log
+      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/forward/config.h103.json
+      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/forward-h103.log
