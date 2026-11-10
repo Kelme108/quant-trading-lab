@@ -1,0 +1,17 @@
+{
+  "title": "DeMark TD buy setup 9 with perfection on 15m: seller-exhaustion count after a 1.5% decline, 8-hour exit",
+  "source": {
+    "type": "blog",
+    "url": "https://kr.tradingview.com/chart/BTCUSD/YlndncbQ-DeMARK-Sequential-Tutorial-1",
+    "title": "DeMARK Sequential Tutorial 1 (based on Jason Perl, DeMARK Indicators)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars; signal at a bar close, fill at the next open. BEARISH PRICE FLIP at bar f: close(f) < close(f-4) AND close(f-1) > close(f-5). BUY SETUP: bars f..f+8 (counts 1..9) each close below the close 4 bars earlier; if any bar breaks the run, the count is cancelled and restarts at the next flip. Let n9 = f+8. DECLINE FILTER: close(f-1)/close(n9) - 1 >= 0.015. PERFECTION: min(low(n8), low(n9)) <= min(low(n6), low(n7)); if not perfected at n9, any of the next 4 bars with low <= min(low(n6), low(n7)) perfects it; otherwise no trade. ENTRY: from the perfecting bar on, within 4 bars, the first bar t with close(t) > high(t-1), if flat; buy at the open of t+1. STOP = min(lowest low from f to t * 0.998, entry*0.99), at least 1% below entry; skip if more than 3% below. TAKE-PROFIT = the highest high of setup bars 1-9, used only if it is >= entry*1.01 (otherwise skip). TIME EXIT at the close of the 32nd bar after entry (8 hours). One trade per setup.",
+  "mechanism": "The tutorial says a TD buy setup marks whether a decline is a short-lived range move or the start of a trend; DeMark's own reading is exhaustion: nine straight closes below the close four bars earlier means the sellers who wanted out on this horizon have already sold. The perfection rule makes the low of bar 8 or 9 undercut bars 6-7, so the last stops are taken. Whoever sells at the end of a long count is a late seller paying for immediacy; the buyer provides liquidity after a persistent run, not a large single shock. That is a different trigger from the lab's size-of-drop rules: it counts persistence, not magnitude. No study supports it, so the mechanism is weak. A 1.5% decline filter and a target at the top of the setup leave at least 1% of gross room; the stop is at least 1%.",
+  "timeframe": "15m",
+  "longest_lookback": 20,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 250,
+  "family_hint": "TDSetupExhaustion"
+}

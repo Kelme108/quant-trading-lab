@@ -1,0 +1,17 @@
+{
+  "title": "15m RSI bullish divergence at confirmed pivot lows with hourly RSI below 40, structure-break entry",
+  "source": {
+    "type": "blog",
+    "url": "https://www.tradingview.com/script/cKm43ohC-Bullish-Divergence-Short-term-Long-Trade-Finder",
+    "title": "Bullish Divergence Short-term Long Trade Finder (TradingView public script description)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars; signal at a bar close, fill at the next open. RSI14 = Wilder RSI(14) on 15m closes. H1RSI = Wilder RSI(14) on closed 1h candles (informative 1h, last completed hour only). PIVOT LOW at bar i: low(i) is the lowest low of bars i-3..i+3, known only at the close of bar i+3. DIVERGENCE: two consecutive pivot lows i1 < i2 with 6 <= i2-i1 <= 25, low(i2) < low(i1), RSI14(i2) > RSI14(i1), and RSI14(i1) < 40. ENTRY: at the close of the first bar t in i2+3..i2+8 with close(t) > max(high of bars i2..t-1) AND H1RSI < 40 at t, if flat; buy at the open of t+1. STOP = min(low(i2)*0.998, entry*0.99), so at least 1% below entry; skip if low(i2)*0.998 is more than 3% below entry. EXITS, first of: take-profit at entry + 2*(entry - stop); RSI14 closes >= 70 (exit at next open); time exit at the close of the 48th bar after entry (12 hours). One trade per divergence.",
+  "mechanism": "The source gives no mechanism. The closest honest one: the second, lower low runs the stops parked under the first low, but the selling that drives it is weaker (higher RSI low), meaning the forced and late sellers are running out while buyers absorb them. The hourly RSI below 40 restricts entries to an hour-scale selloff, so there is room for a rebound of more than 1%. Buying after a break of the post-pivot structure avoids catching a falling market. The rule differs from the lab's dip rules (RSI2, EMA snapback, shock rebounds), which trigger on the size of a drop; this triggers on momentum failing to confirm a new low. A stop of at least 1% keeps the 0.30% round trip under 0.3R, and the 2R target is a gross move of at least 2%.",
+  "timeframe": "15m",
+  "longest_lookback": 56,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 250,
+  "family_hint": "RSIBullDivergence"
+}

@@ -1,0 +1,17 @@
+{
+  "title": "Judas sweep: buy the reclaim of the pre-open range low swept at the London or US open, target the range high",
+  "source": {
+    "type": "blog",
+    "url": "https://therighttrader.com/learn/smart-money-concepts/judas-swing",
+    "title": "Judas Swing (The Right Trader)",
+    "license": "copyright, all rights reserved"
+  },
+  "rule_summary": "15m closed bars, UTC; signal at a bar close, fill at the next open. Two setups per day. ASIA->LONDON: range = bars opening 00:00-06:45 (28 bars), RH = highest high, RL = lowest low; sweep window = bars opening 07:00-10:45. LONDON->US: range = bars opening 07:00-13:15 (26 bars); window = bars opening 13:30-16:45. A setup is armed only if (RH-RL)/RL >= 0.012. SWEEP: a bar in the window with low < RL*0.999; SL = lowest low in the window so far. RECLAIM: the first bar t in the window, at most 4 bars after the bar that set SL, with close(t) > RL AND (close(t)-low(t))/(high(t)-low(t)) >= 0.5; buy at the open of t+1 if flat. If price closes below SL*0.995 before a reclaim, the setup is dead. STOP = min(SL*0.998, entry*0.99), so at least 1% below entry; skip if SL*0.998 is more than 3% below entry. TAKE-PROFIT = RH, and the trade is taken only if RH >= entry*1.01. TIME EXIT at the close of the bar opening 14:45 (Asia setup) or 20:45 (London setup). One trade per setup.",
+  "mechanism": "Stop-loss sell orders cluster just below an obvious pre-open range low; when the next major session opens with fresh volume, a push through that low triggers them, and the forced sellers are filled by liquidity providers at a discount. When price closes back inside the range quickly, the cascade has run out and the forced flow reverses, so the long buys from the stopped-out sellers. The source calls the evidence anecdotal and names no bank behaviour; Osler (FRBNY SR 125) documents stop clustering at visible levels in FX. It differs from the lab's 24-hour-low sweeps (H-038, H-055) because the level is the pre-open session range and the trigger is tied to the London and US opens, when volume steps up. The range must be at least 1.2% and the target at least 1% away, with a stop of at least 1%.",
+  "timeframe": "15m",
+  "longest_lookback": 68,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 120,
+  "family_hint": "SessionRangeJudasSweep"
+}

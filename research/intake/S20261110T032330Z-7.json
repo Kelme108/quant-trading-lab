@@ -1,0 +1,17 @@
+{
+  "title": "Prior-day-high stop run on 15m: buy the first high-volume close through yesterday's high",
+  "source": {
+    "type": "paper",
+    "url": "https://econpapers.repec.org/RePEc:fip:fednsr:125",
+    "title": "Currency orders and exchange-rate dynamics: explaining the success of technical analysis (Osler, FRBNY Staff Report 125)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars, UTC; signal at a bar close, fill at the next open. PDH = highest high of the 96 bars of the previous UTC day (00:00-23:45), fixed for the whole day. Vmed(t) = median volume of bars t-96..t-1. APPROACH: before bar t, the current day's lowest low so far is <= PDH*0.99. ENTRY at the close of bar t (open time 01:00-19:45 UTC) when ALL hold: close(t) > PDH*1.001; close(t-1) <= PDH; volume(t) >= 2*Vmed(t); (close(t)-low(t))/(high(t)-low(t)) >= 0.7; no trade yet today on this pair; flat. Buy at the open of t+1. STOP: 1.0% below entry. TAKE-PROFIT: 1.5% above entry. TIME EXIT at the close of the 16th bar after entry (4 hours). No trend filter, no higher-timeframe data.",
+  "mechanism": "Osler shows that stop-loss orders cluster just beyond visible levels and that crossing them makes trends accelerate, because triggered stop-buys are market orders that must be filled at any price. Yesterday's high is the most-watched intraday level, so short sellers' and breakout traders' buy stops pile up just above it. A close through it on twice the median volume after an approach from at least 1% below shows the cascade has started; the long rides the forced buying of stopped-out shorts and late breakout entries, who are the other side. It is a different level from the lab's round-number cascade (H-054) and the Asian-range breakout (H-067). The 1.5% target and the short 4-hour hold aim at the burst of forced flow, and the 1% stop keeps the 0.30% round trip at 0.3R.",
+  "timeframe": "15m",
+  "longest_lookback": 192,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 90,
+  "family_hint": "PriorDayHighStopRun"
+}
