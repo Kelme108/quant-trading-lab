@@ -1,0 +1,36 @@
+{
+  "hypothesis_id": "H-122",
+  "family": "FairValueGapRetest",
+  "title": "ICT Silver Bullet on 15m: 4-hour-low sweep, volume-backed up gap in a New York window, buy the gap retest",
+  "ex_ante_rule": "Chart 15m, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (price E). Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs, no higher-timeframe filter, single grid cell. Warm-up: 100 bars (longest lookback: the 20-bar volume mean before bar k plus the 16-bar pool, the 4 window bars and the 8 retest bars, about 40 bars, rounded up; no recursive indicators). CLOCK: convert each bar's UTC open time to America/New_York local time (DST per date, e.g. zoneinfo). WINDOWS: three per NY calendar day, the four bars whose NY open time is 03:00, 03:15, 03:30, 03:45 (W1), 10:00-10:45 (W2) and 14:00-14:45 (W3). For a window let w0 be its first bar and w3 its last. POOL: PL = lowest low of the 16 bars w0-16..w0-1 (the 4 h ending just before the window opens). If any of those 16 bars or any window bar is missing, the window gives no trade. SWEEP: j = the first bar in w0-8..w3 with low(j) < PL (literal scout rule; since bars w0-8..w0-1 lie inside the pool their lows cannot be below PL, so in practice j is a window bar). GAP: three consecutive bars k-1, k, k+1 with k and k+1 inside the window and k-1 >= j (the gap forms after the sweep; the sweep bar may be bar k-1), all of: low(k+1) > high(k-1); (low(k+1) - high(k-1)) / close(k+1) >= 0.0025; close(k) > open(k); volume(k) >= 1.5 x arithmetic mean of volume of bars k-20..k-1 (activity filter b). Only the FIRST such gap of the window (smallest k+1) is used; later gaps in the same window are ignored. GT = low(k+1), GB = high(k-1). S = lowest low of bars j..k+1, frozen at the close of k+1. RETEST: for bars t = k+2..k+9 (8 bars, may run past the window end), in order: if low(t) < S or close(t) < GB the setup is cancelled (checked first, also on a bar that would otherwise qualify); else if low(t) <= GT (and close(t) >= GB) bar t is the entry signal and the setup is consumed, whether or not an order fills. No signal by the close of k+9: the setup expires. At most one trade per window. FILL: buy at open(t+1) only if the pair is flat. STOP: price min(S, 0.99 x E); distance d = 1 - stop/E, computed at the fill and frozen (so d >= 1%), triggered intrabar as soon as the low touches it (custom_stoploss returning d; native stoploss -0.10 as engine backstop only). TARGET: E x (1 + 2d) = E + 2 x (E - stop) (2R), sold at that price when a bar's high reaches it (at the open if a bar opens above it). If stop and target are touched in the same bar, the stop counts. TIME EXIT: with the fill at the open of bar e, exit signal at the close of bar e+31, sold at the open of e+32 (8 hours). No trailing, no break-even move, no cooldown, no other filters.",
+  "parameters": {
+    "timeframe": "15m",
+    "clock_timezone": "America/New_York",
+    "window_1_start_ny": "03:00",
+    "window_2_start_ny": "10:00",
+    "window_3_start_ny": "14:00",
+    "window_bars": 4,
+    "pool_bars": 16,
+    "sweep_lookback_before_window_bars": 8,
+    "gap_min_size_frac": 0.0025,
+    "volume_mean_bars": 20,
+    "volume_mult": 1.5,
+    "retest_bars": 8,
+    "min_stop_frac": 0.01,
+    "target_r_multiple": 2.0,
+    "time_exit_bars": 32,
+    "native_stoploss_backstop": -0.10,
+    "max_trades_per_window": 1,
+    "startup_candle_count": 100
+  },
+  "rationale": "Mechanism (ICT Silver Bullet, as described by LuxAlgo): the one-hour windows 03-04, 10-11 and 14-15 New York time sit on recurring liquidity events: the London ramp, the auction after the US open and afternoon US repositioning. Sell stops rest under the prior 4-hour low; when price runs them, stopped-out longs and breakout shorts sell into resting bids at a loss. An up bar on 1.5x volume that leaves a fair value gap right after the sweep shows a buyer absorbing that forced supply. The retest into the gap is supplied by late sellers who sell into it, and the buyer who left the gap defends it. The counterparties giving money away are the forced stop sellers and the late breakdown sellers. LuxAlgo states that no audited public statistics exist; this is an untested claim. Trades: three windows a day need a sweep, a gap of at least 0.25% on volume and a retest within 2 h, so I expect roughly 30-120 trades per pair per year. That is below the owner's 100+ target, and I state it rather than loosen the rule. Move per trade: the stop is at least 1% below entry and the target is 2R (at least 2%). A 35-45% hit rate plus time exits gives an expected gross move of about +0.3% to +0.6% per trade (scout estimate 0.5%), against a 0.30% base and 0.45% conservative round trip. Range or falling market: this is a reversal after a stop-run, not trend-following. It needs no uptrend, but in a steady decline sweeps will keep running and the 1% stop will be hit more often.",
+  "novelty_vs_tried": "This is a variant of FairValueGapRetest (H-117, never tested because of an implementation failure). H-117 traded any volume-backed gap at any time of day. This variant adds two structural conditions: (1) the gap may form only inside one of three fixed New York-time one-hour windows (DST-aware), and (2) the window must first sweep a fixed liquidity pool, the 4-hour low just before the window. The gap must form after that sweep, and the stop sits under the sweep low (at least 1%). It also differs from SessionRangeJudasSweep (H-096): there is no session range breakout, and the trigger is the gap retest. It differs from HourlyFailedBreakdownReclaim (capped): the 15m gap retest inside NY windows replaces an hourly close back above a broken low. The 2R target and the 8 h time exit are new for this family.",
+  "sources": [
+    {
+      "title": "Silver Bullet (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/silver-bullet.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the context file research/context/H-122.md (exploration-only digest of earlier hypotheses on BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL 15m/1h) and the LuxAlgo Silver Bullet page, as of 2026-11-11."
+}
