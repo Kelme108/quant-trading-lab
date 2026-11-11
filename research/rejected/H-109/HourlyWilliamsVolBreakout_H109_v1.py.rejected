@@ -1,0 +1,162 @@
+"""H-109: Crabel stretch breakout at the Asia, Europe and US session opens (15m, long only).
+
+Sessions (UTC bar open times): A = 00:00-07:45 (32 bars), E = 08:00-13:15 (22 bars), U = 13:30-23:45 (42 bars).
+O = open of the session's first bar. NOISE of a completed session = min(H - O, O - L) / O.
+STRETCH S = 2.0 x mean NOISE of the same session type on days D-10..D-1 (all ten must be complete).
+ENTRY: first bar of the session whose close >= O x (1 + S); signal only if that bar is in the first half
+of the session (A: to 03:45, E: to 10:30, U: to 18:30). One trade per session.
+STOP: fixed price P = min(O x (1 - S), 0.99 x entry), set at entry and never moved (custom_stoploss);
+the native stoploss (-0.15) is only the engine backstop.
+EXIT: close of the session's last bar (07:45, 13:15, 23:45), filled at the next open; custom_exit
+repeats this as a time exit at the next session boundary.
+"""
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from freqtrade.strategy import IStrategy
+
+
+STRETCH_MULTIPLE = 2.0
+NOISE_LOOKBACK = 10
+MIN_STOP_DISTANCE = 0.01
+
+# (start minute of day, number of bars, last entry bar minute, last bar minute)
+SESSIONS = {
+    0: (0, 32, 225, 465),  # A: 00:00-07:45, entries to 03:45
+    1: (480, 22, 630, 795),  # E: 08:00-13:15, entries to 10:30
+    2: (810, 42, 1110, 1425),  # U: 13:30-23:45, entries to 18:30
+}
+SESSION_BOUNDARIES = (480, 810, 1440)  # minute of day at which a session ends (next session opens)
+
+
+class HourlyWilliamsVolBreakout_H109_v1(IStrategy):
+    """Three session-anchored stretch breakouts per day, flat at each session end."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.15
+    use_custom_stoploss = True
+    startup_candle_count = 1100
+
+    @property
+    def protections(self):
+        return []
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        date = pd.to_datetime(dataframe["date"])
+        day = date.dt.floor("D")
+        minute = (date.dt.hour * 60 + date.dt.minute).astype(int)
+        session_type = np.where(minute < 480, 0, np.where(minute < 810, 1, 2))
+
+        sess_open = np.full(len(dataframe), np.nan)
+        stretch = np.full(len(dataframe), np.nan)
+        first_half_limit = np.zeros(len(dataframe))
+        last_bar = np.zeros(len(dataframe))
+
+        full_index = pd.date_range(day.min(), day.max(), freq="D")
+        for kind, (start, n_bars, last_entry, last_minute) in SESSIONS.items():
+            is_kind = session_type == kind
+            helper = pd.DataFrame(
+                {
+                    "day": day[is_kind].reset_index(drop=True),
+                    "high": dataframe["high"][is_kind].reset_index(drop=True),
+                    "low": dataframe["low"][is_kind].reset_index(drop=True),
+                    "open0": dataframe["open"][is_kind]
+                    .where(minute[is_kind] == start)
+                    .reset_index(drop=True),
+                }
+            )
+            grouped = helper.groupby("day")
+            daily = pd.DataFrame(
+                {
+                    "high": grouped["high"].max(),
+                    "low": grouped["low"].min(),
+                    "n": grouped["high"].count(),
+                    "open0": grouped["open0"].max(),
+                }
+            )
+            daily = daily.reindex(full_index)
+            complete = (daily["n"] == n_bars) & daily["open0"].notna() & (daily["open0"] > 0)
+            noise = (
+                np.minimum(daily["high"] - daily["open0"], daily["open0"] - daily["low"])
+                / daily["open0"]
+            ).where(complete)
+            # Same session type on the 10 previous calendar days; every one must be complete.
+            mean_noise = noise.shift(1).rolling(NOISE_LOOKBACK).mean()
+            kind_stretch = STRETCH_MULTIPLE * mean_noise
+
+            mapped_open = day.map(daily["open0"]).astype(float).values
+            mapped_stretch = day.map(kind_stretch).astype(float).values
+            sess_open = np.where(is_kind, mapped_open, sess_open)
+            stretch = np.where(is_kind, mapped_stretch, stretch)
+            first_half_limit = np.where(is_kind, last_entry, first_half_limit)
+            last_bar = np.where(is_kind, last_minute, last_bar)
+
+        dataframe["minute_utc"] = minute.values
+        dataframe["day_utc"] = day
+        dataframe["session_id"] = session_type
+        dataframe["sess_open"] = sess_open
+        dataframe["stretch"] = stretch
+        dataframe["trigger_level"] = sess_open * (1.0 + stretch)
+        dataframe["first_half"] = minute.values <= first_half_limit
+        dataframe["session_last_bar"] = minute.values == last_bar
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        defined = (
+            dataframe["sess_open"].notna()
+            & dataframe["stretch"].notna()
+            & (dataframe["stretch"] > 0)
+            & dataframe["trigger_level"].notna()
+        )
+        cond = defined & (dataframe["close"] >= dataframe["trigger_level"])
+        order = cond.astype(int).groupby([dataframe["day_utc"], dataframe["session_id"]]).cumsum()
+        first = cond & (order == 1)
+        entry = first & dataframe["first_half"] & (dataframe["volume"] > 0)
+        dataframe.loc[entry, ["enter_long", "enter_tag"]] = (1, "crabel_stretch_breakout")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        exit_cond = dataframe["session_last_bar"] & (dataframe["volume"] > 0)
+        dataframe.loc[exit_cond, ["exit_long", "exit_tag"]] = (1, "session_end")
+        return dataframe
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        """Fixed-price stop P = min(O x (1 - S), 0.99 x entry); distance is stated relative to the current rate."""
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if dataframe is None or len(dataframe) == 0:
+            return None
+        signal_time = trade.open_date_utc - timedelta(minutes=15)
+        dates = pd.to_datetime(dataframe["date"])
+        rows = dataframe[dates <= signal_time]
+        if rows.empty:
+            return None
+        row = rows.iloc[-1]
+        if pd.to_datetime(row["date"]) <= signal_time - timedelta(minutes=15):
+            return None
+        session_open = row["sess_open"]
+        stretch = row["stretch"]
+        if pd.isna(session_open) or pd.isna(stretch):
+            return None
+        entry = trade.open_rate
+        level = min(session_open * (1.0 - stretch), (1.0 - MIN_STOP_DISTANCE) * entry)
+        level = max(level, entry * (1.0 + self.stoploss))
+        if not current_rate or current_rate <= 0:
+            return None
+        return min(level / current_rate - 1.0, -0.0001)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        """Time exit: flat at the first session boundary after the entry (08:00, 13:30 or 00:00 UTC)."""
+        opened = trade.open_date_utc
+        opened_minute = opened.hour * 60 + opened.minute
+        boundary = next(b for b in SESSION_BOUNDARIES if b > opened_minute)
+        midnight = opened.replace(hour=0, minute=0, second=0, microsecond=0)
+        if current_time >= midnight + timedelta(minutes=boundary):
+            return "session_end_time_exit"
+        return None

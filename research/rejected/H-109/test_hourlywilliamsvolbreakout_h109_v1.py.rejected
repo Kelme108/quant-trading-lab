@@ -1,0 +1,211 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+
+
+def load_strategy(filename: str, class_name: str):
+    path = ROOT / "user_data" / "strategies" / filename
+    spec = importlib.util.spec_from_file_location(class_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, class_name)
+
+
+Strategy = load_strategy(
+    "HourlyWilliamsVolBreakout_H109_v1.py", "HourlyWilliamsVolBreakout_H109_v1"
+)
+
+START = pd.Timestamp("2026-01-01", tz="UTC")
+DAY12 = START + pd.Timedelta(days=12)
+
+
+def make_frame(days: int = 14, spikes=None, drop=None) -> pd.DataFrame:
+    """Flat 100 price, every bar high/low 0.1 away (noise 0.001, stretch 0.002)."""
+    dates = pd.date_range(START, periods=days * 96, freq="15min")
+    close = pd.Series(100.0, index=range(len(dates)))
+    for stamp, value in (spikes or {}).items():
+        close.iloc[list(dates).index(stamp)] = value
+    open_ = pd.Series(100.0, index=close.index)
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "open": open_,
+            "high": np.maximum(close, open_) + 0.1,
+            "low": np.minimum(close, open_) - 0.1,
+            "close": close,
+            "volume": 1.0,
+        }
+    )
+    if drop is not None:
+        frame = frame.drop(index=drop).reset_index(drop=True)
+    return frame
+
+
+def run(frame: pd.DataFrame) -> pd.DataFrame:
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+SPIKES = {
+    DAY12 + pd.Timedelta(minutes=30): 100.5,  # A, first half -> entry
+    DAY12 + pd.Timedelta(minutes=240): 100.5,  # A, later bar -> no second entry
+    DAY12 + pd.Timedelta(hours=11): 100.5,  # E, second half -> no trade
+    DAY12 + pd.Timedelta(hours=20): 100.5,  # U, second half -> no trade
+}
+
+
+class FakeTrade:
+    def __init__(self, open_date, open_rate=100.0):
+        self.open_date_utc = open_date
+        self.open_rate = open_rate
+
+
+class FakeDp:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class H109Tests(unittest.TestCase):
+    def test_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.15)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 1100)
+
+    def test_stretch_values(self) -> None:
+        out = run(make_frame(spikes=SPIKES))
+        row = out[out["date"] == DAY12 + pd.Timedelta(minutes=30)].iloc[0]
+        self.assertAlmostEqual(row["sess_open"], 100.0)
+        self.assertAlmostEqual(row["stretch"], 0.002)
+
+    def test_entry_only_first_half_first_bar(self) -> None:
+        out = run(make_frame(spikes=SPIKES))
+        rows = out[out["enter_long"] == 1]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows.iloc[0]["date"], DAY12 + pd.Timedelta(minutes=30))
+
+    def test_first_bar_of_us_session_can_enter(self) -> None:
+        stamp = DAY12 + pd.Timedelta(hours=13, minutes=30)
+        out = run(make_frame(spikes={stamp: 100.5}))
+        rows = out[out["enter_long"] == 1]
+        self.assertEqual(list(rows["date"]), [stamp])
+
+    def test_signal_columns_binary(self) -> None:
+        out = run(make_frame(spikes=SPIKES))
+        for column in ("enter_long", "exit_long"):
+            self.assertTrue(set(out[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_exit_signal_on_last_bar_of_each_session(self) -> None:
+        out = run(make_frame(spikes=SPIKES))
+        times = out[out["exit_long"] == 1]["date"].dt.strftime("%H:%M")
+        self.assertEqual(set(times), {"07:45", "13:15", "23:45"})
+
+    def test_zero_volume_gives_no_signal(self) -> None:
+        frame = make_frame(spikes=SPIKES)
+        frame["volume"] = 0.0
+        out = run(frame)
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+        self.assertEqual(int(out["exit_long"].fillna(0).sum()), 0)
+        frame = make_frame(spikes=SPIKES)
+        frame.loc[frame["date"] == DAY12 + pd.Timedelta(minutes=30), "volume"] = 0.0
+        self.assertEqual(int(run(frame)["enter_long"].fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_give_no_signal(self) -> None:
+        # Ten prior days are needed; a breakout on day 5 has no stretch.
+        stamp = START + pd.Timedelta(days=5, minutes=30)
+        out = run(make_frame(spikes={stamp: 120.0}))
+        self.assertTrue(out.iloc[: 10 * 96]["stretch"].isna().all())
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_missing_bar_in_prior_session_blocks_trade(self) -> None:
+        frame = make_frame(spikes=SPIKES)
+        missing = frame.index[frame["date"] == START + pd.Timedelta(days=5, hours=2)]
+        out = run(make_frame(spikes=SPIKES, drop=missing))
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_missing_first_bar_of_current_session_blocks_trade(self) -> None:
+        frame = make_frame(spikes=SPIKES)
+        missing = frame.index[frame["date"] == DAY12]
+        out = run(make_frame(spikes=SPIKES, drop=missing))
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_no_future_dependence(self) -> None:
+        full = make_frame(days=14, spikes=SPIKES)
+        n = 12 * 96 + 60  # cut inside day 12
+        before = run(full.iloc[:n])
+        after = run(full)
+        columns = [c for c in before.columns if c not in {"day_utc"}]
+        pd.testing.assert_frame_equal(
+            before[columns].reset_index(drop=True),
+            after.iloc[:n][columns].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    def test_custom_stoploss_fixed_price(self) -> None:
+        frame = run(make_frame(spikes=SPIKES))
+        strategy = Strategy()
+        strategy.dp = FakeDp(frame)
+        opened = (DAY12 + pd.Timedelta(minutes=45)).to_pydatetime()
+        trade = FakeTrade(opened, 100.0)
+        # O(1-S)=99.8, 0.99*entry=99.0 -> P=99.0, d=1%
+        self.assertAlmostEqual(strategy.custom_stoploss("X", trade, opened, 100.0, 0.0), -0.01)
+        # the stop price stays at 99.0 when price rises
+        self.assertAlmostEqual(strategy.custom_stoploss("X", trade, opened, 101.0, 0.01), 99.0 / 101.0 - 1)
+
+    def test_custom_stoploss_uses_opposite_stretch_when_wider(self) -> None:
+        frame = run(make_frame(spikes=SPIKES))
+        strategy = Strategy()
+        strategy.dp = FakeDp(frame)
+        opened = (DAY12 + pd.Timedelta(minutes=45)).to_pydatetime()
+        trade = FakeTrade(opened, 99.9)  # 0.99*99.9=98.901 < 99.8 -> P=98.901
+        self.assertAlmostEqual(
+            strategy.custom_stoploss("X", trade, opened, 99.9, 0.0), 98.901 / 99.9 - 1
+        )
+
+    def test_custom_exit_time(self) -> None:
+        strategy = Strategy()
+        opened = datetime(2026, 1, 13, 0, 45, tzinfo=timezone.utc)
+        trade = FakeTrade(opened)
+        self.assertIsNone(strategy.custom_exit("X", trade, datetime(2026, 1, 13, 7, 45, tzinfo=timezone.utc), 100.0, 0.0))
+        self.assertIsNotNone(strategy.custom_exit("X", trade, datetime(2026, 1, 13, 8, 0, tzinfo=timezone.utc), 100.0, 0.0))
+        late = FakeTrade(datetime(2026, 1, 13, 18, 45, tzinfo=timezone.utc))
+        self.assertIsNone(strategy.custom_exit("X", late, datetime(2026, 1, 13, 23, 45, tzinfo=timezone.utc), 100.0, 0.0))
+        self.assertIsNotNone(strategy.custom_exit("X", late, datetime(2026, 1, 14, 0, 0, tzinfo=timezone.utc), 100.0, 0.0))
+        europe = FakeTrade(datetime(2026, 1, 13, 8, 15, tzinfo=timezone.utc))
+        self.assertIsNotNone(strategy.custom_exit("X", europe, datetime(2026, 1, 13, 13, 30, tzinfo=timezone.utc), 100.0, 0.0))
+
+
+if __name__ == "__main__":
+    unittest.main()
