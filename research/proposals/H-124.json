@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-124",
+  "family": "SessionHighBreakRetest",
+  "title": "Prior 8h-session high: volume-backed break, then buy the first bullish wick-retest of the level (15m)",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs, no higher-timeframe filter, single grid cell. Warm-up: 100 bars (longest lookback: a setup can be up to 16 bars old and its level spans the 32 bars of the session before the break bar's session, at most 80 bars back, plus the 20-bar volume mean; rounded up; no recursive indicators). SESSIONS: three 8-hour UTC blocks per day, bars opening 00:00-07:45, 08:00-15:45 and 16:00-23:45 (32 bars each). LEVEL: for a bar in session S, PSH = highest high of the 32 bars of session S-1 (the previous completed session); if any of those 32 bars is missing, session S gives no setup. BREAK: within session S, bar b is the FIRST bar of S with close(b) >= 1.002 x PSH AND volume(b) >= 1.5 x arithmetic mean of volume of bars b-20..b-1 (bar b excluded; activity filter b). At most one break (one setup) per session; later bars of S cannot create another. The setup stores PSH and b. A new setup replaces any older setup still active on that pair. RETEST WINDOW: bars t = b+1..b+16 (4 h; may run into the next session). Check bars in order: INVALIDATION: if close(t) < 0.995 x PSH, the setup is cancelled from that bar. RETEST: otherwise bar t is the entry signal if low(t) <= 1.002 x PSH AND close(t) >= PSH AND close(t) > open(t). Only the first retest bar counts; the setup is used up at that bar, whether or not an order fills. If no retest by the close of b+16, the setup expires. ENTRY: buy at open(t+1), price E, only if the pair is flat; low(t) goes with the signal (enter_tag). STOP: d = max(1 - 0.998 x low(t) / E, 0.01), computed at the fill and frozen; stop price E x (1 - d) = min(0.998 x low(t), 0.99 x E). This is a fixed distance below the entry price, triggered intrabar as soon as the low touches it (custom_stoploss returning the frozen d; native stoploss -0.10 is only an engine backstop). TAKE-PROFIT: E x 1.02 (minimal_roi {\"0\": 0.02}), sold at that price when a bar's high reaches it (at the open if a bar opens above it). If stop and target are both touched in one bar, the stop counts. TIME EXIT: with the fill at the open of bar e, the exit signal comes at the close of bar e+47 and sells at the open of e+48 (12 hours). No trailing stop, no break-even move, no cooldown beyond the one-setup-per-session rule, no other filters.",
+  "parameters": {
+    "timeframe": "15m",
+    "session_length_bars": 32,
+    "session_starts_utc": "00:00,08:00,16:00",
+    "break_close_mult": 1.002,
+    "volume_mean_lookback_bars": 20,
+    "volume_mult": 1.5,
+    "retest_window_bars": 16,
+    "retest_low_mult": 1.002,
+    "invalidation_close_mult": 0.995,
+    "stop_low_mult": 0.998,
+    "min_stop_pct": 0.01,
+    "backstop_stoploss": -0.10,
+    "take_profit_pct": 0.02,
+    "time_exit_bars": 48,
+    "max_setups_per_session": 1,
+    "warmup_bars": 100
+  },
+  "rationale": "Mechanism (break-and-retest, role reversal): when price closes above the previous 8-hour session's high on above-normal volume, the sell orders resting above that high have been filled and short sellers stopped out. The first pullback into the level tests whether breakout buyers defend it. A bar that wicks into the level and closes up, back above it, shows the defence, and the stop sits just under the defended level instead of under a far-away break candle. Counterparties: traders fading the breakout and late sellers on the pullback; their stops lie above the new intraday high, which adds fuel toward the +2% target. The volume condition (1.5x the 20-bar mean, fixed in advance) is the lab's activity filter (b). It is not in the TradeZella page, which relies on price action only. The lab's digest found relative volume was the one filter that raised the gross move per trade. Expected activity: one break per session at most, three sessions a day, with a retest within 4 hours in perhaps a third to half of breaks, so about 150-350 trades per year per pair. In falling or ranging markets, volume-backed closes above the prior session high are rarer, so the rule trades less, and the invalidation close (0.5% under the level) cancels failed breaks before entry. Move per trade: the stop is at least 1% away and the target 2%, so most exits are 1-2% from entry; the scout expected about +0.5% gross per trade (expected_gross_move_pct about 0.5), above the 0.30% base and near the 0.45% conservative round trip. This is a claim to be tested, not a measured fact.",
+  "novelty_vs_tried": "None of the tried families buy a retest of a broken prior-session high. The SessionOpeningRangeBreakout variants (H-034/H-069/H-092, cap reached) buy the break candle of a 15-30 minute opening range with a stop that is often tight. Here the level is a full 8-hour session high, the break itself is never bought, and entry waits for a pullback that is defended on a close. The HourlyFailedBreakdownReclaim family (capped) and SessionRangeJudasSweep buy a reclaim after a sweep BELOW a low (a reversal); this rule buys continuation after a break ABOVE a high. HighOfDayRVolBreak (H-121) buys the break of the UTC day's high directly. FairValueGapRetest/OrderBlockRetest retest a gap or candle zone, not a session extreme, and do not use a session-high break with volume.",
+  "sources": [
+    {"title": "Break & Retest strategy (TradeZella)", "url": "https://www.tradezella.com/strategies/break-retest"},
+    {"title": "Breakout retest (The Right Trader)", "url": "https://therighttrader.com/learn/trend-analysis/breakout-retest"},
+    {"title": "Breakout and Retest Signals (LuxAlgo)", "url": "https://www.luxalgo.com/library/indicator/uVMEuASg-breakout-and-retest-signals/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data was viewed. Only the context file research/context/H-124.md (exploration-only digest), research/validation-protocol-v2.md and web pages were read, through 2026-11-11."
+}
