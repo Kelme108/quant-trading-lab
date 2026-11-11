@@ -1,0 +1,286 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
+# Keep the tests runnable without installing Freqtrade or TA-Lib on the host.
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+
+
+def load_strategy(filename: str, class_name: str):
+    path = ROOT / "user_data" / "strategies" / filename
+    spec = importlib.util.spec_from_file_location(class_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, class_name)
+
+
+Strategy = load_strategy("FairValueGapRetest_H122_v1.py", "FairValueGapRetest_H122_v1")
+
+# Winter: NY = UTC-5, so the 10:00 NY window opens 15:00 UTC (row 60 of a day starting 00:00 UTC).
+WINTER_START = "2024-01-08 00:00"
+WINTER_W2 = 60
+# Summer: NY = UTC-4, so the 10:00 NY window opens 14:00 UTC (row 56).
+SUMMER_START = "2024-07-08 00:00"
+SUMMER_W2 = 56
+
+
+def make_scenario(start: str, w0: int, n: int = 192, retest_offset: int = 3) -> pd.DataFrame:
+    """Flat market with one valid sweep + gap + retest in the window starting at row w0.
+
+    Pool lows 99.8 (PL). w0 sweeps (low 99.0, high 99.9). w0+1 = k up bar on 3x volume.
+    w0+2 = k+1 with low 100.5 (gap vs 99.9 = 0.59%). Retest touches the gap top 100.5 at w0+retest_offset.
+    Expected: zone low S = 99.0, signal at w0+retest_offset.
+    """
+    dates = pd.date_range(start, periods=n, freq="15min", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "open": 100.0,
+            "high": 100.2,
+            "low": 99.8,
+            "close": 100.0,
+            "volume": 10.0,
+        }
+    )
+
+    def setbar(row, o, h, l, c, v=10.0):
+        frame.loc[row, ["open", "high", "low", "close", "volume"]] = [o, h, l, c, v]
+
+    setbar(w0, 100.0, 99.9, 99.0, 99.5)
+    setbar(w0 + 1, 99.6, 101.5, 99.7, 101.0, 30.0)
+    setbar(w0 + 2, 101.0, 101.6, 100.5, 101.2)
+    if retest_offset == 3:
+        setbar(w0 + 3, 101.2, 101.3, 100.4, 100.8)
+    else:
+        # Run past the window: bars w0+3.. stay above the gap top, then touch it.
+        for row in range(w0 + 3, w0 + retest_offset):
+            setbar(row, 101.2, 101.5, 101.0, 101.3)
+        setbar(w0 + retest_offset, 101.2, 101.3, 100.3, 100.8)
+    return frame
+
+
+def run(strategy, frame: pd.DataFrame) -> pd.DataFrame:
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def entries(frame: pd.DataFrame) -> list[int]:
+    if "enter_long" not in frame:
+        return []
+    return frame.index[frame["enter_long"].fillna(0) == 1].tolist()
+
+
+class FairValueGapRetestH122Tests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.strategy = Strategy()
+
+    def test_class_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 100)
+
+    def test_scenario_signals_at_retest_bar_with_zone_low(self) -> None:
+        frame = run(self.strategy, make_scenario(WINTER_START, WINTER_W2))
+        self.assertEqual(entries(frame), [WINTER_W2 + 3])
+        self.assertEqual(frame.loc[WINTER_W2 + 3, "enter_tag"], "fvg_sweep_low|99.0")
+
+    def test_signal_columns_are_binary(self) -> None:
+        frame = run(self.strategy, make_scenario(WINTER_START, WINTER_W2))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+        self.assertTrue(set(frame["fvg_signal"].unique().tolist()).issubset({0, 1}))
+
+    def test_dst_aware_windows(self) -> None:
+        frame = run(self.strategy, make_scenario(SUMMER_START, SUMMER_W2))
+        self.assertEqual(entries(frame), [SUMMER_W2 + 3])
+        # The winter UTC clock time (15:00) is 11:00 NY in summer: not a window.
+        shifted = run(self.strategy, make_scenario(SUMMER_START, WINTER_W2))
+        self.assertEqual(entries(shifted), [])
+
+    def test_retest_may_run_past_the_window(self) -> None:
+        frame = run(self.strategy, make_scenario(WINTER_START, WINTER_W2, retest_offset=6))
+        self.assertEqual(entries(frame), [WINTER_W2 + 6])
+        # k = w0+1, so k+9 = w0+10 is the last retest bar; w0+11 is too late.
+        late = run(self.strategy, make_scenario(WINTER_START, WINTER_W2, retest_offset=11))
+        self.assertEqual(entries(late), [])
+        edge = run(self.strategy, make_scenario(WINTER_START, WINTER_W2, retest_offset=10))
+        self.assertEqual(entries(edge), [WINTER_W2 + 10])
+
+    def test_retest_below_zone_low_cancels_setup(self) -> None:
+        scenario = make_scenario(WINTER_START, WINTER_W2)
+        scenario.loc[WINTER_W2 + 3, "low"] = 98.9  # below S = 99.0 -> cancelled
+        scenario.loc[WINTER_W2 + 4, ["open", "high", "low", "close"]] = [101.0, 101.0, 100.4, 100.8]
+        self.assertEqual(entries(run(self.strategy, scenario)), [])
+
+    def test_close_below_gap_bottom_cancels_setup(self) -> None:
+        scenario = make_scenario(WINTER_START, WINTER_W2)
+        scenario.loc[WINTER_W2 + 3, "close"] = 99.8  # below GB = 99.9
+        self.assertEqual(entries(run(self.strategy, scenario)), [])
+
+    def test_weak_volume_or_small_gap_or_down_bar_gives_no_signal(self) -> None:
+        weak = make_scenario(WINTER_START, WINTER_W2)
+        weak.loc[WINTER_W2 + 1, "volume"] = 14.0  # < 1.5 x 10
+        self.assertEqual(entries(run(self.strategy, weak)), [])
+        small = make_scenario(WINTER_START, WINTER_W2)
+        small.loc[WINTER_W2 + 2, "low"] = 100.1  # gap 0.2 / 101.2 < 0.25%
+        self.assertEqual(entries(run(self.strategy, small)), [])
+        down = make_scenario(WINTER_START, WINTER_W2)
+        down.loc[WINTER_W2 + 1, ["open", "close"]] = [101.0, 100.9]
+        self.assertEqual(entries(run(self.strategy, down)), [])
+
+    def test_no_sweep_gives_no_signal(self) -> None:
+        scenario = make_scenario(WINTER_START, WINTER_W2)
+        scenario.loc[WINTER_W2, "low"] = 99.8  # not below PL
+        self.assertEqual(entries(run(self.strategy, scenario)), [])
+
+    def test_missing_pool_bar_gives_no_trade(self) -> None:
+        scenario = make_scenario(WINTER_START, WINTER_W2).drop(index=WINTER_W2 - 5).reset_index(drop=True)
+        self.assertEqual(entries(run(self.strategy, scenario)), [])
+
+    def test_zero_volume_produces_no_signal(self) -> None:
+        scenario = make_scenario(WINTER_START, WINTER_W2)
+        scenario["volume"] = 0.0
+        frame = run(self.strategy, scenario)
+        self.assertEqual(entries(frame), [])
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        # Zero volume on the signal bar alone also gives no entry.
+        only_signal_bar = make_scenario(WINTER_START, WINTER_W2)
+        only_signal_bar.loc[WINTER_W2 + 3, "volume"] = 0.0
+        self.assertEqual(entries(run(self.strategy, only_signal_bar)), [])
+
+    def test_undefined_startup_values_produce_no_signal(self) -> None:
+        # Window opens at row 4: the 16-bar pool is not available.
+        early = make_scenario("2024-01-08 14:00", 4, n=120)
+        frame = run(self.strategy, early)
+        self.assertEqual(entries(frame), [])
+        # Window opens at row 16 (11:00 UTC start): the pool exists but the 20-bar volume mean before k
+        # (k = 17 or 18) does not, so the volume filter is undefined.
+        short = make_scenario("2024-01-08 11:00", 16, n=120)
+        self.assertEqual(short.loc[16, "date"], pd.Timestamp("2024-01-08 15:00", tz="UTC"))
+        frame = run(self.strategy, short)
+        self.assertEqual(entries(frame), [])
+        startup = Strategy.startup_candle_count
+        self.assertEqual(len(entries(frame.iloc[:startup])), 0)
+        # NaN prices inside the window give no signal either.
+        nan_case = make_scenario(WINTER_START, WINTER_W2)
+        nan_case.loc[WINTER_W2 + 2, "low"] = np.nan
+        self.assertEqual(entries(run(self.strategy, nan_case)), [])
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self) -> None:
+        columns = ["fvg_signal", "fvg_sweep_low", "enter_long", "enter_tag"]
+        full_scenario = make_scenario(WINTER_START, WINTER_W2, n=300)
+        rng = np.random.default_rng(7)
+        size = 6000
+        steps = rng.normal(0, 0.006, size)
+        close = 100 * np.exp(np.cumsum(steps))
+        open_ = np.concatenate([[100.0], close[:-1]])
+        random_frame = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-03-01", periods=size, freq="15min", tz="UTC"),
+                "open": open_,
+                "high": np.maximum(open_, close) * (1 + rng.uniform(0, 0.003, size)),
+                "low": np.minimum(open_, close) * (1 - rng.uniform(0, 0.003, size)),
+                "close": close,
+                "volume": rng.uniform(1, 30, size),
+            }
+        )
+        for full, cuts in (
+            (full_scenario, (WINTER_W2 + 2, WINTER_W2 + 4, 150)),
+            (random_frame, (2600, 4100, 5990)),
+        ):
+            whole = run(self.strategy, full)
+            for cut in cuts:
+                part = run(self.strategy, full.iloc[:cut])
+                pd.testing.assert_frame_equal(
+                    part.reindex(columns=columns).reset_index(drop=True),
+                    whole.reindex(columns=columns).loc[: cut - 1].reset_index(drop=True),
+                    check_dtype=False,
+                )
+        # The random walk should contain at least one setup so the comparison is not vacuous.
+        self.assertGreaterEqual(int(run(self.strategy, random_frame)["fvg_signal"].sum()), 1)
+
+    def test_custom_stoploss_is_absolute_and_frozen(self) -> None:
+        trade = SimpleNamespace(
+            enter_tag="fvg_sweep_low|99.0",
+            open_rate=100.0,
+            open_date_utc=pd.Timestamp("2024-01-08 15:45", tz="UTC"),
+        )
+        now = pd.Timestamp("2024-01-08 16:00", tz="UTC")
+        # stop = min(99.0, 99.0) = 99.0: -1% from the entry.
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, now, 100.0, 0.0)
+        self.assertAlmostEqual(100.0 * (1 + value), 99.0)
+        # Price has risen: the stop price stays at 99.0 (no trailing).
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, now, 103.0, 0.03)
+        self.assertAlmostEqual(103.0 * (1 + value), 99.0)
+        # S closer than 1%: the stop is 0.99 x E.
+        tight = SimpleNamespace(enter_tag="fvg_sweep_low|99.6", open_rate=100.0, open_date_utc=now)
+        value = self.strategy.custom_stoploss("BTC/USDT", tight, now, 100.0, 0.0)
+        self.assertAlmostEqual(100.0 * (1 + value), 99.0)
+        # S deeper than 1%: the stop is S.
+        deep = SimpleNamespace(enter_tag="fvg_sweep_low|97.0", open_rate=100.0, open_date_utc=now)
+        value = self.strategy.custom_stoploss("BTC/USDT", deep, now, 100.0, 0.0)
+        self.assertAlmostEqual(100.0 * (1 + value), 97.0)
+        # Foreign tag: leave the default stop alone.
+        other = SimpleNamespace(enter_tag="other", open_rate=100.0, open_date_utc=now)
+        self.assertIsNone(self.strategy.custom_stoploss("BTC/USDT", other, now, 100.0, 0.0))
+
+    def test_custom_exit_target_and_time_exit(self) -> None:
+        opened = pd.Timestamp("2024-01-08 15:45", tz="UTC")
+        trade = SimpleNamespace(enter_tag="fvg_sweep_low|98.0", open_rate=100.0, open_date_utc=opened)
+        # stop 98.0, d = 2%, target = 104.0.
+        self.assertIsNone(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=15), 103.9, 0.039)
+        )
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=15), 104.0, 0.04),
+            "target_2R",
+        )
+        # Minimum stop distance: S = 99.7 -> stop 99.0, target 102.0.
+        tight = SimpleNamespace(enter_tag="fvg_sweep_low|99.7", open_rate=100.0, open_date_utc=opened)
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", tight, opened + timedelta(minutes=30), 102.0, 0.02),
+            "target_2R",
+        )
+        self.assertIsNone(
+            self.strategy.custom_exit("BTC/USDT", tight, opened + timedelta(minutes=30), 101.9, 0.019)
+        )
+        # Time exit: fill candle e opens at `opened`; sold at the open of e+32 (8 hours later).
+        self.assertIsNone(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=15 * 31), 100.5, 0.005)
+        )
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=15 * 32), 100.5, 0.005),
+            "time_exit_8h",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

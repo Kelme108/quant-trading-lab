@@ -1,0 +1,216 @@
+"""H-122: ICT Silver Bullet on 15m. 4-hour-low sweep, volume-backed up gap in a New York window, buy the gap retest.
+
+Closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only.
+
+Clock: each bar's UTC open time is converted to America/New_York (DST per date). Three windows per NY day,
+four bars each: 03:00-03:45 (W1), 10:00-10:45 (W2), 14:00-14:45 (W3). w0 = first window bar.
+- Pool: PL = lowest low of the 16 bars w0-16..w0-1. Missing pool or window bar -> no trade in that window.
+- Sweep: j = first bar in w0-8..w3 with low(j) < PL.
+- Gap: bars k-1, k, k+1 with k and k+1 inside the window and k-1 >= j, all of: low(k+1) > high(k-1);
+  (low(k+1) - high(k-1)) / close(k+1) >= 0.0025; close(k) > open(k);
+  volume(k) >= 1.5 x mean volume of bars k-20..k-1. Only the first such gap (smallest k+1) is used.
+  GT = low(k+1), GB = high(k-1), S = lowest low of bars j..k+1.
+- Retest: bars t = k+2..k+9 in order: if low(t) < S or close(t) < GB the setup is cancelled; else if
+  low(t) <= GT, bar t is the entry signal and the setup is consumed. No signal by k+9: setup expires.
+- Stop: min(S, 0.99 x E) with E the fill price, an absolute price fixed at the fill (custom_stoploss).
+  S travels in the entry tag. Native stoploss -0.10 is the backstop only.
+- Target (custom_exit): E + 2 x (E - stop), i.e. 2R.
+- Time exit (custom_exit): 32 bars (8 hours) after the fill candle opens.
+
+Causality: a signal at bar t uses only bars <= t. Window bars after t are not inspected (so a missing last
+window bar cannot be known when the signal bar is earlier in the window).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy
+
+CLOCK_TZ = "America/New_York"
+WINDOW_START_MINUTES = (3 * 60, 10 * 60, 14 * 60)  # NY local 03:00, 10:00, 14:00
+WINDOW_BARS = 4
+POOL_BARS = 16
+SWEEP_LOOKBACK_BARS = 8
+GAP_MIN_SIZE_FRAC = 0.0025
+VOLUME_MEAN_BARS = 20
+VOLUME_MULT = 1.5
+RETEST_BARS = 8
+MIN_STOP_FRAC = 0.01
+TARGET_R = 2.0
+TIME_EXIT_BARS = 32
+BAR_SECONDS = 900
+TAG_PREFIX = "fvg_sweep_low"
+
+
+def parse_tag(tag) -> float | None:
+    """Sweep-zone low S recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def stop_price(sweep_low: float, entry_price: float) -> float:
+    """Stop price min(S, 0.99 x E)."""
+    return min(sweep_low, (1.0 - MIN_STOP_FRAC) * entry_price)
+
+
+def target_price(sweep_low: float, entry_price: float) -> float:
+    """2R target: E + 2 x (E - stop)."""
+    return entry_price + TARGET_R * (entry_price - stop_price(sweep_low, entry_price))
+
+
+def fvg_setups(dataframe: DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Return (signal, sweep_low) arrays. signal[t] = 1 on a retest entry bar t; sweep_low[t] = S there."""
+    n = len(dataframe)
+    signal = np.zeros(n, dtype=np.int64)
+    sweep = np.full(n, np.nan)
+    if n == 0:
+        return signal, sweep
+
+    dates = pd.to_datetime(dataframe["date"], utc=True)
+    ny = dates.dt.tz_convert(CLOCK_TZ)
+    minute_of_day = (ny.dt.hour * 60 + ny.dt.minute).to_numpy()
+    seconds = ((dates - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)).to_numpy(
+        dtype=np.int64
+    )
+    o = dataframe["open"].to_numpy(dtype=float)
+    h = dataframe["high"].to_numpy(dtype=float)
+    lo = dataframe["low"].to_numpy(dtype=float)
+    c = dataframe["close"].to_numpy(dtype=float)
+    v = dataframe["volume"].to_numpy(dtype=float)
+    finite = np.isfinite(o) & np.isfinite(h) & np.isfinite(lo) & np.isfinite(c) & np.isfinite(v)
+
+    def contiguous(a: int, b: int) -> bool:
+        """Rows a..b are consecutive 15m bars (no missing bar) and all values are defined."""
+        if a < 0 or b >= n or a > b:
+            return False
+        if seconds[b] - seconds[a] != (b - a) * BAR_SECONDS:
+            return False
+        return bool(finite[a : b + 1].all())
+
+    starts = np.flatnonzero(np.isin(minute_of_day, WINDOW_START_MINUTES))
+    for w0 in starts:
+        w0 = int(w0)
+        if w0 - POOL_BARS < 0 or not contiguous(w0 - POOL_BARS, w0 - 1):
+            continue
+        pool_low = lo[w0 - POOL_BARS : w0].min()
+
+        # Sweep bar j: first bar in w0-8..w3 with low < PL.
+        sweep_bar = None
+        for pos in range(w0 - SWEEP_LOOKBACK_BARS, w0 + WINDOW_BARS):
+            if not contiguous(w0 - POOL_BARS, pos):
+                break
+            if lo[pos] < pool_low:
+                sweep_bar = pos
+                break
+        if sweep_bar is None:
+            continue
+
+        # First gap (smallest k+1) with k and k+1 inside the window and k-1 >= j.
+        gap_k = None
+        for k in range(max(sweep_bar + 1, w0), w0 + WINDOW_BARS - 1):
+            if not contiguous(w0 - POOL_BARS, k + 1):
+                break
+            if k - VOLUME_MEAN_BARS < 0 or not contiguous(k - VOLUME_MEAN_BARS, k):
+                continue
+            gap_low = lo[k + 1]
+            gap_high = h[k - 1]
+            if not gap_low > gap_high:
+                continue
+            if not (gap_low - gap_high) / c[k + 1] >= GAP_MIN_SIZE_FRAC:
+                continue
+            if not c[k] > o[k]:
+                continue
+            mean_volume = v[k - VOLUME_MEAN_BARS : k].mean()
+            if not (v[k] > 0 and v[k] >= VOLUME_MULT * mean_volume):
+                continue
+            gap_k = k
+            break
+        if gap_k is None:
+            continue
+
+        gap_top = lo[gap_k + 1]
+        gap_bottom = h[gap_k - 1]
+        zone_low = lo[sweep_bar : gap_k + 2].min()
+
+        # Retest: bars k+2..k+9.
+        for t in range(gap_k + 2, gap_k + 2 + RETEST_BARS):
+            if t >= n or not contiguous(gap_k + 1, t):
+                break
+            if lo[t] < zone_low or c[t] < gap_bottom:
+                break  # cancelled
+            if lo[t] <= gap_top:
+                signal[t] = 1
+                sweep[t] = zone_low
+                break  # consumed
+    return signal, sweep
+
+
+class FairValueGapRetest_H122_v1(IStrategy):
+    """Buy the retest of a volume-backed up gap that follows a 4-hour-low sweep in a New York window."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.10  # engine backstop; the real stop is custom_stoploss
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 100
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        signal, sweep = fvg_setups(dataframe)
+        dataframe["fvg_signal"] = signal
+        dataframe["fvg_sweep_low"] = sweep
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        cond = (
+            (dataframe["fvg_signal"] == 1)
+            & dataframe["fvg_sweep_low"].notna()
+            & dataframe["close"].notna()
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in dataframe.loc[cond, "fvg_sweep_low"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Target and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        """Absolute stop min(S, 0.99 x E), fixed at the fill; no trailing."""
+        sweep_low = parse_tag(trade.enter_tag)
+        if sweep_low is None or not current_rate or current_rate <= 0:
+            return None
+        stop = stop_price(sweep_low, float(trade.open_rate))
+        value = stop / float(current_rate) - 1.0
+        return float(min(max(value, -0.99), -0.0001))
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        sweep_low = parse_tag(trade.enter_tag)
+        if sweep_low is not None and current_rate:
+            if float(current_rate) >= target_price(sweep_low, float(trade.open_rate)):
+                return "target_2R"
+        if current_time - trade.open_date_utc >= timedelta(seconds=TIME_EXIT_BARS * BAR_SECONDS):
+            return "time_exit_8h"
+        return None
