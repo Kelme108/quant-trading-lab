@@ -1,0 +1,160 @@
+"""H-119: Kaufman efficiency-ratio thrust on 15m, trailing 10-bar-low stop, 2% target, 8h time exit.
+
+Closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1 (entry price E).
+Long only, spot, one position per pair (engine), no higher-timeframe filter.
+
+Indicators:
+- ER(t) = (close(t) - close(t-10)) / sum_{i=0..9} |close(t-i) - close(t-i-1)|; ER = 0 when the denominator is 0.
+- ATR(t) = Wilder ATR(14) (true range, Wilder smoothing alpha 1/14, seeded with the mean of the first 14 true ranges).
+Entry at the close of bar t when: ER(t-1) <= 0.6 and ER(t) > 0.6; ATR(t)/close(t) >= 0.004; volume > 0.
+Stop (custom_stoploss, a price level): S0 = min(lowest low of bars t-9..t, 0.99*E). After the close of each
+later bar k in the trade, S = max(S, lowest low of bars k-9..k); never lowered; applies from bar k+1.
+Native stoploss -10% is a backstop. The entry tag records the lowest low of bars t-9..t.
+Exits (custom_exit): take-profit when profit >= 2%; time exit once 32 bars (8 hours) have passed since the fill.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy
+
+BAR = timedelta(minutes=15)
+ER_PERIOD = 10
+ER_THRESHOLD = 0.6
+ATR_PERIOD = 14
+ATR_OVER_CLOSE_MIN = 0.004
+STOP_LOOKBACK = 10
+MIN_INITIAL_STOP_PCT = 0.01
+TAKE_PROFIT = 0.02
+TIME_EXIT_BARS = 32
+TAG_PREFIX = "er_low"
+
+
+def parse_tag(tag) -> float | None:
+    """Initial 10-bar low recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def efficiency_ratio(close: pd.Series) -> pd.Series:
+    """Signed Kaufman ER over ER_PERIOD bars; 0 when the path length is 0; NaN until defined."""
+    net = close - close.shift(ER_PERIOD)
+    path = close.diff().abs().rolling(ER_PERIOD).sum()
+    ratio = net / path.where(path > 0)
+    ratio = ratio.where(~(path == 0), 0.0)
+    return ratio.where(net.notna() & path.notna())
+
+
+def wilder_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> pd.Series:
+    """Wilder ATR: first value (index `period`) is the mean of the first `period` true ranges."""
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1, skipna=False)
+    tr = true_range.to_numpy(dtype=float)
+    out = np.full(len(tr), np.nan)
+    if len(tr) > period:
+        window = tr[1 : period + 1]
+        if not np.isnan(window).any():
+            out[period] = window.mean()
+            for i in range(period + 1, len(tr)):
+                if np.isnan(tr[i]) or np.isnan(out[i - 1]):
+                    out[i] = np.nan
+                else:
+                    out[i] = (out[i - 1] * (period - 1) + tr[i]) / period
+    return pd.Series(out, index=close.index)
+
+
+class EfficiencyRatioThrust_H119_v1(IStrategy):
+    """Buy a fresh cross of the 10-bar efficiency ratio above 0.6 when ATR/close >= 0.4%."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.10
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 400
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dataframe["er"] = efficiency_ratio(dataframe["close"])
+        dataframe["atr"] = wilder_atr(
+            dataframe["high"], dataframe["low"], dataframe["close"], ATR_PERIOD
+        )
+        dataframe["low10"] = dataframe["low"].rolling(STOP_LOOKBACK).min()
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        er = dataframe["er"]
+        er_prev = er.shift(1)
+        cond = (
+            er.notna()
+            & er_prev.notna()
+            & dataframe["atr"].notna()
+            & dataframe["low10"].notna()
+            & (er_prev <= ER_THRESHOLD)
+            & (er > ER_THRESHOLD)
+            & (dataframe["atr"] / dataframe["close"] >= ATR_OVER_CLOSE_MIN)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in dataframe.loc[cond, "low10"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit, time exit and the trailing stop depend on the open trade: see custom_exit/custom_stoploss.
+        return dataframe
+
+    def stop_level(self, pair, trade, current_time) -> float | None:
+        """Current stop price: S0 raised to the 10-bar low of each closed bar since the fill."""
+        initial_low = parse_tag(trade.enter_tag)
+        if initial_low is None:
+            return None
+        level = min(initial_low, (1.0 - MIN_INITIAL_STOP_PCT) * float(trade.open_rate))
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if dataframe is None or len(dataframe) == 0 or "low10" not in dataframe:
+            return level
+        dates = pd.to_datetime(dataframe["date"], utc=True)
+        opened = pd.Timestamp(trade.open_date_utc)
+        now = pd.Timestamp(current_time)
+        in_trade = dataframe.loc[((dates + BAR) > opened) & ((dates + BAR) <= now)]
+        lows = in_trade["low10"].dropna()
+        if len(lows) > 0:
+            level = max(level, float(lows.max()))
+        return level
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit,
+                        after_fill=False, **kwargs):
+        level = self.stop_level(pair, trade, current_time)
+        if level is None or not current_rate or current_rate <= 0:
+            return None
+        distance = level / float(current_rate) - 1.0
+        # Price already at or below the level: stop immediately (tiny distance).
+        return min(distance, -0.0001)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        if current_profit >= TAKE_PROFIT:
+            return "take_profit_2pct"
+        if pd.Timestamp(current_time) - pd.Timestamp(trade.open_date_utc) >= TIME_EXIT_BARS * BAR:
+            return "time_exit_8h"
+        return None

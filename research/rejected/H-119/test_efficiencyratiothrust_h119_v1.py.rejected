@@ -1,0 +1,248 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "EfficiencyRatioThrust_H119_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+class FakeDP:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class FakeTrade:
+    def __init__(self, open_date, open_rate, tag):
+        self.open_date_utc = open_date
+        self.open_rate = open_rate
+        self.enter_tag = tag
+
+
+def make_frame(closes, volume=1.0, spread=0.003):
+    closes = np.asarray(closes, dtype=float)
+    opens = np.concatenate([[closes[0]], closes[:-1]])
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(T0, periods=len(closes), freq="15min"),
+            "open": opens,
+            "high": np.maximum(opens, closes) * (1 + spread),
+            "low": np.minimum(opens, closes) * (1 - spread),
+            "close": closes,
+            "volume": [volume] * len(closes),
+        }
+    )
+
+
+def thrust_closes(n_flat=60):
+    flat = [100.0 + (0.2 if i % 2 else -0.2) for i in range(n_flat)]
+    climb = [flat[-1] * (1.006 ** k) for k in range(1, 13)]
+    return flat + climb
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+class EfficiencyRatioThrustTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.10)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 400)
+        self.assertTrue(Strategy.use_custom_stoploss)
+
+    def test_efficiency_ratio_values(self):
+        close = pd.Series([100.0 + i for i in range(30)])
+        er = MODULE.efficiency_ratio(close)
+        self.assertTrue(er.iloc[:10].isna().all())
+        self.assertAlmostEqual(er.iloc[10], 1.0)
+        flat = MODULE.efficiency_ratio(pd.Series([5.0] * 30))
+        self.assertEqual(flat.iloc[15], 0.0)
+        zig = pd.Series([100.0, 101.0] * 15)
+        self.assertAlmostEqual(MODULE.efficiency_ratio(zig).iloc[12], 0.0)
+
+    def test_wilder_atr(self):
+        frame = make_frame([100.0] * 40, spread=0.01)
+        atr = MODULE.wilder_atr(frame["high"], frame["low"], frame["close"], 14)
+        self.assertTrue(atr.iloc[:14].isna().all())
+        self.assertAlmostEqual(atr.iloc[14], 2.0, places=6)
+        self.assertAlmostEqual(atr.iloc[30], 2.0, places=6)
+
+    def test_entry_on_fresh_cross_only_once(self):
+        frame = run(Strategy(), make_frame(thrust_closes()))
+        entries = frame.index[frame["enter_long"] == 1].tolist()
+        self.assertGreaterEqual(len(entries), 1)
+        first = entries[0]
+        self.assertGreaterEqual(first, 60)
+        self.assertLessEqual(frame.loc[first - 1, "er"], 0.6)
+        self.assertGreater(frame.loc[first, "er"], 0.6)
+        self.assertGreaterEqual(frame.loc[first, "atr"] / frame.loc[first, "close"], 0.004)
+        # Staying above 0.6 produces no further crosses.
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(
+            frame.loc[first, "enter_tag"], f"er_low|{float(frame.loc[first, 'low10'])!r}"
+        )
+
+    def test_low_activity_blocks_entry(self):
+        flat = [100.0 + (0.01 if i % 2 else -0.01) for i in range(60)]
+        closes = flat + [flat[-1] * (1.001 ** k) for k in range(1, 13)]
+        frame = run(Strategy(), make_frame(closes, spread=0.0))
+        crossed = (frame["er"].shift(1) <= 0.6) & (frame["er"] > 0.6)
+        self.assertTrue(crossed.any())
+        self.assertLess((frame["atr"] / frame["close"]).max(), 0.004)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_signal_columns_binary(self):
+        frame = run(Strategy(), make_frame(thrust_closes()))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_no_signal(self):
+        frame = run(Strategy(), make_frame(thrust_closes(), volume=0.0))
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_no_signal(self):
+        closes = [100.0 * (1.006 ** i) for i in range(30)]
+        frame = run(Strategy(), make_frame(closes))
+        self.assertTrue(frame["er"].iloc[:10].isna().all())
+        self.assertTrue(frame["atr"].iloc[:14].isna().all())
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).iloc[:14].sum()), 0)
+
+    def test_no_lookahead(self):
+        rng = np.random.default_rng(7)
+        closes = 100 * np.cumprod(1 + rng.normal(0, 0.004, 500))
+        full = make_frame(closes)
+        n = 350
+        short = run(Strategy(), full.iloc[:n].copy().reset_index(drop=True))
+        long = run(Strategy(), full.copy())
+        cols = ["er", "atr", "low10"]
+        pd.testing.assert_frame_equal(short[cols], long.loc[: n - 1, cols], check_dtype=False)
+        a = short.get("enter_long", pd.Series(0, index=short.index)).fillna(0)
+        b = long.get("enter_long", pd.Series(0, index=long.index)).fillna(0).iloc[:n]
+        self.assertEqual(a.tolist(), b.tolist())
+        tags_a = short.get("enter_tag", pd.Series(index=short.index, dtype=object)).fillna("")
+        tags_b = long.get("enter_tag", pd.Series(index=long.index, dtype=object)).fillna("").iloc[:n]
+        self.assertEqual(tags_a.tolist(), tags_b.tolist())
+
+    # ---- trade-level exits ----
+
+    def trailing_setup(self):
+        strategy = Strategy()
+        closes = [100.0] * 20 + [100.0 + 0.5 * k for k in range(1, 21)]
+        frame = strategy.populate_indicators(make_frame(closes, spread=0.0), {})
+        strategy.dp = FakeDP(frame)
+        return strategy, frame
+
+    def test_initial_stop_at_least_one_percent_below_entry(self):
+        strategy, frame = self.trailing_setup()
+        open_date = frame.loc[5, "date"].to_pydatetime()
+        # 10-bar low 99.8 is only 0.2% below entry 100 -> stop must be 0.99 * 100.
+        trade = FakeTrade(open_date, 100.0, "er_low|99.8")
+        level = strategy.stop_level("X/USDT", trade, open_date)
+        self.assertAlmostEqual(level, 99.0)
+        # Lower 10-bar low wins.
+        trade = FakeTrade(open_date, 100.0, "er_low|97.0")
+        self.assertAlmostEqual(strategy.stop_level("X/USDT", trade, open_date), 97.0)
+        distance = strategy.custom_stoploss("X/USDT", trade, open_date, 100.0, 0.0)
+        self.assertAlmostEqual(distance, 97.0 / 100.0 - 1.0)
+
+    def test_stop_trails_up_with_closed_bars_only(self):
+        strategy, frame = self.trailing_setup()
+        open_idx = 25
+        open_date = frame.loc[open_idx, "date"].to_pydatetime()
+        trade = FakeTrade(open_date, 110.0, "er_low|90.0")
+        # Before bar 25 closes: only initial level.
+        self.assertAlmostEqual(strategy.stop_level("X", trade, open_date), 90.0)
+        # Bar 25 closed (current time = open of bar 26): 10-bar low of bars 16..25.
+        now = frame.loc[26, "date"].to_pydatetime()
+        expected = frame.loc[25, "low10"]
+        self.assertAlmostEqual(strategy.stop_level("X", trade, now), expected)
+        # Later: higher, never lower.
+        later = frame.loc[36, "date"].to_pydatetime()
+        level_later = strategy.stop_level("X", trade, later)
+        self.assertAlmostEqual(level_later, frame.loc[35, "low10"])
+        self.assertGreater(level_later, expected)
+        # Price falls: later low10 values drop, level must not.
+        low_frame = frame.copy()
+        low_frame.loc[37:, ["open", "high", "low", "close"]] = 50.0
+        low_frame = strategy.populate_indicators(low_frame.drop(columns=["low10", "er", "atr"]), {})
+        strategy.dp = FakeDP(low_frame)
+        end = frame.loc[39, "date"].to_pydatetime()
+        self.assertGreaterEqual(strategy.stop_level("X", trade, end), level_later)
+
+    def test_stop_hit_when_price_at_or_below_level(self):
+        strategy, frame = self.trailing_setup()
+        open_date = frame.loc[25, "date"].to_pydatetime()
+        trade = FakeTrade(open_date, 110.0, "er_low|90.0")
+        now = frame.loc[30, "date"].to_pydatetime()
+        level = strategy.stop_level("X", trade, now)
+        self.assertLess(strategy.custom_stoploss("X", trade, now, level - 1.0, -0.1), 0)
+        self.assertLessEqual(strategy.custom_stoploss("X", trade, now, level - 1.0, -0.1), -0.0001)
+
+    def test_foreign_tag_uses_native_stop(self):
+        strategy, frame = self.trailing_setup()
+        trade = FakeTrade(frame.loc[5, "date"].to_pydatetime(), 100.0, "other")
+        self.assertIsNone(strategy.custom_stoploss("X", trade, frame.loc[6, "date"], 100.0, 0.0))
+
+    def test_take_profit_exit(self):
+        strategy = Strategy()
+        opened = T0
+        trade = FakeTrade(opened, 100.0, "er_low|98.0")
+        now = opened + timedelta(minutes=45)
+        self.assertIsNone(strategy.custom_exit("X", trade, now, 101.0, 0.019))
+        self.assertEqual(strategy.custom_exit("X", trade, now, 102.0, 0.02), "take_profit_2pct")
+
+    def test_time_exit_after_32_bars(self):
+        strategy = Strategy()
+        trade = FakeTrade(T0, 100.0, "er_low|98.0")
+        self.assertIsNone(strategy.custom_exit("X", trade, T0 + timedelta(hours=8) - timedelta(minutes=15), 100.0, 0.0))
+        self.assertEqual(
+            strategy.custom_exit("X", trade, T0 + timedelta(hours=8), 100.0, 0.0), "time_exit_8h"
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
