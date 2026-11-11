@@ -1,0 +1,18 @@
+{
+  "title": "Session-aware hourly NR4 breakout on 15m: narrowest same-hour bar, 4h uptrend, 1% floor stop, 2R, 8h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/nr4-nr7-narrow-range-bars.md",
+    "title": "LuxAlgo Library: NR4 / NR7 narrow range bars",
+    "license": "free to use with attribution (LuxAlgo Library licence)"
+  },
+  "rule_summary": "Chart 15m, closed bars, signal at bar close, fill at next open, UTC. Hourly bars are built from four completed 15m bars (hh:00-hh:45). A completed 1h bar H (clock hour h, day d) is a SESSION-AWARE NR4 if its range high-low is strictly smaller than the range of the 1h bars at the same clock hour h on each of the 3 previous UTC days (d-1, d-2, d-3), AND its range/close >= 0.25% (dead-tape floor). FILTER (higher-timeframe direction, fixed): the last completed 4h block (UTC 00,04,...,20) closes above the SMA(50) of 4h closes. ENTRY: during the 8 15m bars after H completes, the first 15m bar that CLOSES above high(H) while the filter holds and the pair is flat; buy at the next open. One entry per NR4 bar, at most 2 entries per pair per UTC day. STOP = min(low(H), entry x 0.99), so the stop is always at least 1.0% below entry; skip the trade if low(H) is more than 2% below entry. TARGET = entry + 2 x (entry - stop). TIME EXIT at the close of the 32nd 15m bar after entry (8 hours). No pyramiding.",
+  "mechanism": "Variation of the daily NR7 breakout that came close in exploration (H-040), moved to hourly bars so it trades daily. Volatility clusters and alternates contraction/expansion; an unusually quiet hour versus the same clock hour on recent days marks coiling, not just a quiet time of day (the source warns intraday narrow bars are often clock-driven, hence the same-hour baseline). Sellers who sold the range and stops above it are the other side once the break comes with the 4h trend. Cost: the lab's bracket lesson says a narrow range puts the stop too close, so the stop is floored at 1% and the target is 2%; with an 8h cap the average absolute move is about 1%, cost about 0.3R.",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.8,
+  "family_hint": "DailyNR7Breakout"
+}
