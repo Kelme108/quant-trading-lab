@@ -1,0 +1,206 @@
+"""H-128: 15m EMA9/16 cross with a volume burst, 1h EMA200 and BTC 1h RSI gate, cut by time checkpoints.
+
+All times UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (fill bar e).
+Spot, long only, one position per pair (engine), no pyramiding, no cooldown, no daily cap.
+
+Indicators (15m, bar t included): EMA9 and EMA16 of close (alpha 2/(n+1)); Wilder RSI16 of close;
+VE = EMA20 of volume (alpha 2/21).
+Informative 1h (merge_informative_pair, ffill, only the last completed 1h candle is visible): EMA200 of the
+pair's own 1h close; BRSI = Wilder RSI14 of BTC/USDT 1h close (BTC/USDT uses its own 1h RSI14).
+
+Entry at the close of bar t when all hold:
+ (1) EMA9(t) > EMA16(t) and EMA9(t-1) <= EMA16(t-1);  (2) 40 <= RSI16(t) <= 75;
+ (3) close(t) > last closed 1h EMA200;  (4) volume(t) >= 1.5 * VE(t-1);  (5) last closed BTC 1h RSI14 > 35.
+
+Exits, first one wins (bar k of the trade counts the fill bar e as bar 1):
+ (a) stop-loss: native stoploss -3% (intrabar);
+ (b) take-profit: +2% (custom_exit, from current_profit; minimal_roi is fixed at 100.0 by the contract);
+ (c) 2h checkpoint: close of bar 8 (e+7) <= 0.985 * E -> sell at the next open;
+ (d) 4h checkpoint: close of bar 16 (e+15) < E -> sell at the next open;
+ (e) 8h checkpoint: close of bar 32 (e+31) < 1.005 * E -> sell at the next open;
+ (f) bearish cross at the close of any bar k: EMA9(k) < EMA16(k), EMA9(k-1) >= EMA16(k-1), RSI16(k) > 50;
+ (g) time exit: sell at the open of e+48 (12 h after the fill).
+In custom_exit the engine calls with current_time = open of a bar, so bars with date + 15m <= current_time are
+the closed bars; a decision made on the close of bar j is therefore executed at the open of bar j+1.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy, merge_informative_pair
+
+BAR = timedelta(minutes=15)
+EMA_FAST = 9
+EMA_SLOW = 16
+RSI_PERIOD = 16
+RSI_ENTRY_MIN = 40.0
+RSI_ENTRY_MAX = 75.0
+VOLUME_EMA_PERIOD = 20
+VOLUME_MULT = 1.5
+HTF_EMA_PERIOD = 200
+BTC_RSI_PERIOD = 14
+BTC_RSI_MIN = 35.0
+BTC_PAIR = "BTC/USDT"
+TAKE_PROFIT = 0.02
+EXIT_CROSS_RSI_MIN = 50.0
+TIME_EXIT_BARS = 48
+# (bar number n of the trade, ratio of the entry price, strict "<" comparison?)
+CHECKPOINTS = (
+    (8, 0.985, False),   # close <= 0.985 * E
+    (16, 1.0, True),     # close < E
+    (32, 1.005, True),   # close < 1.005 * E
+)
+
+
+def wilder_rsi(close: pd.Series, period: int) -> pd.Series:
+    """Wilder RSI (recursive, alpha 1/period). Undefined (NaN) when there is no movement at all."""
+    delta = close.diff()
+    gain = delta.clip(lower=0.0)
+    loss = (-delta).clip(lower=0.0)
+    avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
+    total = (avg_gain + avg_loss).where(lambda s: s > 0)
+    return 100.0 * avg_gain / total
+
+
+def fast_indicators(dataframe: DataFrame) -> DataFrame:
+    """15m EMA9/EMA16, RSI16, volume EMA20 and the entry/exit cross flags."""
+    close = dataframe["close"].astype(float)
+    volume = dataframe["volume"].astype(float)
+    fast = close.ewm(span=EMA_FAST, adjust=False).mean()
+    slow = close.ewm(span=EMA_SLOW, adjust=False).mean()
+    rsi = wilder_rsi(close, RSI_PERIOD)
+    dataframe["ema_fast"] = fast
+    dataframe["ema_slow"] = slow
+    dataframe["rsi_fast"] = rsi
+    dataframe["vol_ema"] = volume.ewm(span=VOLUME_EMA_PERIOD, adjust=False).mean()
+    prev_fast = fast.shift(1)
+    prev_slow = slow.shift(1)
+    dataframe["bull_cross"] = ((fast > slow) & (prev_fast <= prev_slow)).astype(int)
+    bear = (fast < slow) & (prev_fast >= prev_slow) & (rsi > EXIT_CROSS_RSI_MIN)
+    bear = bear & fast.notna() & slow.notna() & prev_fast.notna() & prev_slow.notna() & rsi.notna() & (volume > 0)
+    dataframe["bear_cross"] = bear.astype(int)
+    return dataframe
+
+
+def informative_frame(own: DataFrame, btc: DataFrame | None, is_btc: bool) -> DataFrame:
+    """1h frame with the pair's own EMA200 and the BTC 1h RSI14 (aligned on the 1h candle open time)."""
+    own = own.drop_duplicates("date").reset_index(drop=True)
+    out = DataFrame({"date": own["date"]})
+    out["ema200"] = own["close"].astype(float).ewm(span=HTF_EMA_PERIOD, adjust=False).mean()
+    own_rsi = wilder_rsi(own["close"].astype(float), BTC_RSI_PERIOD)
+    if is_btc:
+        out["btc_rsi"] = own_rsi
+    elif btc is None or len(btc) == 0:
+        out["btc_rsi"] = np.nan
+    else:
+        btc = btc.drop_duplicates("date").reset_index(drop=True)
+        btc_rsi = wilder_rsi(btc["close"].astype(float), BTC_RSI_PERIOD)
+        mapping = pd.Series(btc_rsi.to_numpy(), index=pd.to_datetime(btc["date"], utc=True))
+        out["btc_rsi"] = pd.to_datetime(out["date"], utc=True).map(mapping).astype(float).to_numpy()
+    return out
+
+
+def _to_utc(value) -> pd.Timestamp:
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        return ts.tz_localize("UTC")
+    return ts.tz_convert("UTC")
+
+
+class TimeDecayFailFastTrend_H128_v1(IStrategy):
+    """Fresh 15m EMA9/16 cross on a volume burst above the 1h EMA200 while BTC is not selling off."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.03
+    use_exit_signal = True
+    startup_candle_count = 2400
+
+    def informative_pairs(self):
+        if not self.dp:
+            return []
+        pairs = {(pair, "1h") for pair in self.dp.current_whitelist()}
+        pairs.add((BTC_PAIR, "1h"))
+        return sorted(pairs)
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dataframe = fast_indicators(dataframe)
+        pair = metadata.get("pair", "")
+        own = self.dp.get_pair_dataframe(pair=pair, timeframe="1h")
+        if pair == BTC_PAIR or own is None or len(own) == 0:
+            btc = None
+        else:
+            btc = self.dp.get_pair_dataframe(pair=BTC_PAIR, timeframe="1h")
+        if own is None or len(own) == 0:
+            dataframe["ema200_1h"] = np.nan
+            dataframe["btc_rsi_1h"] = np.nan
+            return dataframe
+        info = informative_frame(own, btc, pair == BTC_PAIR)
+        dataframe = merge_informative_pair(dataframe, info, self.timeframe, "1h", ffill=True)
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        rsi = dataframe["rsi_fast"]
+        ve_prev = dataframe["vol_ema"].shift(1)
+        cond = (
+            dataframe["ema_fast"].notna()
+            & dataframe["ema_slow"].notna()
+            & rsi.notna()
+            & ve_prev.notna()
+            & dataframe["ema200_1h"].notna()
+            & dataframe["btc_rsi_1h"].notna()
+            & (dataframe["bull_cross"] == 1)
+            & (rsi >= RSI_ENTRY_MIN)
+            & (rsi <= RSI_ENTRY_MAX)
+            & (dataframe["close"] > dataframe["ema200_1h"])
+            & (dataframe["volume"] >= VOLUME_MULT * ve_prev)
+            & (dataframe["btc_rsi_1h"] > BTC_RSI_MIN)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # All exits depend on the open trade (entry price, fill time): see custom_exit.
+        return dataframe
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        if current_profit is not None and current_profit >= TAKE_PROFIT:
+            return "take_profit"
+        fill_bar = _to_utc(trade.open_date_utc).floor("15min")
+        now = _to_utc(current_time)
+        if now - fill_bar >= TIME_EXIT_BARS * BAR:
+            return "time_exit_12h"
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if dataframe is None or len(dataframe) == 0:
+            return None
+        dates = pd.to_datetime(dataframe["date"], utc=True)
+        closed = dataframe.loc[(dates >= fill_bar) & (dates + BAR <= now)]
+        if closed.empty:
+            return None
+        closed_dates = pd.to_datetime(closed["date"], utc=True)
+        volume_ok = closed["volume"] > 0
+        entry_price = float(trade.open_rate)
+        for bars, ratio, strict in CHECKPOINTS:
+            row = closed.loc[(closed_dates == fill_bar + (bars - 1) * BAR) & volume_ok]
+            if row.empty:
+                continue
+            close = float(row["close"].iloc[-1])
+            if not np.isfinite(close):
+                continue
+            limit = ratio * entry_price
+            if (close < limit) if strict else (close <= limit):
+                return f"checkpoint_{bars * 15 // 60}h"
+        if bool((closed["bear_cross"] == 1).any()):
+            return "bearish_cross"
+        return None

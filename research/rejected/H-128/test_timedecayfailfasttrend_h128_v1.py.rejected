@@ -1,0 +1,376 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "TimeDecayFailFastTrend_H128_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+BAR = timedelta(minutes=15)
+T0 = pd.Timestamp("2025-01-01", tz="UTC")
+
+
+def fake_merge(dataframe, informative, timeframe, timeframe_inf, ffill=True):
+    """Same visibility rule as freqtrade: a 1h candle is visible from its close onwards."""
+    inf = informative.copy()
+    inf.columns = [f"{c}_{timeframe_inf}" for c in inf.columns]
+    inf["date_1h"] = pd.to_datetime(inf["date_1h"], utc=True) + timedelta(hours=1)
+    merged = pd.merge_asof(
+        dataframe.sort_values("date"), inf.sort_values("date_1h"), left_on="date", right_on="date_1h"
+    )
+    return merged.drop(columns=["date_1h"])
+
+
+class FakeDP:
+    def __init__(self, frames, analyzed=None):
+        self.frames = frames
+        self.analyzed = analyzed
+
+    def get_pair_dataframe(self, pair, timeframe):
+        return self.frames[(pair, timeframe)].copy()
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.analyzed, None
+
+
+def make_15m(n, seed=0, drift=0.0004, start=100.0):
+    rng = np.random.default_rng(seed)
+    close = start * np.exp(np.cumsum(rng.normal(drift, 0.004, n)))
+    open_ = np.concatenate([[start], close[:-1]])
+    volume = rng.uniform(50, 150, n)
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(T0, periods=n, freq="15min"),
+            "open": open_,
+            "high": np.maximum(open_, close) * 1.002,
+            "low": np.minimum(open_, close) * 0.998,
+            "close": close,
+            "volume": volume,
+        }
+    )
+
+
+def to_1h(frame):
+    f = frame.set_index("date")
+    out = f.resample("1h").agg(
+        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    )
+    return out.dropna().reset_index()
+
+
+def build(frame15, btc15=None, pair="ETH/USDT"):
+    btc15 = frame15 if btc15 is None else btc15
+    dp = FakeDP({(pair, "1h"): to_1h(frame15), ("BTC/USDT", "1h"): to_1h(btc15)})
+    strat = Strategy()
+    strat.dp = dp
+    MODULE.merge_informative_pair = fake_merge
+    out = strat.populate_indicators(frame15.copy(), {"pair": pair})
+    out = strat.populate_entry_trend(out, {"pair": pair})
+    out = strat.populate_exit_trend(out, {"pair": pair})
+    return strat, out
+
+
+def forced_entry_frame():
+    """Long flat base, a slow dip, then a sharp volume-backed up-move that makes a fresh bullish cross."""
+    n = 1000
+    price = np.full(n, 100.0)
+    price[:400] = np.linspace(80.0, 100.0, 400)
+    price[400:] = 100.0 + np.cumsum(np.where(np.arange(600) % 40 < 25, -0.02, 0.0))
+    price[700:] += np.linspace(0, 3.0, 300)
+    frame = make_15m(n, seed=3)
+    frame["close"] = price
+    frame["open"] = np.concatenate([[price[0]], price[:-1]])
+    frame["high"] = np.maximum(frame["open"], frame["close"]) * 1.001
+    frame["low"] = np.minimum(frame["open"], frame["close"]) * 0.999
+    return frame
+
+
+class ContractTests(unittest.TestCase):
+    def test_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.03)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 2400)
+        self.assertEqual(MODULE.EMA_FAST, 9)
+        self.assertEqual(MODULE.EMA_SLOW, 16)
+        self.assertEqual(MODULE.RSI_PERIOD, 16)
+        self.assertEqual(MODULE.VOLUME_MULT, 1.5)
+        self.assertEqual(MODULE.HTF_EMA_PERIOD, 200)
+        self.assertEqual(MODULE.BTC_RSI_PERIOD, 14)
+        self.assertEqual(MODULE.TAKE_PROFIT, 0.02)
+        self.assertEqual(MODULE.TIME_EXIT_BARS, 48)
+
+    def test_informative_pairs_include_btc(self):
+        strat = Strategy()
+        strat.dp = types.SimpleNamespace(current_whitelist=lambda: ["ETH/USDT", "SOL/USDT"])
+        pairs = strat.informative_pairs()
+        self.assertIn(("BTC/USDT", "1h"), pairs)
+        self.assertIn(("ETH/USDT", "1h"), pairs)
+
+
+class IndicatorTests(unittest.TestCase):
+    def test_ema_and_rsi_values(self):
+        s = pd.Series([1.0, 2.0, 3.0, 2.0])
+        e = s.ewm(span=9, adjust=False).mean()
+        alpha = 2 / 10
+        self.assertAlmostEqual(e.iloc[1], alpha * 2 + (1 - alpha) * 1)
+        up = pd.Series(np.arange(1.0, 40.0))
+        self.assertAlmostEqual(MODULE.wilder_rsi(up, 14).iloc[-1], 100.0)
+        flat = pd.Series([5.0] * 10)
+        self.assertTrue(MODULE.wilder_rsi(flat, 14).isna().all())
+
+    def test_signal_columns_are_binary_and_entries_exist(self):
+        _, out = build(forced_entry_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in out:
+                self.assertTrue(set(out[column].dropna().unique().tolist()).issubset({1}))
+        self.assertTrue(set(out["bear_cross"].unique().tolist()).issubset({0, 1}))
+
+    def test_entry_requires_every_condition(self):
+        frame = forced_entry_frame()
+        strat, out = build(frame)
+        # Build a row that satisfies every condition, then break one at a time.
+        out = out.copy()
+        i = 900
+        out["enter_long"] = np.nan
+        out.loc[i - 1, ["ema_fast", "ema_slow"]] = [99.0, 100.0]
+        out.loc[i, ["ema_fast", "ema_slow"]] = [101.0, 100.0]
+        out["bull_cross"] = 0
+        out.loc[i, "bull_cross"] = 1
+        out.loc[i, "rsi_fast"] = 55.0
+        out.loc[i, "close"] = 105.0
+        out.loc[i, "ema200_1h"] = 100.0
+        out.loc[i, "btc_rsi_1h"] = 50.0
+        out.loc[i - 1, "vol_ema"] = 100.0
+        out.loc[i, "volume"] = 150.0
+
+        def entered(df):
+            res = strat.populate_entry_trend(df.copy(), {})
+            return "enter_long" in res and res.loc[i, "enter_long"] == 1
+
+        self.assertTrue(entered(out))
+        breakers = [
+            ("bull_cross", 0),
+            ("rsi_fast", 39.9),
+            ("rsi_fast", 75.1),
+            ("close", 99.0),
+            ("btc_rsi_1h", 35.0),
+            ("volume", 149.9),
+            ("volume", 0.0),
+            ("ema200_1h", np.nan),
+            ("btc_rsi_1h", np.nan),
+        ]
+        for column, value in breakers:
+            broken = out.copy()
+            broken.loc[i, column] = value
+            self.assertFalse(entered(broken), (column, value))
+        edge = out.copy()
+        edge.loc[i, "rsi_fast"] = 40.0
+        self.assertTrue(entered(edge))
+        edge.loc[i, "rsi_fast"] = 75.0
+        self.assertTrue(entered(edge))
+        edge.loc[i, "volume"] = 150.0
+        self.assertTrue(entered(edge))
+
+    def test_zero_volume_gives_no_signal(self):
+        frame = forced_entry_frame()
+        frame["volume"] = 0.0
+        _, out = build(frame)
+        self.assertEqual(int(out.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(out["bear_cross"].sum()), 0)
+        self.assertEqual(int(out.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_give_no_signal(self):
+        # Fewer than 200 closed 1h candles are no problem for EMA; but with no 1h data at all the gate is NaN.
+        frame = forced_entry_frame()
+        strat = Strategy()
+        strat.dp = FakeDP(
+            {("ETH/USDT", "1h"): to_1h(frame).iloc[0:0], ("BTC/USDT", "1h"): to_1h(frame)}
+        )
+        MODULE.merge_informative_pair = fake_merge
+        out = strat.populate_indicators(frame.copy(), {"pair": "ETH/USDT"})
+        out = strat.populate_entry_trend(out, {})
+        self.assertEqual(int(out.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        # The first 15m rows have no previous bar and no completed 1h candle: no signal.
+        _, out2 = build(frame)
+        self.assertEqual(int(out2.iloc[:5].get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertTrue(out2["ema200_1h"].iloc[:4].isna().all())
+
+    def test_missing_btc_data_blocks_entries(self):
+        frame = forced_entry_frame()
+        strat = Strategy()
+        strat.dp = FakeDP({("ETH/USDT", "1h"): to_1h(frame), ("BTC/USDT", "1h"): to_1h(frame).iloc[0:0]})
+        MODULE.merge_informative_pair = fake_merge
+        out = strat.populate_indicators(frame.copy(), {"pair": "ETH/USDT"})
+        out = strat.populate_entry_trend(out, {})
+        self.assertEqual(int(out.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_no_lookahead_when_future_candles_are_appended(self):
+        full = make_15m(1400, seed=11)
+        cols = [
+            "ema_fast", "ema_slow", "rsi_fast", "vol_ema", "bull_cross", "bear_cross",
+            "ema200_1h", "btc_rsi_1h", "enter_long",
+        ]
+        n = 1000
+        _, short = build(full.iloc[:n].reset_index(drop=True))
+        _, long = build(full.copy())
+        for column in cols:
+            a = short[column] if column in short else pd.Series(np.nan, index=short.index)
+            b = long[column].iloc[:n] if column in long else pd.Series(np.nan, index=short.index)
+            # The last 1h candle of the short run may be incomplete: compare up to the last full hour.
+            m = n - 4
+            pd.testing.assert_series_equal(
+                a.iloc[:m].reset_index(drop=True),
+                b.iloc[:m].reset_index(drop=True),
+                check_dtype=False,
+                check_names=False,
+            )
+
+    def test_cross_uses_previous_bar(self):
+        n = 120
+        close = np.concatenate([np.linspace(120, 100, 60), np.linspace(100, 130, 60)])
+        frame = make_15m(n)
+        frame["close"] = close
+        out = MODULE.fast_indicators(frame)
+        idx = np.flatnonzero(out["bull_cross"].to_numpy() == 1)
+        self.assertGreater(len(idx), 0)
+        for i in idx:
+            self.assertGreater(out["ema_fast"].iloc[i], out["ema_slow"].iloc[i])
+            self.assertLessEqual(out["ema_fast"].iloc[i - 1], out["ema_slow"].iloc[i - 1])
+
+
+class ExitTests(unittest.TestCase):
+    ENTRY = 100.0
+
+    def setUp(self):
+        self.strat = Strategy()
+        self.e = T0 + timedelta(hours=10)  # fill bar
+        self.trade = types.SimpleNamespace(open_date_utc=self.e, open_rate=self.ENTRY)
+
+    def frame(self, closes, bear_at=None, volume=None):
+        n = len(closes)
+        df = pd.DataFrame(
+            {
+                "date": [self.e + i * BAR for i in range(n)],
+                "close": closes,
+                "volume": [100.0] * n if volume is None else volume,
+                "bear_cross": [0] * n,
+            }
+        )
+        if bear_at is not None:
+            df.loc[bear_at, "bear_cross"] = 1
+        return df
+
+    def call(self, df, bars_after_fill, profit=0.0):
+        self.strat.dp = FakeDP({}, analyzed=df)
+        now = self.e + bars_after_fill * BAR
+        return self.strat.custom_exit("ETH/USDT", self.trade, now, self.ENTRY * (1 + profit), profit)
+
+    def test_take_profit(self):
+        df = self.frame([100.0] * 5)
+        self.assertEqual(self.call(df, 3, profit=0.02), "take_profit")
+        self.assertIsNone(self.call(df, 3, profit=0.0199))
+
+    def test_time_exit_at_bar_48(self):
+        df = self.frame([101.0] * 60)
+        self.assertIsNone(self.call(df, 47, profit=0.01))
+        self.assertEqual(self.call(df, 48, profit=0.01), "time_exit_12h")
+
+    def test_checkpoint_2h(self):
+        closes = [100.0] * 8
+        closes[7] = 98.5  # close of bar 8 == 0.985 * E -> exit (<=)
+        df = self.frame(closes)
+        self.assertIsNone(self.call(df, 7))  # bar 8 not closed yet
+        self.assertEqual(self.call(df, 8), "checkpoint_2h")
+        closes[7] = 98.51
+        self.assertIsNone(self.call(self.frame(closes), 8))
+
+    def test_checkpoint_2h_only_at_exact_bar(self):
+        closes = [100.0] * 9
+        closes[6] = 90.0  # a big drop on bar 7 does not trigger a checkpoint
+        self.assertIsNone(self.call(self.frame(closes), 8))
+
+    def test_checkpoint_4h(self):
+        closes = [101.0] * 16
+        closes[15] = 99.99
+        df = self.frame(closes)
+        self.assertIsNone(self.call(df, 15))
+        self.assertEqual(self.call(df, 16), "checkpoint_4h")
+        closes[15] = 100.0  # not strictly below E
+        self.assertIsNone(self.call(self.frame(closes), 16))
+
+    def test_checkpoint_8h(self):
+        closes = [101.0] * 32
+        closes[31] = 100.49
+        df = self.frame(closes)
+        self.assertEqual(self.call(df, 32), "checkpoint_8h")
+        closes[31] = 100.5
+        self.assertIsNone(self.call(self.frame(closes), 32))
+
+    def test_bearish_cross_any_closed_bar_including_fill_bar(self):
+        df = self.frame([101.0] * 10, bear_at=0)
+        self.assertIsNone(self.call(df, 0))  # fill bar not yet closed
+        self.assertEqual(self.call(df, 1), "bearish_cross")
+        df = self.frame([101.0] * 10, bear_at=5)
+        self.assertIsNone(self.call(df, 5))
+        self.assertEqual(self.call(df, 6), "bearish_cross")
+
+    def test_zero_volume_bar_is_ignored(self):
+        closes = [100.0] * 8
+        closes[7] = 90.0
+        volume = [100.0] * 8
+        volume[7] = 0.0
+        self.assertIsNone(self.call(self.frame(closes, volume=volume), 8))
+
+    def test_bearish_cross_flag_needs_rsi_above_50(self):
+        n = 80
+        close = np.concatenate([np.linspace(100, 140, 40), np.linspace(140, 100, 40)])
+        frame = make_15m(n)
+        frame["close"] = close
+        out = MODULE.fast_indicators(frame)
+        flagged = np.flatnonzero(out["bear_cross"].to_numpy() == 1)
+        for i in flagged:
+            self.assertGreater(out["rsi_fast"].iloc[i], 50.0)
+            self.assertLess(out["ema_fast"].iloc[i], out["ema_slow"].iloc[i])
+            self.assertGreaterEqual(out["ema_fast"].iloc[i - 1], out["ema_slow"].iloc[i - 1])
+
+    def test_no_exit_when_nothing_triggers(self):
+        df = self.frame([101.0] * 20)
+        self.assertIsNone(self.call(df, 10, profit=0.01))
+
+
+if __name__ == "__main__":
+    unittest.main()
