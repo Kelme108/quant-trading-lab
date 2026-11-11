@@ -1,0 +1,270 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "CCIDeepOversoldReversal_H126_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+
+def fake_cci(dataframe, timeperiod):
+    tp = (dataframe["high"] + dataframe["low"] + dataframe["close"]) / 3.0
+    sma = tp.rolling(timeperiod).mean()
+    md = tp.rolling(timeperiod).apply(lambda x: np.abs(x - x.mean()).mean(), raw=True)
+    return (tp - sma) / (0.015 * md)
+
+
+def fake_rsi(dataframe, timeperiod):
+    delta = dataframe["close"].diff()
+    gain = delta.clip(lower=0).ewm(alpha=1.0 / timeperiod, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1.0 / timeperiod, adjust=False).mean()
+    return 100.0 - 100.0 / (1.0 + gain / loss)
+
+
+def fake_atr(dataframe, timeperiod):
+    prev = dataframe["close"].shift(1)
+    tr = pd.concat(
+        [dataframe["high"] - dataframe["low"], (dataframe["high"] - prev).abs(), (dataframe["low"] - prev).abs()],
+        axis=1,
+    ).max(axis=1)
+    return tr.ewm(alpha=1.0 / timeperiod, adjust=False).mean()
+
+
+# Patch only this module's TA-Lib handle so other test modules' stubs stay untouched.
+MODULE.ta = SimpleNamespace(CCI=fake_cci, RSI=fake_rsi, ATR=fake_atr)
+
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+
+
+def make_frame(n=400, drop_at=300, spread=0.003, drop=0.04, noise=0.001, sine=False):
+    rng = np.random.default_rng(7)
+    if sine:
+        close = 100.0 * (1.0 + 0.01 * np.sin(np.arange(n) * 2 * np.pi / 20))
+    else:
+        close = 100.0 * np.cumprod(1.0 + rng.normal(0, noise, n))
+    if drop_at is not None:
+        close[drop_at:] *= 1.0 - drop
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(START, periods=n, freq="15min"),
+            "open": close,
+            "high": close * (1.0 + spread),
+            "low": close * (1.0 - spread),
+            "close": close,
+            "volume": np.ones(n),
+        }
+    )
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+class TradeStub:
+    def __init__(self, open_date, open_rate=100.0):
+        self.open_date_utc = open_date
+        self.open_rate = open_rate
+
+
+class DataProviderStub:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class CCIDeepOversoldReversalTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.015)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 500)
+
+    def test_parameters(self):
+        self.assertEqual(MODULE.CCI_PERIOD, 72)
+        self.assertEqual(MODULE.CCI_ENTRY_THRESHOLD, -175.0)
+        self.assertEqual(MODULE.RSI_PERIOD, 36)
+        self.assertEqual(MODULE.RSI_ENTRY_MAX, 90.0)
+        self.assertEqual(MODULE.ATR_PERIOD, 14)
+        self.assertEqual(MODULE.ATR_PCT_MIN, 0.004)
+        self.assertEqual(MODULE.MAX_ENTRIES_PER_UTC_DAY, 3)
+        self.assertEqual(MODULE.TAKE_PROFIT_PCT, 0.041)
+        self.assertEqual(MODULE.TIME_EXIT_BARS, 48)
+
+    def test_signal_columns_are_binary_and_present(self):
+        frame = run(Strategy(), make_frame())
+        self.assertIn("enter_long", frame)
+        values = frame["enter_long"].dropna().unique().tolist()
+        self.assertTrue(len(values) > 0)
+        self.assertTrue(set(values).issubset({1}))
+        if "exit_long" in frame:
+            self.assertTrue(set(frame["exit_long"].dropna().unique().tolist()).issubset({1}))
+
+    def test_signal_is_on_the_deep_drop_bar_only_when_conditions_hold(self):
+        frame = run(Strategy(), make_frame())
+        signalled = frame.index[frame["enter_long"] == 1]
+        self.assertIn(300, signalled)
+        for i in signalled:
+            self.assertLess(frame.loc[i, "cci"], -175.0)
+            self.assertLess(frame.loc[i, "rsi"], 90.0)
+            self.assertGreaterEqual(frame.loc[i, "atr_pct"], 0.004)
+
+    def test_low_atr_blocks_entry(self):
+        frame = run(Strategy(), make_frame(spread=0.0005, noise=0.0002, drop=0.02))
+        self.assertTrue((frame["atr_pct"].dropna() < 0.004).all())
+        self.assertEqual(int(frame["enter_long"].fillna(0).sum()) if "enter_long" in frame else 0, 0)
+
+    def test_no_drop_no_deep_signal(self):
+        frame = run(Strategy(), make_frame(drop_at=None, sine=True))
+        self.assertEqual(int(frame["enter_long"].fillna(0).sum()) if "enter_long" in frame else 0, 0)
+
+    def test_zero_volume_produces_no_signal(self):
+        base = make_frame()
+        frame = base.copy()
+        frame["volume"] = 0.0
+        frame = run(Strategy(), frame)
+        self.assertEqual(int(frame["enter_long"].fillna(0).sum()) if "enter_long" in frame else 0, 0)
+        # A single zero-volume bar on the otherwise valid signal bar is skipped.
+        frame = base.copy()
+        frame.loc[300, "volume"] = 0.0
+        frame = run(Strategy(), frame)
+        self.assertNotEqual(frame.loc[300, "enter_long"], 1)
+
+    def test_undefined_startup_values_produce_no_signal(self):
+        frame = run(Strategy(), make_frame(drop_at=10))
+        first_defined = int(frame["cci"].first_valid_index())
+        self.assertEqual(first_defined, MODULE.CCI_PERIOD - 1)
+        early = frame.iloc[:first_defined]
+        self.assertEqual(int(early["enter_long"].fillna(0).sum()), 0)
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        long_frame = make_frame(n=500, drop_at=300)
+        n = 340
+        short = run(Strategy(), long_frame.iloc[:n].copy().reset_index(drop=True))
+        full = run(Strategy(), long_frame.copy())
+        columns = ["cci", "rsi", "atr", "atr_pct"]
+        pd.testing.assert_frame_equal(short.loc[: n - 1, columns], full.loc[: n - 1, columns], check_dtype=False)
+        pd.testing.assert_series_equal(
+            short["enter_long"].reindex(range(n)), full["enter_long"].iloc[:n], check_dtype=False
+        )
+
+    def test_confirm_trade_entry_daily_cap(self):
+        strategy = Strategy()
+        day = pd.Timestamp("2024-03-05 10:00", tz="UTC")
+        trades = [
+            SimpleNamespace(open_date_utc=day.replace(hour=1)),
+            SimpleNamespace(open_date_utc=day.replace(hour=5)),
+            SimpleNamespace(open_date_utc=day - timedelta(days=1)),
+        ]
+        original = MODULE.Trade
+        try:
+            MODULE.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: trades)})
+            args = ("BTC/USDT", "limit", 1.0, 100.0, "GTC", day, None, "long")
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+            trades.append(SimpleNamespace(open_date_utc=day.replace(hour=8)))
+            self.assertFalse(strategy.confirm_trade_entry(*args))
+        finally:
+            MODULE.Trade = original
+
+    def make_exit_strategy(self, cci_values, open_date):
+        n = len(cci_values)
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(open_date, periods=n, freq="15min"),
+                "cci": cci_values,
+                "volume": np.ones(n),
+            }
+        )
+        strategy = Strategy()
+        strategy.dp = DataProviderStub(frame)
+        return strategy, frame
+
+    def test_take_profit_exit(self):
+        open_date = START + timedelta(hours=2)
+        strategy, _ = self.make_exit_strategy([-200.0] * 4, open_date)
+        trade = TradeStub(open_date)
+        now = open_date + timedelta(minutes=45)
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, now, 104.1, 0.04), "take_profit_4_1pct")
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, now, 104.0, 0.039))
+
+    def test_time_exit_after_twelve_hours(self):
+        open_date = START + timedelta(hours=2)
+        strategy, _ = self.make_exit_strategy([-200.0] * 60, open_date)
+        trade = TradeStub(open_date)
+        self.assertIsNone(
+            strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(hours=12) - timedelta(minutes=15), 100.0, 0.0)
+        )
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(hours=12), 100.0, 0.0), "time_exit_12h"
+        )
+
+    def test_cci_mean_reached_exit_uses_closed_bars_only(self):
+        open_date = START + timedelta(hours=2)
+        strategy, _ = self.make_exit_strategy([-200.0, -150.0, 5.0, -50.0], open_date)
+        trade = TradeStub(open_date)
+        # Bar index 2 opens at +30m and closes at +45m: not closed at +30m / +40m, closed at +45m.
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(minutes=30), 100.0, 0.0))
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(minutes=40), 100.0, 0.0))
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(minutes=45), 100.0, 0.0),
+            "cci_mean_reached",
+        )
+
+    def test_cci_before_fill_is_ignored(self):
+        open_date = START + timedelta(hours=2)
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(open_date - timedelta(hours=1), periods=8, freq="15min"),
+                "cci": [10.0, 10.0, 10.0, 10.0, -200.0, -190.0, -180.0, -170.0],
+                "volume": np.ones(8),
+            }
+        )
+        strategy = Strategy()
+        strategy.dp = DataProviderStub(frame)
+        trade = TradeStub(open_date)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, open_date + timedelta(minutes=60), 100.0, 0.0))
+
+
+if __name__ == "__main__":
+    unittest.main()
