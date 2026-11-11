@@ -1,0 +1,18 @@
+{
+  "title": "15m megabar thrust: body 4x its average on 3x volume with RSI-mean above 50, midpoint fail-fast stop, 2R target",
+  "source": {
+    "type": "repo",
+    "url": "https://doc.stocksharp.com/en/api-examples/1046_Megabar_Breakout_Range_Volume_Rsi",
+    "title": "Megabar Breakout (Range & Volume & RSI) - StockSharp API examples",
+    "license": "unknown (page states none; source in StockSharp/AlgoTrading on GitHub)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at a bar close, fill at the next open. Spot, long only (the source's short side is dropped), one position, same numbers on all pairs. DEFINITIONS (prior bars only for the averages): body(i) = |close-open|; AvgBody = SMA(20) of body over the 20 bars before t; AvgVol = SMA(20) of volume over the 20 bars before t; RSI = RSI(14) of close; RSIMA = SMA(14) of RSI. MEGABAR at t: close > open AND body(t) >= 4 x AvgBody AND volume(t) >= 3 x AvgVol (the volume test is the activity filter) AND RSIMA(t) > 50. ENTRY: buy at the next open after a megabar. STOP: the megabar's midpoint (high+low)/2; if that is less than 1.0% below entry, use entry x 0.99 (stop-distance floor). TARGET: entry + 2 x (entry - stop). FAIL-FAST: exit if the next 2 bars after entry both close below the megabar close. TIME EXIT: 48 bars (12h) after entry. No new entry until 8 bars after an exit.",
+  "mechanism": "A 15m body four times its usual size on triple volume is an information or liquidation shock: short positions forced out or a large buyer sweeping the book. Split execution keeps the flow coming for hours (Concretum), so late sellers who fade the bar pay. The lab's best intraday result (H-046, 1h Livermore break with 2x volume and a fail-fast exit, about 1.07% gross) worked with a weaker trigger; this demands a far larger, volume-backed thrust and keeps the fail-fast. Move per trade: the stop is at least 1.0% (half the bar plus slippage), the target 2R (2%+), and losers are cut early by the fail-fast, so the average gross move should be about 0.6%. Unlike the lab's bipower jump rules (H-059/H-102), the trigger requires simultaneous body and volume extremes and uses a bracket exit, not a hold to the day close.",
+  "timeframe": "15m",
+  "longest_lookback": 28,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "MegabarVolumeThrust"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Session-open fair-price reversal on 15m: ATR-sized drop below the pre-open price, structure shift, target the pre-open price",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/indicator/9-29-et-fair-price-reversal/",
+    "title": "9:29 ET Fair Price Reversal (LuxAlgo Library)",
+    "license": "LuxAlgo original indicator, free to use; no open licence stated"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at a bar close, fill at the next open. Spot, long only, one position. ANCHORS (fixed, not scanned): 00:00 UTC, 08:00 UTC and 09:30 New York time (13:30 or 14:30 UTC with DST). FAIR PRICE F = close of the 15m bar that ends at the anchor. ATR = Wilder ATR(14) of 15m bars at that bar. D = max(1.0% of F, 2 x ATR). SETUP: within the 8 bars after the anchor, some bar's low <= F - D. TRIGGER: after the setup and within 12 bars of the anchor, a 15m close above the highest high of the 3 bars before it (local lower-high broken) while that close is <= F x 0.994 (at least 0.6% of room). Buy at the next open. TARGET: F. STOP: lowest low since the anchor; if that is less than 0.8% below entry, use entry x 0.992. TIME EXIT: 24 bars (6h) after entry. At most one trade per anchor. ACTIVITY FILTER: the fixed session-open windows (session filter); D sets the size of the move.",
+  "mechanism": "The last price before a session opens is the consensus of the quiet hours. At the open, a burst of one-sided orders arrives (Asian desks at the UTC day roll, European desks at 08:00, US cash-equity, ETF and Coinbase flows at 09:30 ET) and pushes price away faster than liquidity refills. When that impulse fails, shown by a close through the last lower high, the impatient opening sellers have paid the liquidity providers, and price drifts back to the pre-open level. LuxAlgo builds the same rule around the 9:29 ET futures candle; this applies it to crypto's three session opens. Move per trade: the target is at least 0.6% and usually 1-2% away (D is at least 1% or 2 ATR) against a stop of at least 0.8%, so a better-than-even rate of reaching the fair price should give an average gross move of about 0.5%.",
+  "timeframe": "15m",
+  "longest_lookback": 40,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "SessionFairPriceReversal"
+}

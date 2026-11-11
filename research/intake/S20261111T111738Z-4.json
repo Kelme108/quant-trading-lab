@@ -1,0 +1,18 @@
+{
+  "title": "Monday Asia-open trend window: 15m four-hour-high breakouts only from Sunday 23:00 to Monday 23:00 UTC, trailing exit",
+  "source": {
+    "type": "blog",
+    "url": "https://concretumgroup.com/seasonality-in-bitcoin-intraday-trend-trading/",
+    "title": "Seasonality in Bitcoin Intraday Trend Trading (Concretum Group)",
+    "license": "All rights reserved (c) 2026 Concretum Research; finding restated"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at a bar close, fill at the next open. Spot, long only, one position. WINDOW (fixed from the source, not scanned): entries only on 15m bars opening from Sunday 23:00 UTC to Monday 22:45 UTC. ENTRY: close > highest high of the prior 16 bars (4 hours, current bar excluded) AND close >= close 16 bars earlier x 1.008 (at least +0.8% over 4 hours). Buy at the next open. INITIAL STOP: lowest low of the prior 8 bars at entry, but at least 1.0% below entry (if the 8-bar low is closer, use entry x 0.99). TRAILING EXIT: a 15m close below the lowest low of the prior 8 bars (2h), once that low is above the initial stop. TIME EXIT: 48 bars (12h) after entry or the bar opening Tuesday 00:00 UTC, whichever comes first. After an exit, wait 4 bars before a new entry; re-entries are allowed inside the window. ACTIVITY FILTER: the fixed session window (session filter).",
+  "mechanism": "Concretum's intraday Bitcoin trend benchmark earns most of its return from about 7 pm New York on Sunday (the Tokyo cash open) through Monday, and is weak elsewhere, more so since mid-2020. Their explanation: weekend news and new positioning from Asian and then Western desks reach the market at the start of the week, and large holders rebalance in slices because of liquidity limits. That split execution makes order flow persistent, so intraday moves trend instead of reverting. A 4-hour-high break inside that window joins flow that is still arriving; the counterparties are the slower rebalancers paying up across the day. Move per trade: the stop is at least 1.0%, winners run under a 2-hour trailing low for up to 12 hours on a trending day, so the average gross move should be around 0.6%. The lab's Monday drift rule (H-029) differs: it bought Monday 00:00 regardless of price action.",
+  "timeframe": "15m",
+  "longest_lookback": 17,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 100,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "MondayAsiaOpenTrend"
+}

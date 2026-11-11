@@ -1,0 +1,18 @@
+{
+  "title": "Session value-area 80% rule on 15m: close outside the prior 8h value, two 30-minute closes back inside, target the far edge",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/80-percent-rule.md",
+    "title": "80% Rule (LuxAlgo Library)",
+    "license": "LuxAlgo Library: free to use with attribution (https://www.luxalgo.com/library/license/)"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at a bar close, fill at the next open. Spot, long only, one position. SESSIONS: 00:00-08:00, 08:00-16:00, 16:00-24:00 UTC (32 bars each). PROFILE of the session just ended: lo/hi = its min low/max high; 40 equal rows; each bar's volume is spread equally over the rows its [low,high] touches. POC = largest row (ties: lowest). VALUE AREA: start at the POC, add the neighbouring row with more volume (ties: upper) until >= 70% of volume; VAL = bottom of the lowest row, VAH = top of the highest. ACTIVITY FILTER: trade the next session only if (VAH-VAL)/VAL >= 1.2%. SETUP in the next session (first 24 bars): a 15m close < VAL (outside value), then two consecutive 30-minute blocks (aligned to :00/:30, two 15m bars each) whose closes are both > VAL (acceptance). Buy at the next open. TARGET: VAH. STOP: lowest low of the session so far, but at least 1.0% below entry. INVALIDATION: two consecutive 15m closes below VAL. TIME EXIT: 32 bars (8h) after entry. One trade per session.",
+  "mechanism": "A move outside the prior session's value asks whether value has moved lower. When price comes back and holds inside for an hour, the breakaway failed: sellers who pressed the break and stop-loss sellers below VAL are wrong-footed, responsive buyers own the auction, and price rotates through the old value toward its far edge, where the prior session did most of its trading. Market Profile practice (Steidlmayer, Dalton) uses this on regular sessions; on 24/7 crypto the 8h UTC sessions (Asia, Europe, US) give comparable auctions. Move per trade: the 1.2% value-width floor puts VAH about 1% above a typical entry near VAL, against a stop of at least 1.0%; with the documented rotation tendency the average gross move should be about 0.5%. This varies the lab's weekly value-area rejection (H-048) with session profiles and an acceptance test.",
+  "timeframe": "15m",
+  "longest_lookback": 64,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "VolumeProfileValueAreaReject"
+}
