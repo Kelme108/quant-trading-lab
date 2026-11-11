@@ -1,0 +1,160 @@
+"""H-127: 15m Livermore pivot break of the 12-hour high on doubled volume, two-bar fail-fast, 12h cap.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1
+(fill bar e = t+1). Spot, long only, one position per pair (engine), no pyramiding.
+
+Definitions at bar t:
+- P(t)  = highest high of bars t-48..t-1 (current bar excluded).
+- VA(t) = mean volume of bars t-48..t-1 (current bar excluded); no signal if VA = 0 or any bar missing.
+Entry at the close of bar t when all hold:
+  close > 1.002 * P; close > open; volume >= 2.0 * VA; no open position (engine);
+  fewer than 3 trades on the pair with an entry fill on the UTC day of the fill bar (confirm_trade_entry);
+  cooldown of 4 candles after any exit (protections: CooldownPeriod).
+The entry tag carries Pe = P(t) of the signal bar.
+Exits, first one wins:
+  (a) fail-fast: close(e) < Pe -> sell at the open of e+1; else close(e+1) < Pe -> sell at the open of e+2;
+  (b) stop: native 1.2% stoploss;
+  (c) take-profit: +2.0% (custom_exit, because minimal_roi is fixed by the contract);
+  (d) time exit: 12 hours after the fill (open of bar e+48).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+BAR = timedelta(minutes=15)
+PIVOT_LOOKBACK = 48
+VOLUME_LOOKBACK = 48
+BREAKOUT_MARGIN = 1.002
+VOLUME_MULTIPLE = 2.0
+FAIL_FAST_BARS = 2
+TAKE_PROFIT = 0.02
+TIME_EXIT_BARS = 48
+MAX_ENTRIES_PER_DAY = 3
+COOLDOWN_CANDLES = 4
+TAG_PREFIX = "pivot"
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def parse_tag(tag) -> float | None:
+    """Pivot Pe recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def pivot_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add pivot_high and vol_avg. Both end at t-1 (shift by one candle): backward-looking only."""
+    dataframe["pivot_high"] = dataframe["high"].shift(1).rolling(PIVOT_LOOKBACK).max()
+    dataframe["vol_avg"] = dataframe["volume"].shift(1).rolling(VOLUME_LOOKBACK).mean()
+    return dataframe
+
+
+class LivermorePivotFailFast_H127_v1(IStrategy):
+    """Buy a 15m close >0.2% over the 12h high on 2x volume; fail-fast, 1.2% stop, 2% target, 12h cap."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.012
+    use_exit_signal = True
+    startup_candle_count = 100
+
+    @property
+    def protections(self):
+        return [{"method": "CooldownPeriod", "stop_duration_candles": COOLDOWN_CANDLES}]
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return pivot_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        pivot = dataframe["pivot_high"]
+        vol_avg = dataframe["vol_avg"]
+        cond = (
+            pivot.notna()
+            & vol_avg.notna()
+            & dataframe["close"].notna()
+            & dataframe["open"].notna()
+            & (vol_avg > 0)
+            & (dataframe["volume"] > 0)
+            & (dataframe["close"] > BREAKOUT_MARGIN * pivot)
+            & (dataframe["close"] > dataframe["open"])
+            & (dataframe["volume"] >= VOLUME_MULTIPLE * vol_avg)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in pivot[cond]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # All exits depend on the open trade (Pe, fill time, profit): see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """At most 3 entry fills per pair per UTC day, counting trades that were already closed."""
+        if parse_tag(entry_tag) is None:
+            return False
+        today = utc_day(current_time)
+        count = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                count += 1
+        return count < MAX_ENTRIES_PER_DAY
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        # (c) take-profit
+        if current_profit is not None and current_profit >= TAKE_PROFIT:
+            return "take_profit_2pct"
+
+        fill_bar = pd.Timestamp(trade.open_date_utc).floor("15min")
+
+        # (d) time exit: open of bar e+48, 12 hours after the fill bar opened
+        if pd.Timestamp(current_time) >= fill_bar + TIME_EXIT_BARS * BAR:
+            return "time_exit_12h"
+
+        # (a) fail-fast on the closes of bars e and e+1 (closed bars only)
+        pivot = parse_tag(trade.enter_tag)
+        if pivot is not None:
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if dataframe is not None and len(dataframe) > 0:
+                dates = pd.to_datetime(dataframe["date"], utc=True)
+                window_end = fill_bar + FAIL_FAST_BARS * BAR
+                if pd.Timestamp(window_end).tzinfo is None:
+                    window_end = window_end.tz_localize("UTC")
+                start = fill_bar if fill_bar.tzinfo is not None else fill_bar.tz_localize("UTC")
+                now = pd.Timestamp(current_time)
+                now = now.tz_localize("UTC") if now.tzinfo is None else now.tz_convert("UTC")
+                closed = dataframe.loc[
+                    (dates >= start) & (dates < window_end) & (dates + BAR <= now) & (dataframe["volume"] > 0)
+                ]
+                if not closed.empty and bool(np.any(closed["close"].to_numpy(dtype=float) < pivot)):
+                    return "fail_fast_below_pivot"
+        return None

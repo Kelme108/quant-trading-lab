@@ -1,0 +1,271 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "LivermorePivotFailFast_H127_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+BAR = timedelta(minutes=15)
+
+
+def make_frame(n=300, seed=1):
+    rng = np.random.default_rng(seed)
+    close = 100.0 + np.cumsum(rng.normal(0, 0.05, n))
+    open_ = np.concatenate([[100.0], close[:-1]])
+    high = np.maximum(open_, close) + 0.05
+    low = np.minimum(open_, close) - 0.05
+    volume = rng.uniform(5, 15, n)
+    dates = [START + i * BAR for i in range(n)]
+    return pd.DataFrame(
+        {"date": dates, "open": open_, "high": high, "low": low, "close": close, "volume": volume}
+    )
+
+
+def with_breakout(frame, index, volume_mult=5.0):
+    """Make bar `index` an up-bar closing well above the prior 48-bar high on big volume."""
+    frame = frame.copy()
+    prior_high = frame["high"].iloc[index - 48:index].max()
+    frame.loc[index, "open"] = prior_high
+    frame.loc[index, "close"] = prior_high * 1.01
+    frame.loc[index, "high"] = prior_high * 1.011
+    frame.loc[index, "low"] = prior_high * 0.999
+    frame.loc[index, "volume"] = frame["volume"].iloc[index - 48:index].mean() * volume_mult
+    return frame
+
+
+def sig(out, index):
+    """enter_long at a row; the column is absent when nothing fired."""
+    if "enter_long" not in out:
+        return float("nan")
+    return out.loc[index, "enter_long"]
+
+
+def run(frame):
+    s = Strategy()
+    frame = s.populate_indicators(frame.copy(), {})
+    frame = s.populate_entry_trend(frame, {})
+    return s.populate_exit_trend(frame, {})
+
+
+class FakeDP:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class FakeTrade:
+    def __init__(self, open_date, tag):
+        self.open_date_utc = open_date
+        self.enter_tag = tag
+
+
+class LivermorePivotTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.012)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 100)
+        self.assertEqual(
+            Strategy().protections,
+            [{"method": "CooldownPeriod", "stop_duration_candles": 4}],
+        )
+
+    def test_breakout_signal_and_tag(self):
+        frame = with_breakout(make_frame(), 150)
+        out = run(frame)
+        self.assertEqual(out.loc[150, "enter_long"], 1)
+        pe = frame["high"].iloc[102:150].max()
+        self.assertEqual(MODULE.parse_tag(out.loc[150, "enter_tag"]), pe)
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 1)
+
+    def test_each_condition_is_required(self):
+        base = with_breakout(make_frame(), 150)
+        # volume below 2x
+        low_vol = base.copy()
+        low_vol.loc[150, "volume"] = base["volume"].iloc[102:150].mean() * 1.9
+        self.assertTrue(pd.isna(sig(run(low_vol), 150)))
+        # close not 0.2% above pivot
+        weak = base.copy()
+        pivot = base["high"].iloc[102:150].max()
+        weak.loc[150, "close"] = pivot * 1.0019
+        weak.loc[150, "high"] = pivot * 1.002
+        self.assertTrue(pd.isna(sig(run(weak), 150)))
+        # not an up bar
+        down = base.copy()
+        down.loc[150, "open"] = down.loc[150, "close"] + 0.01
+        down.loc[150, "high"] = down.loc[150, "open"] + 0.01
+        self.assertTrue(pd.isna(sig(run(down), 150)))
+
+    def test_current_bar_excluded_from_pivot_and_volume(self):
+        frame = with_breakout(make_frame(), 150)
+        out = run(frame)
+        self.assertEqual(out.loc[150, "pivot_high"], frame["high"].iloc[102:150].max())
+        self.assertAlmostEqual(out.loc[150, "vol_avg"], frame["volume"].iloc[102:150].mean())
+
+    def test_signal_columns_binary(self):
+        frame = with_breakout(with_breakout(make_frame(), 150), 220)
+        out = run(frame)
+        for col in ("enter_long", "exit_long"):
+            if col in out:
+                self.assertTrue(set(out[col].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_candle_no_signal(self):
+        frame = with_breakout(make_frame(), 150)
+        frame.loc[150, "volume"] = 0.0
+        self.assertTrue(pd.isna(sig(run(frame), 150)))
+        frame["volume"] = 0.0
+        out = run(frame)
+        self.assertEqual(int(out.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(out.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_no_signal(self):
+        frame = with_breakout(make_frame(), 30)
+        out = run(frame)
+        self.assertTrue(pd.isna(out.loc[30, "pivot_high"]))
+        self.assertEqual(
+            int(out.iloc[:48].get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0
+        )
+        # a missing bar inside the window gives no signal
+        gap = with_breakout(make_frame(), 150)
+        gap.loc[120, ["high", "volume"]] = np.nan
+        self.assertTrue(pd.isna(sig(run(gap), 150)))
+
+    def test_zero_average_volume_no_signal(self):
+        frame = with_breakout(make_frame(), 150)
+        frame.loc[102:149, "volume"] = 0.0
+        frame.loc[150, "volume"] = 10.0
+        self.assertTrue(pd.isna(sig(run(frame), 150)))
+
+    def test_future_candles_do_not_change_signals(self):
+        n, k = 260, 80
+        full = with_breakout(with_breakout(make_frame(n + k, seed=3), 150), 300)
+        first = run(full.iloc[:n])
+        both = run(full)
+        cols = ["pivot_high", "vol_avg", "enter_long", "enter_tag"]
+        pd.testing.assert_frame_equal(
+            first[cols].reset_index(drop=True),
+            both.iloc[:n][cols].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    def test_daily_cap_in_confirm_trade_entry(self):
+        s = Strategy()
+        fill = START + timedelta(hours=10)
+        trades = [
+            FakeTrade(START + timedelta(hours=1), "x"),
+            FakeTrade(START + timedelta(hours=5), "x"),
+            FakeTrade(START - timedelta(minutes=15), "x"),  # previous day
+        ]
+        original = MODULE.Trade
+        MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: trades)})
+        try:
+            tag = f"{MODULE.TAG_PREFIX}|100.0"
+            self.assertTrue(s.confirm_trade_entry("BTC/USDT", "limit", 1, 1, "GTC", fill, tag, "long"))
+            trades.append(FakeTrade(START + timedelta(hours=7), "x"))
+            self.assertFalse(s.confirm_trade_entry("BTC/USDT", "limit", 1, 1, "GTC", fill, tag, "long"))
+            self.assertFalse(s.confirm_trade_entry("BTC/USDT", "limit", 1, 1, "GTC", fill, "other", "long"))
+        finally:
+            MODULE.Trade = original
+
+    def _exit_setup(self, closes):
+        """Frame whose bars 0.. are the fill bar e and following bars, with given closes."""
+        n = len(closes)
+        frame = pd.DataFrame(
+            {
+                "date": [START + i * BAR for i in range(n)],
+                "open": closes,
+                "high": closes,
+                "low": closes,
+                "close": closes,
+                "volume": [1.0] * n,
+            }
+        )
+        s = Strategy()
+        s.dp = FakeDP(frame)
+        trade = FakeTrade(START, f"{MODULE.TAG_PREFIX}|100.0")
+        return s, trade
+
+    def test_take_profit_exit(self):
+        s, trade = self._exit_setup([101.0, 101.0, 101.0, 101.0])
+        now = START + 2 * BAR
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, now, 102.0, 0.0199))
+        self.assertEqual(s.custom_exit("BTC/USDT", trade, now, 102.0, 0.02), "take_profit_2pct")
+
+    def test_time_exit_after_12_hours(self):
+        s, trade = self._exit_setup([101.0] * 60)
+        before = START + 47 * BAR
+        at = START + 48 * BAR
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, before, 101.0, 0.0))
+        self.assertEqual(s.custom_exit("BTC/USDT", trade, at, 101.0, 0.0), "time_exit_12h")
+
+    def test_fail_fast_first_bar(self):
+        s, trade = self._exit_setup([99.5, 101.0, 101.0, 101.0])
+        # bar e not closed yet at its own open
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, START, 100.0, 0.0))
+        self.assertEqual(
+            s.custom_exit("BTC/USDT", trade, START + BAR, 100.0, 0.0), "fail_fast_below_pivot"
+        )
+
+    def test_fail_fast_second_bar_only(self):
+        s, trade = self._exit_setup([101.0, 99.5, 101.0, 101.0, 99.0, 101.0])
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, START + BAR, 101.0, 0.0))
+        self.assertEqual(
+            s.custom_exit("BTC/USDT", trade, START + 2 * BAR, 100.0, 0.0), "fail_fast_below_pivot"
+        )
+
+    def test_fail_fast_does_not_apply_from_third_bar(self):
+        # bars e and e+1 close above Pe; a later close below Pe does not trigger the fail-fast exit
+        s, trade = self._exit_setup([101.0, 101.0, 99.0, 99.0, 99.0])
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, START + 3 * BAR, 99.0, -0.01))
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, START + 4 * BAR, 99.0, -0.01))
+
+    def test_foreign_tag_skips_fail_fast(self):
+        s, trade = self._exit_setup([99.5, 99.5, 99.5])
+        trade.enter_tag = "other"
+        self.assertIsNone(s.custom_exit("BTC/USDT", trade, START + BAR, 99.5, 0.0))
+
+
+if __name__ == "__main__":
+    unittest.main()
