@@ -1,0 +1,37 @@
+{
+  "hypothesis_id": "H-111",
+  "family": "MACDBollingerTurn",
+  "title": "15m MACD-Bollinger oversold momentum turn with volatility-scaled triple barrier (Hummingbot macd_bb style)",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, same rule and numbers on all nine pairs, no higher-timeframe filter. INDICATORS on 15m closes, all including bar t: Bollinger Bands length 100, 2.0 std (population std, ddof=0): mid = SMA100(close), upper = mid + 2*std100, lower = mid - 2*std100; %B(t) = (close - lower)/(upper - lower). MACD(t) = EMA12(close) - EMA26(close) (spans 12/26, alpha 2/(n+1)); signal = EMA9 of MACD; hist = MACD - signal. s(t) = std100(t)/close(t) (the same 100-close std as the bands, divided by the current close). ATRp(t) = ATR14(t)/close(t), ATR14 = Wilder smoothing (alpha 1/14) of true range. ENTRY at the close of bar t when ALL hold: (1) %B(t) < 0.2; (2) hist(t) > 0 AND hist(t-1) <= 0 (fresh upturn); (3) MACD(t) < 0; (4) ATRp(t) >= 0.004 (activity filter a); (5) no open position on the pair; (6) fewer than 4 entries already filled on this pair in the UTC calendar day of the fill bar t+1 (counted by entry fill time); (7) no exit occurred during bar t+1's open (no entry fill on the same bar as an exit; 1-candle cooldown). AT ENTRY freeze, from the signal bar t: dTP = max(1.5*s(t), 0.012) and dSL = max(0.75*s(t), 0.008); with fill price E: TP = E*(1+dTP), SL = E*(1-dSL). EXITS, first to occur: (a) STOP: fixed distance dSL below E, constant for the trade, triggered intrabar when the low touches SL (custom_stoploss returning the frozen dSL); native stoploss attribute -0.10 is only an engine backstop (applies if dSL > 10%); (b) TAKE-PROFIT: when a bar's high >= TP, sell at TP (at the bar open if it opens above TP); if stop and TP are both touched in the same bar, assume the stop; (c) TIME EXIT: exit signal at the close of the 24th bar after entry (bars t+1..t+24), filled at the open of t+25, i.e. 6 hours after the fill. No trailing, no break-even move, no other filters. Max holding 6 h (< 12 h limit). Warm-up: 500 bars (longest raw lookback 100 bars; EMA26+EMA9 and Wilder ATR14 are recursive, so 500 bars let their seeds decay; well under 4500).",
+  "parameters": {
+    "timeframe": "15m",
+    "bb_length": 100,
+    "bb_std": 2.0,
+    "pctb_max": 0.2,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "std_window_s": 100,
+    "atr_length": 14,
+    "atrp_min": 0.004,
+    "tp_std_mult": 1.5,
+    "tp_floor": 0.012,
+    "sl_std_mult": 0.75,
+    "sl_floor": 0.008,
+    "time_exit_bars": 24,
+    "max_entries_per_utc_day": 4,
+    "cooldown_bars_after_exit": 1,
+    "native_stoploss_backstop": -0.10,
+    "warmup_bars": 500
+  },
+  "rationale": "Mechanism: on a 15m chart, price in the bottom fifth of a 25-hour Bollinger band is stretched below its recent mean; a MACD histogram that just turned positive while MACD is still below zero shows downside momentum fading before the price has recovered. The counterparties are late momentum sellers and stopped-out longs who sold into the extension, and liquidity takers who pay to exit at the low; the long buys the short-horizon reversion they create. This follows the Hummingbot directional controller (macd_bb), which takes the long side under %B < 0.2, histogram > 0 and MACD < 0, and exits with a triple barrier: take-profit 1.5x and stop 0.75x the 100-period std. The scout's formalisation (fresh histogram cross, floors, 6 h time limit instead of the source's 55 minutes) is kept unchanged. Cost: the 0.8% stop floor and the 1.2% target floor put the 0.30% base round trip at or below about 0.375R, and ATRp >= 0.4% (filter a, fixed beforehand, not scanned) keeps the rule to bars where the market is moving. Typical exits are about +1.2-2% or -0.8-1%, so the average absolute move is about 1%. A hit rate near 45% gives an expected gross move of about 0.5% per trade, above the 0.45% conservative round trip. Expected frequency: a fresh histogram upturn happens a few times a day; about half fall below MACD zero, a minority of those below %B 0.2, and the ATR filter removes quiet periods. That gives roughly 100-350 trades per year per pair, capped at 4 a day. Range/bear behaviour: it is a reversion rule, so it should work best in chop. In a sustained fall the stop limits each loss to about 0.8-1.5%; the 25% drawdown risk comes from streaks of stops in trending declines.",
+  "novelty_vs_tried": "No MACD-Bollinger family exists in the lab. The closest tries are H-003 (Bollinger reversion on 1h with RSI, slow exits, no time limit), H-012/H-014 EMASnapbackATR (ATR distance from an EMA), H-086 SessionVWAPBandFade (session VWAP bands) and H-097 RSIBullDivergence (divergence pattern). This rule differs in three ways: the trigger is a momentum turn (MACD histogram crossing up while MACD is below zero) inside the lower band, not touching the band alone; exits are a volatility-scaled triple barrier frozen per trade from the 100-bar std, with floors that keep cost under 0.4R; and a 6-hour time barrier plus a cap of 4 entries per UTC day.",
+  "sources": [
+    {
+      "title": "Directional Trading with MACD and Bollinger Bands (Hummingbot blog)",
+      "url": "https://hummingbot.org/blog/directional-trading-with-macd-and-bollinger-bands/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-111.md (exploration-only digest, nine pairs) and the Hummingbot blog page, as of 2026-11-11. Timeframe kept at 15m as the idea I-103 specifies (all its signals are 15m bars; no daily signals)."
+}
