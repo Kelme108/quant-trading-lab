@@ -1,0 +1,216 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+# Keep the tests runnable without installing Freqtrade or TA-Lib on the host.
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+PATH = ROOT / "user_data" / "strategies" / "OrderBlockRetest_H118_v1.py"
+spec = importlib.util.spec_from_file_location("OrderBlockRetest_H118_v1", PATH)
+MODULE = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(MODULE)
+Strategy = MODULE.OrderBlockRetest_H118_v1
+
+START = datetime(2025, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+
+def make_frame(d_index: int = 40, length: int = 60, retest: bool = True) -> pd.DataFrame:
+    """Flat 100-ish bars of range 1.0, a bearish bar at D-2, a displacement at D, a retest at D+1."""
+    rows = []
+    for i in range(length):
+        rows.append([100.0, 100.5, 99.5, 100.0, 10.0])
+    rows[d_index - 2] = [100.2, 100.5, 99.5, 99.8, 10.0]  # order block: OL 99.5, OH 100.5, MT 100.0
+    rows[d_index] = [100.0, 102.5, 99.9, 102.4, 10.0]  # displacement
+    if retest:
+        rows[d_index + 1] = [102.3, 102.6, 99.9, 101.0, 10.0]  # wick to MT, close above OL
+    # keep later bars quiet but above the zone so nothing else happens
+    for i in range(d_index + (2 if retest else 1), length):
+        rows[i] = [101.0, 101.5, 100.5, 101.0, 10.0]
+    frame = pd.DataFrame(rows, columns=["open", "high", "low", "close", "volume"])
+    frame["date"] = [START + timedelta(minutes=15 * i) for i in range(length)]
+    return frame
+
+
+def run(frame: pd.DataFrame) -> pd.DataFrame:
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+class FakeTrade:
+    def __init__(self, open_rate, tag, open_date):
+        self.open_rate = open_rate
+        self.enter_tag = tag
+        self.open_date_utc = open_date
+
+
+class OrderBlockRetestTests(unittest.TestCase):
+    def test_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 400)
+
+    def test_signal_on_retest_with_tag(self) -> None:
+        frame = run(make_frame())
+        entries = frame.index[frame["enter_long"] == 1].tolist()
+        self.assertEqual(entries, [41])  # D itself gives no signal; one signal per setup
+        self.assertEqual(frame.loc[41, "enter_tag"], "obret|99.5|102.6")
+
+    def test_columns_are_binary(self) -> None:
+        frame = run(make_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_no_retest_no_signal(self) -> None:
+        frame = run(make_frame(retest=False))
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_close_below_zone_invalidates_setup(self) -> None:
+        raw = make_frame(retest=False)
+        raw.loc[42] = [100.0, 100.2, 98.0, 99.0, 10.0, raw.loc[42, "date"]]  # close < OL kills it
+        raw.loc[43] = [100.0, 100.5, 99.8, 100.2, 10.0, raw.loc[43, "date"]]  # would be a retest
+        frame = run(raw)
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_setup_expires_after_32_bars(self) -> None:
+        raw = make_frame(length=100, retest=False)
+        raw.loc[40 + 33] = [101.0, 101.5, 99.9, 100.8, 10.0, raw.loc[73, "date"]]
+        self.assertEqual(int(run(raw).get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        raw = make_frame(length=100, retest=False)
+        raw.loc[40 + 32] = [101.0, 101.5, 99.9, 100.8, 10.0, raw.loc[72, "date"]]
+        self.assertEqual(run(raw).index[run(raw)["enter_long"] == 1].tolist(), [72])
+
+    def test_activity_filter(self) -> None:
+        raw = make_frame()
+        # Same shape compressed around 100: ATR is about 0.3, so ATR/close < 0.004 while (a)-(b) still hold.
+        for column in ("open", "high", "low", "close"):
+            raw[column] = 100.0 + (raw[column] - 100.0) * 0.3
+        self.assertEqual(int(run(make_frame()).get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 1)
+        self.assertEqual(int(run(raw).get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_zero_volume_candle_gives_no_signal(self) -> None:
+        raw = make_frame()
+        raw.loc[41, "volume"] = 0.0
+        frame = run(raw)
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        raw = make_frame()
+        raw["volume"] = 0.0
+        frame = run(raw)
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_give_no_signal(self) -> None:
+        frame = run(make_frame(d_index=8, length=30))
+        self.assertTrue(frame["atr"].iloc[:14].isna().all())
+        self.assertFalse(pd.isna(frame.loc[14, "atr"]))
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).iloc[:14].sum()), 0)
+        # D = 8 has no 16-bar history and no ATR: no setup, so no signal anywhere
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_future_candles_do_not_change_past_rows(self) -> None:
+        full = make_frame(length=120)
+        rng = np.random.default_rng(7)
+        for i in range(60, 120):  # a second, noisy stretch with its own displacement
+            base = 100.0 + float(rng.normal(0, 0.8))
+            full.loc[i, ["open", "high", "low", "close"]] = [base, base + 0.7, base - 0.7, base + float(rng.normal(0, 0.3))]
+        full.loc[90] = [100.0, 104.0, 99.9, 103.9, 10.0, full.loc[90, "date"]]
+        base_cols = ["atr", "ob_signal", "ob_low", "ob_high", "enter_long", "enter_tag"]
+        for n in (41, 42, 60, 91):
+            short = run(full.iloc[:n].copy().reset_index(drop=True))
+            long_ = run(full.copy())
+            for column in base_cols:
+                a = short[column] if column in short else pd.Series([np.nan] * n)
+                b = long_[column].iloc[:n] if column in long_ else pd.Series([np.nan] * n)
+                pd.testing.assert_series_equal(
+                    a.reset_index(drop=True), b.reset_index(drop=True), check_dtype=False, check_names=False
+                )
+
+    def test_stop_is_frozen_below_entry(self) -> None:
+        strategy = Strategy()
+        now = START
+        trade = FakeTrade(100.0, "obret|99.5|102.6", now)
+        # sd = max(1 - 0.998*99.5/100, 0.01) = 0.01 -> stop price 99.0
+        distance = strategy.custom_stoploss("X/USDT", trade, now, 100.0, 0.0)
+        self.assertAlmostEqual(distance, 0.01, places=9)
+        distance = strategy.custom_stoploss("X/USDT", trade, now, 101.0, 0.01)
+        self.assertAlmostEqual(101.0 * (1 - distance), 99.0, places=9)
+        # wide zone: OL = 95 -> sd = 1 - 0.998*0.95 = 0.0519 -> stop price 94.81
+        trade = FakeTrade(100.0, "obret|95.0|102.6", now)
+        distance = strategy.custom_stoploss("X/USDT", trade, now, 100.0, 0.0)
+        self.assertAlmostEqual(100.0 * (1 - distance), 94.81, places=9)
+
+    def test_take_profit_exit(self) -> None:
+        strategy = Strategy()
+        now = START
+        trade = FakeTrade(100.0, "obret|99.5|102.6", now)  # td = 2.6%
+        later = now + timedelta(minutes=30)
+        self.assertIsNone(strategy.custom_exit("X/USDT", trade, later, 102.5, 0.025))
+        self.assertEqual(strategy.custom_exit("X/USDT", trade, later, 102.6, 0.025), "take_profit")
+        trade = FakeTrade(100.0, "obret|99.5|100.4", now)  # HH close to E: floor 1.5%
+        self.assertIsNone(strategy.custom_exit("X/USDT", trade, later, 101.4, 0.013))
+        self.assertEqual(strategy.custom_exit("X/USDT", trade, later, 101.6, 0.014), "take_profit")
+
+    def test_time_exit_after_48_bars(self) -> None:
+        strategy = Strategy()
+        now = START
+        trade = FakeTrade(100.0, "obret|99.5|102.6", now)
+        before = now + timedelta(hours=12) - timedelta(minutes=15)
+        at = now + timedelta(hours=12)
+        self.assertIsNone(strategy.custom_exit("X/USDT", trade, before, 100.0, 0.0))
+        self.assertEqual(strategy.custom_exit("X/USDT", trade, at, 100.0, 0.0), "time_exit_12h")
+
+    def test_daily_entry_limit(self) -> None:
+        original = MODULE.Trade
+        day = START.replace(hour=0)
+        try:
+            def trades(count, offset_days=0):
+                return [
+                    types.SimpleNamespace(open_date_utc=day + timedelta(days=offset_days, hours=i))
+                    for i in range(count)
+                ]
+
+            strategy = Strategy()
+            tag = "obret|99.5|102.6"
+            fill = day + timedelta(hours=10)
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: trades(3) + trades(5, -1))})
+            self.assertTrue(strategy.confirm_trade_entry("X/USDT", "limit", 1, 1, "GTC", fill, tag, "long"))
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: trades(4))})
+            self.assertFalse(strategy.confirm_trade_entry("X/USDT", "limit", 1, 1, "GTC", fill, tag, "long"))
+            self.assertFalse(strategy.confirm_trade_entry("X/USDT", "limit", 1, 1, "GTC", fill, "other", "long"))
+        finally:
+            MODULE.Trade = original
+
+
+if __name__ == "__main__":
+    unittest.main()
