@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-109",
+  "family": "HourlyWilliamsVolBreakout",
+  "title": "Crabel stretch breakout at the Asia, Europe and US session opens on 15m, opposite-stretch stop, session-end exit",
+  "ex_ante_rule": "Chart 15m, closed bars, UTC. Signal at the close of bar t, fill at the open of bar t+1. Spot, long only, one position per pair, each pair on its own. SESSIONS each UTC day (bar open times): A = 00:00-07:45 (32 bars), E = 08:00-13:15 (22 bars), U = 13:30-23:45 (42 bars). O = open of the session's first bar (00:00, 08:00 or 13:30). NOISE of a completed session = min(H - O, O - L) / O, where H and L are the highest high and lowest low of all its bars. STRETCH S for the current session = 2.0 x the simple mean of NOISE over the 10 most recent completed sessions of the same type (the same session on days D-10..D-1; the current session is excluded). No trade in a session if any of those 10 sessions, or the current session's first bar, is missing a bar, or if S <= 0. ENTRY: let t be the FIRST bar of the current session whose close(t) >= O x (1 + S). Buy at the open of t+1 only if t lies in the first half of the session (bar open time A: 00:00-03:45, E: 08:00-10:30, U: 13:30-18:30), the pair is flat, and no trade has been taken in this session. If the first such bar is in the second half, no trade in this session. At most one trade per session (no re-entry after a stop), so at most three per pair per day. STOP: price level P = min(O x (1 - S), 0.99 x entry fill price), computed once at entry and never moved; per-trade stop distance d = 1 - P / entry, constant for the life of the trade (so at least 1%), triggered intrabar as soon as the low touches P (custom_stoploss returning this fixed distance). Native stoploss attribute -0.15 is only the engine backstop that must be wider than d; if d ever exceeds 15% the 15% backstop applies. EXIT: exit signal at the close of the session's last bar (07:45, 13:15 or 23:45), filled at the next bar open (08:00, 13:30 or 00:00), or the stop, whichever first. Holding time is at most about 10.5 hours (time exit is mandatory and built in). No take-profit, no trailing, no cooldown beyond one trade per session, no other filters. Warm-up: 1100 bars (the 10 prior same-type sessions plus the current day reach back at most 981 bars of 15m; 1100 gives a margin).",
+  "parameters": {
+    "timeframe": "15m",
+    "stretch_multiple": 2.0,
+    "noise_lookback_sessions": 10,
+    "session_A_start_utc": "00:00",
+    "session_A_last_bar_utc": "07:45",
+    "session_A_last_entry_bar_utc": "03:45",
+    "session_E_start_utc": "08:00",
+    "session_E_last_bar_utc": "13:15",
+    "session_E_last_entry_bar_utc": "10:30",
+    "session_U_start_utc": "13:30",
+    "session_U_last_bar_utc": "23:45",
+    "session_U_last_entry_bar_utc": "18:30",
+    "min_stop_distance": 0.01,
+    "backstop_stoploss": -0.15,
+    "max_trades_per_session": 1,
+    "warmup_bars": 1100
+  },
+  "rationale": "Toby Crabel's stretch (as restated by Oxford Capital Strategies: noise = the smaller of open-to-high and open-to-low, 10-day mean, multiple 2) measures how far price normally wanders from an open before choosing a direction. A close more than twice that normal noise above the session open, early in the session, means one-sided order flow has arrived with the new region's traders (Asia at 00:00, Europe at 08:00, US cash open at 13:30). Range traders and liquidity providers who sell the open expecting reversion are the other side; when they are wrong their covering and stops extend the move, and the session-end exit captures the continuation. The stretch is scaled to each pair's own session history, so it is a volatility-expansion test and serves as the single activity filter (fixed at 2.0 by the source, not scanned). The stop at the opposite stretch (at least 1% from entry, typically 2S plus the overshoot, about 1.5-3%) keeps the 0.30% round trip under about 0.2R and follows the lab lesson that tight stops hurt. Expected frequency: the first close beyond 2x noise in the first half of a session should occur in roughly 15-25% of sessions, about 150-300 trades per pair per year. Expected gross move: session-end exits on true breakouts average about 1% in absolute size; with no profit cap the winners are left to run to the session end, giving an estimated average gross move near 0.5%, above the 0.30% base cost. In a falling or ranging market an upward close beyond 2x noise is rarer, so the rule trades less, and the session-end exit bounds each loss in time. Success criteria are the lab's existing gates, on at least 6 of the 9 pairs with the same parameters.",
+  "novelty_vs_tried": "H-043 and H-104 (the same family) use one daily anchor (00:00 open plus 0.6x the previous day's range) on 1h with a 1200-bar daily SMA trend filter and a midnight exit. This variant changes the structure: three session anchors per day on 15m (Asia, Europe, US), a threshold scaled by the median-free mean of each session type's own open-to-extreme noise (Crabel stretch) rather than the prior day's range, a stop at the opposite stretch fixed at entry instead of a 0.5R close-based exit plus 5% stop, and a session-end exit. It differs from SessionOpeningRangeBreakout (H-034/H-069/H-092, capped), which breaks the high of the first 15-30 minute range with narrow stops: here there is no opening range, the trigger is a volatility-normalised distance from the open, and the stop is at least 1% away.",
+  "sources": [
+    {
+      "title": "Oxford Capital Strategies: Narrow Range (Toby Crabel opening range breakout with stretch)",
+      "url": "https://oxfordstrat.com/trading-strategies/narrow-range/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only the exploration summaries in research/context/H-109.md (all nine pairs, exploration split) and the source page, as of 2026-11-10."
+}
