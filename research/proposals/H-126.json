@@ -1,0 +1,40 @@
+{
+  "hypothesis_id": "H-126",
+  "family": "CCIDeepOversoldReversal",
+  "title": "SwingHighToSky 15m: CCI(72) below -175 with ATR filter, exit at CCI zero, 1.5% stop, 12h exit",
+  "ex_ante_rule": "Chart 15m, all times UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (entry price E). Spot, long only, one open position per pair, whole allowed balance, no pyramiding, same rule and numbers on all nine pairs, no higher-timeframe filter, single grid cell. Warm-up: 500 bars (longest raw lookback 72 bars; RSI(36) and ATR(14) use recursive Wilder smoothing, so 500 bars let their seeds decay; startup_candle_count = 500, under 4500). INDICATORS on 15m bars, bar t included: typical price TP(i) = (high(i)+low(i)+close(i))/3; SMA72(t) = mean of TP over bars t-71..t; MD(t) = mean of |TP(i) - SMA72(t)| over the same 72 bars i = t-71..t; CCI72(t) = (TP(t) - SMA72(t)) / (0.015 * MD(t)) (talib CCI with timeperiod 72 gives this; if MD(t) = 0 there is no signal). RSI36(t) = Wilder RSI of closes with length 36 (talib RSI, timeperiod 36). ATR14(t) = Wilder ATR of true range with length 14 (talib ATR, timeperiod 14); ATRp(t) = ATR14(t)/close(t). ENTRY signal at the close of bar t when ALL hold: (1) CCI72(t) < -175; (2) RSI36(t) < 90; (3) ATRp(t) >= 0.004 (the single activity filter, volatility type, fixed in advance, not scanned); (4) no open position on the pair; (5) fewer than 3 trades on this pair have an entry fill time on the UTC calendar day of the fill bar t+1 (daily entry cap, reset at 00:00 UTC; checked in confirm_trade_entry). No cooldown beyond the daily cap and one position at a time. EXITS, first one wins: (a) MEAN REACHED: at the close of the first bar k after the entry fill with CCI72(k) > 0, exit signal, sold at the open of bar k+1; (b) TAKE-PROFIT: +4.1% above E, sold at that price as soon as a bar's high reaches it (minimal_roi {\"0\": 0.041}, no other ROI steps); (c) STOP-LOSS: one fixed 1.5% below E (native stoploss = -0.015, intrabar, triggers as soon as price touches it); if stop and target are touched in the same bar, the stop counts (engine convention); (d) TIME EXIT: with the fill at the open of bar e = t+1, exit signal at the close of bar e+47 (the 48th 15m bar of the trade), sold at the open of e+48, i.e. 12 hours after the fill. No trailing stop, no break-even move, no other filters. The source's sell signal (CCI66 > -106 and RSI45 > 88), its decaying ROI table and its -34.3% stop are not used.",
+  "parameters": {
+    "timeframe": "15m",
+    "cci_period": 72,
+    "cci_entry_threshold": -175,
+    "cci_constant": 0.015,
+    "rsi_period": 36,
+    "rsi_entry_max": 90,
+    "atr_period": 14,
+    "atr_pct_min": 0.004,
+    "max_entries_per_utc_day": 3,
+    "cci_exit_threshold": 0,
+    "take_profit_pct": 0.041,
+    "stoploss_pct": -0.015,
+    "time_exit_bars": 48,
+    "startup_candle_count": 500
+  },
+  "rationale": "The source (freqtrade-strategies SwingHighToSky, MIT) gives no mechanism; the closest honest one is short-horizon liquidity provision. CCI72 below -175 on 15m means the typical price sits far below its 18-hour mean, roughly 2.6 mean absolute deviations (175 x 0.015). Such a swing low is made by sellers who want to trade now (stop cascades, forced de-risking). The buyer who absorbs that flow is paid when price moves back toward the mean once the selling stops. The exit is the mean itself (CCI back above 0), not a small fixed tick. The ATRp >= 0.4% filter (activity filter a, fixed in advance) keeps trades to active markets, where the distance from a CCI -175 low back to the 72-bar mean is typically about 1.5-3% against a 1.5% stop. This answers the lab's finding that 15m rules median only about 0.08% gross per trade. The scout's gross estimate is about 0.5% per trade, against a 0.30% base / 0.45% conservative round trip. Expected activity: deep-oversold CCI episodes with the ATR filter on, capped at 3 entries per UTC day, about 200-500 trades per year per pair, within the owner's day-trade range. Every trade is closed within 12 hours. Regime behaviour: this is mean reversion, so it should do best in chop (2022-2024 ranges, where long momentum rules lost). In a falling market, repeated oversold readings can be bought and stopped out; the 1.5% stop and the 3-per-day cap bound that daily loss to about 4.5% plus costs. This risk is stated, not filtered away. All numbers are the source's own (CCI 72/-175, RSI 36/90, 4.1% ROI step) or round values fixed ex ante (1.5% stop, 0.4% ATR, 12h, 3/day).",
+  "novelty_vs_tried": "No CCI-based rule exists in the lab. The 15m reversal rules that lost (H-050 VolumeConditionedReversal, H-097 RSIBullDivergence) used fixed small targets or divergence patterns. This rule triggers on distance from an 18-hour typical-price mean measured in mean absolute deviations, and it exits when price reaches that mean (CCI > 0). H-003/H-125 (Bollinger) use close-only standard-deviation bands with fixed TP and trailing exits; H-012/H-014 EMASnapbackATR measure distance in ATR from an EMA on a slower chart. This rule uses a different deviation measure and trigger depth, and its exit is the mean itself.",
+  "sources": [
+    {
+      "title": "freqtrade-strategies: SwingHighToSky.py (Kevin Ossenbrueck, MIT)",
+      "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/SwingHighToSky.py"
+    },
+    {
+      "title": "LuxAlgo: Commodity Channel Index (CCI) concept",
+      "url": "https://www.luxalgo.com/library/concept/cci/"
+    },
+    {
+      "title": "Fidelity: Commodity Channel Index (CCI)",
+      "url": "https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/CCI"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only research/context/H-126.md (exploration-only summaries of earlier hypotheses for the nine enabled pairs) and the source strategy file."
+}
