@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-114",
+  "family": "DailyNR7Breakout",
+  "title": "Session-aware hourly NR4 breakout on 15m: narrowest same-hour bar, 4h uptrend, 1% floor stop, 2R target, 8h exit",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; every signal is taken at a 15m bar close and filled at the next 15m open. Spot, long only, one position per pair, no pyramiding. HOURLY BARS: a 1h bar for clock hour h on UTC day d is built from the four completed 15m bars that open at h:00, h:15, h:30 and h:45 (high = max high, low = min low, close = close of the h:45 bar). It is complete at the close of the h:45 bar. range(H) = high(H) - low(H). NR4 SETUP: a completed 1h bar H (hour h, day d) is a session-aware NR4 when range(H) is strictly smaller than the range of the 1h bar at the same clock hour h on each of days d-1, d-2 and d-3 (all three must exist and be complete), AND range(H)/close(H) >= 0.0025. FILTER (higher-timeframe direction): 4h blocks are built from 16 completed 15m bars, starting at 00, 04, 08, 12, 16 and 20 UTC. At the signal bar's close, the close of the last fully completed 4h block must be above the SMA(50) of the last 50 completed 4h closes, including that block. ENTRY WINDOW: the 8 15m bars that follow H, opening at (h+1):00 through (h+2):45. If several NR4 windows overlap, only the most recently completed NR4 bar H is used. ENTRY: the first 15m bar in the window that meets all of these: close > high(H); the filter holds; the pair is flat; fewer than 2 entries already made on this pair on the signal bar's UTC date; and low(H) >= 0.98 x close(signal bar), i.e. skip the trade if low(H) is more than 2% below. Buy at the next open. One entry at most per NR4 bar. STOP-LOSS (intrabar): a percentage fixed once at entry, stop_pct = max(0.01, (entry - low(H))/entry), capped at 0.02. Stop price = entry x (1 - stop_pct), constant for the life of the trade (equal to min(low(H), 0.99 x entry)). Implement it as a custom stop relative to the open rate, with low(H) carried in the enter_tag. The native hard stoploss is -0.02. TARGET: target = entry x (1 + 2 x stop_pct), i.e. 2R. Exit at the next open after the first 15m close >= target. TIME EXIT: at the close of the 32nd 15m bar after entry, counting the entry bar as bar 1, exit at the next open (8 hours). No other exits, filters or cooldown. Warm-up: 900 bars (SMA(50) of 4h closes = 800 15m bars, plus 16 bars of 4h-block alignment, plus margin; the 3-day same-hour lookback is 292 bars).",
+  "parameters": {
+    "timeframe": "15m",
+    "hourly_bar_15m_count": 4,
+    "nr_same_hour_prior_days": 3,
+    "min_range_to_close": 0.0025,
+    "htf_block_hours": 4,
+    "htf_sma_length": 50,
+    "entry_window_bars": 8,
+    "max_entries_per_pair_per_utc_day": 2,
+    "stop_floor_pct": 0.01,
+    "max_stop_distance_pct": 0.02,
+    "native_hard_stoploss": -0.02,
+    "target_r_multiple": 2,
+    "time_exit_bars": 32,
+    "warmup_bars": 900
+  },
+  "rationale": "Volatility clusters and swings between contraction and expansion. An hour that is quieter than the same clock hour on each of the last 3 days shows real coiling, not a quiet time of day; the source warns that intraday narrow bars are often 'narrow by clock'. While the range is coiled, sellers sell its upper edge and stops collect above it. A close above the high, with the 4h trend up (4h close above SMA50, the single activity filter, fixed in advance), traps those sellers and fires the stops: they are the other side of the expansion. This moves the daily NR7 breakout that came close (H-040, 3/3 pairs at exploration, 0.94% gross per trade) onto hourly bars so it trades every day. Cost: a narrow range puts the stop too close, so the stop is floored at 1% of the price. The 0.30% base round trip is then at most 0.3R (0.45R at conservative). The target is 2R (at least 2%), and with the 8h cap the expected average absolute move is about 1% per trade. Frequency: about 1 in 4 hours is a same-hour NR4. After the floor, the trend filter (about half the time), the 2h window and the 2-per-day cap, the estimate is about 250-500 trades per pair per year. In a range or falling market the 4h filter mostly stands aside.",
+  "novelty_vs_tried": "H-040 (DailyNR7Breakout) uses daily NR7 bars, a 3% stop, no target and a 48h exit, with about 90 trades per pair. Here the bars are hourly NR4s measured against the same clock hour on earlier days, the stop is structural (range low with a 1% floor), there is a 2R target and the exit is at 8h, giving several hundred trades per pair. It differs from SessionOpeningRangeBreakout (capped; it used a fixed session-open range) and VolatilitySqueezeBreakout (capped; Bollinger/Keltner squeeze) because the trigger is a narrow-range bar compared with the same hour on earlier days, which can occur at any hour. It is not a session or squeeze indicator. It differs from HourlyInsideBarBreakout (H-042) because it needs no inside bar, and the baseline is time-of-day matched.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: NR4 / NR7 narrow range bars",
+      "url": "https://www.luxalgo.com/library/concept/nr4-nr7-narrow-range-bars.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data inspected. Only research/context/H-114.md (exploration summaries of earlier hypotheses for the nine pairs) and the LuxAlgo NR4/NR7 page, through 2026-11-11."
+}
