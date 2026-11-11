@@ -1,0 +1,351 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+# Another test module may have registered thinner stubs first: fill in what this strategy imports.
+if not hasattr(sys.modules["freqtrade.strategy"], "merge_informative_pair"):
+    sys.modules["freqtrade.strategy"].merge_informative_pair = lambda *a, **k: a[0]
+if not hasattr(sys.modules["freqtrade.persistence"], "Trade"):
+    sys.modules["freqtrade.persistence"].Trade = persistence.Trade
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "OBVLeadBreakout_H112_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+
+def fake_merge_informative_pair(dataframe, informative, timeframe, timeframe_inf, ffill=True):
+    """Same visibility rule as freqtrade: a 1h bar becomes visible only when it has completed."""
+    inf = informative.copy()
+    inf["date_merge"] = inf["date"] + pd.Timedelta(hours=1)
+    inf.columns = [f"{c}_{timeframe_inf}" for c in inf.columns]
+    merged = pd.merge_asof(
+        dataframe.sort_values("date"),
+        inf.sort_values(f"date_merge_{timeframe_inf}"),
+        left_on="date",
+        right_on=f"date_merge_{timeframe_inf}",
+        direction="backward",
+    )
+    return merged.drop(columns=[f"date_merge_{timeframe_inf}"])
+
+
+MODULE.merge_informative_pair = fake_merge_informative_pair
+
+START = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+
+def synthetic_frame(length: int, seed: int = 7) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    steps = rng.normal(0.0003, 0.002, size=max(length, 1500))
+    close = 100.0 * np.exp(np.cumsum(steps))
+    open_ = np.concatenate([[100.0], close[:-1]])
+    high = np.maximum(open_, close) * (1.0 + np.abs(rng.normal(0, 0.0008, size=len(close))))
+    low = np.minimum(open_, close) * (1.0 - np.abs(rng.normal(0, 0.0008, size=len(close))))
+    volume = rng.uniform(50, 150, size=len(close))
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range(START, periods=len(close), freq="15min"),
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    )
+    return frame.iloc[:length].reset_index(drop=True)
+
+
+def run_all(strategy, frame):
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def signal_rows(frame):
+    """Rows for the directed entry tests: every indicator column set by hand."""
+    base = {
+        "open": 99.0,
+        "high": 100.5,
+        "low": 98.0,
+        "close": 100.0,
+        "volume": 10.0,
+        "obv": 500.0,
+        "obv_max": 400.0,
+        "obv_min": -400.0,
+        "hh": 100.5,
+        "l10": 98.0,
+        "trend_ok_1h": 1.0,
+    }
+    return pd.DataFrame([dict(base, **row) for row in frame])
+
+
+class FakeTrade:
+    def __init__(self, tag, open_rate=100.0, open_date=START):
+        self.enter_tag = tag
+        self.open_rate = open_rate
+        self.open_date_utc = open_date
+
+
+class ContractTests(unittest.TestCase):
+    def test_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.04)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 2000)
+
+    def test_cooldown_protection(self):
+        protections = Strategy().protections
+        self.assertEqual(
+            protections, [{"method": "CooldownPeriod", "stop_duration_candles": 16}]
+        )
+
+    def test_rule_numbers(self):
+        self.assertEqual(MODULE.OBV_WINDOW, 192)
+        self.assertEqual(MODULE.PRICE_HIGH_WINDOW, 192)
+        self.assertEqual(MODULE.NEAR_HIGH_FRACTION, 0.985)
+        self.assertEqual(MODULE.STOP_LOW_WINDOW, 10)
+        self.assertEqual(MODULE.MIN_RISK_FRACTION, 0.008)
+        self.assertEqual(MODULE.MAX_RISK_FRACTION, 0.03)
+        self.assertEqual(MODULE.TARGET_R_MULTIPLE, 1.5)
+        self.assertEqual(MODULE.EMA_PERIOD, 50)
+        self.assertEqual(MODULE.TIME_EXIT_BARS, 48)
+        self.assertEqual(MODULE.MAX_ENTRIES_PER_UTC_DAY, 3)
+
+
+class IndicatorTests(unittest.TestCase):
+    def test_obv_and_windows_exclude_current_bar(self):
+        frame = pd.DataFrame(
+            {
+                "close": [10.0, 11.0, 11.0, 10.0, 12.0],
+                "high": [10, 11, 11, 10, 12],
+                "low": [9, 10, 10, 9, 11],
+                "volume": [5.0, 2.0, 3.0, 4.0, 6.0],
+            }
+        )
+        out = MODULE.obv_indicators(frame)
+        self.assertEqual(out["obv"].tolist(), [0.0, 2.0, 2.0, -2.0, 4.0])
+        self.assertTrue(out["obv_max"].isna().all())  # fewer than 192 bars
+
+        long = synthetic_frame(400)
+        out = MODULE.obv_indicators(long.copy())
+        t = 300
+        self.assertEqual(out.loc[t, "obv_max"], out["obv"].iloc[t - 192 : t].max())
+        self.assertEqual(out.loc[t, "obv_min"], out["obv"].iloc[t - 192 : t].min())
+        self.assertEqual(out.loc[t, "hh"], long["high"].iloc[t - 192 : t].max())
+        self.assertEqual(out.loc[t, "l10"], long["low"].iloc[t - 9 : t + 1].min())
+
+    def test_hourly_filter_visible_only_after_hour_completes(self):
+        frame = synthetic_frame(1200)
+        out = run_all(Strategy(), frame)
+        completed = MODULE.hourly_trend_filter(frame)
+        row = 1000  # a 15m bar opening mid-hour
+        bar_open = frame.loc[row, "date"]
+        last_complete = completed[completed["date"] + pd.Timedelta(hours=1) <= bar_open].iloc[-1]
+        self.assertEqual(out.loc[row, "close_1h"], last_complete["close"])
+        self.assertLess(last_complete["date"] + pd.Timedelta(hours=1), bar_open + pd.Timedelta(seconds=1))
+        # trend filter is undefined until EMA(50) has 50 closed hourly bars
+        self.assertTrue(completed["ema50"].iloc[:49].isna().all())
+        self.assertTrue(completed["ema50"].iloc[49:].notna().all())
+
+
+class EntryTests(unittest.TestCase):
+    def entries(self, rows):
+        frame = Strategy().populate_entry_trend(signal_rows(rows), {})
+        if "enter_long" not in frame:
+            return [0] * len(rows)
+        return frame["enter_long"].fillna(0).astype(int).tolist()
+
+    def test_base_case_enters_and_tags_stop_and_target(self):
+        frame = Strategy().populate_entry_trend(signal_rows([{}]), {})
+        self.assertEqual(frame["enter_long"].tolist(), [1])
+        stop, target = MODULE.parse_tag(frame["enter_tag"].iloc[0])
+        self.assertEqual(stop, 98.0)
+        self.assertAlmostEqual(target, 100.0 + 1.5 * 2.0)
+
+    def test_each_condition_blocks_the_entry(self):
+        rows = [
+            {"obv": 400.0},  # OBV not above OBVMAX
+            {"close": 100.6, "high": 100.7},  # close at/above HH
+            {"close": 98.0, "open": 97.0, "l10": 96.0},  # close below 0.985 * HH
+            {"open": 100.5},  # bearish bar
+            {"trend_ok_1h": 0.0},  # 1h filter false
+            {"trend_ok_1h": np.nan},
+            {"l10": 99.5},  # R/close = 0.5% < 0.8%
+            {"l10": 96.9},  # R/close = 3.1% > 3%
+            {"volume": 0.0},
+            {"obv_max": np.nan},
+            {"hh": np.nan},
+        ]
+        self.assertEqual(self.entries(rows), [0] * len(rows))
+
+    def test_risk_band_edges_are_accepted(self):
+        # just inside 0.8% and 3% (exact decimal edges are float-fragile)
+        rows = [{"l10": 99.19}, {"l10": 97.01}]
+        self.assertEqual(self.entries(rows), [1, 1])
+
+    def test_close_exactly_at_near_high_bound_enters(self):
+        rows = [{"hh": 100.0 / 0.985, "high": 101.0, "l10": 98.0}]
+        self.assertEqual(self.entries(rows), [1])
+
+
+class ExitTests(unittest.TestCase):
+    tag = "obv_lead|98.0|103.0"
+
+    def test_early_exit_signal_on_obv_below_48h_low(self):
+        frame = signal_rows([{"obv": -500.0}, {"obv": 0.0}, {"obv": -500.0, "volume": 0.0}])
+        frame = Strategy().populate_exit_trend(frame, {})
+        self.assertEqual(frame["exit_long"].fillna(0).astype(int).tolist(), [1, 0, 0])
+
+    def test_stop_is_fixed_price(self):
+        s = Strategy()
+        trade = FakeTrade(self.tag)
+        for rate in (100.0, 101.5, 99.0):
+            value = s.custom_stoploss("X/USDT", trade, START, rate, 0.0)
+            self.assertAlmostEqual(rate * (1 + value), 98.0)
+        self.assertIsNone(s.custom_stoploss("X/USDT", trade, START, 97.0, 0.0))
+        self.assertIsNone(s.custom_stoploss("X/USDT", FakeTrade("other"), START, 100.0, 0.0))
+
+    def test_stop_exit_and_take_profit_exit(self):
+        s = Strategy()
+        trade = FakeTrade(self.tag)
+        later = START + timedelta(minutes=30)
+        self.assertEqual(s.custom_exit("X/USDT", trade, later, 97.5, -0.025), "stop_l10")
+        self.assertIsNone(s.custom_exit("X/USDT", trade, later, 102.9, 0.029))
+        self.assertEqual(s.custom_exit("X/USDT", trade, later, 103.0, 0.03), "take_profit_1_5r")
+        self.assertEqual(s.custom_exit("X/USDT", trade, later, 105.0, 0.05), "take_profit_1_5r")
+
+    def test_target_below_fill_exits_at_first_bar(self):
+        s = Strategy()
+        trade = FakeTrade("obv_lead|98.0|99.5", open_rate=100.0)
+        self.assertEqual(s.custom_exit("X/USDT", trade, START, 100.0, 0.0), "take_profit_1_5r")
+
+    def test_time_exit_after_48_bars(self):
+        s = Strategy()
+        trade = FakeTrade(self.tag)
+        before = START + timedelta(minutes=15 * 47)
+        at = START + timedelta(minutes=15 * 48)
+        self.assertIsNone(s.custom_exit("X/USDT", trade, before, 100.0, 0.0))
+        self.assertEqual(s.custom_exit("X/USDT", trade, at, 100.0, 0.0), "time_exit_12h")
+
+    def test_daily_entry_cap(self):
+        original = MODULE.Trade
+        day = START
+        try:
+            for count, allowed in ((2, True), (3, False)):
+                trades = [FakeTrade(self.tag, open_date=day + timedelta(hours=i)) for i in range(count)]
+                trades.append(FakeTrade(self.tag, open_date=day - timedelta(hours=1)))  # previous UTC day
+                MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: trades)})
+                result = Strategy().confirm_trade_entry(
+                    "X/USDT", "limit", 1.0, 100.0, "GTC", day + timedelta(hours=6), self.tag, "long"
+                )
+                self.assertEqual(result, allowed)
+            self.assertFalse(
+                Strategy().confirm_trade_entry(
+                    "X/USDT", "limit", 1.0, 100.0, "GTC", day, "foreign", "long"
+                )
+            )
+        finally:
+            MODULE.Trade = original
+
+
+class SignalSafetyTests(unittest.TestCase):
+    def test_signal_columns_are_binary(self):
+        frame = run_all(Strategy(), synthetic_frame(1500))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+        self.assertIn("exit_long", frame)
+
+    def test_synthetic_series_produces_entries(self):
+        found = 0
+        for seed in range(1, 6):
+            frame = run_all(Strategy(), synthetic_frame(1500, seed))
+            if "enter_long" in frame:
+                found += int(frame["enter_long"].fillna(0).sum())
+        self.assertGreater(found, 0)
+
+    def test_zero_volume_candle_produces_no_signal(self):
+        base = synthetic_frame(1500, 3)
+        with_signals = run_all(Strategy(), base)
+        rows = with_signals.index[
+            (with_signals.get("enter_long", pd.Series(0, index=with_signals.index)).fillna(0) == 1)
+            | (with_signals.get("exit_long", pd.Series(0, index=with_signals.index)).fillna(0) == 1)
+        ]
+        self.assertGreater(len(rows), 0)
+        zeroed = base.copy()
+        zeroed.loc[rows, "volume"] = 0.0
+        out = run_all(Strategy(), zeroed)
+        for column in ("enter_long", "exit_long"):
+            if column in out:
+                self.assertEqual(int(out.loc[rows, column].fillna(0).sum()), 0)
+
+        flat = base.copy()
+        flat["volume"] = 0.0
+        out = run_all(Strategy(), flat)
+        for column in ("enter_long", "exit_long"):
+            if column in out:
+                self.assertEqual(int(out[column].fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_produce_no_signal(self):
+        # 192 bars of OBV/price history are needed, and 50 closed 1h bars (200 15m bars) for the EMA.
+        frame = run_all(Strategy(), synthetic_frame(1500, 2))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertEqual(int(frame.iloc[:192][column].fillna(0).sum()), 0)
+        if "enter_long" in frame:
+            self.assertEqual(int(frame.iloc[:200]["enter_long"].fillna(0).sum()), 0)
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        full = synthetic_frame(1700, 5)
+        n = 1300
+        short = run_all(Strategy(), full.iloc[:n].copy())
+        long = run_all(Strategy(), full.copy())
+        columns = ["enter_long", "exit_long", "enter_tag", "obv", "obv_max", "obv_min", "hh", "l10", "trend_ok_1h"]
+        for column in columns:
+            a = short[column] if column in short else pd.Series(np.nan, index=short.index)
+            b = long[column].iloc[:n] if column in long else pd.Series(np.nan, index=short.index)
+            pd.testing.assert_series_equal(
+                a.reset_index(drop=True), b.reset_index(drop=True), check_dtype=False, check_names=False
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
