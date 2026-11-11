@@ -1,0 +1,131 @@
+"""H-106: two-hour-block Double 7 dip, long only, flat by 23:00 UTC or after 12 hours.
+
+BLOCKS: two-hour blocks aligned to even UTC hours. A block is used only when both of its
+hourly candles exist; its close Cb is the close of the candle opening at the odd hour.
+Signals are evaluated only on 1h rows opening at an odd UTC hour (last candle of a block),
+and orders execute at the next hourly open.
+
+Block indicators (all including the just-finished block b):
+    SMA200b = mean of the last 200 block closes
+    LOW7    = lowest of the last 7 block closes
+    HIGH7   = highest of the last 7 block closes
+ENTRY: Cb > SMA200b and Cb <= LOW7 and the block started at 00:00..16:00 UTC.
+EXIT (first that occurs):
+    1. at the close of a later block, Cb >= HIGH7 (exit_long signal)
+    2. native stop-loss 2% below the entry fill (stoploss = -0.02, no trailing)
+    3. clock exit: signal on the candle opening 22:00 UTC, sells at the 23:00 UTC open
+    4. time exit: first hourly open at or after entry + 12 hours (custom_exit)
+"""
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from freqtrade.strategy import IStrategy
+
+
+BLOCK_FREQ = "2h"
+SMA_BLOCKS = 200
+LOW_BLOCKS = 7
+HIGH_BLOCKS = 7
+ENTRY_FIRST_START_HOUR = 0
+ENTRY_LAST_START_HOUR = 16
+CLOCK_SIGNAL_HOUR = 22  # candle opening 22:00 -> sell at the 23:00 open
+CLOCK_EXIT_HOUR = 23
+MAX_HOLD_HOURS = 12
+
+
+class Double7ChannelDip_H106_v1(IStrategy):
+    """Double 7 closing-low dip on two-hour blocks built from 1h candles."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.02
+    trailing_stop = False
+    startup_candle_count = 420
+
+    process_only_new_candles = True
+    use_exit_signal = True
+    exit_profit_only = False
+    ignore_roi_if_entry_signal = False
+
+    @property
+    def protections(self):
+        return []
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        date = pd.to_datetime(dataframe["date"])
+        hour = date.dt.hour
+        # Last candle of a block: odd hour whose previous row opened exactly one hour earlier
+        # (so the even-hour candle of the same block exists).
+        prev_ok = date.diff() == pd.Timedelta(hours=1)
+        is_last = (hour % 2 == 1) & prev_ok
+        block_start = date.dt.floor(BLOCK_FREQ)
+
+        nan = pd.Series(np.nan, index=dataframe.index)
+        sma = low7 = high7 = nan
+        if bool(is_last.any()):
+            starts = pd.DatetimeIndex(block_start[is_last])
+            closes = pd.Series(dataframe["close"].astype(float).values[is_last.values], index=starts)
+            closes = closes[~closes.index.duplicated(keep="last")]
+            grid = pd.date_range(closes.index.min(), closes.index.max(), freq=BLOCK_FREQ)
+            closes = closes.reindex(grid)
+            sma_b = closes.rolling(SMA_BLOCKS).mean()
+            low_b = closes.rolling(LOW_BLOCKS).min()
+            high_b = closes.rolling(HIGH_BLOCKS).max()
+            sma = block_start.map(sma_b).astype(float).where(is_last)
+            low7 = block_start.map(low_b).astype(float).where(is_last)
+            high7 = block_start.map(high_b).astype(float).where(is_last)
+
+        dataframe["hour_utc"] = hour.values
+        dataframe["block_last"] = is_last.values
+        dataframe["block_close"] = dataframe["close"].astype(float).where(is_last)
+        dataframe["sma200b"] = sma.values
+        dataframe["low7b"] = low7.values
+        dataframe["high7b"] = high7.values
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        defined = (
+            dataframe["block_last"]
+            & dataframe["block_close"].notna()
+            & dataframe["sma200b"].notna()
+            & dataframe["low7b"].notna()
+        )
+        # Block start hour = candle hour - 1; must be within 0..16 UTC.
+        start_hour = dataframe["hour_utc"] - 1
+        cond = (
+            defined
+            & (start_hour >= ENTRY_FIRST_START_HOUR)
+            & (start_hour <= ENTRY_LAST_START_HOUR)
+            & (dataframe["block_close"] > dataframe["sma200b"])
+            & (dataframe["block_close"] <= dataframe["low7b"])
+            & (dataframe["volume"] > 0)
+        )
+        dataframe.loc[cond, ["enter_long", "enter_tag"]] = (1, "double7_block_dip")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        channel_high = (
+            dataframe["block_last"]
+            & dataframe["block_close"].notna()
+            & dataframe["high7b"].notna()
+            & (dataframe["block_close"] >= dataframe["high7b"])
+            & (dataframe["volume"] > 0)
+        )
+        clock = (dataframe["hour_utc"] == CLOCK_SIGNAL_HOUR) & (dataframe["volume"] > 0)
+        dataframe.loc[channel_high, ["exit_long", "exit_tag"]] = (1, "block_close_at_high7")
+        dataframe.loc[clock & ~channel_high, ["exit_long", "exit_tag"]] = (1, "clock_exit")
+        return dataframe
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        """Time exit: first hourly open at or after entry + 12h. Backup for the 23:00 UTC clock exit."""
+        if current_time >= trade.open_date_utc + timedelta(hours=MAX_HOLD_HOURS):
+            return "time_exit_12h"
+        if current_time.hour >= CLOCK_EXIT_HOUR:
+            return "clock_exit_23h"
+        return None
