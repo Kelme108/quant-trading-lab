@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-129",
+  "family": "HLHBTrendCatcher",
+  "title": "HLHB trend catcher on 15m: EMA5/10 cross with RSI10 of median price through 50, ADX14 above 25, volume 1.5x",
+  "ex_ante_rule": "Chart 15m (the idea is defined on 15m bars and uses no daily or hourly inputs), all times UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (fill bar e = t+1, price E). Spot, long only, one open position per pair, whole allowed balance, no pyramiding, same rule and numbers on all nine pairs, no higher-timeframe filter, single grid cell. Warm-up: 400 bars (longest raw lookback 21 bars; EMA, Wilder RSI and Wilder ADX are recursive, so 400 bars let their seeds decay; startup_candle_count = 400, under 4500). INDICATORS on 15m, bar t included: EMA5 and EMA10 of close (span n, alpha 2/(n+1); talib EMA); MP(t) = (high(t)+low(t))/2; RSI10 = Wilder RSI of MP, length 10 (talib RSI on the MP series); ADX14 = Wilder ADX, length 14 (talib ADX timeperiod 14); Vmean(t) = arithmetic mean of volume over bars t-20..t-1 (20 bars, current bar excluded). ENTRY signal at the close of bar t when ALL hold: (1) EMA5(t) > EMA10(t) AND EMA5(t-1) <= EMA10(t-1); (2) RSI10(t) > 50 AND RSI10(t-1) <= 50; (3) ADX14(t) > 25; (4) activity filter (b), volume, fixed in advance: volume(t) >= 1.5 x Vmean(t); (5) no open position on the pair. No cooldown and no daily cap (every entry needs two fresh crosses on the same bar). EXITS, first one wins: (a) STOP-LOSS: one fixed 1.5% below E (native stoploss = -0.015, intrabar, triggers as soon as price touches it); (b) TRAILING STOP: once the highest price since entry has reached E x 1.019, the stop sits 1.2% below the highest price since entry and triggers intrabar (trailing_stop = true, trailing_stop_positive = 0.012, trailing_stop_positive_offset = 0.019, trailing_only_offset_is_reached = true); (c) MIRROR SIGNAL: at the close of any bar k of the trade (k >= e) with EMA5(k) < EMA10(k) AND EMA5(k-1) >= EMA10(k-1) AND RSI10(k) < 50 AND RSI10(k-1) >= 50, sell at the open of k+1; (d) TIME EXIT: exit signal at the close of bar e+47 (the 48th 15m bar of the trade, counting e as the first), sold at the open of e+48, i.e. 12 hours after the fill. No take-profit, no ROI table (minimal_roi {\"0\": 100} or equivalent so ROI never fires), no break-even move, no other filters or exits. If the stop and the trailing level are both touched in one bar, the engine's convention applies.",
+  "parameters": {
+    "timeframe": "15m",
+    "ema_fast": 5,
+    "ema_slow": 10,
+    "rsi_length": 10,
+    "rsi_source": "median price (high+low)/2",
+    "rsi_cross_level": 50,
+    "adx_length": 14,
+    "adx_min": 25,
+    "volume_mean_bars": 20,
+    "volume_mult": 1.5,
+    "stoploss_pct": 1.5,
+    "trail_offset_pct": 1.9,
+    "trail_distance_pct": 1.2,
+    "time_exit_bars": 48,
+    "warmup_bars": 400
+  },
+  "rationale": "The source (freqtrade-strategies hlhb.py, after the BabyPips HLHB system) gives no mechanism beyond 'catch short trends'. The closest honest mechanism: a bar where the fast EMA cross and the RSI cross of 50 happen together while ADX14 > 25 marks short-term momentum resuming inside an already directional move. Requiring volume of at least 1.5x the 20-bar mean means real order flow is behind the push. Large orders are split and keep arriving for hours, so the push tends to continue. On the other side are mean-reversion liquidity providers who fade the push, and shorts whose stops sit above the recent swing. Payoff: there is no profit cap (the lab found the edge sits in a few large winners). Losers are cut at -1.5% or earlier by the mirror signal or the time exit. Winners that reach +1.9% lock in at least +0.7%, and trend days run further under the 1.2% trail. With a win rate of about 40-45%, the scout expects an average gross move of about 0.5% per trade, above the 0.30% base round trip. Expected activity: two crosses on the same bar plus ADX and volume make maybe 150-400 trades per year per pair, about 0.5-1 per day, every trade flat within 12 hours. Range/bear behaviour: ADX > 25 blocks most trendless chop. In falling markets, upward crosses with ADX > 25 are counter-trend bounces that the 1.5% stop and the mirror exit cut quickly. No regime filter is added, because the idea must be formalised without extra filters. Source discrepancy: hlhb.py's 'hl2' is actually (open+close)/2 and its trail is 1.17%/1.86% on 4h. The scout's rule (true median price (high+low)/2, as in the original BabyPips rules, and rounded 1.2%/1.9%) is kept.",
+  "novelty_vs_tried": "No tried hypothesis needs a simultaneous fast EMA5/10 cross and an RSI cross of 50 under an ADX trend-strength gate. H-128 (TimeDecayFailFastTrend) uses an EMA9/16 cross with an RSI band, a 1h EMA200 and a BTC filter, a fixed 2% take-profit and checkpoint exits. H-065 (ADXRegimeSwitch) switches regimes on ADX levels but has no cross trigger. H-085/H-100 buy RSI overbought levels, not a cross through 50. H-037/H-088 are multi-timeframe MACD/Elder screens. This rule uses no higher timeframe and no take-profit cap: exits are a fixed 1.5% stop, a trail activated at +1.9%, the mirror double-cross and a 12-hour time exit.",
+  "sources": [
+    {"title": "freqtrade-strategies: hlhb.py (HLHB Trend-Catcher)", "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/hlhb.py"},
+    {"title": "BabyPips: Forex HLHB System Explained", "url": "https://www.babypips.com/trading/forex-hlhb-system-explained"},
+    {"title": "BabyPips: HLHB system update 2017-02-03 (4h, ADX14 > 25 added)", "url": "https://www.babypips.com/trading/forex-hlhb-system-20170203"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file for H-129 (exploration-only digest), the validation protocol, the hlhb.py source and BabyPips search results, as of 2026-11-11."
+}
