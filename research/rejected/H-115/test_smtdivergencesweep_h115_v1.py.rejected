@@ -1,0 +1,364 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "SMTDivergenceSweep_H115_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+SIGNAL_BAR = 72
+
+
+class FakeDP:
+    def __init__(self, frames):
+        self.frames = frames
+        self.requested = []
+
+    def get_pair_dataframe(self, pair, timeframe):
+        self.requested.append(pair)
+        return self.frames[pair]
+
+
+def dates(n):
+    return pd.date_range(START, periods=n, freq="15min")
+
+
+def scenario(n=90):
+    """X holds while B sweeps its 12h low at bar 70; X breaks its 4-bar high on bar 72."""
+    x = pd.DataFrame(
+        {
+            "date": dates(n),
+            "open": 100.0,
+            "high": 100.5,
+            "low": 99.5,
+            "close": 100.0,
+            "volume": 10.0,
+        }
+    )
+    b = pd.DataFrame(
+        {
+            "date": dates(n),
+            "open": 200.0,
+            "high": 201.0,
+            "low": 199.0,
+            "close": 200.0,
+            "volume": 10.0,
+        }
+    )
+    # B sweeps below 0.998 * 199 = 198.6 on bar 70, closes down on 70/71, up on 72.
+    b.loc[70, ["low", "close"]] = [197.0, 198.0]
+    b.loc[71, ["low", "close"]] = [197.5, 197.5]
+    b.loc[72, ["low", "close"]] = [198.0, 199.0]
+    # X holds (lows never below 99.5), then breaks above 100.5.
+    x.loc[70, ["high", "low", "close"]] = [100.0, 99.6, 99.8]
+    x.loc[71, ["high", "low", "close"]] = [100.0, 99.6, 99.8]
+    x.loc[72, ["high", "low", "close"]] = [101.2, 99.9, 101.0]
+    # After the break, X keeps closing below the 4-bar high so no new candidate appears.
+    x.loc[73:, ["open", "high", "low", "close"]] = [100.9, 101.0, 100.5, 100.8]
+    return x, b
+
+
+def run(x, b, pair="ETH/USDT"):
+    strategy = Strategy()
+    ref = MODULE.reference_for(pair)
+    strategy.dp = FakeDP({ref: b})
+    frame = strategy.populate_indicators(x.copy(), {"pair": pair})
+    frame = strategy.populate_entry_trend(frame, {"pair": pair})
+    frame = strategy.populate_exit_trend(frame, {"pair": pair})
+    return strategy, frame
+
+
+def make_trade(d=0.01, rate=100.0, opened=None, tag=None):
+    return types.SimpleNamespace(
+        open_rate=rate,
+        enter_tag=MODULE.make_tag(d) if tag is None else tag,
+        open_date_utc=opened or START,
+    )
+
+
+class SMTDivergenceSweepTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 60)
+        self.assertEqual(Strategy.startup_candle_count, 100)
+
+    def test_reference_pair(self):
+        self.assertEqual(MODULE.reference_for("ETH/USDT"), "BTC/USDT")
+        self.assertEqual(MODULE.reference_for("SOL/USDT"), "BTC/USDT")
+        self.assertEqual(MODULE.reference_for("BTC/USDT"), "ETH/USDT")
+        strategy, _ = run(*scenario(), pair="BTC/USDT")
+        self.assertEqual(strategy.dp.requested, ["ETH/USDT"])
+
+    def test_scenario_signals_once_at_structure_break(self):
+        _, frame = run(*scenario())
+        self.assertEqual(frame.index[frame["enter_long"] == 1].tolist(), [SIGNAL_BAR])
+        d = (101.0 - 99.5) / 101.0
+        self.assertAlmostEqual(MODULE.parse_tag(frame.loc[SIGNAL_BAR, "enter_tag"]), d)
+
+    def test_stop_distance_is_floored_at_min_pct(self):
+        x, b = scenario()
+        x.loc[SIGNAL_BAR, "close"] = 100.55  # (100.55 - 99.5) / 100.55 ~ 1.04% -> keep above floor
+        x.loc[60:72, "low"] = 100.4  # LL close to close -> raw d below 0.8%
+        x.loc[SIGNAL_BAR, "low"] = 100.4
+        # Keep X holding relative to its prior 12h low (low >= PL_X is the setup condition).
+        x.loc[0:59, "low"] = 100.0
+        x.loc[0:59, "high"] = 100.5
+        _, frame = run(x, b)
+        self.assertEqual(frame.loc[SIGNAL_BAR, "enter_long"], 1)
+        self.assertEqual(MODULE.parse_tag(frame.loc[SIGNAL_BAR, "enter_tag"]), 0.008)
+
+    def test_stop_wider_than_three_percent_gives_no_signal_and_keeps_setup(self):
+        x, b = scenario()
+        x.loc[SIGNAL_BAR, "close"] = 103.4  # d = (103.4 - 99.5) / 103.4 > 3%
+        x.loc[SIGNAL_BAR, "high"] = 103.5
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+        # The setup was not consumed: a later qualifying bar inside the armed window signals.
+        x.loc[74, ["high", "close"]] = [101.3, 101.2]
+        b.loc[74, "close"] = 201.0
+        x.loc[73, ["high", "close"]] = [100.4, 100.3]
+        x.loc[SIGNAL_BAR, ["high", "close"]] = [100.3, 100.2]
+        _, frame = run(x, b)
+        self.assertEqual(frame.index[frame["enter_long"] == 1].tolist(), [74])
+
+    def test_requires_reference_up_close(self):
+        x, b = scenario()
+        b.loc[SIGNAL_BAR, "close"] = 197.5  # not above the previous close
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_requires_alt_to_hold(self):
+        x, b = scenario()
+        x.loc[70, "low"] = 99.0  # X makes a new 12h low on the sweep bar
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_requires_sweep_of_at_least_point_two_percent(self):
+        x, b = scenario()
+        b.loc[70, "low"] = 198.7
+        b.loc[71, "low"] = 198.7
+        b.loc[72, "low"] = 198.7
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_setup_expires_after_eight_bars(self):
+        x, b = scenario(n=100)
+        # Break only on bar 84 (setups last on bars 70..73 -> armed through bar 81).
+        x.loc[SIGNAL_BAR, ["high", "close"]] = [100.0, 99.8]
+        x.loc[73:, ["open", "high", "low", "close"]] = [99.8, 100.0, 99.6, 99.8]
+        x.loc[84, ["high", "low", "close"]] = [101.2, 99.9, 101.0]
+        b.loc[84, "close"] = 201.0
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_nan_reference_gives_no_signal(self):
+        x, b = scenario()
+        b.loc[SIGNAL_BAR, "close"] = np.nan
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+        b2 = b.copy()
+        b2.loc[SIGNAL_BAR, "close"] = 199.0
+        b2.loc[65, "low"] = np.nan  # undefined prior low for B
+        _, frame = run(x, b2)
+        self.assertEqual(int(frame["smt_setup"].sum()), 0)
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_missing_reference_data_gives_no_signal(self):
+        strategy = Strategy()
+        x, b = scenario()
+        strategy.dp = FakeDP({"BTC/USDT": b.iloc[0:0]})
+        frame = strategy.populate_indicators(x.copy(), {"pair": "ETH/USDT"})
+        frame = strategy.populate_entry_trend(frame, {"pair": "ETH/USDT"})
+        self.assertNotIn("enter_long", frame.columns)
+
+    def test_zero_volume_candle_gives_no_signal(self):
+        x, b = scenario()
+        x.loc[SIGNAL_BAR, "volume"] = 0.0
+        _, frame = run(x, b)
+        self.assertNotIn("enter_long", frame.columns)
+        x2 = x.copy()
+        x2["volume"] = 0.0
+        _, frame = run(x2, b)
+        self.assertNotIn("enter_long", frame.columns)
+        self.assertNotIn("exit_long", frame.columns)
+
+    def test_undefined_startup_values_give_no_signal(self):
+        x, b = scenario()
+        _, frame = run(x, b)
+        warm = MODULE.PRIOR_LOW_FAR_OFFSET
+        self.assertEqual(int(frame.loc[: warm - 1, "smt_setup"].sum()), 0)
+        self.assertEqual(int(frame.loc[: warm - 1, "smt_candidate"].sum()), 0)
+        # A strictly rising tape never produces a setup, so nothing fires through start-up.
+        n = 260
+        rising = pd.DataFrame(
+            {
+                "date": dates(n),
+                "open": np.arange(100.0, 100.0 + n),
+                "high": np.arange(100.0, 100.0 + n) * 1.01,
+                "low": np.arange(100.0, 100.0 + n) * 0.99,
+                "close": np.arange(100.0, 100.0 + n),
+                "volume": 1.0,
+            }
+        )
+        _, frame = run(rising, rising.copy())
+        startup = Strategy.startup_candle_count
+        if "enter_long" in frame:
+            self.assertEqual(int(frame.iloc[:startup]["enter_long"].fillna(0).sum()), 0)
+
+    def test_signal_columns_are_binary(self):
+        _, frame = run(*scenario())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        rng = np.random.default_rng(7)
+        n, k = 400, 150
+
+        def series(base, size):
+            walk = base * np.exp(np.cumsum(rng.normal(0, 0.004, size)))
+            spread = np.abs(rng.normal(0, 0.002, size)) * walk
+            return pd.DataFrame(
+                {
+                    "date": dates(size),
+                    "open": walk,
+                    "high": walk + spread,
+                    "low": walk - spread,
+                    "close": walk + rng.normal(0, 0.0005, size) * walk,
+                    "volume": 5.0,
+                }
+            )
+
+        x_full, b_full = series(100.0, n + k), series(200.0, n + k)
+        _, short = run(x_full.iloc[:n].copy(), b_full.iloc[:n].copy())
+        _, long = run(x_full.copy(), b_full.copy())
+        self.assertGreater(int(short["smt_setup"].sum()), 0)
+        columns = ["smt_setup", "smt_candidate", "smt_d", "enter_long", "enter_tag"]
+        for column in columns:
+            if column not in short:
+                short[column] = np.nan
+            if column not in long:
+                long[column] = np.nan
+        pd.testing.assert_frame_equal(
+            short.loc[: n - 1, columns].reset_index(drop=True),
+            long.loc[: n - 1, columns].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    def test_scenario_signal_stable_when_future_is_appended(self):
+        x, b = scenario(n=90)
+        _, short = run(x.iloc[:80].copy(), b.iloc[:80].copy())
+        _, long = run(x, b)
+        self.assertEqual(
+            short.loc[:79, "enter_long"].fillna(0).tolist(),
+            long.loc[:79, "enter_long"].fillna(0).tolist(),
+        )
+
+    def test_stoploss_is_fixed_d_below_entry(self):
+        strategy = Strategy()
+        trade = make_trade(d=0.02, rate=100.0)
+        # Price at entry: stop 2% below.
+        self.assertAlmostEqual(
+            strategy.custom_stoploss("X", trade, START, 100.0, 0.0), 0.02
+        )
+        # Price at 103: stop price is still 98 -> distance 98/103 below.
+        self.assertAlmostEqual(
+            strategy.custom_stoploss("X", trade, START, 103.0, 0.03), 1 - 98.0 / 103.0
+        )
+        self.assertIsNone(strategy.custom_stoploss("X", make_trade(tag="other"), START, 100.0, 0.0))
+
+    def test_take_profit_at_one_and_a_half_r(self):
+        strategy = Strategy()
+        trade = make_trade(d=0.01, rate=100.0)
+        later = START + timedelta(hours=1)
+        self.assertIsNone(strategy.custom_exit("X", trade, later, 101.4, 0.014))
+        self.assertEqual(strategy.custom_exit("X", trade, later, 101.5, 0.015), "take_profit_1_5r")
+        self.assertEqual(strategy.custom_exit("X", trade, later, 103.0, 0.03), "take_profit_1_5r")
+
+    def test_time_exit_after_48_bars(self):
+        strategy = Strategy()
+        trade = make_trade(d=0.01, rate=100.0)
+        self.assertIsNone(
+            strategy.custom_exit("X", trade, START + timedelta(minutes=15 * 47), 100.0, 0.0)
+        )
+        self.assertEqual(
+            strategy.custom_exit("X", trade, START + timedelta(minutes=15 * 48), 100.0, 0.0),
+            "time_exit_12h",
+        )
+
+    def test_at_most_two_entries_per_utc_day(self):
+        strategy = Strategy()
+        tag = MODULE.make_tag(0.01)
+        now = START + timedelta(hours=10)
+
+        def trades(*opened):
+            fake = type(
+                "FakeTrade",
+                (),
+                {
+                    "get_trades_proxy": staticmethod(
+                        lambda **k: [types.SimpleNamespace(open_date_utc=o) for o in opened]
+                    )
+                },
+            )
+            return mock.patch.object(MODULE, "Trade", fake)
+
+        args = ("X", "limit", 1.0, 100.0, "GTC", now, tag, "long")
+        with trades():
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+        with trades(START + timedelta(hours=1)):
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+        with trades(START + timedelta(hours=1), START + timedelta(hours=5)):
+            self.assertFalse(strategy.confirm_trade_entry(*args))
+        with trades(START - timedelta(hours=1), START - timedelta(hours=2)):
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+        with trades():
+            self.assertFalse(
+                strategy.confirm_trade_entry("X", "limit", 1.0, 100.0, "GTC", now, "other", "long")
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

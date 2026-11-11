@@ -1,0 +1,219 @@
+"""H-115: 15m SMT divergence, long only.
+
+BTC/USDT sweeps its 12-hour low while the traded pair X holds; buy X's 4-bar structure break.
+Reference B = BTC/USDT for every pair except BTC/USDT, whose B = ETH/USDT (informative 15m pair,
+aligned on the same candle date). Closed bars only; a signal at the close of bar t fills at the
+open of t+1.
+
+For a series S: PL_S(t) = min low over bars t-52..t-5 (48 bars, last 4 excluded);
+SL4_S(t) = min low over bars t-3..t.
+SETUP at bar s: SL4_B(s) < 0.998*PL_B(s) and SL4_X(s) >= PL_X(s). Armed on bars s..s+8.
+One entry per setup: an entry signal at bar t consumes every setup at bars <= t.
+ENTRY at an armed bar t: close_X(t) > max high_X(t-4..t-1); close_B(t) > close_B(t-1);
+d = (close_X(t) - min low_X(t-12..t)) / close_X(t), floored at 0.008; d > 0.03 gives no signal
+(the setup stays unconsumed). d is stored in the entry tag and frozen.
+Stop: E*(1-d) intrabar (custom_stoploss; native -3% backstop). Take-profit: E*(1+1.5*d)
+(custom_exit). Time exit: sold at the open of bar e+48 (custom_exit). Fill only if fewer than
+2 trades on X were opened in the UTC day of the fill (confirm_trade_entry).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+DEFAULT_REFERENCE = "BTC/USDT"
+REFERENCE_FOR_BTC = "ETH/USDT"
+PRIOR_LOW_WINDOW = 48
+PRIOR_LOW_FAR_OFFSET = 52
+PRIOR_LOW_NEAR_OFFSET = 5
+RECENT_LOW_BARS = 4
+SWEEP_FACTOR = 0.998
+ARMED_BARS = 8
+STRUCTURE_BREAK_BARS = 4
+STOP_LOOKBACK_BARS = 13  # bars t-12..t
+MIN_STOP_PCT = 0.008
+MAX_STOP_PCT = 0.03
+TAKE_PROFIT_R = 1.5
+TIME_EXIT_BARS = 48
+MAX_ENTRIES_PER_DAY = 2
+TAG_PREFIX = "smt"
+BAR = timedelta(minutes=15)
+
+
+def reference_for(pair: str) -> str:
+    return REFERENCE_FOR_BTC if pair.split(":")[0] == DEFAULT_REFERENCE else DEFAULT_REFERENCE
+
+
+def utc_day(value) -> pd.Timestamp:
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def make_tag(d: float) -> str:
+    return f"{TAG_PREFIX}|{float(d)!r}"
+
+
+def parse_tag(tag) -> float | None:
+    """Frozen stop fraction d from an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def smt_indicators(dataframe: DataFrame, ref_low: pd.Series, ref_close: pd.Series) -> DataFrame:
+    """Add the setup flag and the entry-condition columns. Backward-looking only."""
+    low = dataframe["low"].astype(float)
+    high = dataframe["high"].astype(float)
+    close = dataframe["close"].astype(float)
+    ref_low = ref_low.astype(float)
+    ref_close = ref_close.astype(float)
+
+    # Rolling windows need all their bars (NaN otherwise), so undefined values never pass.
+    pl_x = low.shift(PRIOR_LOW_NEAR_OFFSET).rolling(PRIOR_LOW_WINDOW).min()
+    pl_b = ref_low.shift(PRIOR_LOW_NEAR_OFFSET).rolling(PRIOR_LOW_WINDOW).min()
+    sl4_x = low.rolling(RECENT_LOW_BARS).min()
+    sl4_b = ref_low.rolling(RECENT_LOW_BARS).min()
+
+    defined = pl_x.notna() & pl_b.notna() & sl4_x.notna() & sl4_b.notna()
+    setup = defined & (sl4_b < SWEEP_FACTOR * pl_b) & (sl4_x >= pl_x)
+
+    prior_high = high.shift(1).rolling(STRUCTURE_BREAK_BARS).max()
+    lowest_low = low.rolling(STOP_LOOKBACK_BARS).min()
+    raw_d = (close - lowest_low) / close.where(close > 0)
+    stop_d = raw_d.clip(lower=MIN_STOP_PCT)
+
+    candidate = (
+        prior_high.notna()
+        & stop_d.notna()
+        & ref_close.notna()
+        & ref_close.shift(1).notna()
+        & (close > prior_high)
+        & (ref_close > ref_close.shift(1))
+        & (stop_d <= MAX_STOP_PCT)
+        & (dataframe["volume"] > 0)
+    )
+
+    dataframe["smt_setup"] = setup.fillna(False).astype(int)
+    dataframe["smt_candidate"] = candidate.fillna(False).astype(int)
+    dataframe["smt_d"] = stop_d
+    return dataframe
+
+
+def smt_entries(setup: np.ndarray, candidate: np.ndarray) -> np.ndarray:
+    """Causal pass: entry at an armed candidate bar; it consumes every setup at bars <= t."""
+    n = len(setup)
+    signal = np.zeros(n, dtype=bool)
+    consumed_through = -1
+    last_setup = -10**9  # most recent setup bar (all setups <= consumed_through are consumed)
+    for t in range(n):
+        if setup[t]:
+            last_setup = t
+        # Unconsumed setup in bars t-8..t: the latest setup bar must be in the window and unconsumed.
+        if candidate[t] and last_setup > consumed_through and last_setup >= t - ARMED_BARS:
+            signal[t] = True
+            consumed_through = t
+    return signal
+
+
+class SMTDivergenceSweep_H115_v1(IStrategy):
+    """Buy the alt's structure break after BTC sweeps its 12h low and the alt holds."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.03
+    use_custom_stoploss = True
+    use_exit_signal = True
+    trailing_stop = False
+    startup_candle_count = 100
+    dp = None  # replaced by the engine's data provider
+
+    def informative_pairs(self):
+        return [(DEFAULT_REFERENCE, "15m"), (REFERENCE_FOR_BTC, "15m")]
+
+    def _reference_series(self, dataframe: DataFrame, metadata: dict):
+        nan = pd.Series(np.nan, index=dataframe.index, dtype=float)
+        if self.dp is None:
+            return nan, nan
+        ref_df = self.dp.get_pair_dataframe(
+            pair=reference_for((metadata or {}).get("pair", "")), timeframe=self.timeframe
+        )
+        if ref_df is None or len(ref_df) == 0:
+            return nan, nan
+        ref_df = ref_df.drop_duplicates("date").set_index("date")
+        low_b = dataframe["date"].map(ref_df["low"]).astype(float)
+        close_b = dataframe["date"].map(ref_df["close"]).astype(float)
+        return low_b.set_axis(dataframe.index), close_b.set_axis(dataframe.index)
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        ref_low, ref_close = self._reference_series(dataframe, metadata)
+        dataframe["ref_low"] = ref_low
+        dataframe["ref_close"] = ref_close
+        return smt_indicators(dataframe, ref_low, ref_close)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        signal = smt_entries(
+            dataframe["smt_setup"].to_numpy(dtype=bool),
+            dataframe["smt_candidate"].to_numpy(dtype=bool),
+        )
+        cond = pd.Series(signal, index=dataframe.index)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                make_tag(value) for value in dataframe.loc[cond, "smt_d"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """Fewer than 2 trades on this pair opened in the UTC day of the fill."""
+        if parse_tag(entry_tag) is None:
+            return False
+        today = utc_day(current_time)
+        opened = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                opened += 1
+        return opened < MAX_ENTRIES_PER_DAY
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit,
+                        after_fill=False, **kwargs):
+        """Stop price E*(1-d), fixed for the trade, expressed relative to the current rate."""
+        d = parse_tag(trade.enter_tag)
+        if d is None or not current_rate or not trade.open_rate:
+            return None
+        stop_price = trade.open_rate * (1.0 - d)
+        return max(1.0 - stop_price / current_rate, 0.0)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        d = parse_tag(trade.enter_tag)
+        if d is not None and trade.open_rate and current_rate >= trade.open_rate * (1.0 + TAKE_PROFIT_R * d):
+            return "take_profit_1_5r"
+        # Filled at the open of bar e; sold at the open of bar e+48.
+        if pd.Timestamp(current_time) >= pd.Timestamp(trade.open_date_utc) + TIME_EXIT_BARS * BAR:
+            return "time_exit_12h"
+        return None
