@@ -1,0 +1,148 @@
+"""H-105: two-hour MAX-jump regime breakout on 1h candles (long only), flat within 12h.
+
+Blocks are two-hour blocks aligned to even UTC hours: the 1h bar opening at an even hour H plus the bar
+opening at H+1. Block close C(b) = close of the H+1 bar; a block exists only when both bars exist.
+Block values are computed only at the close of the odd-hour bar and held on the next bar.
+
+r(b)   = C(b) / C(b-1) - 1
+J(b)   = max of r over the 30 blocks b-29..b
+regime = J(b) >= median of J(b-150..b-1)
+SMA50, SMA20 = means of C over 50 / 20 blocks (b included); HH10 = max of C(b-10..b-1)
+
+Entry (signal on an odd-hour bar close, filled at the next 1h open): regime ON, C > SMA50, C > HH10,
+and the fill open hour is between 00:00 and 16:00 UTC inclusive.
+Exit: block close with C < SMA20; the close of the 22:00 bar (sell at the 23:00 open); 12 hours after
+the fill (custom_exit); native stop-loss 2%. Cooldown of 6 candles after any exit.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from freqtrade.strategy import IStrategy
+
+
+MAX_WINDOW_BLOCKS = 30
+MEDIAN_WINDOW_BLOCKS = 150
+TREND_SMA_BLOCKS = 50
+BREAKOUT_BLOCKS = 10
+EXIT_SMA_BLOCKS = 20
+SESSION_EXIT_SIGNAL_HOUR = 22  # the close of the 22:00 bar raises the exit; sell at the 23:00 open
+MAX_HOLD_HOURS = 12
+LAST_FILL_HOUR = 16  # the buy fill must open between 00:00 and 16:00 UTC inclusive
+
+
+class DailyMaxJumpMomentum_H105_v1(IStrategy):
+    """2h-block MAX-jump regime plus 10-block closing-high breakout above SMA50, flat by 23:00 or 12h."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.02
+    trailing_stop = False
+    use_exit_signal = True
+    exit_profit_only = False
+    ignore_roi_if_entry_signal = False
+    startup_candle_count = 400
+
+    @property
+    def protections(self):
+        return [{"method": "CooldownPeriod", "stop_duration_candles": 6}]
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        date = pd.to_datetime(dataframe["date"])
+        hour = date.dt.hour
+        close = pd.Series(dataframe["close"].astype(float).values, index=pd.DatetimeIndex(date))
+        close = close[~close.index.duplicated(keep="last")]
+
+        odd_dates = pd.DatetimeIndex(date[(hour % 2 == 1).values])
+        columns = ["block_close", "block_r", "block_j", "block_median_j", "block_sma50", "block_sma20", "block_hh10"]
+        if len(odd_dates) == 0:
+            for column in columns:
+                dataframe[column] = float("nan")
+            dataframe["hour_utc"] = hour.values
+            dataframe["block_end"] = False
+            return dataframe
+
+        # Block close: close of the odd-hour bar, only when the even-hour bar before it exists.
+        even_close = close.reindex(odd_dates - pd.Timedelta(hours=1))
+        odd_close = close.reindex(odd_dates)
+        block_close = odd_close.where(even_close.notna().values)
+
+        # Full 2h grid of odd-hour closes: a missing block is NaN and propagates through every window.
+        grid = pd.date_range(odd_dates.min(), odd_dates.max(), freq="2h")
+        c = block_close.reindex(grid)
+
+        r = c / c.shift(1) - 1.0
+        j = r.rolling(MAX_WINDOW_BLOCKS).max()
+        median_j = j.shift(1).rolling(MEDIAN_WINDOW_BLOCKS).median()
+        sma50 = c.rolling(TREND_SMA_BLOCKS).mean()
+        sma20 = c.rolling(EXIT_SMA_BLOCKS).mean()
+        hh10 = c.shift(1).rolling(BREAKOUT_BLOCKS).max()
+
+        values = {
+            "block_close": c,
+            "block_r": r,
+            "block_j": j,
+            "block_median_j": median_j,
+            "block_sma50": sma50,
+            "block_sma20": sma20,
+            "block_hh10": hh10,
+        }
+        index = pd.DatetimeIndex(date)
+        for column, series in values.items():
+            # Computed at the odd-hour bar close; held (forward-filled) on the next bar only.
+            # The held value comes from the bar exactly one hour earlier, never from across a gap.
+            on_bar = series.reindex(index).values
+            previous = series.reindex(index - pd.Timedelta(hours=1)).values
+            dataframe[column] = pd.Series(
+                np.where(hour.values % 2 == 1, on_bar, previous), index=dataframe.index
+            ).astype(float)
+        dataframe["hour_utc"] = hour.values
+        # Only an odd-hour bar with a complete block is a block end (the held value on the even bar is not).
+        dataframe["block_end"] = (hour.values % 2 == 1) & dataframe["block_close"].notna().values
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        defined = (
+            dataframe["block_close"].notna()
+            & dataframe["block_j"].notna()
+            & dataframe["block_median_j"].notna()
+            & dataframe["block_sma50"].notna()
+            & dataframe["block_hh10"].notna()
+        )
+        fill_hour = (dataframe["hour_utc"] + 1) % 24
+        cond = (
+            defined
+            & dataframe["block_end"]
+            & (dataframe["block_j"] >= dataframe["block_median_j"])
+            & (dataframe["block_close"] > dataframe["block_sma50"])
+            & (dataframe["block_close"] > dataframe["block_hh10"])
+            & (fill_hour <= LAST_FILL_HOUR)
+            & (dataframe["volume"] > 0)
+        )
+        dataframe.loc[cond, ["enter_long", "enter_tag"]] = (1, "max_jump_breakout")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        below_mean = (
+            dataframe["block_end"]
+            & dataframe["block_close"].notna()
+            & dataframe["block_sma20"].notna()
+            & (dataframe["block_close"] < dataframe["block_sma20"])
+        )
+        session = dataframe["hour_utc"] == SESSION_EXIT_SIGNAL_HOUR
+        has_volume = dataframe["volume"] > 0
+        dataframe.loc[below_mean & has_volume, ["exit_long", "exit_tag"]] = (1, "below_sma20")
+        dataframe.loc[session & has_volume, ["exit_long", "exit_tag"]] = (1, "session_exit_23")
+        return dataframe
+
+    def custom_exit(self, pair: str, trade, current_time, current_rate: float, current_profit: float, **kwargs):
+        if current_time - trade.open_date_utc >= timedelta(hours=MAX_HOLD_HOURS):
+            return "time_exit_12h"
+        return None
