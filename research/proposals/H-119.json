@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-119",
+  "family": "EfficiencyRatioThrust",
+  "title": "Kaufman efficiency-ratio thrust on 15m: ER(10) crosses 0.6, trailing 10-bar-low stop, 2% target, 8h exit",
+  "ex_ante_rule": "Chart 15m, closed bars only, same numbers on all nine pairs, one position per pair, no higher-timeframe filter. A signal is computed at the close of bar t and filled at the open of bar t+1 (entry price E). INDICATORS: signed efficiency ratio ER(t) = (close(t) - close(t-10)) / sum for i=0..9 of |close(t-i) - close(t-i-1)| (10 bars; ER(t) = 0 when the denominator is 0). ATR(t) = Wilder ATR(14) of 15m bars (true range, Wilder smoothing alpha 1/14). ENTRY at the close of bar t when ALL hold: (1) ER(t-1) <= 0.6 AND ER(t) > 0.6 (fresh cross into the efficient-uptrend zone); (2) ATR(t)/close(t) >= 0.004 (activity filter a, fixed in advance); (3) no open position on the pair. Because condition (1) is a cross, after any exit a new entry always needs a new cross from at or below 0.6; a cross that occurs while a position is open is ignored. STOP (price level, executed intrabar as soon as the low touches it, implemented via custom_stoploss returning the distance from the current rate to the stored level): initial stop S0 = min(lowest low of bars t-9..t, 0.99*E), so it is always at least 1% below entry. After the close of each later bar k in the trade, S = max(S, lowest low of bars k-9..k): the stop is raised to the 10-bar low when that is higher and is never lowered; the new level applies from bar k+1 (if bar k+1 opens below it, the exit fills at that open). Native fixed backstop stoploss = -10% below E (a safety bound that should essentially never bind; the rule's stop is the trailing level). TAKE-PROFIT: sell at E*1.02 intrabar when the high reaches it (minimal_roi {\"0\": 0.02}). TIME EXIT: sell at the open of the first bar that starts 32 bars (8 hours) after the entry fill, i.e. after 32 bars in the trade, if neither stop nor target fired first. No cooldown beyond the fresh-cross requirement. If stop and target are both touched inside the same bar, the engine's default (stop first) applies. Warm-up: 400 bars (ER needs 11 closes and ATR(14) 15 bars; 400 bars let the Wilder recursion converge for the recursive-analysis gate).",
+  "parameters": {
+    "timeframe": "15m",
+    "er_period": 10,
+    "er_entry_threshold": 0.6,
+    "atr_period": 14,
+    "atr_over_close_min": 0.004,
+    "stop_lookback_bars": 10,
+    "min_initial_stop_pct": 0.01,
+    "backstop_stoploss": -0.10,
+    "take_profit_pct": 0.02,
+    "time_exit_bars": 32,
+    "startup_candle_count": 400
+  },
+  "rationale": "Kaufman's efficiency ratio is net displacement divided by path length; a signed value above 0.6 over 10 bars of 15m means price climbed about 2.5 hours with little back-and-forth. A smooth, low-noise climb is the footprint of a buyer still working an order: Concretum's intraday Bitcoin trend research notes that rebalancing flows are fragmented and executed over time for liquidity reasons, so order flow stays persistent for hours, unlike a single spike that often reverts. The counterparty is liquidity providers and mean-reversion sellers who fade the climb too early, plus late buyers who chase after the move. WH SelfInvest describes exactly this setup for 15m day trading: buy on the +0.6 cross, initial stop at the 10-period low, trailing the 10-period low, profit target, about 1-3 signals a day. Move per trade: with ATR(14)/close >= 0.4% a 10-bar move with ER > 0.6 is already about 1.5-2%; the target is 2% and the stop is at least 1% below and trails, so exits sit on average about 1% or more from entry; a modest continuation edge should give roughly +0.5% gross per trade, above the 0.30% base and 0.45% conservative round trip. Expected frequency: ER crosses of 0.6 are common on 15m, and the ATR filter removes the quiet periods, so I expect roughly 300-800 trades per year per pair (about 1-2 a day), all closed within 8 hours. Regime behaviour: in chop the ER rarely exceeds 0.6 and the ATR filter often fails, so the rule mostly stands aside; in a falling market a fresh positive thrust can still occur, and the trailing 10-bar low limits the loss when it fails. No source tests this exact rule on crypto; the numbers come from the source, fixed before any test.",
+  "novelty_vs_tried": "No family in the context uses path efficiency (net move divided by path length) as the trigger. Breakout families (Donchian, opening-range, squeeze, Keltner, Williams) trigger on a price level; momentum families (TimeSeriesMomentum, IntradayReturnAcceleration, IntradayJumpContinuation) trigger on the size of a return, whatever its path. This rule triggers on the smoothness of the climb, so a 2% jump made of one spike does not qualify while a steady 1.5% climb does. FourHourKAMATrend uses Kaufman's adaptive average on 4h as a slow trend follower, not the ER cross as an intraday entry. The exit also differs: a trailing 10-bar-low structural stop with a 1% minimum distance, a 2% target and an 8h time exit.",
+  "sources": [
+    {
+      "title": "Trading strategy: Kaufman Efficiency Ratio (WH SelfInvest)",
+      "url": "https://whselfinvest.com/en/trading_strategies_33_Kaufman_Efficiency_Ratio.php"
+    },
+    {
+      "title": "Seasonality in Bitcoin intraday trend trading (Concretum Group)",
+      "url": "https://concretumgroup.com/seasonality-in-bitcoin-intraday-trend-trading/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed; only the exploration-only learnings digest and the idea I-111 in research/context/H-119.md (as of 2026-11-11), covering the nine enabled USDT pairs on 15m/1h/1d."
+}
