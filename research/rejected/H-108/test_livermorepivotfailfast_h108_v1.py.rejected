@@ -1,0 +1,290 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "LivermorePivotFailFast_H108_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+
+
+class FakeDp:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+def flat_frame(n=120, signal=None, after=None):
+    """Flat 100 market; a breakout bar at index `signal`; `after` maps index -> (close, low) overrides."""
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    volume = np.full(n, 10.0)
+    if signal is not None:
+        close[signal] = 105.0
+        high[signal] = 105.5
+        low[signal] = 100.0
+        volume[signal] = 50.0
+        for i in range(signal + 1, n):
+            close[i], open_[i], high[i], low[i] = 105.0, 105.0, 105.5, 104.5
+    for index, (c, lo) in (after or {}).items():
+        close[index] = c
+        low[index] = min(lo, c)
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(START, periods=n, freq="1h"),
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    )
+
+
+def run(frame):
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return strategy, frame
+
+
+def entry_rows(frame):
+    if "enter_long" not in frame:
+        return []
+    return frame.index[frame["enter_long"].fillna(0) == 1].tolist()
+
+
+def make_trade(frame, signal):
+    return types.SimpleNamespace(
+        open_date_utc=frame.loc[signal + 1, "date"].to_pydatetime(),
+        enter_tag=frame.loc[signal, "enter_tag"],
+    )
+
+
+def exit_at(strategy, frame, trade, index):
+    """custom_exit evaluated at the open of bar `index` (bars < index are closed)."""
+    strategy.dp = FakeDp(frame)
+    return strategy.custom_exit(
+        "BTC/USDT", trade, frame.loc[index, "date"].to_pydatetime(), 105.0, 0.0
+    )
+
+
+class ContractTests(unittest.TestCase):
+    def test_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "1h")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.02)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 100)
+
+    def test_cooldown_protection(self):
+        self.assertEqual(
+            Strategy().protections, [{"method": "CooldownPeriod", "stop_duration_candles": 1}]
+        )
+
+
+class SignalTests(unittest.TestCase):
+    def test_breakout_signals_once_with_pivot_tag(self):
+        strategy, frame = run(flat_frame(signal=70))  # index 70 = 22:00 on day 3? 70 % 24 = 22
+        self.assertEqual(entry_rows(frame), [])  # outside the 00:00-16:00 window
+        strategy, frame = run(flat_frame(signal=60))  # 60 % 24 = 12
+        self.assertEqual(entry_rows(frame), [60])
+        self.assertEqual(MODULE.parse_tag(frame.loc[60, "enter_tag"]), 100.5)
+
+    def test_entry_hour_window_inclusive(self):
+        for index, expected in ((48 + 0, [48 + 0]), (48 + 16, [48 + 16]), (48 + 17, [])):
+            _, frame = run(flat_frame(signal=index))
+            self.assertEqual(entry_rows(frame), expected, index)
+
+    def test_buffer_volume_and_trend_conditions(self):
+        # close exactly at 1.002 * P (not above) -> no entry
+        frame = flat_frame(signal=60)
+        frame.loc[60, "close"] = 100.5 * 1.002
+        self.assertEqual(entry_rows(run(frame)[1]), [])
+        # volume 1.9x the mean of the previous 4 bars -> no entry; 2.0x -> entry
+        frame = flat_frame(signal=60)
+        frame.loc[60, "volume"] = 19.0
+        self.assertEqual(entry_rows(run(frame)[1]), [])
+        frame = flat_frame(signal=60)
+        frame.loc[60, "volume"] = 20.0
+        self.assertEqual(entry_rows(run(frame)[1]), [60])
+        # close below SMA40 -> no entry (deep decline before, then a bounce above the old pivot)
+        frame = flat_frame(signal=60)
+        frame.loc[:59, ["close", "open"]] = 300.0
+        frame.loc[:59, "high"] = 100.5
+        frame.loc[:59, "low"] = 99.5
+        self.assertEqual(entry_rows(run(frame)[1]), [])
+
+    def test_signal_columns_are_binary(self):
+        _, frame = run(flat_frame(signal=60))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_no_signal(self):
+        frame = flat_frame(signal=60)
+        frame["volume"] = 0.0
+        _, out = run(frame)
+        self.assertEqual(entry_rows(out), [])
+        self.assertEqual(int(out.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        frame = flat_frame(signal=60)
+        frame.loc[60, "volume"] = 0.0
+        self.assertEqual(entry_rows(run(frame)[1]), [])
+
+    def test_undefined_startup_values_no_signal(self):
+        n = 200
+        index = np.arange(n)
+        price = 100.0 * 1.01 ** index
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(START, periods=n, freq="1h"),
+                "open": price,
+                "high": price * 1.001,
+                "low": price * 0.999,
+                "close": price,
+                "volume": 10.0 * 1.5 ** (index % 150),
+            }
+        )
+        _, out = run(frame)
+        rows = entry_rows(out)
+        self.assertTrue(len(rows) > 0)
+        self.assertTrue(min(rows) >= MODULE.TREND_SMA - 1)  # SMA40 undefined before bar 39
+        self.assertEqual(
+            int(out.iloc[:39].get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0
+        )
+
+    def test_no_lookahead(self):
+        rng = np.random.default_rng(7)
+        n, k = 400, 80
+        price = 100 + np.cumsum(rng.normal(0, 0.6, n + k))
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(START, periods=n + k, freq="1h"),
+                "open": price,
+                "high": price + rng.uniform(0, 1, n + k),
+                "low": price - rng.uniform(0, 1, n + k),
+                "close": price + rng.normal(0, 0.2, n + k),
+                "volume": rng.exponential(10, n + k) * rng.choice([1, 1, 1, 6], n + k),
+            }
+        )
+        _, short = run(frame.iloc[:n].copy())
+        _, long = run(frame.copy())
+        cols = [c for c in short.columns if c in long.columns]
+        pd.testing.assert_frame_equal(
+            short[cols].reset_index(drop=True),
+            long.iloc[:n][cols].reset_index(drop=True),
+            check_dtype=False,
+        )
+        self.assertTrue(len(entry_rows(short)) > 0 or len(entry_rows(long)) > 0)
+
+
+class ExitTests(unittest.TestCase):
+    def setUp(self):
+        self.t = 54  # signal bar 06:00 on day 3; fill bar t+1 opens 07:00
+
+    def build(self, after=None, signal=None):
+        signal = self.t if signal is None else signal
+        strategy, frame = run(flat_frame(signal=signal, after=after))
+        self.assertEqual(entry_rows(frame), [signal])
+        return strategy, frame, make_trade(frame, signal)
+
+    def test_hold_when_nothing_triggers(self):
+        strategy, frame, trade = self.build()
+        for index in range(self.t + 2, self.t + 12):
+            self.assertIsNone(exit_at(strategy, frame, trade, index), index)
+
+    def test_fail_fast_on_first_and_second_bar_after_signal(self):
+        for bar in (self.t + 1, self.t + 2):
+            strategy, frame, trade = self.build(after={bar: (100.0, 99.0)})
+            self.assertIsNone(exit_at(strategy, frame, trade, bar))  # bar not closed yet
+            self.assertEqual(exit_at(strategy, frame, trade, bar + 1), "fail_fast_below_pivot")
+
+    def test_close_equal_to_pivot_does_not_fail(self):
+        strategy, frame, trade = self.build(after={self.t + 1: (100.5, 100.5)})
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 2))
+
+    def test_fail_fast_not_applied_from_t_plus_3(self):
+        # close(t+3) = 100.0 is below P_entry (100.5) but above the previous-4-bar low (99.5)
+        strategy, frame, trade = self.build(after={self.t + 3: (100.0, 100.0)})
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 4))
+
+    def test_trailing_exit_from_t_plus_3(self):
+        # close(t+3) = 99.0 is below the lowest low (99.5) of bars t-1..t+2
+        strategy, frame, trade = self.build(after={self.t + 3: (99.0, 99.0)})
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 3))
+        self.assertEqual(exit_at(strategy, frame, trade, self.t + 4), "trail_below_4bar_low")
+
+    def test_trailing_exit_later_bar(self):
+        # bars t+2..t+5 have low 104.5; close(t+6) = 104.0 is below it
+        strategy, frame, trade = self.build(after={self.t + 6: (104.0, 104.0)})
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 6))
+        self.assertEqual(exit_at(strategy, frame, trade, self.t + 7), "trail_below_4bar_low")
+
+    def test_early_dip_above_pivot_is_not_a_trail_exit(self):
+        after = {self.t + 1: (104.0, 104.0), self.t + 2: (103.0, 103.0)}
+        strategy, frame, trade = self.build(after=after)
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 3))
+
+    def test_trailing_uses_strict_comparison_with_previous_bars_only(self):
+        strategy, frame, trade = self.build(after={self.t + 6: (104.5, 104.5)})  # equals prior low
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 7))
+
+    def test_max_hold_12_hours(self):
+        strategy, frame, trade = self.build()  # fill at t+1 = 07:00
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 1 + 11))
+        self.assertEqual(exit_at(strategy, frame, trade, self.t + 1 + 12), "max_hold_12h")
+
+    def test_session_flat_at_2300(self):
+        signal = 48 + 16  # 16:00 signal, fill 17:00; the 12h limit would fall on the next day
+        strategy, frame, trade = self.build(signal=signal)
+        self.assertIsNone(exit_at(strategy, frame, trade, 48 + 22))
+        self.assertEqual(exit_at(strategy, frame, trade, 48 + 23), "session_flat_2300")
+
+    def test_unrelated_tag_gets_no_signal_exit(self):
+        strategy, frame, trade = self.build(after={self.t + 1: (100.0, 99.0)})
+        trade.enter_tag = "other"
+        self.assertIsNone(exit_at(strategy, frame, trade, self.t + 2))
+
+
+if __name__ == "__main__":
+    unittest.main()

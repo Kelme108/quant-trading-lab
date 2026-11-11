@@ -1,0 +1,147 @@
+"""H-108: Livermore pivot break on 1h candles, volume-confirmed, with a 2-bar fail-fast exit, intraday session-bounded.
+
+Long only. At the close of bar t (signal bar), enter (fill at the open of t+1) when ALL hold:
+  (1) close(t) > 1.002 * P(t), P(t) = highest high of the previous 20 bars (current bar excluded);
+  (2) volume(t) >= 2.0 * mean volume of the previous 4 bars (current bar excluded);
+  (3) close(t) > SMA40(t) (40 closes ending at t, current bar included);
+  (4) the bar opens between 00:00 and 16:00 UTC inclusive;
+  (5) no position is open (one position per pair, freqtrade);
+  (6) cooldown of 1 candle after any exit (CooldownPeriod protection).
+P_entry = P(t) is stored in the entry tag and is fixed for the trade.
+
+Exits (custom_exit, evaluated with closed candles only; the sale happens at the next open):
+  * fail-fast: for the 2 bars after the signal bar (t+1, t+2), close(k) < P_entry;
+  * trailing: from bar t+3 on, close(k) < lowest low of the previous 4 bars (k-4..k-1);
+  * session flat: sold at the 23:00 UTC open of the fill day;
+  * maximum holding: sold at the open 12 hours after the fill.
+Stop-loss: native 2% below the fill price. No take-profit.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy
+
+
+PIVOT_LOOKBACK = 20
+BREAKOUT_BUFFER = 1.002
+VOLUME_LOOKBACK = 4
+VOLUME_MULTIPLE = 2.0
+TREND_SMA = 40
+FAIL_FAST_BARS = 2
+TRAIL_LOOKBACK = 4
+ENTRY_FIRST_HOUR = 0
+ENTRY_LAST_HOUR = 16
+SESSION_FLAT_HOUR = 23
+MAX_HOLD_HOURS = 12
+TAG_PREFIX = "H108"
+BAR = timedelta(hours=1)
+
+
+def make_tag(pivot: float) -> str:
+    return f"{TAG_PREFIX}|{float(pivot)!r}"
+
+
+def parse_tag(tag):
+    """Return P_entry stored in the entry tag, or None."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if value != value:
+        return None
+    return value
+
+
+def add_indicators(dataframe: DataFrame) -> DataFrame:
+    # Everything compared with the current candle is shifted by one candle.
+    dataframe["pivot_high"] = dataframe["high"].shift(1).rolling(PIVOT_LOOKBACK).max()
+    dataframe["vol_avg4"] = dataframe["volume"].shift(1).rolling(VOLUME_LOOKBACK).mean()
+    dataframe["sma40"] = dataframe["close"].rolling(TREND_SMA).mean()
+    dataframe["trail_low"] = dataframe["low"].shift(1).rolling(TRAIL_LOOKBACK).min()
+    dataframe["hour_utc"] = pd.to_datetime(dataframe["date"]).dt.hour
+    return dataframe
+
+
+class LivermorePivotFailFast_H108_v1(IStrategy):
+    """Volume-confirmed 20-hour high break that must hold for two bars; flat within the day."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.02
+    use_exit_signal = True
+    startup_candle_count = 100
+
+    @property
+    def protections(self):
+        return [{"method": "CooldownPeriod", "stop_duration_candles": 1}]
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return add_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        pivot = dataframe["pivot_high"]
+        cond = (
+            pivot.notna()
+            & dataframe["vol_avg4"].notna()
+            & dataframe["sma40"].notna()
+            & (dataframe["close"] > BREAKOUT_BUFFER * pivot)
+            & (dataframe["volume"] >= VOLUME_MULTIPLE * dataframe["vol_avg4"])
+            & (dataframe["close"] > dataframe["sma40"])
+            & (dataframe["hour_utc"] >= ENTRY_FIRST_HOUR)
+            & (dataframe["hour_utc"] <= ENTRY_LAST_HOUR)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [make_tag(value) for value in pivot[cond]]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # All exits depend on the open trade (P_entry, fill time): see custom_exit.
+        return dataframe
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        fill = pd.Timestamp(trade.open_date_utc).floor("1h")
+        now = pd.Timestamp(current_time)
+
+        # Time exits: session flat at the 23:00 UTC open of the fill day; max holding 12 hours.
+        if now >= fill.normalize() + timedelta(hours=SESSION_FLAT_HOUR):
+            return "session_flat_2300"
+        if now >= fill + timedelta(hours=MAX_HOLD_HOURS):
+            return "max_hold_12h"
+
+        pivot = parse_tag(trade.enter_tag)
+        if pivot is None:
+            return None
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if dataframe is None or len(dataframe) == 0:
+            return None
+
+        dates = pd.to_datetime(dataframe["date"])
+        # Closed bars k >= t+1 (the fill bar onward): opened at/after the fill, fully closed by now.
+        closed = dataframe.loc[(dates >= fill) & (dates + BAR <= now) & (dataframe["volume"] > 0)]
+        if closed.empty:
+            return None
+        bars_after_signal = ((pd.to_datetime(closed["date"]) - fill) // BAR) + 1  # t+1 -> 1
+        close = closed["close"].astype(float)
+        fail_window = bars_after_signal <= FAIL_FAST_BARS
+        if bool((fail_window & (close < pivot)).any()):
+            return "fail_fast_below_pivot"
+        trail_window = bars_after_signal > FAIL_FAST_BARS
+        trail_low = closed["trail_low"].astype(float)
+        if bool((trail_window & trail_low.notna() & (close < trail_low)).any()):
+            return "trail_below_4bar_low"
+        return None
