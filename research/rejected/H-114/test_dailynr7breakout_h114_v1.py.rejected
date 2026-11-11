@@ -1,0 +1,327 @@
+import importlib.util
+import sys
+import types
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "DailyNR7Breakout_H114_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+EARLY_SIGNAL = 313  # day 3, 06:15: NR4 and breakout, but the 4h SMA(50) is still undefined
+LATE_SIGNAL = 985  # day 10, 06:15
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+
+
+def make_frame(n: int = 1400, early: bool = True, late: bool = True) -> pd.DataFrame:
+    """Steady uptrend with equal hourly ranges, plus narrow-hour NR4 set-ups with a breakout bar."""
+    index = np.arange(n)
+    price = 100.0 + 0.01 * index
+    high = price + 0.5
+    low = price - 0.5
+    close = price.copy()
+    for signal, on in ((EARLY_SIGNAL, early), (LATE_SIGNAL, late)):
+        if not on:
+            continue
+        first = signal - 5  # hour h bar opens at signal - 5 (h:00), so h:45 is signal - 2
+        for i in range(first, first + 4):
+            high[i] = price[i] + 0.2
+            low[i] = price[i] - 0.2
+        close[signal] = price[signal] + 1.5
+        high[signal] = price[signal] + 1.6
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(START, periods=n, freq="15min"),
+            "open": price,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": np.ones(n),
+        }
+    )
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame, {"pair": "BTC/USDT"})
+    return strategy.populate_entry_trend(frame, {"pair": "BTC/USDT"})
+
+
+def trade(open_rate, tag, opened):
+    return SimpleNamespace(
+        open_rate=open_rate, enter_tag=tag, open_date_utc=pd.Timestamp(opened, tz="UTC")
+    )
+
+
+class FakeDp:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class DailyNR7BreakoutH114Tests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.02)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 900)
+        self.assertTrue(Strategy.use_custom_stoploss)
+
+    def test_entry_fires_only_at_the_breakout_bar(self):
+        frame = run(Strategy(), make_frame())
+        signals = frame.index[frame["enter_long"] == 1].tolist()
+        self.assertEqual(signals, [LATE_SIGNAL])
+        tag = frame.loc[LATE_SIGNAL, "enter_tag"]
+        low, stamp = MODULE.parse_tag(tag)
+        hour_bar = frame.loc[LATE_SIGNAL - 5 : LATE_SIGNAL - 2]
+        self.assertAlmostEqual(low, hour_bar["low"].min())
+        self.assertEqual(stamp, frame.loc[LATE_SIGNAL - 2, "date"].value)
+
+    def test_signal_columns_are_binary(self):
+        rng = np.random.default_rng(3)
+        price = 100 + np.cumsum(rng.normal(0.02, 0.3, 1500))
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(START, periods=1500, freq="15min"),
+                "open": price,
+                "high": price + rng.uniform(0.05, 0.6, 1500),
+                "low": price - rng.uniform(0.05, 0.6, 1500),
+                "close": price,
+                "volume": rng.uniform(1, 5, 1500),
+            }
+        )
+        for data in (run(Strategy(), frame), run(Strategy(), make_frame())):
+            values = data["enter_long"].dropna().unique().tolist()
+            self.assertTrue(set(values).issubset({1}))
+            if "exit_long" in data:
+                self.assertTrue(set(data["exit_long"].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_creates_no_signal(self):
+        frame = make_frame()
+        frame.loc[LATE_SIGNAL, "volume"] = 0.0
+        self.assertEqual(int(run(Strategy(), frame)["enter_long"].fillna(0).sum()), 0)
+        frame = make_frame()
+        frame["volume"] = 0.0
+        strategy = Strategy()
+        frame = run(strategy, frame)
+        frame = strategy.populate_exit_trend(frame, {})
+        self.assertEqual(int(frame["enter_long"].fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_create_no_signal(self):
+        frame = run(Strategy(), make_frame())
+        # SMA(50) of completed 4h closes needs 800 bars: undefined before row 799.
+        self.assertTrue(frame["htf_sma"].iloc[:799].isna().all())
+        self.assertTrue(frame["htf_sma"].iloc[799:].notna().all())
+        # The early set-up is a valid NR4 breakout otherwise, but the filter is undefined.
+        self.assertTrue(bool(frame.loc[EARLY_SIGNAL, "nr4_active"]))
+        self.assertGreater(frame.loc[EARLY_SIGNAL, "close"], frame.loc[EARLY_SIGNAL, "nr4_high"])
+        self.assertTrue(pd.isna(frame.loc[EARLY_SIGNAL, "enter_long"]))
+        self.assertEqual(int(frame["enter_long"].iloc[:799].fillna(0).sum()), 0)
+
+    def test_three_prior_days_are_required(self):
+        frame = make_frame(early=False)
+        # Day 2, 06:15 (index 217): only two prior days exist, so no NR4 can be flagged.
+        signal = 2 * 96 + 25
+        for i in range(signal - 5, signal - 1):
+            frame.loc[i, "high"] = frame.loc[i, "open"] + 0.2
+            frame.loc[i, "low"] = frame.loc[i, "open"] - 0.2
+        out = Strategy().populate_indicators(frame, {})
+        self.assertFalse(bool(out.loc[signal, "nr4_active"]))
+
+    def test_not_narrower_than_every_prior_day_gives_no_signal(self):
+        frame = make_frame(late=False, early=False)
+        signal = LATE_SIGNAL
+        for i in range(signal - 5, signal - 1):
+            frame.loc[i, "high"] = frame.loc[i, "open"] + 0.2
+            frame.loc[i, "low"] = frame.loc[i, "open"] - 0.2
+        # Make the same hour on d-2 even narrower than the signal hour.
+        for i in range(signal - 5 - 192, signal - 1 - 192):
+            frame.loc[i, "high"] = frame.loc[i, "open"] + 0.1
+            frame.loc[i, "low"] = frame.loc[i, "open"] - 0.1
+        frame.loc[signal, "close"] = frame.loc[signal, "open"] + 1.5
+        frame.loc[signal, "high"] = frame.loc[signal, "open"] + 1.6
+        out = run(Strategy(), frame)
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_downtrend_filter_blocks_entry(self):
+        frame = make_frame(early=False)
+        # Falling 4h trend: replace the rising level by a falling one so the 4h close is below its SMA(50).
+        steps = np.arange(len(frame))
+        delta = (300.0 - 0.02 * steps) - (100.0 + 0.01 * steps)
+        for column in ("open", "high", "low", "close"):
+            frame[column] = frame[column] + delta
+        out = run(Strategy(), frame)
+        self.assertTrue((out["htf_close"] < out["htf_sma"]).iloc[LATE_SIGNAL])
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_low_more_than_two_percent_below_close_blocks_entry(self):
+        frame = make_frame(early=False)
+        frame.loc[LATE_SIGNAL, "close"] = frame.loc[LATE_SIGNAL, "open"] + 3.0
+        frame.loc[LATE_SIGNAL, "high"] = frame.loc[LATE_SIGNAL, "close"] + 0.1
+        out = run(Strategy(), frame)
+        low_h = out.loc[LATE_SIGNAL, "nr4_low"]
+        self.assertLess(low_h, 0.98 * out.loc[LATE_SIGNAL, "close"])
+        self.assertEqual(int(out["enter_long"].fillna(0).sum()), 0)
+
+    def test_window_is_eight_bars_after_the_hour(self):
+        out = Strategy().populate_indicators(make_frame(), {})
+        h_end = LATE_SIGNAL - 2
+        active = out["nr4_active"]
+        self.assertFalse(bool(active.iloc[h_end]))
+        for i in range(h_end + 1, h_end + 9):
+            self.assertTrue(bool(active.iloc[i]), i)
+        self.assertFalse(bool(active.iloc[h_end + 9]))
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        full = make_frame(1400)
+        short = full.iloc[:1100].copy()
+        long_run = run(Strategy(), full.copy())
+        short_run = run(Strategy(), short)
+        columns = ["nr4_high", "nr4_low", "nr4_time", "nr4_active", "htf_close", "htf_sma",
+                   "enter_long", "enter_tag"]
+        pd.testing.assert_frame_equal(
+            short_run.loc[:, columns].reset_index(drop=True),
+            long_run.loc[:1099, columns].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    def test_future_values_do_not_move_earlier_indicators(self):
+        original = make_frame(1400)
+        changed = original.copy()
+        for column in ("open", "high", "low", "close"):
+            changed.loc[1200:, column] = 1000.0
+        changed.loc[1200:, "volume"] = 999.0
+        a = run(Strategy(), original)
+        b = run(Strategy(), changed)
+        columns = ["nr4_high", "nr4_low", "nr4_time", "nr4_active", "htf_close", "htf_sma",
+                   "enter_long"]
+        pd.testing.assert_frame_equal(
+            a.loc[:1199, columns], b.loc[:1199, columns], check_dtype=False
+        )
+
+    def test_stop_is_floored_at_one_percent_and_capped_at_two(self):
+        s = Strategy()
+        now = pd.Timestamp("2024-01-05 10:30", tz="UTC")
+        t = trade(100.0, MODULE.make_tag(99.5, 1), "2024-01-05 10:00")
+        self.assertAlmostEqual(100.0 * (1 + s.custom_stoploss("X", t, now, 100.0, 0.0)), 99.0)
+        t = trade(100.0, MODULE.make_tag(98.5, 1), "2024-01-05 10:00")
+        self.assertAlmostEqual(100.0 * (1 + s.custom_stoploss("X", t, now, 100.0, 0.0)), 98.5)
+        t = trade(100.0, MODULE.make_tag(97.0, 1), "2024-01-05 10:00")
+        self.assertAlmostEqual(100.0 * (1 + s.custom_stoploss("X", t, now, 100.0, 0.0)), 98.0)
+        # The stop price is constant: measured from the open rate whatever the current rate is.
+        value = s.custom_stoploss("X", t, now, 105.0, 0.05)
+        self.assertAlmostEqual(105.0 * (1 + value), 98.0)
+        t = trade(100.0, None, "2024-01-05 10:00")
+        self.assertEqual(s.custom_stoploss("X", t, now, 100.0, 0.0), -0.02)
+
+    def exit_frame(self, closes, volume=1.0):
+        dates = pd.date_range("2024-01-05 09:30", periods=len(closes), freq="15min", tz="UTC")
+        return pd.DataFrame(
+            {"date": dates, "open": closes, "high": closes, "low": closes, "close": closes,
+             "volume": volume}
+        )
+
+    def test_target_exit_at_two_r(self):
+        s = Strategy()
+        t = trade(100.0, MODULE.make_tag(99.5, 1), "2024-01-05 10:00")  # stop 1%, target 102
+        closes = [100.0, 100.0, 100.5, 101.9, 102.5, 100.0]  # 09:30 .. 10:45
+        s.dp = FakeDp(self.exit_frame(closes))
+        # Closed bars at 10:30: 10:00 and 10:15 (101.9 < 102): not yet. The 10:30 bar is still open.
+        self.assertIsNone(s.custom_exit("X", t, pd.Timestamp("2024-01-05 10:30", tz="UTC"), 101.9, 0.019))
+        # The 10:30 bar closes at 102.5 >= target; at 10:45 it is closed.
+        self.assertEqual(
+            s.custom_exit("X", t, pd.Timestamp("2024-01-05 10:45", tz="UTC"), 102.5, 0.025),
+            "target_2r",
+        )
+        # Target uses the capped stop: low 97 -> stop 2% -> target 104.
+        t = trade(100.0, MODULE.make_tag(97.0, 1), "2024-01-05 10:00")
+        self.assertIsNone(s.custom_exit("X", t, pd.Timestamp("2024-01-05 10:45", tz="UTC"), 102.0, 0.02))
+        # The bar before the entry fill does not count.
+        t = trade(100.0, MODULE.make_tag(99.5, 1), "2024-01-05 10:00")
+        s.dp = FakeDp(self.exit_frame([110.0, 100.0, 100.0, 100.0, 100.0, 100.0]))
+        self.assertIsNone(s.custom_exit("X", t, pd.Timestamp("2024-01-05 10:45", tz="UTC"), 100.0, 0.0))
+
+    def test_time_exit_after_32_bars(self):
+        s = Strategy()
+        t = trade(100.0, MODULE.make_tag(99.5, 1), "2024-01-05 10:00")
+        s.dp = FakeDp(self.exit_frame([100.0] * 40))
+        # Entry bar 10:00 is bar 1; bar 32 opens 17:45 and closes 18:00; exit at the 18:00 open.
+        self.assertIsNone(s.custom_exit("X", t, pd.Timestamp("2024-01-05 17:45", tz="UTC"), 100.0, 0.0))
+        self.assertEqual(
+            s.custom_exit("X", t, pd.Timestamp("2024-01-05 18:00", tz="UTC"), 100.0, 0.0),
+            "time_exit_8h",
+        )
+
+    def test_confirm_trade_entry_limits(self):
+        s = Strategy()
+        tag = MODULE.make_tag(99.5, 111)
+        fill = pd.Timestamp("2024-01-05 10:00", tz="UTC")
+
+        def confirm(trades, entry_tag=tag, when=fill):
+            with mock.patch.object(
+                MODULE, "Trade", SimpleNamespace(get_trades_proxy=lambda **k: trades)
+            ):
+                return s.confirm_trade_entry("X", "limit", 1, 1, "GTC", when, entry_tag, "long")
+
+        self.assertTrue(confirm([]))
+        self.assertFalse(confirm([], entry_tag="other"))
+        one = trade(100.0, MODULE.make_tag(99.0, 5), "2024-01-05 08:00")
+        two = trade(100.0, MODULE.make_tag(99.0, 6), "2024-01-05 09:00")
+        self.assertTrue(confirm([one]))
+        self.assertFalse(confirm([one, two]))
+        # Another day does not count.
+        yesterday = trade(100.0, MODULE.make_tag(99.0, 7), "2024-01-04 12:00")
+        self.assertTrue(confirm([yesterday, one]))
+        # One entry per NR4 bar.
+        same_bar = trade(100.0, MODULE.make_tag(99.5, 111), "2024-01-05 08:00")
+        self.assertFalse(confirm([same_bar]))
+        # The day is the signal bar's: a 00:00 fill belongs to the previous day's 23:45 signal.
+        midnight = pd.Timestamp("2024-01-06 00:00", tz="UTC")
+        late_one = trade(100.0, MODULE.make_tag(99.0, 8), "2024-01-05 23:45")
+        late_two = trade(100.0, MODULE.make_tag(99.0, 9), "2024-01-06 00:00")
+        self.assertFalse(confirm([late_one, late_two], when=midnight))
+        self.assertTrue(confirm([late_one], when=pd.Timestamp("2024-01-06 00:15", tz="UTC")))
+
+
+if __name__ == "__main__":
+    unittest.main()

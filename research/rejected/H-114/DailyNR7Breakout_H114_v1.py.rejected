@@ -1,0 +1,275 @@
+"""H-114: session-aware hourly NR4 breakout on 15m, spot long only.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1.
+
+Hourly bar H (clock hour h): built from the four 15m bars opening at h:00, h:15, h:30, h:45; complete
+at the close of the h:45 bar. range(H) = high - low.
+NR4: range(H) < range of the same clock hour on each of days d-1, d-2, d-3 (all complete) and
+range(H) / close(H) >= 0.0025.
+Filter: 4h blocks (16 complete 15m bars, starting 00/04/08/12/16/20 UTC); the close of the last
+completed block must be above the SMA(50) of the last 50 completed 4h closes (that block included).
+Window: the 8 15m bars after H (opening (h+1):00 .. (h+2):45). Overlapping windows: only the most
+recently completed NR4 bar is used.
+Entry: first bar in the window with close > high(H), filter, flat (engine), fewer than 2 entries on
+the signal bar's UTC date and none yet for this NR4 bar (confirm_trade_entry), and
+low(H) >= 0.98 * close(signal bar). The tag carries low(H) and the time of H.
+Stop: stop_pct = min(0.02, max(0.01, (entry - low(H)) / entry)), fixed at entry, as a custom stop
+relative to the open rate. Native hard stoploss -0.02.
+Target (custom_exit): entry * (1 + 2 * stop_pct); exit at the next open after the first closed 15m
+bar (entry bar included) closing at or above it.
+Time exit (custom_exit): after the close of the 32nd bar (entry bar = bar 1), i.e. at the open of
+bar e+32 (8 hours after the fill bar).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+BAR = timedelta(minutes=15)
+HOUR_BARS = 4
+NR_PRIOR_DAYS = 3
+MIN_RANGE_TO_CLOSE = 0.0025
+HTF_BLOCK_BARS = 16
+HTF_SMA_LENGTH = 50
+WINDOW_BARS = 8
+MAX_ENTRIES_PER_DAY = 2
+STOP_FLOOR = 0.01
+STOP_CAP = 0.02
+TARGET_R = 2.0
+TIME_EXIT_BARS = 32
+LOW_TO_CLOSE_MIN = 0.98
+TAG_PREFIX = "nr4"
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def utc_ts(value) -> pd.Timestamp:
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        return ts.tz_localize("UTC")
+    return ts.tz_convert("UTC")
+
+
+def make_tag(low: float, hour_signal_ns: int) -> str:
+    return f"{TAG_PREFIX}|{float(low)!r}|{int(hour_signal_ns)}"
+
+
+def parse_tag(tag):
+    """(low(H), time of the h:45 bar of H in ns) from an entry tag, or None."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 3 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        low = float(parts[1])
+        stamp = int(parts[2])
+    except ValueError:
+        return None
+    if not np.isfinite(low) or low <= 0:
+        return None
+    return low, stamp
+
+
+def stop_fraction(entry: float, low: float) -> float:
+    """stop_pct = max(0.01, (entry - low) / entry), capped at 0.02."""
+    return min(STOP_CAP, max(STOP_FLOOR, (entry - low) / entry))
+
+
+def signal_date(fill_time) -> pd.Timestamp:
+    """UTC date of the signal bar for an order filled at the open of the following bar."""
+    fill_bar = utc_ts(fill_time).floor("15min")
+    return utc_day(fill_bar - BAR)
+
+
+def nr4_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add hourly NR4 context and 4h filter columns. Backward-looking only."""
+    dates = pd.DatetimeIndex(pd.to_datetime(dataframe["date"], utc=True)).astype("datetime64[ns, UTC]")
+    high = dataframe["high"].astype(float).to_numpy()
+    low = dataframe["low"].astype(float).to_numpy()
+    close = dataframe["close"].astype(float).to_numpy()
+    valid = np.isfinite(high) & np.isfinite(low) & np.isfinite(close)
+
+    base = pd.DataFrame(
+        {"date": dates, "high": high, "low": low, "close": close, "valid": valid}
+    )
+    base = base.drop_duplicates("date").sort_values("date")
+
+    # --- hourly bars on a complete hourly grid (incomplete hours are NaN) ---
+    hour_key = base["date"].dt.floor("1h")
+    grouped = base.groupby(hour_key)
+    h_count = grouped["valid"].sum()
+    h_high = grouped["high"].max()
+    h_low = grouped["low"].min()
+    h_close = grouped["close"].last()
+    hourly = pd.DataFrame(
+        {"count": h_count, "high": h_high, "low": h_low, "close": h_close}
+    )
+    hourly.index = pd.DatetimeIndex(hourly.index)
+    if hourly.index.tz is None:
+        hourly.index = hourly.index.tz_localize("UTC")
+    if len(hourly) > 0:
+        grid = pd.date_range(hourly.index.min(), hourly.index.max(), freq="1h")
+        hourly = hourly.reindex(grid)
+    complete = hourly["count"] == HOUR_BARS
+    hourly = hourly.where(complete)
+    h_range = hourly["high"] - hourly["low"]
+    nr4 = (h_range / hourly["close"]) >= MIN_RANGE_TO_CLOSE
+    for days in range(1, NR_PRIOR_DAYS + 1):
+        nr4 = nr4 & (h_range < h_range.shift(24 * days))
+    nr4 = nr4.fillna(False).astype(bool)
+    # An hourly bar is complete at the close of its h:45 bar.
+    signal_index = hourly.index + pd.Timedelta(minutes=45)
+    ev_flag = pd.Series(nr4.to_numpy(), index=signal_index)
+    ev_high = pd.Series(hourly["high"].to_numpy(), index=signal_index)
+    ev_low = pd.Series(hourly["low"].to_numpy(), index=signal_index)
+
+    flag_row = ev_flag.reindex(dates).fillna(False).to_numpy(dtype=bool)
+    high_row = ev_high.reindex(dates).to_numpy(dtype=float)
+    low_row = ev_low.reindex(dates).to_numpy(dtype=float)
+    time_row = np.where(flag_row, dates.asi8.astype("float64"), np.nan)
+
+    event = pd.DataFrame(
+        {
+            "nr4_high": np.where(flag_row, high_row, np.nan),
+            "nr4_low": np.where(flag_row, low_row, np.nan),
+            "nr4_time": time_row,
+        },
+        index=dataframe.index,
+    )
+    # Latest NR4 bar completed on an earlier bar (the signal bar itself is not in its own window).
+    latest = event.ffill().shift(1)
+    age_ns = dates.asi8.astype("float64") - latest["nr4_time"].to_numpy()
+    # The window is the 8 bars after the h:45 bar of H: age 15 min .. 2 h.
+    bar_ns = BAR.total_seconds() * 1e9
+    in_window = (age_ns >= bar_ns) & (age_ns <= WINDOW_BARS * bar_ns)
+
+    dataframe["nr4_high"] = latest["nr4_high"].to_numpy()
+    dataframe["nr4_low"] = latest["nr4_low"].to_numpy()
+    dataframe["nr4_time"] = latest["nr4_time"].to_numpy()
+    dataframe["nr4_active"] = in_window
+
+    # --- 4h blocks: close and SMA(50) of completed block closes ---
+    block_key = base["date"].dt.floor("4h")
+    bgrouped = base.groupby(block_key)
+    b_count = bgrouped["valid"].sum()
+    b_close = bgrouped["close"].last()
+    blocks = pd.DataFrame({"count": b_count, "close": b_close})
+    blocks.index = pd.DatetimeIndex(blocks.index)
+    if blocks.index.tz is None:
+        blocks.index = blocks.index.tz_localize("UTC")
+    if len(blocks) > 0:
+        bgrid = pd.date_range(blocks.index.min(), blocks.index.max(), freq="4h")
+        blocks = blocks.reindex(bgrid)
+    b_closes = blocks["close"].where(blocks["count"] == HTF_BLOCK_BARS)
+    b_sma = b_closes.rolling(HTF_SMA_LENGTH).mean()
+    # Last block completed at this bar's close: start s <= t - 3h45 on the 4h grid.
+    block_start = pd.DatetimeIndex(
+        (pd.Series(dates) - pd.Timedelta(hours=3, minutes=45)).dt.floor("4h")
+    )
+    dataframe["htf_close"] = b_closes.reindex(block_start).to_numpy(dtype=float)
+    dataframe["htf_sma"] = b_sma.reindex(block_start).to_numpy(dtype=float)
+    return dataframe
+
+
+class DailyNR7Breakout_H114_v1(IStrategy):
+    """Buy a close above the high of a same-hour NR4 bar in a 4h uptrend; 1% floor stop, 2R, 8h cap."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.02
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 900
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return nr4_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        close = dataframe["close"]
+        cond = (
+            dataframe["nr4_active"].astype(bool)
+            & dataframe["nr4_high"].notna()
+            & dataframe["nr4_low"].notna()
+            & dataframe["htf_close"].notna()
+            & dataframe["htf_sma"].notna()
+            & close.notna()
+            & dataframe["volume"].notna()
+            & (dataframe["volume"] > 0)
+            & (close > dataframe["nr4_high"])
+            & (dataframe["htf_close"] > dataframe["htf_sma"])
+            & (dataframe["nr4_low"] >= LOW_TO_CLOSE_MIN * close)
+        ).fillna(False)
+        dataframe["enter_long"] = np.nan
+        dataframe["enter_tag"] = None
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                make_tag(low, int(stamp))
+                for low, stamp in zip(
+                    dataframe.loc[cond, "nr4_low"], dataframe.loc[cond, "nr4_time"]
+                )
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Target and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """Max 2 entries per pair per signal-bar UTC date; one entry per NR4 bar."""
+        parsed = parse_tag(entry_tag)
+        if parsed is None:
+            return False
+        today = signal_date(current_time)
+        entries_today = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if signal_date(trade.open_date_utc) == today:
+                entries_today += 1
+            other = parse_tag(trade.enter_tag)
+            if other is not None and other[1] == parsed[1]:
+                return False
+        return entries_today < MAX_ENTRIES_PER_DAY
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        parsed = parse_tag(trade.enter_tag)
+        if parsed is None:
+            return self.stoploss
+        entry = float(trade.open_rate)
+        stop_price = entry * (1.0 - stop_fraction(entry, parsed[0]))
+        return stop_price / float(current_rate) - 1.0
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        fill_bar = utc_ts(trade.open_date_utc).floor("15min")
+        now = utc_ts(current_time)
+        parsed = parse_tag(trade.enter_tag)
+        if parsed is not None:
+            entry = float(trade.open_rate)
+            target = entry * (1.0 + TARGET_R * stop_fraction(entry, parsed[0]))
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if dataframe is not None and len(dataframe) > 0:
+                dates = pd.to_datetime(dataframe["date"], utc=True)
+                closed = dataframe.loc[(dates >= fill_bar) & (dates + BAR <= now)]
+                closed = closed.loc[closed["volume"] > 0]
+                if bool(np.any(closed["close"].to_numpy(dtype=float) >= target)):
+                    return "target_2r"
+        if now >= fill_bar + TIME_EXIT_BARS * BAR:
+            return "time_exit_8h"
+        return None
