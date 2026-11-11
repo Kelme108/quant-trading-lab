@@ -84,8 +84,16 @@ class ForwardFilesTests(unittest.TestCase):
         written = autopilot.write_forward_files("H-104", ["BNB/USDT", "ETH/USDT"], 0.25, "HourlyWilliamsVolBreakoutRVol_H104_v1",
                                                 self.root, wallet_quote=1000.0, layout=forward.PER_PAIR)
         self.assertEqual(written, ["forward/config.h104.bnb.json", "forward/config.h104.eth.json", "docker-compose.forward.h104.yml"])
-        for name in written:  # the frozen H-104 files were written by the per-pair generator
-            self.assertEqual((self.root / name).read_bytes(), (ROOT / name).read_bytes(), name)
+        # The bytes the per-pair generator wrote for the old H-104 freeze (git 559e6d3^); a literal, so the test does not depend on
+        # which hypotheses are frozen in the repository today.
+        self.assertEqual((self.root / "forward/config.h104.bnb.json").read_text(encoding="utf-8"), (
+            '{\n  "bot_name": "forward-h104-bnb",\n  "strategy": "HourlyWilliamsVolBreakoutRVol_H104_v1",\n'
+            '  "db_url": "sqlite:///user_data/tradesv3.forward.h104.bnb.sqlite",\n  "tradable_balance_ratio": 0.25,\n'
+            '  "dry_run_wallet": 1000.0,\n  "exchange": {\n    "pair_whitelist": [\n      "BNB/USDT"\n    ]\n  }\n}\n'))
+        compose = (self.root / "docker-compose.forward.h104.yml").read_text(encoding="utf-8")
+        self.assertEqual(compose.count("container_name:"), 2)
+        self.assertIn("container_name: forward-h104-bnb\n", compose)
+        self.assertIn("--config /freqtrade/forward/config.h104.eth.json", compose)
 
     def test_an_unknown_layout_or_pair_is_refused(self) -> None:
         with self.assertRaises(ValueError):
@@ -103,9 +111,9 @@ class ForwardFilesTests(unittest.TestCase):
         self.assertEqual(autopilot.running_forward_bots(self.root), 4)
         self.assertEqual(autopilot.running_forward_pairs(self.root), 12)
 
-    def test_the_shipped_bots_are_counted_as_before(self) -> None:
-        # every bot frozen so far is per-pair: the container count equals the pair count
-        self.assertEqual(autopilot.running_forward_bots(ROOT), autopilot.running_forward_pairs(ROOT))
+    def test_the_shipped_bots_never_count_more_containers_than_pairs(self) -> None:
+        # per-pair bots: one container per pair; multi-pair bots: one container for several pairs
+        self.assertLessEqual(autopilot.running_forward_bots(ROOT), autopilot.running_forward_pairs(ROOT))
 
 
 class AutopilotPipelineTests(PipelineTestCase):
