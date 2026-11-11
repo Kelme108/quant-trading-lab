@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-121",
+  "family": "HighOfDayRVolBreak",
+  "title": "High-of-day break on a high-volume day: 15m close above a 2h-held intraday high with time-matched cumulative RVOL >= 1.5",
+  "ex_ante_rule": "Chart 15m, closed bars only, all times UTC. Signal at the close of bar t, fill at the open of bar t+1. Same rule and numbers on all nine pairs; no higher-timeframe filter. Warm-up: 2112 bars (22 UTC days; longest lookback = 20 complete previous UTC days plus the current day = 2016 bars, rounded up for safety; no recursive indicators). DEFINITIONS: Day d = the 96 bars opening 00:00-23:45 UTC. Od = open of day d's 00:00 bar. k(t) = clock slot of bar t (0 for 00:00 ... 95 for 23:45). CUMVOL(d,k) = sum of volume of day d's bars from slot 0 through slot k. RVOL(t) = CUMVOL(d,k(t)) / mean over the 20 previous UTC days j=d-1..d-20 of CUMVOL(j,k(t)) (time-of-day matched, day d excluded). If any of those 20 days lacks a bar at or before slot k, or the mean is 0, RVOL is undefined and no entry is allowed. HOD(t) = highest high of day d's bars from slot 0 through bar t-1; s(t) = index of the most recent bar in that window whose high equals HOD(t); the level is 'held' only if s(t) <= t-8 (set at least 8 bars, 2 h, before t). ENTRY (all must hold at the close of bar t): (1) bar t opens between 02:00 and 19:45 UTC inclusive; (2) close(t) > HOD(t) and the held condition s(t) <= t-8; (3) RVOL(t) >= 1.5 (activity filter b, volume); (4) close(t)/Od - 1 >= 0.005; (5) no open position on the pair; (6) fewer than 2 entries already filled on that pair with entry date in day d. Buy at the open of bar t+1, price E. EXITS (first that occurs): STOP: fixed 1% below E (stoploss -0.01, native, intrabar). TARGET: E*1.02 (take-profit +2%, e.g. minimal_roi {\"0\": 0.02}, intrabar). TIME EXIT: when the trade has been open 32 bars (8 h), exit at the open of the bar starting 8 h after the entry fill; or at the open of the 23:45 UTC bar of the entry day, whichever comes first (so every trade closes within the UTC day and within 12 h). No exit signal other than these; no trailing stop; no cooldown beyond the two-per-day limit and one position at a time.",
+  "parameters": {
+    "timeframe": "15m",
+    "rvol_lookback_days": 20,
+    "rvol_min": 1.5,
+    "hod_hold_bars": 8,
+    "entry_window_start_utc": "02:00",
+    "entry_window_end_utc": "19:45",
+    "min_day_return": 0.005,
+    "max_entries_per_day": 2,
+    "stoploss": -0.01,
+    "take_profit": 0.02,
+    "time_exit_bars": 32,
+    "eod_exit_bar_utc": "23:45",
+    "startup_candle_count": 2112
+  },
+  "rationale": "Mechanism: crypto volume has a strong intraday cycle, so participation must be compared with the same time of day; a UTC day whose cumulative volume runs at 1.5x its normal level by that clock time is an attention or information day (LuxAlgo: time-of-day cumulative RVOL; breakouts with high RVOL have more participation, but RVOL is attention, not direction, so it is used only as a filter on a directional structure). The structure is a high of day that held for at least 2 h: shorts and range sellers place stops just above it and breakout traders wait for it, so a close above it on a high-attention, already-up day (+0.5% from the 00:00 open) trips those buy stops and draws new buyers, and the move tends to extend instead of fading. Counterparty: shorts/range sellers forced to cover above the level, and late sellers who fade the break. Expected frequency: the up-day, held-HOD and RVOL conditions jointly fire on perhaps 25-40% of days, capped at 2 entries per day, roughly 100-250 trades per year per pair. Move per trade: exits sit 1-2% away (stop 1%, target 2%, time exit 8 h), so the average absolute move is about 1-1.5%; with a ~40% target-hit share and positive time exits the expected gross is about +0.5% per trade, above the 0.30% base and near the 0.45% conservative round trip. Range/bear behaviour: the +0.5% up-day and high-RVOL conditions stand aside on quiet or falling days; on chop days breakouts fail at the 1% stop, the main risk. Note: the 1% stop and 2% target are kept as given by the idea although the 2026-11-10 review favoured 2-3% stops; formalised unchanged, not tuned.",
+  "novelty_vs_tried": "Differs from the opening-range families (SessionOpeningRangeBreakout, capped; AsianRangeLondonBreakout) in that the level is the running intraday high that must have held for 2 h, not a fixed first-N-minutes range. Differs from HighVolumeSessionMomentum, USOpenVolumeContinuation, AbnormalDayContinuationRVol and SeasonalVolumeSurprise by using a time-of-day matched CUMULATIVE day volume state (cumulative volume through the same clock slot vs. the 20 previous days) instead of a single-bar volume ratio or a daily-candle condition, and by requiring an intraday structural break. Differs from the prior-day-high idea I-093 by using the current day's high and the cumulative RVOL state.",
+  "sources": [
+    {
+      "title": "Relative Volume (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/relative-volume.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file for H-121 (exploration-only digest of prior hypotheses on the nine USDT pairs, 15m/1h) and the LuxAlgo relative-volume page."
+}
