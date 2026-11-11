@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-116",
+  "family": "PocketPivotVolume",
+  "title": "Hourly pocket pivot: up bar out-volumes every recent down bar at the 10-bar mean, 4h uptrend, 2R or 12h exit",
+  "ex_ante_rule": "Chart 1h, UTC, closed bars only; signal at the close of bar t, fill at the open of bar t+1 (price E). Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs. DOWN BAR: close(i) < close(i-1) (equal closes are not down bars). VD(t) = highest volume among the down bars in t-10..t-1 (current bar excluded); if none of those 10 bars is a down bar, no signal. SMA10(t) = mean of the 10 closes t-9..t (t included). POCKET PIVOT at t when all hold: (1) close(t) > close(t-1); (2) volume(t) > VD(t) (strict); (3) close(t) > SMA10(t); (4) low(t) <= 1.005 x SMA10(t). FILTER (higher-timeframe direction): 4h candles are UTC blocks starting 00,04,08,12,16,20 (informative 4h via merge_informative_pair, or built from four closed 1h bars, identical values); at the close of t, the last COMPLETED 4h candle must close above the SMA(50) of the last 50 completed 4h closes, that candle included. RISK: r = (close(t) - low(t)) / close(t); if r > 0.025, skip (extended signal). d = max(r, 0.01), computed at t and frozen for the trade. ENTRY: buy at open(t+1) when the pivot and the filter hold at t, the pair is flat, and fewer than 2 trades have been opened on this pair during the UTC calendar day of the fill (counted by fill time; confirm_trade_entry). EXITS, first to occur: (a) STOP-LOSS: fixed distance d below E, stop price E x (1 - d), constant for the trade, triggered intrabar as soon as the low touches it (custom_stoploss returning the frozen d; native stoploss -0.03 is only an engine backstop, never binding since d <= 0.025); (b) TAKE-PROFIT: target E x (1 + 2d) (2R), sold at that price when a bar's high reaches it (at the open if a bar opens above it); if stop and target are touched in the same bar, the stop counts; (c) TIME EXIT: with the fill at the open of bar e = t+1, exit signal at the close of bar e+11 (the 12th 1h bar of the trade), sold at the open of e+12, i.e. 12 hours after the fill. No trailing, no break-even move, no cooldown beyond the 2-per-day cap, no other filters, single grid cell. The scout wrote STOP = min(low(t), 0.99 x entry); the lab needs a fixed percentage below the entry price, so the distance d is measured on the signal bar (close(t) vs low(t), floored at 1%) and applied to E. Warm-up: 250 bars (SMA(50) of 4h closes = 200 1h bars, plus up to 4 bars of 4h alignment, plus margin; the 1h lookbacks are 11 bars; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "down_volume_lookback_bars": 10,
+    "sma_fast_bars": 10,
+    "near_sma_tolerance": 1.005,
+    "filter_timeframe": "4h",
+    "filter_sma_bars": 50,
+    "max_signal_bar_risk": 0.025,
+    "min_stop_distance": 0.01,
+    "target_r_multiple": 2.0,
+    "time_exit_bars": 12,
+    "max_entries_per_utc_day": 2,
+    "backstop_stoploss": -0.03,
+    "startup_candle_count": 250
+  },
+  "rationale": "Morales and Kacher's pocket pivot (summarised by LuxAlgo): an up bar whose volume exceeds the largest volume of any down bar in the prior 10 bars, fired at or up through the 10-period mean rather than after a run, is the footprint of a large buyer still working an order; the threshold adapts to each pair's own recent selling volume, so it transfers across pairs of different liquidity. The counterparties are the sellers who supplied the recent down bars and short-horizon reversal traders fading the up bar. On the hourly chart this is a volume-burst trigger, which the lab's digest found to be the one filter that raised gross move per trade; the 4h close above its SMA(50) keeps trades with the higher-timeframe flow and stands the rule aside in falling markets (in a range it trades only when the 4h close is above its mean). Exits: stop 1-2.5% (the signal bar's low, floored at 1% so the 0.30% round trip is at most 0.3R), target 2R (2-5%), hard 12h time exit, so winners are not capped at tiny sizes. Expected roughly 100-250 trades per year per pair (up bar x volume above every recent down bar x near the mean x 4h uptrend, capped at 2 per day). At a hit rate near 35-40% with 2R targets and many time exits, the expected average gross move is about 0.5-0.7% per trade, above the 0.30% base and 0.45% conservative round trip. All numbers are taken from the idea ex ante (10 bars, 0.5% tolerance, SMA50 4h, 1%/2.5% stop bounds, 2R, 12h), none tuned.",
+  "novelty_vs_tried": "No tried family uses the pocket-pivot volume test (up-bar volume above the maximum down-bar volume of the last 10 bars). H-108/H-046 LivermorePivotFailFast and H-059/H-102 jump rules are breakouts of prior highs with volume versus a simple mean; this rule needs no breakout and fires at the short mean, not extended above it. H-050/H-053 VolumeConditionedReversal buy volume spikes after drops; H-112 OBVLeadBreakout uses cumulative OBV near a 48h high; H-036/H-051 are session-timed volume continuation. Here the volume reference is directional (only down-bar volume), adaptive per pair, and paired with a structural risk (signal-bar low) and a 2R target with a 12h time exit.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Pocket Pivot (Morales and Kacher)",
+      "url": "https://www.luxalgo.com/library/concept/pocket-pivot/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data viewed; only the exploration-only digest and tried-rule list in research/context/H-116.md (nine pairs, 1h/15m, exploration split) and the LuxAlgo pocket pivot page."
+}
