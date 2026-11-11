@@ -1,0 +1,290 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "FairValueGapRetest_H117_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+K = 30  # displacement bar; the gap completes at bar K+1 = 31
+GL = 100.5  # high of bar 29
+CE = 101.0  # (100.5 + 101.5) / 2
+
+
+def make_frame(retest_bar=33, retest_close=102.0, length=None, extra_flat=10):
+    """Flat 100 market, 2x-volume displacement at bar 30, bullish gap 100.5..101.5, one retest bar."""
+    n = length or (retest_bar + extra_flat)
+    rows = []
+    for i in range(n):
+        rows.append([100.0, 100.5, 99.5, 100.0, 10.0])
+    rows[K] = [100.0, 103.5, 100.0, 103.0, 50.0]
+    rows[K + 1] = [103.0, 104.0, 101.5, 103.5, 10.0]
+    for i in range(K + 2, n):
+        rows[i] = [103.0, 103.5, 102.5, 103.0, 10.0]
+    if retest_bar < n:
+        rows[retest_bar] = [103.0, 103.5, 100.9, retest_close, 10.0]
+    frame = pd.DataFrame(rows, columns=["open", "high", "low", "close", "volume"])
+    return frame
+
+
+def run(frame):
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def signals(frame):
+    if "enter_long" not in frame:
+        return []
+    return frame.index[frame["enter_long"] == 1].tolist()
+
+
+class FairValueGapRetestTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 55)
+        self.assertEqual(Strategy.startup_candle_count, 100)
+        self.assertEqual(MODULE.ACTIVE_BARS, 32)
+        self.assertEqual(MODULE.MAX_ENTRIES_PER_DAY, 4)
+
+    def test_retest_signal_with_gap_bottom_tag(self):
+        frame = run(make_frame())
+        self.assertEqual(signals(frame), [33])
+        self.assertEqual(frame.loc[33, "enter_tag"], "fvg_gl|100.5")
+        self.assertEqual(MODULE.parse_tag(frame.loc[33, "enter_tag"]), GL)
+
+    def test_signal_columns_are_binary(self):
+        frame = run(make_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_one_signal_per_gap(self):
+        base = make_frame()
+        base.loc[40] = [103.0, 103.5, 100.9, 102.0, 10.0]  # a second touch of the midpoint
+        self.assertEqual(signals(run(base)), [33])
+
+    def test_close_below_gap_bottom_kills_gap(self):
+        frame = make_frame()
+        frame.loc[32] = [103.0, 103.0, 99.0, 100.0, 10.0]  # closes below GL = 100.5
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_retest_close_must_be_above_gap_bottom(self):
+        self.assertEqual(signals(run(make_frame(retest_close=100.4))), [])
+
+    def test_gap_active_for_32_bars_only(self):
+        # Gap known at bar 31, active on bars 32..63.
+        self.assertEqual(signals(run(make_frame(retest_bar=63))), [63])
+        self.assertEqual(signals(run(make_frame(retest_bar=64))), [])
+
+    def test_no_signal_at_bar_after_gap_completes_before_active(self):
+        # Bar 31 completes the gap; a touch on bar 31 itself is not a retest signal.
+        frame = make_frame(retest_bar=200, length=70)
+        frame.loc[31] = [103.0, 104.0, 100.9, 103.5, 10.0]
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_gap_below_minimum_size_is_invalid(self):
+        frame = make_frame()
+        frame.loc[31, "low"] = 100.7  # (100.7-100.5)/103.5 = 0.19% < 0.3%
+        frame.loc[33, "low"] = 100.55  # midpoint is 100.6 -> still a touch if the gap were valid
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_displacement_bar_must_be_bullish(self):
+        frame = make_frame()
+        frame.loc[K, "close"] = 99.9
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_displacement_volume_must_be_double_the_mean(self):
+        frame = make_frame()
+        frame.loc[K, "volume"] = 19.9  # mean of the 20 prior bars is 10
+        self.assertEqual(signals(run(frame)), [])
+        frame.loc[K, "volume"] = 20.0
+        self.assertEqual(signals(run(frame)), [33])
+
+    def test_newer_valid_gap_replaces_older_without_fallback(self):
+        frame = make_frame(retest_bar=300, length=80)
+        # A second gap: displacement at 40, completing at 41, GL2 = high(39) = 103.5, GH2 = 106.
+        frame.loc[40] = [103.0, 108.0, 103.0, 107.0, 50.0]
+        frame.loc[41] = [107.0, 108.0, 106.0, 107.5, 10.0]
+        # Bars after 41 stay at 107 (above CE2 = 104.75); bar 45 touches the OLD midpoint 101 and closes
+        # above the old GL, but the tracked gap is the newest one.
+        for i in range(42, 80):
+            frame.loc[i] = [107.0, 107.5, 106.5, 107.0, 10.0]
+        frame.loc[45] = [107.0, 107.5, 100.9, 106.0, 10.0]
+        self.assertEqual(signals(run(frame)), [45])
+        self.assertEqual(run(frame).loc[45, "enter_tag"], "fvg_gl|103.5")
+
+    def test_zero_volume_candle_produces_no_signal(self):
+        frame = make_frame()
+        frame.loc[33, "volume"] = 0.0
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_all_zero_volume_produces_no_signal(self):
+        frame = make_frame()
+        frame["volume"] = 0.0
+        out = run(frame)
+        self.assertEqual(signals(out), [])
+        self.assertEqual(int(out.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_undefined_startup_values_produce_no_signal(self):
+        prices = [100.0 + index for index in range(260)]
+        frame = pd.DataFrame(
+            {
+                "open": prices,
+                "high": [p * 1.01 for p in prices],
+                "low": [p * 0.99 for p in prices],
+                "close": prices,
+                "volume": [1.0] * 260,
+            }
+        )
+        out = run(frame)
+        self.assertEqual(signals(out.iloc[: Strategy.startup_candle_count]), [])
+        # With fewer than 22 bars the volume mean is undefined, so a displacement there creates no gap.
+        early = make_frame(length=60)
+        early = early.iloc[:30].copy()
+        early.loc[10] = [100.0, 103.5, 100.0, 103.0, 500.0]
+        early.loc[11] = [103.0, 104.0, 101.5, 103.5, 10.0]
+        early.loc[12] = [103.0, 103.5, 100.9, 102.0, 10.0]
+        self.assertEqual(signals(run(early)), [])
+
+    def test_nan_values_produce_no_signal(self):
+        frame = make_frame()
+        frame.loc[33, "low"] = np.nan
+        self.assertEqual(signals(run(frame)), [])
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        rng = np.random.default_rng(7)
+        n, extra = 400, 150
+        close = 100 + np.cumsum(rng.normal(0, 0.6, n + extra))
+        open_ = np.roll(close, 1)
+        open_[0] = close[0]
+        high = np.maximum(open_, close) + rng.uniform(0, 0.4, n + extra)
+        low = np.minimum(open_, close) - rng.uniform(0, 0.4, n + extra)
+        volume = rng.uniform(5, 15, n + extra)
+        volume[rng.random(n + extra) < 0.08] *= 6
+        full = pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume})
+        short = run(full.iloc[:n])
+        long = run(full)
+        self.assertGreater(len(signals(long)), 0)
+        cols = ["fvg_retest", "fvg_gl", "enter_long", "enter_tag"]
+        pd.testing.assert_frame_equal(
+            short[cols].reset_index(drop=True),
+            long.iloc[:n][cols].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    def test_confirm_trade_entry_limits_four_per_utc_day(self):
+        strategy = Strategy()
+        day = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
+
+        def trades(count_today):
+            result = [SimpleNamespace(open_date_utc=day.replace(hour=1 + i)) for i in range(count_today)]
+            result.append(SimpleNamespace(open_date_utc=day - timedelta(days=1)))
+            return result
+
+        class Fake:
+            count = 3
+
+            @staticmethod
+            def get_trades_proxy(**kwargs):
+                return trades(Fake.count)
+
+        with mock.patch.object(MODULE, "Trade", Fake):
+            args = ("BTC/USDT", "limit", 1.0, 100.0, "GTC", day, "fvg_gl|100.5", "long")
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+            Fake.count = 4
+            self.assertFalse(strategy.confirm_trade_entry(*args))
+            Fake.count = 0
+            self.assertFalse(
+                strategy.confirm_trade_entry("BTC/USDT", "limit", 1.0, 100.0, "GTC", day, None, "long")
+            )
+
+    def test_stop_distance_and_custom_stoploss(self):
+        # Fill at 101, GL 100.5: 1 - 0.998*100.5/101 = 0.69% -> floor of 1%.
+        self.assertAlmostEqual(MODULE.stop_distance(100.5, 101.0), 0.01)
+        # Fill at 105: 1 - 0.998*100.5/105 = 4.47% -> uses the gap-based distance.
+        self.assertAlmostEqual(MODULE.stop_distance(100.5, 105.0), 1 - 0.998 * 100.5 / 105.0)
+        strategy = Strategy()
+        trade = SimpleNamespace(enter_tag="fvg_gl|100.5", open_rate=105.0)
+        stop_price = min(0.998 * 100.5, 0.99 * 105.0)
+        value = strategy.custom_stoploss("BTC/USDT", trade, None, 105.0, 0.0)
+        self.assertAlmostEqual(105.0 * (1 + value), stop_price)
+        # The stop is a fixed price: from a higher current rate the distance grows accordingly.
+        value = strategy.custom_stoploss("BTC/USDT", trade, None, 110.0, 0.05)
+        self.assertAlmostEqual(110.0 * (1 + value), stop_price)
+        self.assertLess(value, 0)
+
+    def test_take_profit_at_two_r(self):
+        strategy = Strategy()
+        opened = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(enter_tag="fvg_gl|100.5", open_rate=101.0, open_date_utc=opened)
+        # d = 1% -> target 101 * 1.02 = 103.02
+        now = opened + timedelta(hours=1)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, now, 103.0, 0.0198))
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, now, 103.03, 0.0201), "take_profit_2r")
+        # Wider stop: fill at 105 -> d = 4.47%, target = 105 * (1 + 2d)
+        wide = SimpleNamespace(enter_tag="fvg_gl|100.5", open_rate=105.0, open_date_utc=opened)
+        d = 1 - 0.998 * 100.5 / 105.0
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", wide, now, 105.0 * (1 + 2 * d) - 0.01, 0.05))
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", wide, now, 105.0 * (1 + 2 * d) + 0.01, 0.09), "take_profit_2r"
+        )
+
+    def test_time_exit_after_twelve_hours(self):
+        strategy = Strategy()
+        opened = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(enter_tag="fvg_gl|100.5", open_rate=101.0, open_date_utc=opened)
+        self.assertIsNone(
+            strategy.custom_exit("BTC/USDT", trade, opened + timedelta(hours=11, minutes=45), 101.0, 0.0)
+        )
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, opened + timedelta(hours=12), 101.0, 0.0),
+            "time_exit_12h",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

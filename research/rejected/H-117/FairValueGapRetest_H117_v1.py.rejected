@@ -1,0 +1,200 @@
+"""H-117: 15m bullish fair-value-gap midpoint retest after a 2x-volume displacement bar.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1 (price E).
+Spot, long only, one position per pair (engine), no pyramiding.
+
+GAP: for bars k-1, k, k+1 a bullish gap exists when low(k+1) > high(k-1). GL = high(k-1), GH = low(k+1),
+CE = (GL+GH)/2. VALID only if (1) (GH-GL)/close(k+1) >= 0.003; (2) bar k closes above its own open;
+(3) volume(k) >= 2.0 x mean volume over bars k-20..k-1. Known at the close of bar k+1.
+TRACKING: at the close of bar t the tracked gap is the most recent valid gap with k+1 <= t-1; a newer valid
+gap replaces an older one, and there is no fallback once the newest is dead. ACTIVE on t = k+2..k+33.
+INVALIDATION: the first bar whose close is below GL kills the gap. CONSUMPTION: the gap is consumed at the
+first bar with a retest signal, whether or not an order fills.
+ENTRY signal at the close of t: tracked gap active and low(t) <= CE and close(t) > GL. The entry tag carries GL.
+The order is accepted only if fewer than 4 trades were opened on this pair in the UTC day of the fill.
+STOP: d = max(1 - 0.998 x GL / E, 0.01) frozen at the fill; stop price E x (1 - d) (custom_stoploss);
+the native stoploss of -0.10 is an engine backstop only.
+TAKE-PROFIT (custom_exit): E x (1 + 2d). TIME EXIT (custom_exit): 12 hours after the fill (48 bars).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+MIN_GAP_FRAC = 0.003
+VOLUME_LOOKBACK = 20
+VOLUME_MULTIPLE = 2.0
+ACTIVE_BARS = 32
+STOP_BUFFER = 0.998
+MIN_STOP_DISTANCE = 0.01
+TARGET_R = 2.0
+TIME_EXIT = timedelta(hours=12)
+MAX_ENTRIES_PER_DAY = 4
+TAG_PREFIX = "fvg_gl"
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def parse_tag(tag) -> float | None:
+    """Gap bottom GL recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def stop_distance(gap_bottom: float, entry_price: float) -> float:
+    """Frozen stop distance d = max(1 - 0.998 x GL / E, 0.01)."""
+    return max(1.0 - STOP_BUFFER * gap_bottom / entry_price, MIN_STOP_DISTANCE)
+
+
+def fvg_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add fvg_retest (1.0 on a retest-signal bar, else 0.0) and fvg_gl (gap bottom on that bar, else NaN).
+
+    Every value at row t uses rows <= t only.
+    """
+    open_ = dataframe["open"].to_numpy(dtype=float)
+    high = dataframe["high"].to_numpy(dtype=float)
+    low = dataframe["low"].to_numpy(dtype=float)
+    close = dataframe["close"].to_numpy(dtype=float)
+    volume = dataframe["volume"].to_numpy(dtype=float)
+    n = len(dataframe)
+
+    # Mean volume of bars k-20..k-1, stored at row k (bar k excluded).
+    volume_mean = pd.Series(volume).rolling(VOLUME_LOOKBACK).mean().shift(1).to_numpy(dtype=float)
+
+    # Gap completed at row j = k+1; GL = high(j-2), GH = low(j).
+    gap_bottom = pd.Series(high).shift(2).to_numpy(dtype=float)
+    gap_top = low
+    previous_open = pd.Series(open_).shift(1).to_numpy(dtype=float)
+    previous_close = pd.Series(close).shift(1).to_numpy(dtype=float)
+    previous_volume = pd.Series(volume).shift(1).to_numpy(dtype=float)
+    previous_volume_mean = pd.Series(volume_mean).shift(1).to_numpy(dtype=float)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        gap_size = (gap_top - gap_bottom) / close
+        valid = (
+            (gap_top > gap_bottom)
+            & (gap_size >= MIN_GAP_FRAC)
+            & (previous_close > previous_open)
+            & (previous_volume >= VOLUME_MULTIPLE * previous_volume_mean)
+        )
+    valid = np.nan_to_num(valid, nan=0).astype(bool)
+    midpoint = (gap_bottom + gap_top) / 2.0
+
+    retest = np.zeros(n, dtype=float)
+    retest_gl = np.full(n, np.nan)
+
+    tracked = None  # (known_row, GL, CE)
+    for t in range(n):
+        if t >= 1 and valid[t - 1]:
+            tracked = (t - 1, gap_bottom[t - 1], midpoint[t - 1])
+        if tracked is None:
+            continue
+        known_row, gl, ce = tracked
+        if t - known_row > ACTIVE_BARS:
+            tracked = None  # expired; no fallback to an older gap
+            continue
+        if np.isnan(close[t]) or np.isnan(low[t]):
+            continue
+        if close[t] < gl:
+            tracked = None  # invalidated
+            continue
+        if low[t] <= ce and close[t] > gl and volume[t] > 0:
+            retest[t] = 1.0
+            retest_gl[t] = gl
+            tracked = None  # consumed whether or not the order fills
+
+    dataframe["fvg_retest"] = retest
+    dataframe["fvg_gl"] = retest_gl
+    return dataframe
+
+
+class FairValueGapRetest_H117_v1(IStrategy):
+    """Buy the midpoint retest of a bullish fair value gap; 2R target, 12h time exit."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.10
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 100
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return fvg_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        cond = (
+            (dataframe["fvg_retest"] == 1.0)
+            & dataframe["fvg_gl"].notna()
+            & dataframe[["open", "high", "low", "close", "volume"]].notna().all(axis=1)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in dataframe.loc[cond, "fvg_gl"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """Fewer than 4 trades opened on this pair during the UTC day of the fill."""
+        if parse_tag(entry_tag) is None:
+            return False
+        today = utc_day(current_time)
+        opened_today = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                opened_today += 1
+        return opened_today < MAX_ENTRIES_PER_DAY
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        gap_bottom = parse_tag(trade.enter_tag)
+        if gap_bottom is None or not trade.open_rate or not current_rate or current_rate <= 0:
+            return self.stoploss
+        entry_price = float(trade.open_rate)
+        d = stop_distance(gap_bottom, entry_price)
+        stop_price = entry_price * (1.0 - d)
+        # Distance of the fixed stop price below the current rate.
+        return -max(1.0 - stop_price / float(current_rate), 1e-6)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        gap_bottom = parse_tag(trade.enter_tag)
+        if gap_bottom is not None and trade.open_rate:
+            entry_price = float(trade.open_rate)
+            d = stop_distance(gap_bottom, entry_price)
+            target = entry_price * (1.0 + TARGET_R * d)
+            if current_rate is not None and current_rate >= target:
+                return "take_profit_2r"
+        # 12 hours after the fill = the open of bar e+48.
+        if pd.Timestamp(current_time) >= pd.Timestamp(trade.open_date_utc) + TIME_EXIT:
+            return "time_exit_12h"
+        return None
