@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-107",
+  "family": "DailyKeltnerBreakout",
+  "title": "Two-hour Keltner band thrust above the 100-block mean, intraday session entries, flat by 23:00 UTC or 12h",
+  "ex_ante_rule": "Chart 1h, closed bars only, UTC. Long only, spot, one position per pair, whole allowed balance, no pyramiding, no take-profit, no cooldown, no other filters. Same rule and numbers on all nine pairs. TWO-HOUR BLOCKS: built inside the strategy from the 1h bars; a block is the pair of 1h bars opening at an even UTC hour H (00,02,...,22) and at H+1. Block open = open of the H bar, high = max of the two highs, low = min of the two lows, close = close of the H+1 bar. A block exists only if both 1h bars are present; a missing bar means that block is skipped. A block is complete at the close of its H+1 bar (time H+2); its values are written on the H+1 row and forward-filled to later 1h rows, so nothing is visible before the block has closed. Block indicators (b = the just-closed block, included), computed on the series of complete blocks: EMA20 = EMA of block close, span 20 (alpha 2/21), seeded with the first block close; TR(b) = max(high-low, |high-close(b-1)|, |low-close(b-1)|); ATR20 = Wilder smoothing of TR (alpha 1/20), seeded with the mean of the first 20 TRs; UpperBand(b) = EMA20(b) + 1.5*ATR20(b); SMA100(b) = mean of the last 100 block closes including b. ENTRY (evaluated only at the close of the H+1 bar, i.e. when a block closes): close(b) > UpperBand(b) AND close(b-1) <= UpperBand(b-1) (fresh cross) AND close(b) > SMA100(b) AND block b opened at 00:00, 02:00, ..., or 16:00 UTC (H between 0 and 16 inclusive) AND no open position. Order fills at the next 1h open (H+2, so fills fall between 02:00 and 18:00 UTC). EXITS, first to occur: (1) a block closes with close(b) < EMA20(b): exit at the next 1h open; (2) STOP-LOSS: native intrabar stop fixed at 2% below the entry fill price (stoploss = -0.02), never moved; (3) SESSION EXIT: exit signal at the close of the 1h bar opening 22:00 UTC, filled at the 23:00 UTC open; (4) TIME EXIT: exit at the first 1h open at least 12 hours after the entry fill (e.g. minimal_roi {\"720\": -1} or an equivalent custom_exit). No position is ever held past 23:00 UTC of its entry day. Warm-up: 1000 bars (500 two-hour blocks: the longest raw lookback is SMA100 = 100 blocks = 200 1h bars; the scout's stated 400-bar lookback is covered; 500 blocks let the EMA20 and Wilder ATR20 forget their seeds; startup_candle_count 1000, under the 4500 limit).",
+  "parameters": {
+    "timeframe": "1h",
+    "block_hours": 2,
+    "block_anchor": "even UTC hours",
+    "ema_length_blocks": 20,
+    "atr_length_blocks": 20,
+    "atr_smoothing": "Wilder",
+    "band_multiplier": 1.5,
+    "trend_sma_blocks": 100,
+    "entry_block_open_first_utc_hour": 0,
+    "entry_block_open_last_utc_hour": 16,
+    "session_exit_fill_utc_hour": 23,
+    "max_hold_hours": 12,
+    "stoploss_pct": 2.0,
+    "cooldown_bars": 0,
+    "startup_candle_count": 1000
+  },
+  "rationale": "Mechanism: a fresh close of a two-hour block above EMA20 + 1.5 ATR20, while price is above its 100-block (about 8-day) mean, marks a burst of directional demand that is large relative to recent volatility. The move trips resting buy stops and breakout orders above recent highs, and slower momentum and trend bots enter late as their signals confirm, so it tends to continue for some hours. The other side is the liquidity provider or mean-reversion trader who fades the band touch too early, plus shorts forced to cover. The rule keeps the parent's numbers (H-025: EMA20, 1.5x ATR20, SMA100, exit below the centre line), which gave one of the largest gross moves per trade in exploration, and shrinks the block from one day to two hours so it fits a day trade. The single activity filter is the entry window (blocks opening 00:00-16:00 UTC: Asia, Europe and the US open). It is fixed by the idea, not scanned. The SMA100 condition keeps the rule out of falling markets. In a range the fresh cross rarely fires; when it does, the centre-line exit and the 2% stop cut the loss. Design estimate, not measured: about one fresh cross every 2-4 days per pair inside the window, roughly 100-180 trades per year per pair. Winners about 0.8% or more (the scout's estimate); losers are capped by the 2% stop or the centre-line exit. The trigger needs a close 1.5 two-hour ATRs above the mean, typically 1-2% on these pairs. That selects moves larger than the 0.1% median move of the lab's untargeted intraday rules, so the average gross move should clear the 0.30%/0.45% round trip. No source measures this exact two-hour variant; the citation is the parent Keltner channel method.",
+  "novelty_vs_tried": "Same family as H-025 (DailyKeltnerBreakout, 1 of 3 variants used). This variant changes one structural element only: the signal block goes from one day to two hours, with session-limited entries and a mandatory flat by 23:00 UTC or 12 hours. The parent held positions for days; this one is a day trade. It differs from H-066 (HourlyKeltnerMTFBreakout): H-066 used 1h EMA50 + 2.5 ATR50, an RSI filter, a 4h EMA slope filter, an ATR-based target and stop, and a 16-bar time exit. This rule uses two-hour blocks, the parent's 20/1.5/100 numbers, an exit when price closes under the centre line, a fixed 2% stop, and a session window. It is not a squeeze (no prior narrowing is required) and not an opening-range bracket.",
+  "sources": [
+    {
+      "title": "Keltner Channel Strategy (StockSharp API examples, 0955)",
+      "url": "https://doc.stocksharp.com/en/api-examples/0955_Keltner_Channel"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data opened. Only the exploration summaries in research/context/H-107.md (nine pairs, 1h and 15m, exploration splits through 2026-11-10); validation and final-test results not visible."
+}
