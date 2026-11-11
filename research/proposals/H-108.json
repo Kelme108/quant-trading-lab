@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-108",
+  "family": "LivermorePivotFailFast",
+  "title": "Volume-confirmed 20-hour high break that must hold for two bars, intraday session-bounded",
+  "ex_ante_rule": "Chart 1h, closed candles only; a signal at the close of bar t is filled at the open of bar t+1. Long only, spot, one position at a time, whole allowed balance, no pyramiding. Definitions at bar t: P(t) = highest high of the previous 20 bars (t-20..t-1, current bar excluded). VolAvg4(t) = arithmetic mean of volume of the previous 4 bars (t-4..t-1, current bar excluded). SMA40(t) = simple mean of close over the 40 bars ending at t (current bar included). ENTRY at the close of bar t when ALL hold: (1) close(t) > 1.002 * P(t); (2) volume(t) >= 2.0 * VolAvg4(t); (3) close(t) > SMA40(t); (4) the open time of bar t is between 00:00 and 16:00 UTC inclusive (bar open hour 0..16); (5) no position is open; (6) cooldown: no entry signal on the bar that closes the exit bar, i.e. no re-entry for 1 candle after any exit. On entry store P_entry = P(t) of the signal bar, fixed for the trade. FAIL-FAST EXIT: for the 2 bars after the signal bar (t+1 and t+2), if close(k) < P_entry, exit at the open of bar k+1. TRAILING EXIT: from bar t+3 onward, exit at the open of bar k+1 when close(k) < lowest low of the previous 4 bars (k-4..k-1, current bar excluded). Before bar t+3 only the fail-fast exit, the stop and the time exits apply. STOP-LOSS: fixed 2% below the fill price (native intrabar stop, triggers on touch). TIME EXITS (whichever comes first): (a) session flat: a position still open at the close of the bar that opens at 22:00 UTC is sold at the 23:00 UTC open; (b) maximum holding: sold at the open 12 hours after the fill (exit signal at the close of the bar that opens 11 hours after the fill). No take-profit, no other filters. Warm-up: 100 bars (longest lookback SMA40; no recursive indicators; margin for stability).",
+  "parameters": {
+    "timeframe": "1h",
+    "pivot_lookback_bars": 20,
+    "breakout_buffer_pct": 0.2,
+    "volume_mean_lookback_bars": 4,
+    "volume_multiple": 2.0,
+    "trend_sma_bars": 40,
+    "fail_fast_window_bars": 2,
+    "trail_low_lookback_bars": 4,
+    "stop_loss_pct": 2.0,
+    "cooldown_bars": 1,
+    "entry_window_start_utc_hour": 0,
+    "entry_window_end_utc_hour_inclusive": 16,
+    "session_flat_exit_open_utc_hour": 23,
+    "max_hold_hours": 12,
+    "warmup_bars": 100
+  },
+  "rationale": "Livermore's pivotal-point idea: no position until price actually penetrates a significant prior high, the penetration must come with expanding activity, and a break that stalls or falls back is a danger signal to exit at once. Counterparties are stop orders of shorts and breakout buyers resting above the 20-hour high plus late followers; when real demand (a volume burst of at least 2x the last four hours) is behind the break, the order-flow imbalance tends to persist for some hours, while a break that closes back under the pivot within two bars shows the demand was absent, so the loss is cut small. The 40-hour mean keeps entries in the local up-leg; in a range or a falling market fewer closes sit above SMA40 with a volume burst, and the 2-bar fail-fast plus 2% stop limit each failed break. This is the parent H-046 (240/48/480-bar windows, 3/3 pairs at exploration, gross move 1.07% per trade) scaled to intraday by dividing the windows by twelve so trades close within the day. The volume burst is the activity filter the mechanism already implies (lesson a); the 00:00-16:00 UTC entry window and the 23:00/12h time exits are part of the idea, not added filters. Expected trades: roughly 150-400 per year per pair (20-bar highs with a volume burst are frequent on 1h). Expected gross move about 0.9% on winners and roughly 0.5% averaged (design estimate, not measured), above the 0.30% base round trip; winners are not capped, as lesson (b) advises.",
+  "novelty_vs_tried": "Second variant of LivermorePivotFailFast (H-046 is the only one). H-046 is a multi-day swing rule: 240-bar pivot, 48-bar volume mean, SMA480, 8-bar fail-fast, 48-bar low trail, 4% stop, no time exit, so it does not meet the owner's day-trade requirement. H-108 keeps the same mechanism but on an intraday horizon: windows divided by twelve (20/4/40), 2-bar fail-fast, 4-bar low trail, 2% stop, entries only for bars opening 00:00-16:00 UTC and a mandatory flat at the 23:00 UTC open or after 12 hours. It differs from SessionOpeningRangeBreakout (session-open range) and HourlyFailedBreakdownReclaim (a long after a failed breakdown) in using a rolling prior-high pivot with volume confirmation and a failed-break exit.",
+  "sources": [
+    {
+      "title": "Livermore Pivotal Point (LuxAlgo library)",
+      "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the research context file H-108.md (exploration-only summaries of earlier hypotheses, nine pairs) as of 2026-11-10"
+}
