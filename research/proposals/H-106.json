@@ -1,0 +1,35 @@
+{
+  "hypothesis_id": "H-106",
+  "family": "Double7ChannelDip",
+  "title": "Two-hour-block Double 7 dip: seven-block closing low above the 200-block mean, flat by 23:00 UTC or 12h",
+  "ex_ante_rule": "Strategy timeframe 1h, long only, spot, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, no profit target other than the exit below, no cooldown, no other filters. BLOCKS: two-hour blocks aligned to even UTC hours (block starting HH:00 with HH in 0,2,...,22 contains the two hourly candles opening at HH:00 and HH+1:00). A block is used only when both of its hourly candles exist; its close Cb is the close of the candle opening at HH+1:00, so the block is known only after that candle closes (at HH+2:00). Signals are evaluated only on the 1h rows whose candle opens at an odd UTC hour (the last candle of a block); orders execute at the next hourly open (HH+2:00). Equivalent implementation allowed: informative 2h candles via merge_informative_pair (ffill), provided the values are identical to the above. Indicators on block closes, all INCLUDING the just-finished block b: SMA200b = mean of the last 200 block closes; LOW7 = lowest of the last 7 block closes; HIGH7 = highest of the last 7 block closes. ENTRY at the next hourly open when, at the close of block b: Cb > SMA200b AND Cb <= LOW7 AND no open position AND block b started at 00:00, 02:00, ..., 16:00 UTC (start hour 0-16 inclusive; so fills only at 02:00-18:00 UTC). EXIT (first that occurs): (1) signal exit: at the close of any later block, Cb >= HIGH7, sell at the next hourly open; (2) native stop-loss: one fixed 2% below the entry fill price, intrabar (stoploss = -0.02, no trailing); (3) clock exit: sell at the 23:00 UTC hourly open (signal on the candle opening 22:00); (4) time exit: sell at the first hourly open at or after entry time + 12 hours (holding at most 12 hours). Exposure: fixed share of the account chosen by the lab rule (largest 5% grid value with block-bootstrap p95 closed-trade drawdown <= 25% on all pairs, from this rule's own exploration trades at base cost and full exposure; no retuning). All numbers fixed ex ante, no grid. Warm-up: 420 bars (200 blocks x 2 = 400 hourly bars for SMA200b, plus 1 bar for block alignment and margin).",
+  "parameters": {
+    "timeframe": "1h",
+    "block_hours": 2,
+    "block_alignment": "even UTC hours",
+    "trend_sma_blocks": 200,
+    "entry_low_channel_blocks": 7,
+    "exit_high_channel_blocks": 7,
+    "entry_block_start_first_utc_hour": 0,
+    "entry_block_start_last_utc_hour": 16,
+    "stoploss_pct": 2.0,
+    "clock_exit_utc_hour": 23,
+    "max_hold_hours": 12,
+    "cooldown_candles": 0,
+    "startup_candle_count": 420
+  },
+  "rationale": "Connors' Double 7 buys a short-horizon closing low inside a longer uptrend. Whoever prints a 7-period closing low in an uptrend is mostly impatient or forced (stop cascades, liquidations, intraday inventory dumps); liquidity providers who absorb that flow earn a premium as price reverts toward its recent closing high. The daily version in the lab (H-020) cleared exploration on BTC, ETH and BNB with a 0.94% gross move per trade but only about 60 trades per pair, too slow for the owner. This keeps the parent's numbers (7/7/200) and shrinks the period from a day to a two-hour block: a ~17-day trend mean, a 14-hour closing-low dip, a 14-hour closing-high target. The 00:00-16:00 UTC entry window plus the 23:00 UTC and 12h exits make it a day trade and serve as the session activity filter; nothing else is added. In persistent declines the 200-block mean keeps it flat; in chop, closing lows and highs alternate, which suits reversion. Expected about 150-250 trades per year per pair. The scout's design estimate is about 0.7% gross on winners; with the 2% stop and forced exits the average gross move is expected around 0.45-0.6%, above the 0.30% base round trip but with a thin margin, which is the main risk. No source tests this two-hour version; the closest real source is the daily Double 7 write-up cited.",
+  "novelty_vs_tried": "Same family as H-020 (Double7ChannelDip, 1 of 3 used), but structurally a different horizon and trade type: H-020 used daily candles, no stop, no time exit, multi-day holds and ~60 trades per pair; H-106 uses two-hour blocks built from 1h candles, a 2% native stop, a session window for entries, a forced 23:00 UTC flat and a 12-hour maximum hold, aiming at ~150-250 intraday trades per pair per year. It differs from the failed intraday reversal rules (H-030 overnight drop, H-033 hourly shock, H-050/H-053 volume reversal, H-038/H-055 failed-breakdown reclaim) by requiring a multi-block closing-low channel inside a 200-block uptrend and by exiting on the channel high rather than a fixed small target.",
+  "sources": [
+    {
+      "title": "Larry Connors' Double 7 Strategy: Tested on SPY and 8 Other Markets (StrategyQuant)",
+      "url": "https://strategyquant.com/blog/larry-connors-double-7-strategy-tested-on-spy-and-8-other-markets/"
+    },
+    {
+      "title": "Larry Connors Double 7 for SPY (StrategyQuant shared strategy)",
+      "url": "https://strategyquant.com/shared/larry-connors-double-7-for-spy/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data inspected; only the exploration digest and tried-rules list in research/context/H-106.md (exploration splits of BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL) as of 2026-11-10."
+}
