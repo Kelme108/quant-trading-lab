@@ -1,0 +1,271 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "MomentumPinballSession_H123_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+ARMED = 21  # index of the armed block in the synthetic series
+
+
+def make_frame(n_blocks=30, armed=ARMED, drop_block=ARMED - 1, breakout=True):
+    """15m bars: slow rise, a sharp drop in `drop_block`, then a flat first hour and a breakout in `armed`."""
+    closes = []
+    prev = 100.0
+    for block in range(n_blocks):
+        if block < drop_block:
+            target = prev + 1.0
+            path = list(np.linspace(prev, target, 17)[1:])
+        elif block == drop_block:
+            target = prev - 5.0
+            path = list(np.linspace(prev, target, 17)[1:])
+        elif block == armed and breakout:
+            path = [prev] * 4 + [prev * 1.02] * 12
+        else:
+            path = [prev] * 16
+        closes.extend(path)
+        prev = path[-1]
+    closes = np.array(closes)
+    opens = np.concatenate(([closes[0]], closes[:-1]))
+    frame = pd.DataFrame(
+        {
+            "date": [START + timedelta(minutes=15 * i) for i in range(len(closes))],
+            "open": opens,
+            "high": np.maximum(opens, closes) * 1.005,
+            "low": np.minimum(opens, closes) * 0.995,
+            "close": closes,
+            "volume": 1.0,
+        }
+    )
+    return frame
+
+
+def run(frame):
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+class Trade:
+    def __init__(self, open_rate, open_date_utc, enter_tag):
+        self.open_rate = open_rate
+        self.open_date_utc = open_date_utc
+        self.enter_tag = enter_tag
+
+
+class DataProvider:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class ContractTests(unittest.TestCase):
+    def test_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.05)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 1600)
+
+
+class IndicatorTests(unittest.TestCase):
+    def test_lbr_wilder_values(self):
+        lbr = MODULE.lbr_by_block(np.array([0.0, 1, 2, 3, 4, 5, 0, 3]))
+        self.assertTrue(np.all(np.isnan(lbr[:4])))
+        self.assertEqual(lbr[4], 100.0)  # avgDown = 0
+        self.assertEqual(lbr[5], 100.0)
+        self.assertAlmostEqual(lbr[6], 0.0)  # avgUp = 0, avgDown = 2
+        self.assertAlmostEqual(lbr[7], 100 - 100 / (1 + (8 / 3) / (4 / 3)))
+
+    def test_lbr_is_carried_to_next_block_only(self):
+        frame = run(make_frame())
+        drop = ARMED - 1
+        last_bar_of_drop = drop * 16 + 15
+        self.assertGreaterEqual(frame.loc[last_bar_of_drop, "lbr_prev"], 100.0 - 1e-9)  # still LBR(drop-1)
+        self.assertLess(frame.loc[ARMED * 16, "lbr_prev"], 30.0)  # LBR(drop) on the next block
+        self.assertLess(frame.loc[ARMED * 16 + 15, "lbr_prev"], 30.0)
+
+    def test_opening_range_only_visible_from_bar_five(self):
+        frame = run(make_frame())
+        block = frame.iloc[ARMED * 16 : ARMED * 16 + 16]
+        self.assertTrue(block["or_high"].iloc[:4].isna().all())
+        self.assertTrue(block["or_high"].iloc[4:].notna().all())
+        self.assertAlmostEqual(block["or_high"].iloc[4], block["high"].iloc[:4].max())
+        self.assertAlmostEqual(block["or_low"].iloc[4], block["low"].iloc[:4].min())
+
+    def test_atr_is_wilder(self):
+        frame = run(make_frame())
+        tr = pd.Series(
+            np.maximum.reduce(
+                [
+                    frame["high"] - frame["low"],
+                    (frame["high"] - frame["close"].shift(1)).abs(),
+                    (frame["low"] - frame["close"].shift(1)).abs(),
+                ]
+            )
+        )
+        self.assertTrue(frame["atr"].iloc[:14].isna().all())
+        self.assertAlmostEqual(frame["atr"].iloc[14], tr.iloc[1:15].mean())
+        self.assertAlmostEqual(frame["atr"].iloc[15], (frame["atr"].iloc[14] * 13 + tr.iloc[15]) / 14)
+
+
+class SignalTests(unittest.TestCase):
+    def test_single_entry_on_first_breakout_bar_with_tag(self):
+        frame = run(make_frame())
+        rows = frame.index[frame["enter_long"] == 1].tolist()
+        self.assertEqual(rows, [ARMED * 16 + 4])  # bar 5 of the armed block; later bars also close > ORH
+        self.assertEqual(frame.loc[rows[0], "enter_tag"], f"pinball|{float(frame.loc[rows[0], 'or_low'])!r}")
+        self.assertEqual(MODULE.parse_tag(frame.loc[rows[0], "enter_tag"]), frame.loc[rows[0], "or_low"])
+
+    def test_signal_columns_are_binary(self):
+        frame = run(make_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_not_armed_without_oversold_reading(self):
+        frame = run(make_frame(drop_block=-1))  # no drop: LBR stays at 100
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_atr_filter_blocks_entry(self):
+        raw = make_frame()
+        raw["high"] = raw[["open", "close"]].max(axis=1) * 1.0005
+        raw["low"] = raw[["open", "close"]].min(axis=1) * 0.9995
+        frame = run(raw)
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_zero_volume_gives_no_signal(self):
+        raw = make_frame()
+        raw["volume"] = 0.0
+        frame = run(raw)
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+
+    def test_zero_volume_on_signal_bar_only(self):
+        raw = make_frame()
+        raw.loc[ARMED * 16 + 4, "volume"] = 0.0
+        frame = run(raw)
+        self.assertNotIn(ARMED * 16 + 4, frame.index[frame["enter_long"] == 1].tolist())
+
+    def test_undefined_startup_values_give_no_signal(self):
+        # Breakout pattern in the very first blocks, where LBR and ATR are still undefined.
+        frame = run(make_frame(n_blocks=6, drop_block=0, armed=2))
+        self.assertTrue(frame["lbr_prev"].iloc[: 3 * 16].isna().all())
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        full = run(make_frame())
+        signal_rows = full.index[full["enter_long"] == 1]
+        for column in ("lbr_prev", "atr", "or_high", "or_low"):
+            self.assertTrue(full.loc[signal_rows, column].notna().all())
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        full = make_frame(n_blocks=40)
+        for cut in (ARMED * 16 + 3, ARMED * 16 + 4, ARMED * 16 + 9, ARMED * 16 + 20, 30 * 16):
+            short = run(full.iloc[:cut])
+            long = run(full)
+            columns = [c for c in short.columns if c not in {"open", "high", "low", "close", "volume", "date"}]
+            pd.testing.assert_frame_equal(
+                short[columns].reset_index(drop=True),
+                long.loc[: cut - 1, columns].reset_index(drop=True),
+                check_dtype=False,
+            )
+
+    def test_future_changes_do_not_affect_past(self):
+        original = make_frame(n_blocks=40)
+        changed = original.copy()
+        changed.loc[700:, ["open", "high", "low", "close"]] = 1000.0
+        changed.loc[700:, "volume"] = 999.0
+        a, b = run(original), run(changed)
+        columns = [c for c in a.columns if c not in {"open", "high", "low", "close", "volume", "date"}]
+        pd.testing.assert_frame_equal(a.loc[:699, columns], b.loc[:699, columns], check_dtype=False)
+
+
+class ExitTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = Strategy()
+        self.opened = datetime(2024, 3, 5, 5, 0, tzinfo=timezone.utc)  # block 04:00-08:00
+        self.trade = Trade(100.0, self.opened, "pinball|99.5")
+        bars = pd.date_range("2024-03-05 04:00", periods=64, freq="15min", tz="UTC")
+        self.frame = pd.DataFrame({"date": bars, "close": 101.0})
+        self.strategy.dp = DataProvider(self.frame)
+
+    def exit(self, now, rate=100.5):
+        return self.strategy.custom_exit("BTC/USDT", self.trade, now, rate, rate / 100.0 - 1, )
+
+    def test_stop_is_min_of_orl_and_99_percent(self):
+        value = self.strategy.custom_stoploss("BTC/USDT", self.trade, self.opened, 100.0, 0.0)
+        self.assertAlmostEqual(value, -0.01)  # S = min(99.5, 99) = 99
+        # price-based: the same absolute stop seen from a higher rate
+        value = self.strategy.custom_stoploss("BTC/USDT", self.trade, self.opened, 102.0, 0.02)
+        self.assertAlmostEqual(102.0 * (1 + value), 99.0)
+
+    def test_stop_is_capped_at_the_five_percent_backstop(self):
+        trade = Trade(100.0, self.opened, "pinball|90.0")
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, self.opened, 100.0, 0.0)
+        self.assertAlmostEqual(value, -0.05)
+
+    def test_take_profit(self):
+        now = self.opened + timedelta(minutes=30)
+        self.assertEqual(self.exit(now, rate=101.5), "take_profit")
+        self.assertIsNone(self.exit(now, rate=101.4))
+
+    def test_time_exit_after_twelve_hours(self):
+        self.assertIsNone(self.exit(self.opened + timedelta(hours=11, minutes=45)))
+        self.assertEqual(self.exit(self.opened + timedelta(hours=12)), "time_exit_12h")
+
+    def test_block_end_loser_exit(self):
+        block_end = datetime(2024, 3, 5, 8, 0, tzinfo=timezone.utc)
+        # bar 16 (07:45) closes at 101 >= E: winner keeps running
+        self.assertIsNone(self.exit(block_end))
+        # bar 16 closes below E: sell at the next open
+        self.frame.loc[self.frame["date"] == pd.Timestamp("2024-03-05 07:45", tz="UTC"), "close"] = 99.0
+        self.assertEqual(self.exit(block_end), "block_end_loser")
+        # not yet closed one bar earlier
+        self.assertIsNone(self.exit(block_end - timedelta(minutes=15)))
+
+
+if __name__ == "__main__":
+    unittest.main()

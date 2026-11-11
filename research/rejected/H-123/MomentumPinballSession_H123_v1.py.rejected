@@ -1,0 +1,244 @@
+"""H-123: Momentum Pinball on 4h UTC blocks (LBR/RSI(3) below 30), then a 15m first-hour-high breakout.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1.
+Long only, spot, one position per pair (engine), no pyramiding.
+
+Blocks: 4-hour UTC blocks starting 00:00, 04:00 ... 20:00, 16 bars each (bar 1 opens at the block start).
+C(k) = close of bar 16 of block k. x(k) = C(k) - C(k-1).
+LBR(k) = Wilder RSI(3) of the series x: up(k) = max(x(k)-x(k-1), 0), down(k) = max(x(k-1)-x(k), 0), each
+Wilder-averaged (seeded with the simple mean of the first 3 values, then alpha = 1/3 recursion);
+LBR = 100 - 100/(1 + avgUp/avgDown), 100 if avgDown = 0. LBR(k) is known at the close of bar 16 of block k
+and is carried onto the bars of block k+1 (column `lbr_prev`).
+Setup: block k+1 is armed if LBR(k) < 30.
+Opening range of a block: ORH / ORL = max high / min low of bars 1-4 (visible only from bar 5 on).
+Entry: the first bar among bars 5-12 of the armed block whose close > ORH and ATR(14)/close >= 0.004
+(Wilder ATR on 15m bars); buy at the next open E. One entry signal per block (first qualifying bar only).
+Stop: S = min(ORL, 0.99*E), fixed at entry (custom_stoploss), native stoploss -0.05 as the outer backstop
+(a stop wider than 5% is capped at 5%).
+Take-profit (custom_exit): gross move current_rate/E - 1 >= 1.5%.
+Block-end loser exit (custom_exit): if the close of bar 16 of the entry block < E, sell at the next open.
+Time exit (custom_exit): at 12 h (48 bars) after the entry fill, i.e. after the close of the bar that opened
+at entry + 11h45m, sell at the next open.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy
+
+BLOCK = timedelta(hours=4)
+BAR = timedelta(minutes=15)
+BARS_PER_BLOCK = 16
+LBR_LENGTH = 3
+LBR_THRESHOLD = 30.0
+OPENING_RANGE_BARS = 4
+ENTRY_FIRST_BAR = 5
+ENTRY_LAST_BAR = 12
+ATR_LENGTH = 14
+MIN_ATR_OVER_CLOSE = 0.004
+MIN_STOP_FACTOR = 0.99
+BACKSTOP = 0.05
+TAKE_PROFIT = 0.015
+MAX_HOLD = timedelta(hours=12)
+TAG_PREFIX = "pinball"
+
+
+def parse_tag(tag) -> float | None:
+    """Opening-range low ORL recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def wilder(values: np.ndarray, length: int) -> np.ndarray:
+    """Wilder average: simple mean of the first `length` consecutive values, then (prev*(n-1)+v)/n.
+
+    A NaN input gives NaN output and restarts the seeding. Backward-looking only.
+    """
+    out = np.full(len(values), np.nan)
+    count = 0
+    total = 0.0
+    prev = np.nan
+    for i, value in enumerate(values):
+        if not np.isfinite(value):
+            count = 0
+            total = 0.0
+            prev = np.nan
+            continue
+        if count < length:
+            count += 1
+            total += value
+            if count == length:
+                prev = total / length
+                out[i] = prev
+        else:
+            prev = (prev * (length - 1) + value) / length
+            out[i] = prev
+    return out
+
+
+def lbr_by_block(block_close: np.ndarray) -> np.ndarray:
+    """LBR (Wilder RSI(3) of the one-block change) for each block, from the array of block closes."""
+    change = np.full(len(block_close), np.nan)
+    change[1:] = block_close[1:] - block_close[:-1]
+    up = np.full(len(block_close), np.nan)
+    down = np.full(len(block_close), np.nan)
+    delta = change[1:] - change[:-1]
+    up[1:] = np.maximum(delta, 0.0)
+    down[1:] = np.maximum(-delta, 0.0)
+    avg_up = wilder(up, LBR_LENGTH)
+    avg_down = wilder(down, LBR_LENGTH)
+    lbr = np.full(len(block_close), np.nan)
+    ok = np.isfinite(avg_up) & np.isfinite(avg_down)
+    zero = ok & (avg_down == 0.0)
+    pos = ok & (avg_down > 0.0)
+    lbr[zero] = 100.0
+    lbr[pos] = 100.0 - 100.0 / (1.0 + avg_up[pos] / avg_down[pos])
+    return lbr
+
+
+def pinball_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add bar_no, lbr_prev, atr, or_high, or_low. Backward-looking only."""
+    dates = pd.to_datetime(dataframe["date"], utc=True)
+    block_start = dates.dt.floor("4h")
+    bar_no = ((dates.dt.hour % 4) * 4 + dates.dt.minute // 15 + 1).astype(int)
+    dataframe["bar_no"] = bar_no.to_numpy()
+
+    # Block closes C(k) on a gap-free calendar of blocks (NaN when bar 16 is missing).
+    is_last = (bar_no == BARS_PER_BLOCK).to_numpy()
+    if len(dataframe) > 0:
+        closes16 = pd.Series(
+            dataframe["close"].to_numpy(dtype=float)[is_last],
+            index=pd.DatetimeIndex(block_start[is_last]),
+        )
+        closes16 = closes16[~closes16.index.duplicated(keep="last")]
+        first_block = block_start.iloc[0]
+        last_block = block_start.iloc[-1]
+        calendar = pd.date_range(first_block, last_block, freq="4h")
+        block_close = closes16.reindex(calendar).to_numpy(dtype=float)
+        lbr = pd.Series(lbr_by_block(block_close), index=calendar)
+        # LBR(k) is known at the close of bar 16 of block k: use it on block k+1.
+        dataframe["lbr_prev"] = lbr.reindex(block_start - BLOCK).to_numpy(dtype=float)
+    else:
+        dataframe["lbr_prev"] = np.nan
+
+    # Wilder ATR(14) on 15m bars (true range needs the previous close).
+    high = dataframe["high"].to_numpy(dtype=float)
+    low = dataframe["low"].to_numpy(dtype=float)
+    close = dataframe["close"].to_numpy(dtype=float)
+    prev_close = np.concatenate(([np.nan], close[:-1])) if len(close) else close
+    true_range = np.maximum.reduce([high - low, np.abs(high - prev_close), np.abs(low - prev_close)])
+    true_range[~np.isfinite(prev_close)] = np.nan
+    dataframe["atr"] = wilder(true_range, ATR_LENGTH)
+
+    # Opening range: bars 1-4 of the block, visible from bar 5 on (so no row sees a later bar).
+    in_range = bar_no <= OPENING_RANGE_BARS
+    key = block_start.to_numpy()
+    count = in_range.astype(int).groupby(key).transform("sum")
+    or_high = dataframe["high"].where(in_range).groupby(key).transform("max")
+    or_low = dataframe["low"].where(in_range).groupby(key).transform("min")
+    visible = (bar_no > OPENING_RANGE_BARS) & (count == OPENING_RANGE_BARS)
+    dataframe["or_high"] = or_high.where(visible)
+    dataframe["or_low"] = or_low.where(visible)
+    dataframe["block_start"] = block_start.to_numpy()
+    return dataframe
+
+
+class MomentumPinballSession_H123_v1(IStrategy):
+    """Buy the first-hour-high breakout of a 4h block that follows an oversold LBR/RSI(3) reading."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.05
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 1600
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return pinball_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        atr_ratio = dataframe["atr"] / dataframe["close"]
+        cond = (
+            dataframe["lbr_prev"].notna()
+            & dataframe["or_high"].notna()
+            & dataframe["or_low"].notna()
+            & atr_ratio.notna()
+            & (dataframe["lbr_prev"] < LBR_THRESHOLD)
+            & (dataframe["bar_no"] >= ENTRY_FIRST_BAR)
+            & (dataframe["bar_no"] <= ENTRY_LAST_BAR)
+            & (dataframe["close"] > dataframe["or_high"])
+            & (atr_ratio >= MIN_ATR_OVER_CLOSE)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        # Only the first qualifying bar of each block.
+        first = cond & (cond.astype(int).groupby(dataframe["block_start"]).cumsum() == 1)
+        if first.any():
+            dataframe.loc[first, "enter_long"] = 1
+            dataframe.loc[first, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in dataframe.loc[first, "or_low"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # All exits depend on the open trade (entry price, entry block): see custom_exit / custom_stoploss.
+        return dataframe
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit,
+                        after_fill=False, **kwargs):
+        """Fixed stop price S = min(ORL, 0.99*E), no wider than the 5% backstop; never moved."""
+        orl = parse_tag(trade.enter_tag)
+        entry = float(trade.open_rate)
+        if orl is None or not np.isfinite(entry) or entry <= 0 or not current_rate or current_rate <= 0:
+            return None
+        stop_price = min(orl, MIN_STOP_FACTOR * entry)
+        stop_price = max(stop_price, entry * (1.0 - BACKSTOP))
+        distance = 1.0 - stop_price / float(current_rate)
+        # A distance of 0 would be ignored by the engine; keep a tiny positive distance.
+        return -max(distance, 1e-6)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        entry = float(trade.open_rate)
+        now = pd.Timestamp(current_time)
+        now = now.tz_localize("UTC") if now.tzinfo is None else now.tz_convert("UTC")
+        opened = pd.Timestamp(trade.open_date_utc)
+        opened = opened.tz_localize("UTC") if opened.tzinfo is None else opened.tz_convert("UTC")
+
+        # Take-profit: gross move of at least 1.5% above the entry price.
+        if current_rate and entry > 0 and current_rate >= entry * (1.0 + TAKE_PROFIT) * (1.0 - 1e-12):
+            return "take_profit"
+
+        # Time exit: 48 bars (12 h) after the entry fill.
+        if now - opened >= MAX_HOLD:
+            return "time_exit_12h"
+
+        # Block-end loser exit: close of bar 16 of the entry block below E.
+        block_start = opened.floor("4h")
+        block_end = block_start + BLOCK
+        if now >= block_end and entry > 0:
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if dataframe is not None and len(dataframe) > 0:
+                dates = pd.to_datetime(dataframe["date"], utc=True)
+                last_bar = dates == block_end - BAR
+                closed = (dates + BAR) <= now
+                row = dataframe.loc[last_bar & closed]
+                if not row.empty and float(row["close"].iloc[-1]) < entry:
+                    return "block_end_loser"
+        return None
