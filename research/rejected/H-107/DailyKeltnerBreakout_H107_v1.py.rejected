@@ -1,0 +1,175 @@
+"""H-107: two-hour Keltner band thrust above the 100-block mean, intraday session entries (long only, 1h chart).
+
+Two-hour blocks are built from the 1h bars: a block is the pair of bars opening at an even UTC hour H and at H+1.
+A block exists only if both bars are present. Its values are written on the H+1 row (the bar that closes the block)
+and carried forward to later rows, so nothing is visible before the block has closed.
+
+Block indicators (computed on the series of complete blocks, b = the just-closed block):
+  EMA20 of block close (alpha 2/21, seeded with the first block close),
+  TR(b) = max(high-low, |high-close(b-1)|, |low-close(b-1)|),
+  ATR20 = Wilder smoothing of TR (alpha 1/20, seeded with the mean of the first 20 TRs),
+  UpperBand = EMA20 + 1.5 * ATR20, SMA100 = mean of the last 100 block closes.
+
+ENTRY (only on the row that closes a block): close(b) > UpperBand(b), close(b-1) <= UpperBand(b-1),
+close(b) > SMA100(b), block opened at 00:00..16:00 UTC. Fills at the next 1h open.
+EXITS: block closes below EMA20 (signal); native stop-loss 2%; session exit signal on the bar opening 22:00 UTC
+(fills at 23:00); time exit at the first 1h open at least 12 hours after the entry fill (custom_exit).
+"""
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from freqtrade.strategy import IStrategy
+
+
+EMA_SPAN = 20
+ATR_LENGTH = 20
+BAND_MULTIPLIER = 1.5
+SMA_BLOCKS = 100
+FIRST_BLOCK_OPEN_HOUR = 0
+LAST_BLOCK_OPEN_HOUR = 16
+SESSION_EXIT_SIGNAL_HOUR = 22
+MAX_HOLD_HOURS = 12
+
+
+def wilder_atr(true_range: np.ndarray, length: int) -> np.ndarray:
+    """Wilder ATR (alpha 1/length) seeded with the mean of the first `length` defined true ranges."""
+    values = np.full(len(true_range), np.nan)
+    valid = np.flatnonzero(~np.isnan(true_range))
+    if len(valid) < length:
+        return values
+    first = valid[0]
+    seed_end = first + length - 1  # position of the length-th true range
+    values[seed_end] = np.mean(true_range[first : seed_end + 1])
+    for i in range(seed_end + 1, len(true_range)):
+        values[i] = values[i - 1] * (length - 1) / length + true_range[i] / length
+    return values
+
+
+class DailyKeltnerBreakout_H107_v1(IStrategy):
+    """Two-hour block Keltner breakout, flat by 23:00 UTC or 12 hours."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.02
+    startup_candle_count = 1000
+
+    @property
+    def protections(self):
+        return []
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        date = pd.to_datetime(dataframe["date"])
+        block_start = date.dt.floor("2h")
+        hour = date.dt.hour
+
+        helper = pd.DataFrame(
+            {
+                "block": block_start.reset_index(drop=True),
+                "open": dataframe["open"].values,
+                "high": dataframe["high"].values,
+                "low": dataframe["low"].values,
+                "close": dataframe["close"].values,
+            }
+        )
+        grouped = helper.groupby("block", sort=True)
+        blocks = pd.DataFrame(
+            {
+                "open": grouped["open"].first(),
+                "high": grouped["high"].max(),
+                "low": grouped["low"].min(),
+                "close": grouped["close"].last(),
+                "n": grouped["close"].count(),
+            }
+        )
+        blocks = blocks[blocks["n"] == 2].copy()
+
+        close = blocks["close"]
+        prev_close = close.shift(1)
+        true_range = pd.concat(
+            [
+                blocks["high"] - blocks["low"],
+                (blocks["high"] - prev_close).abs(),
+                (blocks["low"] - prev_close).abs(),
+            ],
+            axis=1,
+        ).max(axis=1, skipna=False)
+        blocks["ema"] = close.ewm(span=EMA_SPAN, adjust=False).mean()
+        blocks["atr"] = wilder_atr(true_range.to_numpy(dtype=float), ATR_LENGTH)
+        blocks["upper"] = blocks["ema"] + BAND_MULTIPLIER * blocks["atr"]
+        blocks["sma"] = close.rolling(SMA_BLOCKS).mean()
+        fresh = (
+            (close > blocks["upper"])
+            & (close.shift(1) <= blocks["upper"].shift(1))
+            & blocks["upper"].notna()
+            & blocks["upper"].shift(1).notna()
+        )
+        blocks["cross"] = fresh.astype(float)
+        blocks["open_hour"] = blocks.index.hour
+
+        # Write each block on the row of its H+1 bar, then carry forward.
+        blocks.index = blocks.index + pd.Timedelta(hours=1)
+        row_index = pd.DatetimeIndex(date)
+        aligned = blocks.reindex(row_index)
+        dataframe["is_block_end"] = row_index.isin(blocks.index)
+        for source, target in (
+            ("close", "blk_close"),
+            ("ema", "blk_ema"),
+            ("upper", "blk_upper"),
+            ("sma", "blk_sma"),
+            ("cross", "blk_cross"),
+            ("open_hour", "blk_open_hour"),
+        ):
+            dataframe[target] = aligned[source].ffill().values
+        dataframe["hour_utc"] = hour.values
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        defined = (
+            dataframe["blk_close"].notna()
+            & dataframe["blk_upper"].notna()
+            & dataframe["blk_sma"].notna()
+            & dataframe["blk_cross"].notna()
+            & dataframe["blk_open_hour"].notna()
+        )
+        cond = (
+            dataframe["is_block_end"]
+            & defined
+            & (dataframe["blk_cross"] == 1.0)
+            & (dataframe["blk_close"] > dataframe["blk_upper"])
+            & (dataframe["blk_close"] > dataframe["blk_sma"])
+            & (dataframe["blk_open_hour"] >= FIRST_BLOCK_OPEN_HOUR)
+            & (dataframe["blk_open_hour"] <= LAST_BLOCK_OPEN_HOUR)
+            & (dataframe["volume"] > 0)
+        )
+        dataframe.loc[cond, ["enter_long", "enter_tag"]] = (1, "keltner_2h_thrust")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        below_centre = (
+            dataframe["is_block_end"]
+            & dataframe["blk_close"].notna()
+            & dataframe["blk_ema"].notna()
+            & (dataframe["blk_close"] < dataframe["blk_ema"])
+            & (dataframe["volume"] > 0)
+        )
+        session = (dataframe["hour_utc"] == SESSION_EXIT_SIGNAL_HOUR) & (
+            dataframe["volume"] > 0
+        )
+        dataframe.loc[below_centre, ["exit_long", "exit_tag"]] = (1, "below_ema20")
+        dataframe.loc[session & ~below_centre, ["exit_long", "exit_tag"]] = (
+            1,
+            "session_flat",
+        )
+        return dataframe
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        """Time exit: first 1h open at least 12 hours after the entry fill."""
+        if current_time - trade.open_date_utc >= timedelta(hours=MAX_HOLD_HOURS):
+            return "time_exit_12h"
+        return None

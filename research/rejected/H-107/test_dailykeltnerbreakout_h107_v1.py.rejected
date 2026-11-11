@@ -1,0 +1,227 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+# Keep the tests runnable without installing Freqtrade or TA-Lib on the host.
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+
+ROOT = Path(__file__).parents[1]
+
+
+def load_strategy(filename: str, class_name: str):
+    path = ROOT / "user_data" / "strategies" / filename
+    spec = importlib.util.spec_from_file_location(class_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, class_name)
+
+
+Strategy = load_strategy(
+    "DailyKeltnerBreakout_H107_v1.py", "DailyKeltnerBreakout_H107_v1"
+)
+
+
+class FakeTrade:
+    def __init__(self, open_date_utc):
+        self.open_date_utc = open_date_utc
+
+
+def make_frame(closes, start="2024-01-01 00:00", spread=0.002) -> pd.DataFrame:
+    closes = np.asarray(closes, dtype=float)
+    opens = np.concatenate([[closes[0]], closes[:-1]])
+    return pd.DataFrame(
+        {
+            "date": pd.date_range(start, periods=len(closes), freq="1h", tz="UTC"),
+            "open": opens,
+            "high": np.maximum(opens, closes) * (1 + spread),
+            "low": np.minimum(opens, closes) * (1 - spread),
+            "close": closes,
+            "volume": 1.0,
+        }
+    )
+
+
+def synthetic_closes(length=900, jump_at=None):
+    rng = np.random.default_rng(7)
+    prices = 100.0 + np.cumsum(rng.normal(0, 0.05, length))
+    for start in jump_at or []:
+        prices[start:] += 3.0
+    return prices
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+def signal(frame, column):
+    if column not in frame:
+        return pd.Series(0, index=frame.index)
+    return frame[column].fillna(0)
+
+
+class KeltnerH107Tests(unittest.TestCase):
+    JUMPS = [400, 530, 700]  # row 400 is 16:00 UTC (even), 530 is 02:00 (even), 700 is 04:00
+
+    def test_class_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "1h")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.02)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 1000)
+        self.assertEqual(Strategy().protections, [])
+
+    def test_block_construction_and_missing_bar(self) -> None:
+        closes = synthetic_closes(300)
+        frame = make_frame(closes)
+        # Drop the 07:00 bar of day 1 (row 7): block 06-08 must disappear.
+        frame = frame.drop(index=7).reset_index(drop=True)
+        out = Strategy().populate_indicators(frame.copy(), {})
+        full = make_frame(closes)
+        row = out.index[out["date"] == pd.Timestamp("2024-01-01 03:00", tz="UTC")][0]
+        self.assertTrue(out.loc[row, "is_block_end"])
+        self.assertAlmostEqual(out.loc[row, "blk_close"], closes[3])
+        missing = out.index[out["date"] == pd.Timestamp("2024-01-01 07:00", tz="UTC")]
+        self.assertEqual(len(missing), 0)
+        eight = out.index[out["date"] == pd.Timestamp("2024-01-01 08:00", tz="UTC")][0]
+        self.assertFalse(out.loc[eight, "is_block_end"])
+        # carried forward: block 04-06 close (hour 5) is visible on the 06:00 row
+        six = out.index[out["date"] == pd.Timestamp("2024-01-01 06:00", tz="UTC")][0]
+        self.assertAlmostEqual(out.loc[six, "blk_close"], closes[5])
+        self.assertEqual(len(full), 300)
+
+    def test_ema_seed_and_atr_seed(self) -> None:
+        closes = synthetic_closes(200)
+        frame = make_frame(closes)
+        out = Strategy().populate_indicators(frame.copy(), {})
+        ends = out[out["is_block_end"]].reset_index(drop=True)
+        self.assertAlmostEqual(ends.loc[0, "blk_ema"], closes[1])
+        expected = closes[1]
+        for k in range(1, 5):
+            expected = expected + (2 / 21) * (closes[2 * k + 1] - expected)
+            self.assertAlmostEqual(ends.loc[k, "blk_ema"], expected)
+        # Upper band is undefined until the ATR seed (21st block) exists.
+        self.assertTrue(ends.loc[:19, "blk_upper"].isna().all())
+        self.assertTrue(ends.loc[20:, "blk_upper"].notna().all())
+
+    def test_signals_binary_and_entries_exist(self) -> None:
+        frame = make_frame(synthetic_closes(900, self.JUMPS))
+        out = run(Strategy(), frame)
+        for column in ("enter_long", "exit_long"):
+            values = out[column].dropna().unique().tolist()
+            self.assertTrue(set(values).issubset({1}))
+        entries = out.index[signal(out, "enter_long") == 1]
+        self.assertGreater(len(entries), 0)
+        for i in entries:
+            ts = out.loc[i, "date"]
+            self.assertEqual(ts.hour % 2, 1)  # H+1 row
+            self.assertTrue(1 <= ts.hour <= 17)  # block opened 00:00..16:00
+            self.assertGreater(out.loc[i, "close"], out.loc[i, "blk_upper"])
+            self.assertGreater(out.loc[i, "close"], out.loc[i, "blk_sma"])
+
+    def test_late_block_is_not_entered(self) -> None:
+        # Jump on the 18:00 block (row 18 of a day): opens after 16:00 -> no entry.
+        closes = synthetic_closes(900)
+        jump = 24 * 20 + 18  # day 21, 18:00 UTC, row 498
+        closes[jump:] += 3.0
+        out = run(Strategy(), make_frame(closes))
+        entry_dates = out.loc[signal(out, "enter_long") == 1, "date"]
+        self.assertFalse(((entry_dates.dt.hour >= 19)).any())
+
+    def test_session_exit_signal_at_22(self) -> None:
+        out = run(Strategy(), make_frame(synthetic_closes(300)))
+        exits = out.loc[signal(out, "exit_long") == 1]
+        session = exits[exits["exit_tag"] == "session_flat"]
+        self.assertGreater(len(session), 0)
+        self.assertTrue((session["date"].dt.hour == 22).all())
+        self.assertTrue(set(exits["exit_tag"]).issubset({"session_flat", "below_ema20"}))
+
+    def test_centre_line_exit_only_on_block_close(self) -> None:
+        closes = synthetic_closes(300)
+        out = run(Strategy(), make_frame(closes))
+        centre = out[(signal(out, "exit_long") == 1) & (out["exit_tag"] == "below_ema20")]
+        self.assertGreater(len(centre), 0)
+        self.assertTrue((centre["date"].dt.hour % 2 == 1).all())
+        self.assertTrue((centre["blk_close"] < centre["blk_ema"]).all())
+
+    def test_time_exit_in_custom_exit(self) -> None:
+        strategy = Strategy()
+        opened = datetime(2024, 1, 1, 3, 0, tzinfo=timezone.utc)
+        trade = FakeTrade(opened)
+        self.assertIsNone(
+            strategy.custom_exit("BTC/USDT", trade, opened + timedelta(hours=11), 100.0, 0.01)
+        )
+        self.assertIsNotNone(
+            strategy.custom_exit("BTC/USDT", trade, opened + timedelta(hours=12), 100.0, 0.01)
+        )
+        self.assertIsNotNone(
+            strategy.custom_exit("BTC/USDT", trade, opened + timedelta(hours=13), 100.0, -0.01)
+        )
+
+    def test_zero_volume_produces_no_signal(self) -> None:
+        frame = make_frame(synthetic_closes(900, self.JUMPS))
+        frame["volume"] = 0.0
+        out = run(Strategy(), frame)
+        self.assertEqual(int(signal(out, "enter_long").sum()), 0)
+        self.assertEqual(int(signal(out, "exit_long").sum()), 0)
+
+    def test_undefined_startup_values_produce_no_signal(self) -> None:
+        # SMA100 needs 100 blocks = 200 bars: nothing may fire before that.
+        frame = make_frame(synthetic_closes(900, self.JUMPS))
+        out = run(Strategy(), frame)
+        undefined = out["blk_sma"].isna() | out["blk_upper"].isna()
+        self.assertTrue(undefined.iloc[:199].all())
+        self.assertEqual(int(signal(out, "enter_long")[undefined].sum()), 0)
+        early = out[out["blk_ema"].isna()]
+        self.assertFalse((early.get("exit_tag") == "below_ema20").any())
+
+    def test_nan_prices_produce_no_entry(self) -> None:
+        frame = make_frame(synthetic_closes(900, self.JUMPS))
+        frame.loc[398:402, ["open", "high", "low", "close"]] = np.nan
+        out = run(Strategy(), frame)
+        entries = out.index[signal(out, "enter_long") == 1]
+        self.assertFalse(out.loc[entries, "close"].isna().any())
+
+    def test_no_lookahead_when_future_candles_are_appended(self) -> None:
+        closes = synthetic_closes(1100, self.JUMPS + [900])
+        full = make_frame(closes)
+        for n in (600, 601, 733):
+            head = run(Strategy(), full.iloc[:n])
+            longer = run(Strategy(), full)
+            columns = [
+                c
+                for c in ("is_block_end", "blk_close", "blk_ema", "blk_upper", "blk_sma", "blk_cross", "enter_long", "exit_long")
+                if c in head and c in longer
+            ]
+            pd.testing.assert_frame_equal(
+                head[columns].reset_index(drop=True),
+                longer[columns].iloc[:n].reset_index(drop=True),
+                check_dtype=False,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
