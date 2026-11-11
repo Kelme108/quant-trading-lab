@@ -1,0 +1,18 @@
+{
+  "title": "Awesome Oscillator saucer on 15m: momentum resumption above zero in an active market, 1% minimum stop, 1.5R target",
+  "source": {
+    "type": "repo",
+    "url": "https://github.com/je-suis-tm/quant-trading",
+    "title": "je-suis-tm/quant-trading: Awesome Oscillator (saucer signal) backtest",
+    "license": "Apache-2.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of bar t+1 (price E). mp = (high+low)/2. AO(t) = SMA5(mp) - SMA34(mp) (Bill Williams textbook lengths). ATR14 = Wilder ATR(14) of 15m bars. SAUCER at t: AO(t-3), AO(t-2), AO(t-1), AO(t) are all > 0; AO(t-2) < AO(t-3) and AO(t-1) < AO(t-2) (two falling bars); AO(t) > AO(t-1) (first rising bar). ENTRY at the close of t when SAUCER holds, the activity filter (a) holds: ATR14(t)/close(t) >= 0.004 (fixed in advance), close(t) > open(t), and the pair is flat. STOP: S = min(lowest low of bars t-5..t, 0.99 x E), i.e. at least 1% below the entry; if the 6-bar low is more than 2.5% below E, skip the trade. TARGET: E + 1.5 x (E - S), intrabar. Other exits: a 15m close with AO < 0 exits at the next open; time exit at the close of the 48th bar after entry (12 hours). One position per pair, same numbers on all nine pairs, no higher-timeframe inputs.",
+  "mechanism": "The repository describes the saucer only as a signal type (no mechanism). Closest honest one: AO above zero means the 5-bar mean price is above the 34-bar mean, i.e. an intraday up-move is under way; two falling AO bars are profit-taking and mean-reversion selling that slow but do not reverse it; the first re-acceleration says the remaining buy flow (orders split over hours) is still there and resumes. Those who sold the pause supply the liquidity. Cost: the volatility filter (15m ATR >= 0.4% of price) and the >= 1% stop keep cost at <= 0.3R; target 1.5R = >= 1.5%. With a ~42% hit rate and partial time exits the average gross move is about 0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 40,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 600,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "AwesomeOscillatorSaucer"
+}

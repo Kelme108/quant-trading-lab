@@ -1,0 +1,18 @@
+{
+  "title": "Multi-timeframe oversold confluence with BTC on 15m: pair and BTC hourly RSIs low, 15m RSI below hourly, exit on 15m RSI 70",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/multi_tf.py",
+    "title": "freqtrade-strategies: multi_tf (multi-timeframe RSI confluence with BTC and ETH/BTC gates)",
+    "license": "GPL-3.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of bar t+1 (price E). Indicators: R15 = RSI14 (Wilder) of the pair's 15m close; R1h = RSI14 of the pair's closed 1h candles (informative, last completed hour only); B14 = RSI14 and B4 = RSI4 of BTC/USDT closed 1h candles (for BTC itself these are its own). ATR14 = Wilder ATR of 15m bars. ENTRY at the close of t when ALL hold: (1) R15(t) < 30; (2) R15(t) < R1h; (3) R1h < 40; (4) B14 < 40; (5) B4 < 40; (6) activity filter (a), fixed in advance: ATR14(t)/close(t) >= 0.004; (7) flat. Relative to the source: the 5m chart becomes 15m, the BTC RSI14 gate is loosened from 35 to 40 so the rule fires about daily, and the BTC RSI2, 30m RSI and ETH/BTC conditions are dropped. EXITS, first to occur: take-profit E x 1.015 intrabar; stop E x 0.985 intrabar; a 15m close with R15 > 70 (the source exit) exits at the next open; time exit at the close of the 48th bar after entry (12 hours). One position per pair, same numbers on all nine pairs.",
+  "mechanism": "The source gives no mechanism. Closest honest one: when BTC itself is oversold on the hour, an alt's 15m selloff is part of market-wide de-risking (basket and index selling, stop and liquidation cascades) rather than coin-specific news. Forced, price-insensitive sellers pay whoever supplies liquidity, and the 15m-below-1h condition puts the entry where the selling is fastest. This differs from the single-pair 15m reversals that failed in the lab (H-050) because it needs a market-wide gate on two timeframes plus a volatility floor. Cost: snapbacks from joint BTC-and-pair oversold states on active bars are typically 1-2%; with +1.5%/-1.5% brackets, a ~55-60% hit rate and RSI-70 exits gives an estimated average gross move of about 0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 120,
+  "free_parameters": 11,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "MultiTFOversoldConfluence"
+}

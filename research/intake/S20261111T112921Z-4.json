@@ -1,0 +1,18 @@
+{
+  "title": "TrendRider-style EMA9/16 cross with volume and BTC gate on 15m, cut by time checkpoints (2h/4h/8h) and a 12h cap",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/TrendRiderStrategy.py",
+    "title": "freqtrade-strategies: TrendRiderStrategy (EMA-crossover signal and time-based losing-trade cascade)",
+    "license": "GPL-3.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of bar t+1 (price E). 15m indicators: EMA9 and EMA16 of close (the source's active values); RSI16 (Wilder); VE(t) = EMA20 of volume. Closed 1h candles (informative, only completed hours): EMA200 of the pair's 1h close; RSI14 of BTC/USDT 1h close (for BTC itself use its own). ENTRY at the close of t when ALL hold: (1) EMA9 crosses above EMA16 (EMA9(t) > EMA16(t), EMA9(t-1) <= EMA16(t-1)); (2) 40 <= RSI16(t) <= 75; (3) close(t) > last closed 1h EMA200; (4) activity filter (b), fixed in advance: volume(t) >= 1.5 x VE(t-1); (5) BTC last closed 1h RSI14 > 35; (6) flat. EXITS (bar counts from the fill bar, checked at 15m closes, executed at the next open unless intrabar): hard stop E x 0.97 intrabar; take-profit E x 1.02 intrabar; at the close of bar 8 (2h) exit if close <= E x 0.985; at bar 16 (4h) exit if close < E; at bar 32 (8h) exit if close < E x 1.005; EMA9 crosses below EMA16 while RSI16 > 50 exits; time exit at the close of bar 48 (12h). One position per pair, same numbers on all nine pairs.",
+  "mechanism": "The source states only the trend-riding intent. Closest honest mechanism: a fresh fast-EMA cross on above-average volume above the hourly 200 EMA, with BTC not in a selloff, catches the start of an intraday leg that split orders keep feeding; the other side is short-horizon mean-reversion sellers. The novel part is the exit: fixed time checkpoints remove trades that have not worked (a fail-fast exit, the design that came closest in the lab), so losers are mostly -0.5% to -1.5% and winners reach the 2% target or the 8h/12h exits. With ~40% of trades at +2% and the cascade keeping average losses near -1%, the estimated average gross move is about 0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 14,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "TimeDecayFailFastTrend"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Parabolic SAR up-flip on a volume surge, 15m: Wilder accelerating stop as the only trailing exit, 12h cap",
+  "source": {
+    "type": "repo",
+    "url": "https://github.com/je-suis-tm/quant-trading",
+    "title": "je-suis-tm/quant-trading: Parabolic SAR backtest (stop-and-reverse on SAR/price crossover)",
+    "license": "Apache-2.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of bar t+1 (price E). PSAR = Wilder Parabolic SAR on 15m high/low with textbook acceleration factor start 0.02, step 0.02, maximum 0.20; dir(t) = up when the SAR for bar t is below price, down otherwise. Vmean(t) = mean volume of bars t-20..t-1. ENTRY at the close of t when ALL hold: (1) dir(t-1) = down and dir(t) = up (the SAR flipped below price on bar t); (2) activity filter (b), fixed in advance: volume(t) >= 1.5 x Vmean(t); (3) close(t) > open(t); (4) flat. INITIAL STOP: S0 = min(SAR value for bar t+1, computed at the close of t; 0.99 x E), so it is at least 1% below the entry; if the SAR is more than 3% below E, skip the trade. EXIT: intrabar at the stop, where the stop is max(S0, current SAR) updated each bar (the SAR trails and accelerates with every new high); a 15m close below the current SAR also exits at the next open; time exit at the close of the 48th bar after entry (12 hours). No take-profit. One position per pair, same numbers on all nine pairs, no higher-timeframe inputs.",
+  "mechanism": "Source gives only the stop-and-reverse mechanics. Closest honest mechanism: a SAR flip on 1.5x volume marks a reversal driven by real flow (short covering plus fresh buyers), not drift. Wilder's SAR is a time-and-price accelerating stop: it gives a new move room at first and tightens as the move ages, so failed flips are cut fast while trends that extend are held. That positively skewed payoff is the same shape as the fail-fast breakout exit that came closest in the lab (H-046, 1.07% gross), applied here to a different trigger. Cost: the >= 1% initial stop keeps cost <= 0.3R; trending flips on active 15m bars typically run 1.5-3% before the accelerated SAR catches them, so the average gross move is estimated at about 0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 25,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "ParabolicSARVolumeFlip"
+}

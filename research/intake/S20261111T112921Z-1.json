@@ -1,0 +1,18 @@
+{
+  "title": "HLHB trend catcher on 15m: EMA5/10 cross with RSI(10) of median price through 50, ADX above 25, volume-confirmed",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/hlhb.py",
+    "title": "freqtrade-strategies: hlhb (HLHB Trend-Catcher, after Hucklekiwi Pip / BabyPips)",
+    "license": "GPL-3.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; a signal at the close of bar t fills at the open of bar t+1 (price E). All indicators on 15m: EMA5 and EMA10 of close; RSI10 (Wilder) of the median price (high+low)/2; ADX14 (Wilder); Vmean(t) = mean volume of bars t-20..t-1. ENTRY at the close of t when ALL hold on the same bar: (1) EMA5 crosses above EMA10 (EMA5(t) > EMA10(t) and EMA5(t-1) <= EMA10(t-1)); (2) RSI10 crosses above 50 (RSI10(t) > 50 and RSI10(t-1) <= 50); (3) ADX14(t) > 25; (4) activity filter (b), fixed in advance: volume(t) >= 1.5 x Vmean(t); (5) flat. EXITS, first to occur: hard stop at E x 0.985 (intrabar); trailing stop: once the highest high since entry reaches E x 1.019, exit intrabar at 1.2% below the highest high since entry (values from the source); mirror signal (EMA5 crosses below EMA10 AND RSI10 crosses below 50 on the same bar) exits at the next open; time exit at the close of the 48th bar after entry (12 hours). One position per pair, no pyramiding, same numbers on all nine pairs. No daily or hourly inputs.",
+  "mechanism": "The source gives no mechanism beyond 'catch short trends'. Closest honest one: a simultaneous fast-MA cross and RSI cross of 50 while ADX > 25 marks a bar where short-term momentum resumes inside an already strong directional move; with 1.5x volume the push is real order flow (split institutional orders persist for hours, per the order-flow persistence literature cited by Concretum), and the other side is mean-reversion liquidity providers and late stops. Cost: the 1.5% stop and the 1.9%-activated, 1.2%-wide trail make winners exit at >= +0.7% and typically +1.5-2.5%, losers at about -1.5% or earlier via the time exit; with a ~40-45% win rate on that payoff the average gross move is about 0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 30,
+  "free_parameters": 11,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "HLHBTrendCatcher"
+}
