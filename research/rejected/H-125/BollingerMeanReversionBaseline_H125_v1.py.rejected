@@ -1,0 +1,126 @@
+"""H-125: Hummingbot Bollinger V1 on 15m, close below the 100-bar lower band in an active market, triple-barrier exit.
+
+Closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only,
+one position per pair (engine).
+
+Indicators (15m closes):
+- mid = SMA(100) of close; sd = population standard deviation (ddof = 0) of the same 100 closes.
+- upper = mid + 2.0*sd; lower = mid - 2.0*sd; BBP = (close - lower) / (upper - lower).
+- ATR = Wilder ATR(14) (alpha = 1/14); ATRp = ATR / close.
+Entry at the close of bar t: BBP < 0.0 and ATRp >= 0.004, and fewer than 4 trades on the pair opened
+on the same UTC calendar day as the fill (confirm_trade_entry).
+Exits, first wins:
+- stop-loss 1% (stoploss = -0.01, native, intrabar);
+- trailing stop armed at +0.8%, then 0.4% below the highest price since entry (native trailing);
+- take-profit +3% (custom_exit, because minimal_roi is fixed by the contract);
+- time limit: 24 bars (6 h) after the entry fill (custom_exit, filled at the following open).
+No cooldown, no other exit signal.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+BB_LENGTH = 100
+BB_STD = 2.0
+ATR_LENGTH = 14
+ATR_PCT_MIN = 0.004
+BBP_LONG_THRESHOLD = 0.0
+MAX_ENTRIES_PER_UTC_DAY = 4
+TAKE_PROFIT_PCT = 0.03
+TIME_LIMIT = timedelta(minutes=15 * 24)
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def bollinger_atr_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add bb_mid, bb_upper, bb_lower, bbp, atr, atrp. Backward-looking only."""
+    close = dataframe["close"].astype(float)
+    high = dataframe["high"].astype(float)
+    low = dataframe["low"].astype(float)
+
+    mid = close.rolling(BB_LENGTH).mean()
+    sd = close.rolling(BB_LENGTH).std(ddof=0)
+    upper = mid + BB_STD * sd
+    lower = mid - BB_STD * sd
+    width = upper - lower
+    dataframe["bb_mid"] = mid
+    dataframe["bb_upper"] = upper
+    dataframe["bb_lower"] = lower
+    dataframe["bbp"] = (close - lower) / width.where(width > 0)
+
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1, skipna=False)
+    atr = true_range.ewm(alpha=1.0 / ATR_LENGTH, adjust=False).mean()
+    dataframe["atr"] = atr
+    dataframe["atrp"] = atr / close.where(close > 0)
+    return dataframe
+
+
+class BollingerMeanReversionBaseline_H125_v1(IStrategy):
+    """Buy a 15m close below the 100-bar lower Bollinger band when ATR(14) >= 0.4% of price."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.01
+    trailing_stop = True
+    trailing_stop_positive = 0.004
+    trailing_stop_positive_offset = 0.008
+    trailing_only_offset_is_reached = True
+    use_exit_signal = True
+    startup_candle_count = 400
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return bollinger_atr_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        cond = (
+            dataframe["bbp"].notna()
+            & dataframe["atrp"].notna()
+            & (dataframe["bbp"] < BBP_LONG_THRESHOLD)
+            & (dataframe["atrp"] >= ATR_PCT_MIN)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # All exits are stop, trailing stop, take-profit and time limit: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """Fewer than 4 trades on this pair opened on the same UTC day as the fill."""
+        today = utc_day(current_time)
+        count = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                count += 1
+        return count < MAX_ENTRIES_PER_UTC_DAY
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        if current_profit is not None and current_profit >= TAKE_PROFIT_PCT:
+            return "take_profit"
+        # Fill is the open of bar t+1; the 24th bar since entry closes 6 h later.
+        if pd.Timestamp(current_time) - pd.Timestamp(trade.open_date_utc) >= TIME_LIMIT:
+            return "time_limit_24_bars"
+        return None

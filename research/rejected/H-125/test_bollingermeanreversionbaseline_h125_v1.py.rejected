@@ -1,0 +1,196 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "BollingerMeanReversionBaseline_H125_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+
+def make_frame(n: int, seed: int = 1) -> pd.DataFrame:
+    """Random-walk 15m bars with a few sharp drops so the lower band is breached."""
+    rng = np.random.default_rng(seed)
+    returns = rng.normal(0.0, 0.004, n)
+    returns[150::37] -= 0.04
+    close = 100.0 * np.exp(np.cumsum(returns))
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    high = np.maximum(open_, close) * 1.003
+    low = np.minimum(open_, close) * 0.997
+    return pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=n, freq="15min", tz="UTC"),
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": np.full(n, 10.0),
+        }
+    )
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def signal(frame, column="enter_long"):
+    if column not in frame:
+        return pd.Series(0, index=frame.index)
+    return frame[column].fillna(0)
+
+
+class H125Tests(unittest.TestCase):
+    def test_contract_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.01)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 400)
+        self.assertTrue(Strategy.trailing_stop)
+        self.assertEqual(Strategy.trailing_stop_positive, 0.004)
+        self.assertEqual(Strategy.trailing_stop_positive_offset, 0.008)
+        self.assertTrue(Strategy.trailing_only_offset_is_reached)
+
+    def test_indicator_definitions(self):
+        frame = run(Strategy(), make_frame(600))
+        i = 300
+        window = frame["close"].iloc[i - 99 : i + 1]
+        mid = window.mean()
+        sd = window.std(ddof=0)
+        self.assertAlmostEqual(frame.loc[i, "bb_lower"], mid - 2 * sd)
+        self.assertAlmostEqual(frame.loc[i, "bb_upper"], mid + 2 * sd)
+        bbp = (frame.loc[i, "close"] - (mid - 2 * sd)) / (4 * sd)
+        self.assertAlmostEqual(frame.loc[i, "bbp"], bbp)
+        self.assertAlmostEqual(frame.loc[i, "atrp"], frame.loc[i, "atr"] / frame.loc[i, "close"])
+
+    def test_entries_exist_and_follow_the_rule(self):
+        frame = run(Strategy(), make_frame(1500))
+        sig = signal(frame)
+        self.assertGreater(int(sig.sum()), 0)
+        fired = frame[sig == 1]
+        self.assertTrue((fired["bbp"] < 0).all())
+        self.assertTrue((fired["atrp"] >= 0.004).all())
+        quiet = frame[(frame["bbp"] < 0) & (frame["atrp"] < 0.004)]
+        self.assertTrue((signal(frame).loc[quiet.index] == 0).all())
+
+    def test_signal_columns_are_binary(self):
+        frame = run(Strategy(), make_frame(1500))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_gives_no_signal(self):
+        frame = make_frame(1500)
+        frame["volume"] = 0.0
+        frame = run(Strategy(), frame)
+        self.assertEqual(int(signal(frame).sum()), 0)
+        self.assertEqual(int(signal(frame, "exit_long").sum()), 0)
+
+    def test_single_zero_volume_candle_gives_no_signal(self):
+        base = run(Strategy(), make_frame(1500))
+        idx = int(signal(base)[signal(base) == 1].index[0])
+        frame = make_frame(1500)
+        frame.loc[idx, "volume"] = 0.0
+        frame = run(Strategy(), frame)
+        self.assertEqual(int(signal(frame).loc[idx]), 0)
+
+    def test_undefined_startup_values_give_no_signal(self):
+        frame = run(Strategy(), make_frame(1500))
+        self.assertTrue(frame["bbp"].iloc[:99].isna().all())
+        self.assertEqual(int(signal(frame).iloc[:99].sum()), 0)
+
+    def test_flat_prices_give_no_signal(self):
+        frame = make_frame(600)
+        for col in ("open", "high", "low", "close"):
+            frame[col] = 100.0
+        frame = run(Strategy(), frame)
+        self.assertEqual(int(signal(frame).sum()), 0)
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self):
+        full = make_frame(1500)
+        n = 1000
+        short = run(Strategy(), full.iloc[:n].copy())
+        long = run(Strategy(), full.copy())
+        a = signal(short).iloc[:n].to_numpy()
+        b = signal(long).iloc[:n].to_numpy()
+        np.testing.assert_array_equal(a, b)
+        cols = ["bb_mid", "bb_upper", "bb_lower", "bbp", "atr", "atrp"]
+        pd.testing.assert_frame_equal(
+            short.loc[: n - 1, cols], long.loc[: n - 1, cols], check_dtype=False
+        )
+
+    def test_take_profit_and_time_exit(self):
+        strategy = Strategy()
+        opened = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(open_date_utc=opened)
+        exit_ = strategy.custom_exit
+        self.assertIsNone(exit_("X/USDT", trade, opened + timedelta(hours=1), 100.0, 0.029))
+        self.assertEqual(
+            exit_("X/USDT", trade, opened + timedelta(hours=1), 103.0, 0.03), "take_profit"
+        )
+        self.assertIsNone(exit_("X/USDT", trade, opened + timedelta(hours=5, minutes=45), 100.0, -0.002))
+        self.assertEqual(
+            exit_("X/USDT", trade, opened + timedelta(hours=6), 100.0, -0.002), "time_limit_24_bars"
+        )
+
+    def test_daily_entry_cap(self):
+        strategy = Strategy()
+        now = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+
+        def trades(*dates):
+            return [SimpleNamespace(open_date_utc=d) for d in dates]
+
+        same_day = [datetime(2024, 1, 2, h, 0, tzinfo=timezone.utc) for h in (0, 3, 6, 9)]
+        previous = datetime(2024, 1, 1, 23, 45, tzinfo=timezone.utc)
+        original = MODULE.Trade.get_trades_proxy
+        try:
+            MODULE.Trade.get_trades_proxy = staticmethod(lambda **k: trades(*same_day[:3], previous))
+            self.assertTrue(strategy.confirm_trade_entry("X/USDT", "limit", 1, 1, "GTC", now, None, "long"))
+            MODULE.Trade.get_trades_proxy = staticmethod(lambda **k: trades(*same_day, previous))
+            self.assertFalse(strategy.confirm_trade_entry("X/USDT", "limit", 1, 1, "GTC", now, None, "long"))
+        finally:
+            MODULE.Trade.get_trades_proxy = original
+
+
+if __name__ == "__main__":
+    unittest.main()
