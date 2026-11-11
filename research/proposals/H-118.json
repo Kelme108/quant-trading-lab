@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-118",
+  "family": "OrderBlockRetest",
+  "title": "15m bullish order-block retest after a structure-breaking displacement, target the displacement high",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; signal at the close of bar t, fill at the open of bar t+1 (price E). Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs, no higher-timeframe filter, single grid cell. ATR = Wilder ATR(14) of true range (alpha 1/14, seeded with the mean of the first 14 TRs). DISPLACEMENT at bar D when all hold: (1) close(D) > max high of bars D-16..D-1; (2) high(D)-low(D) >= 1.5 x ATR(D-1); (3) (close(D)-low(D))/(high(D)-low(D)) >= 0.7. ORDER BLOCK: the most recent bar j in D-5..D-1 with close(j) < open(j); if none, bar D creates no setup and leaves any existing setup untouched. Zone OL = low(j), OH = high(j), mean threshold MT = (OH+OL)/2; store D. SETUP: known at the close of D; a displacement with an order block replaces any older setup, and bar D itself gives no entry signal. The setup is ACTIVE on bars t = D+1..D+32 unless invalidated or consumed. INVALIDATION: the first bar t > D with close(t) < OL kills it. CONSUMPTION: the first bar meeting entry conditions (a)-(c) consumes it, whether or not an order fills (one signal per setup). ENTRY signal at the close of bar t when the setup is active and (a) low(t) <= MT; (b) close(t) > OL; (c) ATR(t)/close(t) >= 0.004 (activity filter a). Carry OL and HH = max high of bars D..t with the signal. The order fills at open(t+1) only if the pair is flat and fewer than 4 trades have been opened on this pair in the UTC calendar day of the fill (counted by fill time; confirm_trade_entry). STOP-LOSS: sd = max(1 - 0.998 x OL / E, 0.01), frozen at the fill; stop price E x (1 - sd) = min(0.998 x OL, 0.99 x E), a fixed distance below the entry price, triggered intrabar as soon as the low touches it (custom_stoploss returning the frozen sd; native stoploss -0.10 is only an engine backstop). TAKE-PROFIT: td = max(HH / E - 1, 0.015), frozen at the fill; target E x (1 + td) = max(HH, 1.015 x E), sold at that price when a bar's high reaches it (at the open if a bar opens above it). If stop and target are touched in the same bar, the stop counts. TIME EXIT: with the fill at the open of bar e = t+1, exit signal at the close of bar e+47 (48th bar of the trade), sold at the open of e+48, i.e. 12 hours after the fill. No trailing, no break-even move, no cooldown, no other filters. Warm-up: 400 bars (longest raw lookback: 16-bar high before D plus the 5 order-block bars plus 32 active bars = 53 bars; ATR(14) is recursive, so 400 bars let the Wilder seed decay; under 4500).",
+  "parameters": {
+    "timeframe": "15m",
+    "atr_period": 14,
+    "structure_lookback_bars": 16,
+    "displacement_range_atr_mult": 1.5,
+    "displacement_close_location_min": 0.7,
+    "order_block_search_bars": 5,
+    "setup_active_bars": 32,
+    "activity_atr_pct_min": 0.004,
+    "stop_zone_buffer": 0.998,
+    "stop_min_pct": 0.01,
+    "target_min_pct": 0.015,
+    "time_exit_bars": 48,
+    "max_entries_per_pair_per_utc_day": 4,
+    "native_stoploss_backstop": -0.10,
+    "startup_candle_count": 400
+  },
+  "rationale": "LuxAlgo's Library defines a bullish order block as the last down-closing candle before an impulsive move that breaks structure: the buying that launched the move is assumed to have been built in that candle, and unfilled demand tends to defend the zone when price returns (mitigation); a close through the whole zone invalidates it. Who gives money away: sellers fading the breakout and breakout buyers whose stops sit just below push price back into the block, where the remaining demand absorbs them; the old swing high is a liquidity pool (resting sell stops of shorts and breakout orders) that the price tends to revisit. Requiring a 4-hour structure break, a bar of at least 1.5 ATR closing in its top 30%, and ATR/close >= 0.4% keeps only impulsive moves in active markets, which is what the lab digest says is needed (15m median gross move 0.08% when untriggered). Exits sit near -1% (or the zone edge) and +1.5% or more (the displacement high), so with a hit rate near 45% the average gross move is about 0.6%, above the 0.30% base and 0.45% conservative round trip; the stop of at least 1% keeps cost under 0.3R. Expected trades: structure-breaking displacements with a retest of the block's midpoint within 8 hours occur roughly once a day per pair in active periods, about 250-450 trades per year per pair after the ATR filter. In a falling or ranging market, retests more often close below OL (setup killed, no trade) or hit the stop quickly; the time exit caps exposure at 12 hours. No number was tuned on results; all come from the scout's idea fixed before testing.",
+  "novelty_vs_tried": "No order-block family exists in the lab. The closest are H-117 FairValueGapRetest (retest of a three-bar gap after a volume bar, 2R target) and H-110 InverseFVGReclaim (reclaim of a bearish gap). Here the zone is the last down candle before the impulse, not a price gap; the setup requires a break of the 16-bar (4-hour) high by a wide bar closing near its high (range and close-location tests, no volume test); the entry is a wick into the block's 50% mean threshold with a close back above the block low; and the target is the swing high the displacement made (floored at +1.5%) rather than a fixed R multiple. It is also not a breakout rule (SessionOpeningRangeBreakout, VolatilitySqueezeBreakout): it buys the pullback into the origin of the breakout, not the breakout itself.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Bullish/bearish Order Block",
+      "url": "https://www.luxalgo.com/library/concept/bullish-bearish-order-block.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed; only the exploration digest and tried-rule list in research/context/H-118.md (exploration split only) and the LuxAlgo source page."
+}
