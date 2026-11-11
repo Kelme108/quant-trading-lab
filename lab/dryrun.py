@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from lab import costs, forward
@@ -85,8 +85,56 @@ def metrics(trades: list[dict], wallet: float, cfg: dict) -> dict:
     }
 
 
+def activity(closed: list[dict], frozen_at: datetime | None, now: datetime, cfg: dict) -> dict:
+    """How long a bot has been running and how fast it trades. The clock starts at the freeze (the bot starts right after it);
+    `closed` are the pooled closed trades. All keys are None when the freeze time is unknown."""
+    if frozen_at is None:
+        return {"days_running": None, "trades_per_day": None, "days_since_last_trade": None, "eta_days_to_min_trades": None}
+    days_running = max((now - frozen_at).total_seconds() / 86400.0, 0.0)
+    closes = [d for d in (forward._ts(t["close_date"]) for t in closed) if d]
+    last = max(closes) if closes else None
+    rate = len(closed) / days_running if days_running > 0 else None
+    need = max(cfg["min_closed_trades"] - len(closed), 0)
+    return {"days_running": days_running, "trades_per_day": rate,
+            "days_since_last_trade": None if last is None else max((now - last).total_seconds() / 86400.0, 0.0),
+            "eta_days_to_min_trades": 0.0 if need == 0 else (need / rate if rate else None)}
+
+
+def _frozen_at(hypothesis_id: str, root: Path) -> datetime | None:
+    try:
+        raw = json.loads((root / "research" / "forward" / f"{hypothesis_id}-freeze.json").read_text(encoding="utf-8"))["frozen_at_utc"]
+        return forward._ts(raw)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def inactivity_reasons(m: dict, cfg: dict) -> tuple[bool, list[str]]:
+    """(discard, notes). Owner decision 2026-11-11: the goal is a FAST validation by day trading, so a bot that keeps running without
+    trading is dropped like one that loses. Discard once it has run `discard_after_days` with fewer than `min_trades_by_then` closed
+    trades, or (past that age) with no closed trade for `max_days_without_trade` days. Notes also warn of a slow pace."""
+    rule = cfg.get("inactivity")
+    days = m.get("days_running")
+    if not rule or days is None:
+        return False, []
+    notes = [f"running {days:.1f} days, {m['trades_per_day']:.2f} trades/day"]
+    eta = m.get("eta_days_to_min_trades")
+    if eta is not None and eta > 0:
+        notes[0] += f", ~{eta:.0f} more days to {cfg['min_closed_trades']} trades at this pace"
+    if days >= rule["discard_after_days"]:
+        if m["trades"] < rule["min_trades_by_then"]:
+            return True, notes + [f"INACTIVE: {m['trades']} closed trades in {days:.1f} days (needs {rule['min_trades_by_then']} within {rule['discard_after_days']} days)"]
+        quiet = m.get("days_since_last_trade")
+        if quiet is not None and quiet > rule["max_days_without_trade"]:
+            return True, notes + [f"INACTIVE: no closed trade for {quiet:.1f} days (limit {rule['max_days_without_trade']})"]
+    if days >= rule["warn_after_days"] and m["trades"] == 0:
+        notes.append(f"warning: no closed trade yet after {days:.1f} days (discard at {rule['discard_after_days']} days with < {rule['min_trades_by_then']} trades)")
+    elif eta is not None and days >= rule["warn_after_days"] and eta > rule["slow_eta_days"]:
+        notes.append(f"warning: slow pace, more than {rule['slow_eta_days']} days to the minimum trade count")
+    return False, notes
+
+
 def verdict(m: dict, cfg: dict, execution: dict | None = None) -> tuple[str, list[str]]:
-    """('collecting' | 'approved_for_review' | 'rejected', reasons). Every checked bar is listed."""
+    """('collecting' | 'approved_for_review' | 'rejected' | 'inactive', reasons). Every checked bar is listed."""
     reasons: list[str] = []
     pf = m["profit_factor"]
     early = cfg["early_reject"]
@@ -94,7 +142,9 @@ def verdict(m: dict, cfg: dict, execution: dict | None = None) -> tuple[str, lis
         return "rejected", [f"early reject: profit factor {pf:.2f} < {early['max_profit_factor']} after {m['trades']} trades"]
     enough = m["trades"] >= cfg["min_closed_trades"] and m["days"] >= cfg["min_days"]
     if not enough:
-        return "collecting", [f"{m['trades']}/{cfg['min_closed_trades']} closed trades, {m['days']:.1f}/{cfg['min_days']} days"]
+        discard, notes = inactivity_reasons(m, cfg)
+        head = f"{m['trades']}/{cfg['min_closed_trades']} closed trades, {m['days']:.1f}/{cfg['min_days']} days"
+        return ("inactive" if discard else "collecting"), [head, *notes]
     if pf is None or pf < cfg["reject_at_min_trades"]["max_profit_factor"] or m["net_profit"] <= 0:
         return "rejected", [f"at {m['trades']} trades: net profit {m['net_profit']:.2f}, profit factor "
                             f"{'n/a' if pf is None else format(pf, '.2f')}"]
@@ -136,10 +186,11 @@ def _wallet(hypothesis_id: str, key: str, cfg: dict, root: Path) -> float:
     return float(cfg["default_wallet_quote"])
 
 
-def evaluate_hypothesis(hypothesis_id: str, cfg: dict | None = None, root: Path = ROOT) -> dict:
+def evaluate_hypothesis(hypothesis_id: str, cfg: dict | None = None, root: Path = ROOT, now: datetime | None = None) -> dict:
     """Pool the closed trades of every pair of a frozen hypothesis and judge them together (one database per pair,
     or the single database of a multi-pair bot split by pair)."""
     cfg = cfg or load_config()
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
     pooled, per_pair, wallet, raw_trades, raw_orders = [], {}, 0.0, [], []
     for key in forward.pair_keys(hypothesis_id, root):
         trades, orders = forward.read_pair(hypothesis_id, key, root)
@@ -151,7 +202,7 @@ def evaluate_hypothesis(hypothesis_id: str, cfg: dict | None = None, root: Path 
         raw_orders += orders
         pair = forward.PAIR_KEYS.get(key, key)
         per_pair[pair] = metrics(closed, bot_wallet, cfg)
-    pooled_metrics = metrics(pooled, wallet, cfg)
+    pooled_metrics = {**metrics(pooled, wallet, cfg), **activity(pooled, _frozen_at(hypothesis_id, root), now, cfg)}
     execution = forward.execution_quality(raw_trades, raw_orders) if raw_trades else None
     state, reasons = verdict(pooled_metrics, cfg, execution)
     return {"hypothesis": hypothesis_id, "verdict": state, "reasons": reasons, "pooled": pooled_metrics,
@@ -175,13 +226,17 @@ def render(results: list[dict], cfg: dict) -> str:
              "Regra: lab/config/dryrun.json (decisão do dono em 10/11/2026). Aprovação aqui = vale uma análise humana para dinheiro real, "
              "nunca uma ordem. O holdout formal (>= 2027-04-21) continua separado e inalterado.", "",
              f"Mínimo para decidir: {cfg['min_closed_trades']} trades fechados e {cfg['min_days']} dias; reprova cedo com "
-             f"{cfg['early_reject']['min_closed_trades']}+ trades e fator de lucro < {cfg['early_reject']['max_profit_factor']}.", "",
-             "| Hipótese | Veredito | Trades | Dias | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |",
-             "|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
+             f"{cfg['early_reject']['min_closed_trades']}+ trades e fator de lucro < {cfg['early_reject']['max_profit_factor']}.",
+             *([f"Day trade precisa operar: o bot é descartado (`inactive`) com {cfg['inactivity']['discard_after_days']}+ dias rodando e menos de "
+                f"{cfg['inactivity']['min_trades_by_then']} trades fechados, ou sem nenhum trade há mais de {cfg['inactivity']['max_days_without_trade']} dias "
+                f"(decisão do dono, 11/11/2026). O relógio começa no congelamento."] if cfg.get("inactivity") else []), "",
+             "| Hipótese | Veredito | Rodando (dias) | Trades | Trades/dia | Sem trade há (dias) | Dias até o mínimo | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |",
+             "|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
     for r in results:
         m = r["pooled"]
         win = None if m["win_rate"] is None else 100 * m["win_rate"]
-        lines.append(f"| {r['hypothesis']} | {r['verdict']} | {m['trades']} | {_f(m['days'], 1)} | {_f(win, 1, '%')} | {_f(m['payoff'])} | "
+        lines.append(f"| {r['hypothesis']} | {r['verdict']} | {_f(m.get('days_running'), 1)} | {m['trades']} | {_f(m.get('trades_per_day'))} | "
+                     f"{_f(m.get('days_since_last_trade'), 1)} | {_f(m.get('eta_days_to_min_trades'), 0)} | {_f(win, 1, '%')} | {_f(m['payoff'])} | "
                      f"{_f(m['profit_factor'])} | {_f(m['expectancy_pct'], 2, '%')} | {_f(m['net_profit'])} | {_f(m['net_profit_excl_best'])} | "
                      f"{_f(m['max_drawdown_pct'], 1, '%')} | {_f(m['prob_mean_positive'])} |")
     lines.append("")
@@ -189,6 +244,8 @@ def render(results: list[dict], cfg: dict) -> str:
         lines += [f"## {r['hypothesis']}: {r['verdict']}", *(f"- {reason}" for reason in r["reasons"]), ""]
         if r["verdict"] == "rejected":
             lines += ["Recomendação: parar este bot (os números dizem que a vantagem não existe).", ""]
+        if r["verdict"] == "inactive":
+            lines += ["Recomendação: parar e descartar este bot (day trade que não opera não valida nada; libera o espaço para outro).", ""]
     return "\n".join(lines)
 
 

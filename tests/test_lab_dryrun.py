@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -68,6 +69,60 @@ class DryRunVerdictTests(unittest.TestCase):
         a = dryrun.bootstrap_prob_positive([0.01, -0.005, 0.02, -0.01], 500, 1)
         self.assertEqual(a, dryrun.bootstrap_prob_positive([0.01, -0.005, 0.02, -0.01], 500, 1))
         self.assertEqual(dryrun.bootstrap_prob_positive([], 10, 1), 0.0)
+
+
+class InactivityTests(unittest.TestCase):
+    """Owner decision 2026-11-11: a day-trade bot that keeps running without trading is discarded, like one that loses."""
+    START = datetime(2026, 11, 1)
+
+    def judge(self, trades, days_running):
+        now = self.START + timedelta(days=days_running)
+        m = {**dryrun.metrics(trades, 1000.0, CFG), **dryrun.activity(trades, self.START, now, CFG)}
+        return m, dryrun.verdict(m, CFG)
+
+    def test_the_clock_starts_at_the_freeze_not_at_the_first_trade(self) -> None:
+        m, (state, reasons) = self.judge([], 4.0)
+        self.assertAlmostEqual(m["days_running"], 4.0)
+        self.assertEqual(m["days"], 0.0)                     # the span of trades is still 0
+        self.assertEqual((m["trades_per_day"], m["days_since_last_trade"], m["eta_days_to_min_trades"]), (0.0, None, None))
+        self.assertEqual(state, "collecting")
+        self.assertTrue(any(r.startswith("warning: no closed trade yet") for r in reasons))
+
+    def test_no_trade_for_the_discard_age_is_discarded(self) -> None:
+        for trades in ([], book(4)):
+            _, (state, reasons) = self.judge(trades, 7.0)
+            self.assertEqual(state, "inactive", reasons)
+            self.assertTrue(any(r.startswith("INACTIVE") for r in reasons))
+
+    def test_a_bot_that_trades_is_kept_and_its_pace_is_shown(self) -> None:
+        m, (state, reasons) = self.judge(book(12), 7.0)     # 12 trades in 7 days
+        self.assertEqual(state, "collecting")
+        self.assertAlmostEqual(m["trades_per_day"], 12 / 7.0)
+        self.assertAlmostEqual(m["eta_days_to_min_trades"], 48 / (12 / 7.0))
+        self.assertFalse(any("INACTIVE" in r for r in reasons))
+
+    def test_a_bot_that_went_quiet_is_discarded_after_the_discard_age(self) -> None:
+        trades = [trade(i, 0.01) for i in range(8)]         # all trades on 2026-11-01 and 11-02
+        _, (state, reasons) = self.judge(trades, 9.0)
+        self.assertEqual(state, "inactive")
+        self.assertTrue(any("no closed trade for" in r for r in reasons))
+        _, (young, _) = self.judge(trades, 6.0)             # same silence, but still below the discard age
+        self.assertEqual(young, "collecting")
+
+    def test_inactivity_never_overrides_a_real_verdict(self) -> None:
+        _, (state, _) = self.judge(book(35, win=0.004, loss=-0.012, every=3), 30.0)
+        self.assertEqual(state, "rejected")
+
+    def test_an_unknown_freeze_time_changes_nothing(self) -> None:
+        m = {**dryrun.metrics([], 1000.0, CFG), **dryrun.activity([], None, self.START, CFG)}
+        self.assertEqual(dryrun.verdict(m, CFG)[0], "collecting")
+
+    def test_the_report_lists_the_running_time_and_the_recommendation(self) -> None:
+        m, (state, reasons) = self.judge([], 8.0)
+        text = dryrun.render([{"hypothesis": "H-200", "verdict": state, "reasons": reasons, "pooled": m, "per_pair": {}, "wallet": 1000.0}], CFG)
+        self.assertIn("Rodando (dias)", text)
+        self.assertIn("| H-200 | inactive | 8.0 | 0 | 0.00 |", text)
+        self.assertIn("parar e descartar este bot", text)
 
 
 def multi_pair_root(root: Path, pairs: list[str], wallet_per_pair: float = 1000.0) -> None:
