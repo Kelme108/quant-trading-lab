@@ -1,0 +1,274 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "MACDBollingerTurn_H111_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+INDICATORS = [
+    "bb_mid", "bb_upper", "bb_lower", "pctb", "macd", "macd_signal", "macd_hist",
+    "macd_hist_prev", "std_pct", "atr", "atrp", "d_tp", "d_sl",
+]
+
+
+def make_frame(count: int, volume: float = 1.0) -> pd.DataFrame:
+    """Oscillating price (about 80 bars per cycle, +-3%) with tiny deterministic noise."""
+    rng = np.random.default_rng(7)
+    index = np.arange(count)
+    close = 100.0 * (1.0 + 0.03 * np.sin(2 * np.pi * index / 80.0)) * (
+        1.0 + rng.normal(0.0, 0.0005, count)
+    )
+    return pd.DataFrame(
+        {
+            "date": pd.date_range("2025-01-01", periods=count, freq="15min", tz="UTC"),
+            "open": close,
+            "high": close * 1.005,
+            "low": close * 0.995,
+            "close": close,
+            "volume": [volume] * count,
+        }
+    )
+
+
+def run(strategy, frame: pd.DataFrame) -> pd.DataFrame:
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+def make_trade(d_tp=0.02, d_sl=0.01, open_rate=100.0, open_date=None):
+    return SimpleNamespace(
+        enter_tag=f"mbt|{d_tp!r}|{d_sl!r}",
+        open_rate=open_rate,
+        open_date_utc=open_date or datetime(2025, 3, 1, 10, 0, tzinfo=timezone.utc),
+    )
+
+
+class MACDBollingerTurnTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.10)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 500)
+        self.assertEqual(
+            Strategy().protections,
+            [{"method": "CooldownPeriod", "stop_duration_candles": 1}],
+        )
+
+    def test_rule_numbers(self):
+        self.assertEqual(MODULE.BB_LENGTH, 100)
+        self.assertEqual(MODULE.BB_STD, 2.0)
+        self.assertEqual(MODULE.PCTB_MAX, 0.2)
+        self.assertEqual((MODULE.MACD_FAST, MODULE.MACD_SLOW, MODULE.MACD_SIGNAL), (12, 26, 9))
+        self.assertEqual(MODULE.ATR_LENGTH, 14)
+        self.assertEqual(MODULE.ATRP_MIN, 0.004)
+        self.assertEqual((MODULE.TP_STD_MULT, MODULE.TP_FLOOR), (1.5, 0.012))
+        self.assertEqual((MODULE.SL_STD_MULT, MODULE.SL_FLOOR), (0.75, 0.008))
+        self.assertEqual(MODULE.TIME_EXIT, timedelta(hours=6))
+        self.assertEqual(MODULE.MAX_ENTRIES_PER_UTC_DAY, 4)
+
+    def test_signals_are_produced_and_binary(self):
+        frame = run(Strategy(), make_frame(1500))
+        self.assertIn("enter_long", frame)
+        values = frame["enter_long"].dropna().unique().tolist()
+        self.assertTrue(len(values) > 0)
+        self.assertTrue(set(values).issubset({1}))
+        if "exit_long" in frame:
+            self.assertTrue(set(frame["exit_long"].dropna().unique().tolist()).issubset({1}))
+        # Every signal satisfies the rule.
+        sig = frame[frame["enter_long"] == 1]
+        self.assertTrue((sig["pctb"] < 0.2).all())
+        self.assertTrue((sig["macd_hist"] > 0).all())
+        self.assertTrue((sig["macd_hist_prev"] <= 0).all())
+        self.assertTrue((sig["macd"] < 0).all())
+        self.assertTrue((sig["atrp"] >= 0.004).all())
+        self.assertTrue(sig["enter_tag"].map(lambda t: MODULE.parse_tag(t) is not None).all())
+
+    def test_zero_volume_produces_no_signal(self):
+        frame = run(Strategy(), make_frame(1500, volume=0.0))
+        self.assertEqual(int(frame.get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        self.assertEqual(int(frame.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        # A single zero-volume candle among signals loses just that signal.
+        base = run(Strategy(), make_frame(1500))
+        rows = base.index[base["enter_long"] == 1]
+        self.assertTrue(len(rows) > 0)
+        mod = make_frame(1500)
+        mod.loc[rows[0], "volume"] = 0.0
+        out = run(Strategy(), mod)
+        self.assertTrue(pd.isna(out.loc[rows[0], "enter_long"]))
+
+    def test_undefined_startup_values_produce_no_signal(self):
+        frame = run(Strategy(), make_frame(1500))
+        # The 100-bar band is undefined for the first 99 candles.
+        self.assertTrue(frame["pctb"].iloc[: MODULE.BB_LENGTH - 1].isna().all())
+        self.assertEqual(int(frame["enter_long"].iloc[: MODULE.BB_LENGTH - 1].fillna(0).sum()), 0)
+        # Undefined indicator values at a candle that would otherwise signal remove the signal.
+        rows = frame.index[frame["enter_long"] == 1]
+        manual = frame.copy()
+        for column in ("pctb", "atrp", "macd_hist_prev", "d_tp"):
+            changed = manual.copy()
+            changed.loc[rows[0], column] = np.nan
+            changed = changed.drop(columns=["enter_long", "enter_tag"])
+            out = Strategy().populate_entry_trend(changed, {})
+            self.assertTrue(pd.isna(out.loc[rows[0], "enter_long"]), column)
+
+    def test_entry_conditions_one_by_one(self):
+        base = pd.DataFrame(
+            {
+                "pctb": [0.1],
+                "macd_hist": [0.5],
+                "macd_hist_prev": [0.0],
+                "macd": [-1.0],
+                "atrp": [0.004],
+                "d_tp": [0.012],
+                "d_sl": [0.008],
+                "volume": [1.0],
+            }
+        )
+        out = Strategy().populate_entry_trend(base.copy(), {})
+        self.assertEqual(out["enter_long"].iloc[0], 1)
+        self.assertEqual(MODULE.parse_tag(out["enter_tag"].iloc[0]), (0.012, 0.008))
+        for column, bad in (
+            ("pctb", 0.2),
+            ("macd_hist", 0.0),
+            ("macd_hist_prev", 0.01),
+            ("macd", 0.0),
+            ("atrp", 0.0039),
+            ("volume", 0.0),
+        ):
+            changed = base.copy()
+            changed[column] = bad
+            out = Strategy().populate_entry_trend(changed, {})
+            self.assertNotIn("enter_long", out, column)
+
+    def test_barriers_use_floors_and_std(self):
+        frame = run(Strategy(), make_frame(300))
+        valid = frame.dropna(subset=["std_pct"])
+        self.assertTrue((valid["d_tp"] >= 0.012).all())
+        self.assertTrue((valid["d_sl"] >= 0.008).all())
+        np.testing.assert_allclose(
+            valid["d_tp"], np.maximum(1.5 * valid["std_pct"], 0.012)
+        )
+        np.testing.assert_allclose(
+            valid["d_sl"], np.maximum(0.75 * valid["std_pct"], 0.008)
+        )
+
+    def test_signal_unchanged_when_future_candles_are_appended(self):
+        n, k = 1000, 300
+        full = make_frame(n + k)
+        short = run(Strategy(), full.iloc[:n].copy())
+        long = run(Strategy(), full.copy())
+        columns = INDICATORS + ["enter_long", "enter_tag"]
+        pd.testing.assert_frame_equal(
+            short[columns].reset_index(drop=True),
+            long.iloc[:n][columns].reset_index(drop=True),
+            check_dtype=False,
+        )
+        self.assertTrue(short["enter_long"].notna().any())
+
+    def test_confirm_trade_entry_limits_four_per_utc_day(self):
+        day = datetime(2025, 3, 1, 12, 0, tzinfo=timezone.utc)
+
+        def fake_trade(trades):
+            return type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: trades)})
+
+        def trade_at(when):
+            return SimpleNamespace(open_date_utc=when)
+
+        tag = "mbt|0.012|0.008"
+        strategy = Strategy()
+        today = [trade_at(day - timedelta(hours=h)) for h in (1, 2, 3)]
+        yesterday = [trade_at(day - timedelta(days=1)) for _ in range(5)]
+        args = ("BTC/USDT", "limit", 1.0, 100.0, "GTC", day, tag, "long")
+        with mock.patch.object(MODULE, "Trade", fake_trade(today + yesterday)):
+            self.assertTrue(strategy.confirm_trade_entry(*args))
+        with mock.patch.object(MODULE, "Trade", fake_trade(today + [trade_at(day)])):
+            self.assertFalse(strategy.confirm_trade_entry(*args))
+        with mock.patch.object(MODULE, "Trade", fake_trade([])):
+            self.assertFalse(
+                strategy.confirm_trade_entry(*(args[:6] + ("other", "long")))
+            )
+
+    def test_custom_stoploss_is_fixed_distance_below_fill(self):
+        strategy = Strategy()
+        trade = make_trade(d_tp=0.02, d_sl=0.01, open_rate=100.0)
+        now = trade.open_date_utc
+        # Stop price is 99.0 regardless of the current rate.
+        for rate in (100.0, 101.5, 99.5):
+            value = strategy.custom_stoploss("BTC/USDT", trade, now, rate, 0.0)
+            self.assertLessEqual(value, 0)
+            self.assertAlmostEqual(rate * (1.0 + value), 99.0)
+        # Rate already through the stop: never a stop below the current rate.
+        self.assertEqual(strategy.custom_stoploss("BTC/USDT", trade, now, 98.0, -0.02), 0.0)
+        foreign = SimpleNamespace(enter_tag="manual", open_rate=100.0, open_date_utc=now)
+        self.assertIsNone(strategy.custom_stoploss("BTC/USDT", foreign, now, 100.0, 0.0))
+
+    def test_custom_exit_take_profit(self):
+        strategy = Strategy()
+        trade = make_trade(d_tp=0.02)
+        now = trade.open_date_utc + timedelta(hours=1)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, now, 101.9, 0.0199))
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, now, 102.0, 0.02), "take_profit"
+        )
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, now, 105.0, 0.05), "take_profit"
+        )
+
+    def test_custom_exit_time_exit_after_six_hours(self):
+        strategy = Strategy()
+        trade = make_trade()
+        before = trade.open_date_utc + timedelta(hours=5, minutes=45)
+        at = trade.open_date_utc + timedelta(hours=6)
+        later = trade.open_date_utc + timedelta(hours=7)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, before, 100.0, -0.005))
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, at, 100.0, -0.005), "time_exit_6h")
+        self.assertEqual(
+            strategy.custom_exit("BTC/USDT", trade, later, 100.0, 0.001), "time_exit_6h"
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

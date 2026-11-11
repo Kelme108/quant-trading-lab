@@ -1,0 +1,201 @@
+"""H-111: 15m MACD-Bollinger oversold momentum turn with a volatility-scaled triple barrier.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1.
+Spot, long only, one position per pair (engine), no pyramiding.
+
+Indicators (15m closes, bar t included):
+- Bollinger length 100, 2.0 std (population std, ddof=0): %B = (close - lower) / (upper - lower).
+- MACD = EMA12 - EMA26 (alpha 2/(n+1)), signal = EMA9 of MACD, hist = MACD - signal.
+- s = std100 / close.   ATRp = ATR14 / close, ATR14 = Wilder smoothing (alpha 1/14) of true range.
+Entry at the close of bar t when all hold:
+  %B < 0.2; hist(t) > 0 and hist(t-1) <= 0; MACD(t) < 0; ATRp(t) >= 0.004;
+  fewer than 4 entries on the pair in the UTC day of the fill (confirm_trade_entry);
+  no entry on the bar where an exit fills (CooldownPeriod of one candle).
+Frozen at entry from bar t (carried in the entry tag): dTP = max(1.5 s, 0.012), dSL = max(0.75 s, 0.008).
+Exits (first to occur):
+- stop at fixed distance dSL below the fill price (custom_stoploss); native stoploss -0.10 is a backstop;
+- take-profit when the profit reaches dTP (custom_exit);
+- time exit 6 hours after the fill, i.e. the open of the 25th bar after entry (custom_exit).
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+BB_LENGTH = 100
+BB_STD = 2.0
+PCTB_MAX = 0.2
+MACD_FAST = 12
+MACD_SLOW = 26
+MACD_SIGNAL = 9
+ATR_LENGTH = 14
+ATRP_MIN = 0.004
+TP_STD_MULT = 1.5
+TP_FLOOR = 0.012
+SL_STD_MULT = 0.75
+SL_FLOOR = 0.008
+TIME_EXIT_BARS = 24
+BAR = timedelta(minutes=15)
+TIME_EXIT = BAR * TIME_EXIT_BARS  # 6 h after the fill (fill at open of t+1, exit at open of t+25)
+MAX_ENTRIES_PER_UTC_DAY = 4
+TAG_PREFIX = "mbt"
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def parse_tag(tag):
+    """(dTP, dSL) frozen in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 3 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        d_tp = float(parts[1])
+        d_sl = float(parts[2])
+    except ValueError:
+        return None
+    if not (np.isfinite(d_tp) and np.isfinite(d_sl)) or d_tp <= 0 or d_sl <= 0:
+        return None
+    return d_tp, d_sl
+
+
+def macd_bollinger_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add the rule's indicators. Every window looks backwards only (bar t included)."""
+    close = dataframe["close"].astype(float)
+    high = dataframe["high"].astype(float)
+    low = dataframe["low"].astype(float)
+
+    mid = close.rolling(BB_LENGTH).mean()
+    std = close.rolling(BB_LENGTH).std(ddof=0)
+    upper = mid + BB_STD * std
+    lower = mid - BB_STD * std
+    width = upper - lower
+    dataframe["bb_mid"] = mid
+    dataframe["bb_upper"] = upper
+    dataframe["bb_lower"] = lower
+    dataframe["pctb"] = ((close - lower) / width.where(width > 0)).replace([np.inf, -np.inf], np.nan)
+
+    macd = (
+        close.ewm(span=MACD_FAST, adjust=False).mean()
+        - close.ewm(span=MACD_SLOW, adjust=False).mean()
+    )
+    macd_signal = macd.ewm(span=MACD_SIGNAL, adjust=False).mean()
+    hist = macd - macd_signal
+    dataframe["macd"] = macd
+    dataframe["macd_signal"] = macd_signal
+    dataframe["macd_hist"] = hist
+    dataframe["macd_hist_prev"] = hist.shift(1)
+
+    s = std / close.where(close > 0)
+    dataframe["std_pct"] = s
+
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1, skipna=True)
+    atr = true_range.ewm(alpha=1.0 / ATR_LENGTH, adjust=False).mean()
+    dataframe["atr"] = atr
+    dataframe["atrp"] = atr / close.where(close > 0)
+
+    dataframe["d_tp"] = np.maximum(TP_STD_MULT * s, TP_FLOOR).where(s.notna())
+    dataframe["d_sl"] = np.maximum(SL_STD_MULT * s, SL_FLOOR).where(s.notna())
+    return dataframe
+
+
+class MACDBollingerTurn_H111_v1(IStrategy):
+    """Buy a fresh MACD-histogram upturn below zero inside the lower Bollinger fifth."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.10  # engine backstop; the working stop is custom_stoploss
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 500
+
+    @property
+    def protections(self):
+        # 1-candle cooldown: no entry fill on the bar where an exit fills.
+        return [{"method": "CooldownPeriod", "stop_duration_candles": 1}]
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return macd_bollinger_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        hist = dataframe["macd_hist"]
+        hist_prev = dataframe["macd_hist_prev"]
+        cond = (
+            dataframe["pctb"].notna()
+            & hist.notna()
+            & hist_prev.notna()
+            & dataframe["macd"].notna()
+            & dataframe["atrp"].notna()
+            & dataframe["d_tp"].notna()
+            & dataframe["d_sl"].notna()
+            & (dataframe["pctb"] < PCTB_MAX)
+            & (hist > 0)
+            & (hist_prev <= 0)
+            & (dataframe["macd"] < 0)
+            & (dataframe["atrp"] >= ATRP_MIN)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            tags = [
+                f"{TAG_PREFIX}|{float(tp)!r}|{float(sl)!r}"
+                for tp, sl in zip(dataframe.loc[cond, "d_tp"], dataframe.loc[cond, "d_sl"])
+            ]
+            dataframe.loc[cond, "enter_tag"] = tags
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """Fewer than 4 entries already filled on this pair in the UTC day of the fill."""
+        if parse_tag(entry_tag) is None:
+            return False
+        today = utc_day(current_time)
+        count = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                count += 1
+        return count < MAX_ENTRIES_PER_UTC_DAY
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit,
+                        after_fill=False, **kwargs):
+        """Fixed stop at fill price * (1 - dSL), constant for the trade."""
+        frozen = parse_tag(trade.enter_tag)
+        if frozen is None or not current_rate or current_rate <= 0:
+            return None
+        stop_rate = trade.open_rate * (1.0 - frozen[1])
+        distance = 1.0 - stop_rate / current_rate
+        return -max(distance, 0.0)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        frozen = parse_tag(trade.enter_tag)
+        if frozen is None:
+            return None
+        if current_profit >= frozen[0]:
+            return "take_profit"
+        if current_time - trade.open_date_utc >= TIME_EXIT:
+            return "time_exit_6h"
+        return None
