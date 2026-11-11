@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-125",
+  "family": "BollingerMeanReversionBaseline",
+  "title": "Hummingbot Bollinger V1 on 15m: close below the 100-bar lower band in an active market, triple-barrier exit",
+  "ex_ante_rule": "Chart 15m, same rule and parameters on every enabled pair, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only, one open position per pair. INDICATORS on 15m closes: mid(t) = SMA(100) of close over bars t-99..t; sd(t) = population standard deviation (ddof = 0) of the same 100 closes; upper = mid + 2.0*sd; lower = mid - 2.0*sd; BBP(t) = (close(t) - lower(t)) / (upper(t) - lower(t)). ATR(t) = Wilder ATR(14) of 15m bars (true range = max(high-low, |high-prev close|, |low-prev close|), Wilder smoothing alpha = 1/14); ATRp(t) = ATR(t) / close(t). ENTRY at the close of bar t when all hold: (1) BBP(t) < 0.0 (close below the lower band); (2) ATRp(t) >= 0.004 (the single activity filter, volatility type, fixed in advance, not scanned); (3) no open position on the pair; (4) fewer than 4 trades on this pair have an entry time on the same UTC calendar day as the fill bar t+1 (daily entry cap; counted from trades already opened that UTC day, reset at 00:00 UTC). No other filter. EXITS, first one wins, all on the engine's native intrabar mechanics: STOP-LOSS fixed 1% below the entry price (stoploss = -0.01, triggers as soon as price touches it); TAKE-PROFIT at +3% above the entry price (minimal_roi {\"0\": 0.03}); TRAILING STOP: armed once price has reached entry +0.8% (trailing_stop_positive_offset = 0.008, trailing_only_offset_is_reached = true), after which the stop sits 0.4% below the highest price seen since entry (trailing_stop_positive = 0.004); TIME LIMIT: when the trade has been open for 24 bars of 15m (6 hours), exit at the open of the next bar (custom_exit at the close of the 24th bar since entry, filled at the following open). No cooldown after exit (0 bars); the daily cap of 4 entries limits re-entries. No exit signal other than these. Warm-up: 400 bars (longest lookback 100 bars; extra bars so the recursive Wilder ATR(14) has converged; startup_candle_count = 400).",
+  "parameters": {
+    "timeframe": "15m",
+    "bb_length": 100,
+    "bb_std": 2.0,
+    "bb_sd_ddof": 0,
+    "bb_long_threshold": 0.0,
+    "atr_length": 14,
+    "atr_pct_min": 0.004,
+    "max_entries_per_utc_day": 4,
+    "stoploss_pct": 0.01,
+    "take_profit_pct": 0.03,
+    "trailing_activation_pct": 0.008,
+    "trailing_delta_pct": 0.004,
+    "time_limit_bars": 24,
+    "time_limit_hours": 6,
+    "cooldown_bars": 0,
+    "startup_candle_count": 400
+  },
+  "rationale": "Mechanism: a 15m close more than 2 standard deviations below its 25-hour mean, in an already active market (ATR(14) at least 0.4% of price), is mostly immediacy-seeking selling (stop-outs, liquidations, market sells into a thin book) that pushes price below fair value; the liquidity supplier is paid by the short-run reversal, and the impatient seller is the one giving money away. Avramov, Chordia and Goyal (JF 2006) tie short-run reversals to price pressure from non-informational demand for immediacy, largest where turnover is high; the ATR filter keeps the rule to such periods, where a band close is a 1-2% overshoot rather than noise. Unlike H-003, the exit is Hummingbot's asymmetric triple barrier: 1% stop, trailing stop armed at +0.8% (0.4% under the high), 3% cap, 6 h limit, so losers are cut and rebounds can run. Expected trades: band closes with ATRp >= 0.4% cluster on volatile days; with one position, holds of at most 6 h and at most 4 entries per UTC day, roughly 250-600 trades per year per pair. Gross move: losers about -1%, trailed winners +0.4% or more, full rebounds +1-3%, timed exits near zero; the scout's estimate is about +0.5% per trade, only just above the 0.30%/0.45% round trip, so the margin is thin and the cost gates decide. All numbers are Hummingbot's published defaults/example config (100, 2.0, BBP < 0.0, SL 1%, TP 3%, trailing 0.8%/0.4%, 6 h); the ATR filter and daily cap are fixed ex ante.",
+  "novelty_vs_tried": "Same family as H-003 (BollingerMeanReversionBaseline, 1 of 3 used), but structurally different: H-003 was a 1h rule on a 20-bar band with RSI14 < 30 and a close > SMA200 trend gate, a -10% stop and an exit at the middle band (a symmetric slow reversion, 50-71 trades per pair). H-125 runs on 15m with a 100-bar (25 h) band and no oscillator or trend gate. One volatility activity filter (ATRp >= 0.4%) is fixed in advance, plus a cap of 4 entries per UTC day. The exit is an asymmetric triple barrier (1% stop, trailing from +0.8%, 3% cap, 6 h time limit) instead of a mean-band target. It also differs from SessionVWAPBandFade (H-086, a session-VWAP anchor) and EMASnapbackATR (an EMA distance in ATR units) in both the anchor and the exit structure.",
+  "sources": [
+    {"title": "Hummingbot V2 strategy examples (directional_trading.bollinger_v1 controller, example triple-barrier config)", "url": "https://hummingbot.org/strategies/v2-strategies/examples/"},
+    {"title": "Hummingbot bollinger_v1.py controller source (bb_length 100, bb_std 2.0, long when BBP < 0.0)", "url": "https://github.com/hummingbot/hummingbot/blob/master/controllers/directional_trading/bollinger_v1.py"},
+    {"title": "Avramov, Chordia, Goyal (2006), Liquidity and Autocorrelations in Individual Stock Returns, Journal of Finance 61(5)", "url": "https://ideas.repec.org/a/bla/jfinan/v61y2006i5p2365-2394.html"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data opened; only the exploration summaries and learnings digest in research/context/H-125.md (exploration split, all nine pairs) as of 2026-11-11, plus the Hummingbot documentation and source pages."
+}
