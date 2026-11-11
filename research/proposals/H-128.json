@@ -1,0 +1,41 @@
+{
+  "hypothesis_id": "H-128",
+  "family": "TimeDecayFailFastTrend",
+  "title": "15m EMA9/16 cross with volume burst, 1h EMA200 and BTC RSI gate, cut by 2h/4h/8h time checkpoints and a 12h cap",
+  "ex_ante_rule": "Chart 15m (the scout's idea is defined in 15m bars; 1h is used only as a closed-bar filter), all times UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (fill bar e = t+1, fill price E). Spot, long only, one open position per pair, whole allowed balance, no pyramiding, same rule and numbers on all nine pairs, single grid cell. Warm-up: 2400 bars (longest lookback is the 1h EMA200 = 800 15m bars; EMA and Wilder RSI are recursive, so 600 closed 1h bars = 2400 15m bars let the seeds decay; under 4500). INDICATORS on 15m, bar t included: EMA9 and EMA16 of close (span n, alpha 2/(n+1)); RSI16 = Wilder RSI of close, length 16; VE(t) = EMA20 of volume (alpha 2/21). INFORMATIVE 1h (merge_informative_pair, ffill, only the last COMPLETED 1h candle is visible): EMA200 of the pair's own 1h close; BRSI = Wilder RSI14 of BTC/USDT 1h close (for BTC/USDT itself, its own 1h RSI14). ENTRY signal at the close of bar t when ALL hold: (1) EMA9(t) > EMA16(t) AND EMA9(t-1) <= EMA16(t-1); (2) 40 <= RSI16(t) <= 75; (3) close(t) > last closed 1h EMA200; (4) activity filter (b), volume, fixed in advance: volume(t) >= 1.5 x VE(t-1); (5) last closed BTC 1h RSI14 > 35; (6) no open position on the pair. No cooldown and no daily cap (a new entry always needs a fresh cross). EXITS, first one wins; bar k of the trade counts the fill bar e as bar 1: (a) STOP-LOSS: one fixed 3% below E (native stoploss = -0.03, intrabar, triggers as soon as price touches it); (b) TAKE-PROFIT: +2% above E (minimal_roi {\"0\": 0.02}, no other ROI steps), sold at that price when a bar's high reaches it (at the open if a bar opens above it); if stop and target are touched in one bar, the stop counts; (c) CHECKPOINT 2h: at the close of bar 8 (e+7), if close <= 0.985 x E, sell at the next open; (d) CHECKPOINT 4h: at the close of bar 16 (e+15), if close < E, sell at the next open; (e) CHECKPOINT 8h: at the close of bar 32 (e+31), if close < 1.005 x E, sell at the next open; (f) BEARISH CROSS: at the close of any bar k of the trade, if EMA9(k) < EMA16(k) AND EMA9(k-1) >= EMA16(k-1) AND RSI16(k) > 50, sell at the next open; (g) TIME EXIT: at the close of bar 48 (e+47), sell at the open of e+48, i.e. 12 h after the fill. Checkpoints are checked only at those exact bars. No trailing stop, no break-even move, no other filters or exits.",
+  "parameters": {
+    "timeframe": "15m",
+    "informative_timeframe": "1h",
+    "ema_fast": 9,
+    "ema_slow": 16,
+    "rsi_period": 16,
+    "rsi_entry_min": 40,
+    "rsi_entry_max": 75,
+    "volume_ema_period": 20,
+    "volume_mult": 1.5,
+    "htf_ema_period": 200,
+    "btc_rsi_period": 14,
+    "btc_rsi_min": 35,
+    "stoploss": -0.03,
+    "take_profit": 0.02,
+    "checkpoint1_bars": 8,
+    "checkpoint1_min_ratio": 0.985,
+    "checkpoint2_bars": 16,
+    "checkpoint2_min_ratio": 1.0,
+    "checkpoint3_bars": 32,
+    "checkpoint3_min_ratio": 1.005,
+    "exit_cross_rsi_min": 50,
+    "time_exit_bars": 48,
+    "startup_candle_count": 2400
+  },
+  "rationale": "The source (freqtrade-strategies TrendRiderStrategy, GPL-3.0) states only a trend-riding intent. The nearest honest mechanism: a fresh fast-EMA cross on a volume burst (1.5x its EMA20) above the hourly EMA200, while BTC is not selling off (1h RSI14 > 35), marks the start of an intraday leg that split orders and late momentum buyers keep feeding. The other side is short-horizon mean-reversion sellers and liquidity providers who fade the first push. The new part is the exit. Fixed time checkpoints (2h: below -1.5%; 4h: below entry; 8h: below +0.5%; 12h cap) cut trades whose leg did not start. This is the fail-fast idea, the design closest to working among the lab's intraday rules (H-046). Losers are cut early, mostly at -0.5% to -1.5%; winners reach the +2% target or ride to the 8h/12h exits. The 3% stop follows the lab's lesson that stops tighter than 2-3% hurt. The 1h EMA200 gate is the regime condition: in a falling market close stays below it and the rule stands aside, and the BTC RSI gate blocks alt longs during BTC selloffs. Expected trades: EMA9/16 crosses on 15m happen many times a day; the volume, RSI band and EMA200 gates should leave roughly 1-2 per pair per day in up-regimes and few in bear phases, about 200-500 per pair per year. Expected gross move: if about 40% of trades hit +2% and the cascade holds the average loss near -1%, the mean gross move is about 0.5%, above the 0.30% base and close to the 0.45% conservative round trip. That margin is thin, and the deterministic gates decide.",
+  "novelty_vs_tried": "No family in the context combines a 15m EMA cross entry with a staged time-decay exit. H-046/H-108/H-127 (LivermorePivotFailFast, cap reached) fail fast only on the 1-2 bars after a pivot breakout, measured against the breakout level. This rule instead uses a cascade of profit thresholds at fixed holding times (2h/4h/8h) measured against the entry price, plus a bearish-cross exit. Entry is an EMA9/16 momentum cross with a volume burst and a BTC-weakness veto, not a range or pivot breakout. MultiTimeframeMACDTrend (H-037) and ElderTripleScreen (H-088) used multi-timeframe trend signals without time checkpoints. CrossPairCatchUp used BTC as a leader signal; here BTC is only a veto.",
+  "sources": [
+    {
+      "title": "freqtrade-strategies: TrendRiderStrategy.py (EMA crossover entry, BTC RSI filter, time-based custom_exit checkpoints)",
+      "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/TrendRiderStrategy.py"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed; only the H-128 context file (exploration digest for the nine enabled pairs) and the TrendRider source code, as of 2026-11-11"
+}
