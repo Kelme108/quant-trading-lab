@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-105",
+  "family": "DailyMaxJumpMomentum",
+  "title": "Two-hour MAX-jump regime breakout: buy a fresh 10-block closing high after a large recent 2h jump, flat within 12h",
+  "ex_ante_rule": "Chart 1h, closed bars only, all times UTC; a signal at a bar close is filled at the next 1h open. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no take-profit, no other filters. BLOCKS: two-hour blocks aligned to even UTC hours; block b = the 1h bar opening at an even hour H plus the bar opening at H+1. Block close C(b) = close of the H+1 bar; a block exists only when both bars exist. Block values are computed only at the close of the odd-hour bar (block complete) and held (forward-filled) on the next bar; nothing uses an unfinished block. DEFINITIONS on block closes, b = the just-completed block: r(b) = C(b)/C(b-1) - 1 (close-to-close block return). J(b) = max of r over the 30 blocks b-29..b (b included). Jump regime ON when J(b) >= median of the 150 values J(b-150)..J(b-1) (b excluded). SMA50(b) = mean of C(b-49..b); SMA20(b) = mean of C(b-19..b); HH10(b) = max of C(b-10..b-1) (b excluded). ENTRY, evaluated only at a block close (close of an odd-hour 1h bar), all must hold: (1) jump regime ON; (2) C(b) > SMA50(b); (3) C(b) > HH10(b); (4) no open position; (5) cooldown satisfied; (6) the buy fills at the open of the next block, and that block's open time must be between 00:00 and 16:00 UTC inclusive (i.e. signal blocks opening 22:00 of the previous day, 00:00, 02:00, ..., 14:00). EXIT, first of: (a) at a block close with C(b) < SMA20(b), sell at the next 1h open; (b) time exit, session: the close of the 22:00 bar raises the exit, sell at the 23:00 UTC open; (c) time exit, 12 hours: the close of the bar opening 11 hours after the entry fill raises the exit, sell at the open 12 hours after the fill; (d) STOP-LOSS: one fixed 2% below the entry price, the engine's native intrabar stop. COOLDOWN: no new entry for 6 1h candles (3 blocks) after any exit. All numbers fixed ex ante, no grid: block 2h on even hours, MAX window 30 blocks, median window 150 blocks, threshold = median, trend mean 50 blocks, breakout 10 blocks, exit mean 20 blocks, stop 2%, cooldown 6 candles, buy window 00:00-16:00 fill, flat by 23:00 open or 12h. Warm-up: 400 bars (J needs 31 block closes, the median needs 150 earlier J values: 181 blocks = 362 1h bars, plus up to 2 bars of block alignment and margin; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "block_hours": 2,
+    "block_alignment": "even UTC hours",
+    "max_window_blocks": 30,
+    "median_window_blocks": 150,
+    "regime_threshold": "J >= median of prior 150 J",
+    "trend_sma_blocks": 50,
+    "breakout_lookback_blocks": 10,
+    "exit_sma_blocks": 20,
+    "stoploss_pct": 2.0,
+    "cooldown_candles": 6,
+    "buy_fill_window_start_utc": "00:00",
+    "buy_fill_window_end_utc": "16:00",
+    "session_exit_open_utc": "23:00",
+    "max_hold_hours": 12,
+    "warmup_bars": 400
+  },
+  "rationale": "Li, Urquhart, Wang and Zhang (IRFA 2021) find that in crypto, unlike equities, assets whose recent maximum return is high go on to earn higher returns (MAX momentum): lottery-seeking traders are drawn to assets that just printed an extreme gain, and their late buying keeps pushing price for a while. The lab's daily version (H-024) had a 3.3% gross move per trade and passed exploration on BTC, ETH and BNB, but traded only about 39 times. This idea keeps the windows and shrinks the block from a day to two hours. The trade sits on the side of the late chasers: we buy when a big jump in the last 30 blocks (60h) says attention is high, and when price makes a fresh 20-hour closing high above its 100-hour mean. The other side is traders who sell early or fade the move and the chasers who come in after us. The jump-regime condition is the one activity filter: it trades only when recent volatility is above its own median over about 2 weeks. No volume filter is added, to keep the scout's rule unchanged. In a range or falling market the C > SMA50 and fresh-high conditions mostly turn off entries. When they do fire in chop, the 2% stop and the SMA20 exit cut the loss quickly. Expected: about 100-250 trades per year per pair (the regime is on about half the time; a breakout above the 10-block high and the mean is needed; only blocks with fills 00:00-16:00 count, with a 6h cooldown). Expected gross move: about 0.8% on winners and at least 0.45% on average (a design estimate, not measured). Losers are capped near -2%, and winners are not capped except by the 12h/23:00 exit, so the average should clear the 0.30% base round trip.",
+  "novelty_vs_tried": "Same family as H-024 (DailyMaxJumpMomentum, 1 of 3 used) because the mechanism is MAX momentum. The structural change is the clock: the rule uses 2-hour blocks instead of daily candles, with a mandatory intraday exit (flat by 23:00 UTC or 12h) and a 2% stop instead of 12%, so it is a day-trade rule, not a multi-day hold. It differs from IntradayJumpContinuation (H-059/H-102), which buys the jump bar itself using a bipower jump statistic. Here the jump only sets a regime, and the entry is a later breakout to a fresh closing high above a trend mean, so it is a trend breakout conditioned on recent extreme gains, not a reaction to one shock bar. It also differs from the session and opening-range rules because it has no range anchor.",
+  "sources": [
+    {
+      "title": "MAX momentum in cryptocurrency markets (Li, Urquhart, Wang, Zhang; International Review of Financial Analysis 77, 2021)",
+      "url": "https://research.birmingham.ac.uk/en/publications/max-momentum-in-cryptocurrency-markets/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data opened; only the research context file research/context/H-105.md (exploration summaries of earlier hypotheses on the nine pairs) and the validation protocol."
+}
