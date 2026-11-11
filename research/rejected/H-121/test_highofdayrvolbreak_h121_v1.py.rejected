@@ -1,0 +1,215 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+# Keep the tests runnable without installing Freqtrade or TA-Lib on the host.
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+
+
+def load_strategy(filename: str, class_name: str):
+    path = ROOT / "user_data" / "strategies" / filename
+    spec = importlib.util.spec_from_file_location(class_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, class_name)
+
+
+Strategy = load_strategy("HighOfDayRVolBreak_H121_v1.py", "HighOfDayRVolBreak_H121_v1")
+
+START = pd.Timestamp("2024-01-01", tz="UTC")
+TRIGGER_SLOT = 30
+
+
+def make_frame(n_days: int, trigger_day: int, volume_scale: float = 3.0) -> pd.DataFrame:
+    """Flat price 100, volume 1 per bar; on trigger_day a 100.3 high at slot 5 (held) and a
+    close of 101 at slot 30 on `volume_scale` times the normal volume."""
+    n = n_days * 96
+    dates = pd.date_range(START, periods=n, freq="15min")
+    price = np.full(n, 100.0)
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "open": price.copy(),
+            "high": price.copy(),
+            "low": price.copy(),
+            "close": price.copy(),
+            "volume": np.ones(n),
+        }
+    )
+    base = trigger_day * 96
+    frame.loc[base + 5, "high"] = 100.3
+    frame.loc[base + TRIGGER_SLOT :, ["high", "close"]] = 101.0
+    frame.loc[base + TRIGGER_SLOT + 1 :, "open"] = 101.0
+    frame.loc[base + TRIGGER_SLOT :, "low"] = 100.0
+    frame.loc[base : base + 95, "volume"] = volume_scale
+    return frame
+
+
+def run(frame: pd.DataFrame) -> pd.DataFrame:
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+def signal_rows(frame: pd.DataFrame) -> list:
+    if "enter_long" not in frame:
+        return []
+    return frame.index[frame["enter_long"].fillna(0) == 1].tolist()
+
+
+class HighOfDayRVolBreakTests(unittest.TestCase):
+    def test_class_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.01)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 2016)
+
+    def test_entry_fires_on_hod_break_with_high_rvol(self) -> None:
+        frame = run(make_frame(26, 25))
+        self.assertEqual(signal_rows(frame), [25 * 96 + TRIGGER_SLOT])
+        row = frame.loc[25 * 96 + TRIGGER_SLOT]
+        self.assertAlmostEqual(row["rvol"], 93.0 / 31.0)
+        self.assertAlmostEqual(row["hod"], 100.3)
+
+    def test_low_rvol_blocks_entry(self) -> None:
+        # RVOL = 1.4 (< 1.5): 31 bars * 1.4 vs 31 normal.
+        self.assertEqual(signal_rows(run(make_frame(26, 25, volume_scale=1.4))), [])
+
+    def test_unheld_level_blocks_entry(self) -> None:
+        frame = make_frame(26, 25)
+        base = 25 * 96
+        frame.loc[base + 5, "high"] = 100.0
+        frame.loc[base + 25, "high"] = 100.3  # level set only 5 bars before the break
+        self.assertEqual(signal_rows(run(frame)), [])
+
+    def test_missing_bar_in_previous_day_makes_rvol_undefined(self) -> None:
+        frame = make_frame(26, 25).drop(index=10 * 96 + 3).reset_index(drop=True)
+        # Row positions shift by one after the drop; the trigger bar is now one row earlier.
+        out = run(frame)
+        trigger_dates = out.loc[out["date"] == START + pd.Timedelta(days=25, minutes=15 * TRIGGER_SLOT)]
+        self.assertTrue(pd.isna(trigger_dates["rvol"].iloc[0]))
+        self.assertEqual(signal_rows(out), [])
+
+    def test_signal_columns_are_binary(self) -> None:
+        frame = run(make_frame(26, 25))
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_candle_gives_no_signal(self) -> None:
+        frame = make_frame(26, 25)
+        frame.loc[25 * 96 + TRIGGER_SLOT, "volume"] = 0.0
+        self.assertEqual(signal_rows(run(frame)), [])
+        frame["volume"] = 0.0
+        out = run(frame)
+        self.assertEqual(signal_rows(out), [])
+        self.assertNotIn("exit_long", out.columns)
+
+    def test_undefined_startup_values_give_no_signal(self) -> None:
+        # Same pattern on day 10: fewer than 20 previous days exist, so RVOL is undefined.
+        out = run(make_frame(26, 10))
+        self.assertTrue(out.loc[: 20 * 96 - 1, "rvol"].isna().all())
+        self.assertEqual(signal_rows(out), [])
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self) -> None:
+        rng = np.random.default_rng(7)
+        total = 26 * 96 + 120
+        close = 100.0 * np.exp(np.cumsum(rng.normal(0.0002, 0.003, total)))
+        open_ = np.concatenate([[100.0], close[:-1]])
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(START, periods=total, freq="15min"),
+                "open": open_,
+                "high": np.maximum(open_, close) * 1.001,
+                "low": np.minimum(open_, close) * 0.999,
+                "close": close,
+                "volume": rng.uniform(0.5, 3.0, total),
+            }
+        )
+        n = 25 * 96 + 50
+        short = run(frame.iloc[:n])
+        long = run(frame.iloc[: n + 70])
+        columns = ["slot", "day_open", "rvol", "hod", "hod_held", "enter_long"]
+        columns = [c for c in columns if c in short.columns or c in long.columns]
+        left = short.reindex(columns=columns).iloc[:n]
+        right = long.reindex(columns=columns).iloc[:n]
+        pd.testing.assert_frame_equal(left, right, check_dtype=False)
+
+    def test_take_profit_exit(self) -> None:
+        strategy = Strategy()
+        opened = datetime(2024, 3, 1, 10, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(open_date_utc=opened)
+        now = datetime(2024, 3, 1, 11, 0, tzinfo=timezone.utc)
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, now, 102.0, 0.02), "take_profit")
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, now, 101.9, 0.019))
+
+    def test_time_exit_after_32_bars(self) -> None:
+        strategy = Strategy()
+        opened = datetime(2024, 3, 1, 10, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(open_date_utc=opened)
+        before = datetime(2024, 3, 1, 17, 45, tzinfo=timezone.utc)
+        at = datetime(2024, 3, 1, 18, 0, tzinfo=timezone.utc)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, before, 100.0, 0.0))
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, at, 100.0, 0.0), "time_exit")
+
+    def test_time_exit_at_end_of_entry_day(self) -> None:
+        strategy = Strategy()
+        opened = datetime(2024, 3, 1, 18, 0, tzinfo=timezone.utc)
+        trade = SimpleNamespace(open_date_utc=opened)
+        before = datetime(2024, 3, 1, 23, 30, tzinfo=timezone.utc)
+        at = datetime(2024, 3, 1, 23, 45, tzinfo=timezone.utc)
+        self.assertIsNone(strategy.custom_exit("BTC/USDT", trade, before, 100.0, 0.0))
+        self.assertEqual(strategy.custom_exit("BTC/USDT", trade, at, 100.0, 0.0), "time_exit")
+
+    def test_two_entries_per_day_limit(self) -> None:
+        strategy = Strategy()
+        now = datetime(2024, 3, 2, 12, 0, tzinfo=timezone.utc)
+
+        def trades(*stamps):
+            return [SimpleNamespace(open_date_utc=s) for s in stamps]
+
+        yesterday = datetime(2024, 3, 1, 22, 0, tzinfo=timezone.utc)
+        today_a = datetime(2024, 3, 2, 3, 0, tzinfo=timezone.utc)
+        today_b = datetime(2024, 3, 2, 7, 0, tzinfo=timezone.utc)
+        args = ("BTC/USDT", "limit", 1.0, 100.0, "GTC", now, None, "long")
+        for stamps, expected in (
+            ((yesterday, today_a), True),
+            ((today_a, today_b), False),
+        ):
+            with mock.patch.object(
+                sys.modules["freqtrade.persistence"].Trade, "get_trades_proxy", staticmethod(lambda **k: trades(*stamps)), create=True
+            ):
+                self.assertEqual(strategy.confirm_trade_entry(*args), expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,170 @@
+"""H-121: high-of-day break on a high-volume day, 15m, long only, flat within the UTC day.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1.
+Day d = the 96 bars opening 00:00-23:45 UTC; slot k(t) = 0 (00:00) .. 95 (23:45).
+
+Definitions:
+- Od = open of day d's 00:00 bar.
+- CUMVOL(d, k) = sum of volume of day d's bars from slot 0 through slot k.
+- RVOL(t) = CUMVOL(d, k(t)) / mean over the 20 previous calendar UTC days (d-1..d-20) of CUMVOL(j, k(t)).
+  Undefined (no entry) when any of those 20 days, or day d itself, is missing a bar in slots 0..k
+  (a cumulative sum over a gap would be understated), or when the mean is 0.
+- HOD(t) = highest high of day d's bars from slot 0 through bar t-1; s(t) = slot of the most recent bar in
+  that window whose high equals HOD(t). The level is "held" only if s(t) <= k(t) - 8 (at least 2 h old).
+Entry at the close of bar t when all hold: bar t opens 02:00..19:45; close(t) > HOD(t) and held;
+RVOL(t) >= 1.5; close(t)/Od - 1 >= 0.005; volume(t) > 0; no open position (engine); fewer than 2 entries
+already filled on the pair with entry date in day d (confirm_trade_entry).
+Exits: native stoploss -1% (intrabar); take-profit +2% and time exit in custom_exit. The time exit fires at
+the first bar opening at or after min(entry + 8 h, 23:45 UTC of the entry day).
+No trailing stop, no cooldown beyond the two-per-day limit.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+BARS_PER_DAY = 96
+RVOL_DAYS = 20
+RVOL_MIN = 1.5
+HOD_HOLD_BARS = 8
+FIRST_ENTRY_SLOT = 8  # 02:00
+LAST_ENTRY_SLOT = 79  # 19:45
+MIN_DAY_RETURN = 0.005
+MAX_ENTRIES_PER_DAY = 2
+TAKE_PROFIT = 0.02
+TIME_EXIT = timedelta(hours=8)
+EOD_EXIT_OFFSET = timedelta(hours=23, minutes=45)
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def hod_rvol_indicators(dataframe: DataFrame) -> DataFrame:
+    """Add day_open, hod, hod_held, rvol, slot. Every value uses only bars up to the current row."""
+    dates = pd.to_datetime(dataframe["date"], utc=True)
+    day = dates.dt.floor("D").dt.tz_localize(None)
+    slot = (dates.dt.hour * 4 + dates.dt.minute // 15).astype(int)
+    day_key = day.to_numpy()
+    slot_arr = slot.to_numpy()
+
+    # --- time-of-day matched cumulative relative volume ---
+    frame = pd.DataFrame(
+        {
+            "day": day_key,
+            "slot": slot_arr,
+            "volume": dataframe["volume"].to_numpy(dtype=float),
+            "open": dataframe["open"].to_numpy(dtype=float),
+        }
+    )
+    frame = frame.drop_duplicates(subset=["day", "slot"], keep="last")
+    calendar = pd.date_range(frame["day"].min(), frame["day"].max(), freq="D")
+    vol = frame.pivot(index="day", columns="slot", values="volume").reindex(
+        index=calendar, columns=range(BARS_PER_DAY)
+    )
+    present = vol.notna().to_numpy().cumsum(axis=1)
+    complete = present == (np.arange(BARS_PER_DAY) + 1)[None, :]
+    cum = vol.fillna(0.0).cumsum(axis=1).where(complete)
+    prev_mean = cum.rolling(RVOL_DAYS, min_periods=RVOL_DAYS).mean().shift(1)
+    rvol = (cum / prev_mean.where(prev_mean > 0)).replace([np.inf, -np.inf], np.nan)
+
+    day_pos = calendar.get_indexer(pd.DatetimeIndex(day_key))
+    rvol_values = rvol.to_numpy(dtype=float)[day_pos, slot_arr]
+
+    # --- open of the 00:00 bar of the day ---
+    opens = frame.loc[frame["slot"] == 0].set_index("day")["open"]
+    day_open = pd.Series(day_key).map(opens).to_numpy(dtype=float)
+
+    # --- running high of day through bar t-1 and the slot where it was last set ---
+    high = dataframe["high"].astype(float).reset_index(drop=True)
+    grp = high.groupby(day_key)
+    cummax = grp.cummax()
+    prev_cummax = cummax.groupby(day_key).shift(1)
+    # a bar sets (or ties) the running high when its high >= the running high before it
+    sets_high = high >= prev_cummax.fillna(-np.inf)
+    set_slot = pd.Series(np.where(sets_high, slot_arr, np.nan))
+    last_set_slot = set_slot.groupby(day_key).ffill()
+    hod = prev_cummax
+    hod_slot = last_set_slot.groupby(day_key).shift(1)
+    held = (hod_slot <= (pd.Series(slot_arr) - HOD_HOLD_BARS)) & hod_slot.notna()
+
+    dataframe["slot"] = slot_arr
+    dataframe["day_open"] = day_open
+    dataframe["rvol"] = rvol_values
+    dataframe["hod"] = hod.to_numpy(dtype=float)
+    dataframe["hod_held"] = held.to_numpy(dtype=bool)
+    return dataframe
+
+
+class HighOfDayRVolBreak_H121_v1(IStrategy):
+    """Buy a close above a 2h-held intraday high on a day running at >= 1.5x its normal volume."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.01
+    use_exit_signal = True
+    startup_candle_count = 2112
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        return hod_rvol_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        close = dataframe["close"]
+        cond = (
+            dataframe["rvol"].notna()
+            & dataframe["hod"].notna()
+            & dataframe["day_open"].notna()
+            & (dataframe["day_open"] > 0)
+            & (dataframe["slot"] >= FIRST_ENTRY_SLOT)
+            & (dataframe["slot"] <= LAST_ENTRY_SLOT)
+            & (close > dataframe["hod"])
+            & dataframe["hod_held"]
+            & (dataframe["rvol"] >= RVOL_MIN)
+            & (close / dataframe["day_open"] - 1.0 >= MIN_DAY_RETURN)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        """At most 2 entries per pair per UTC day (by entry date), counting trades already closed."""
+        today = utc_day(current_time)
+        count = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                count += 1
+        return count < MAX_ENTRIES_PER_DAY
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        if current_profit >= TAKE_PROFIT:
+            return "take_profit"
+        opened = pd.Timestamp(trade.open_date_utc)
+        now = pd.Timestamp(current_time)
+        if opened.tzinfo is not None and now.tzinfo is None:
+            now = now.tz_localize("UTC")
+        if opened.tzinfo is None and now.tzinfo is not None:
+            opened = opened.tz_localize("UTC")
+        deadline = min(opened + TIME_EXIT, opened.floor("D") + EOD_EXIT_OFFSET)
+        if now >= deadline:
+            return "time_exit"
+        return None
