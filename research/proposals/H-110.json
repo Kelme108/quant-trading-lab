@@ -1,0 +1,27 @@
+{
+  "hypothesis_id": "H-110",
+  "family": "InverseFVGReclaim",
+  "title": "15m inverse FVG: buy the first close back above a bearish displacement gap, trapped-seller reversal, 12h cap",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1. No higher-timeframe filter. Warm-up: 30 bars (longest lookback is the swing-low window k-2..t, at most 27 bars; no recursive indicators).\nGAP DETECTION at the close of bar k: a bearish FVG exists if high(k) < low(k-2). Gap top GT = low(k-2), gap bottom GB = high(k). The gap is valid only if (GT-GB)/GB >= 0.004 AND the middle bar k-1 is a down displacement: close(k-1) < open(k-1) AND open(k-1)/close(k-1) - 1 >= 0.01. Only the most recent valid bearish gap is tracked: a new valid gap replaces any older tracked gap, which is dropped.\nINVERSION SIGNAL: for bars t = k+1 .. k+24 (inclusive, 6 hours), the signal is the close of the FIRST bar t with close(t) > GT AND close(t) > open(t). A wick above GT without such a close does not count. If no such bar occurs by the close of bar k+24, the gap is dropped. The gap is consumed at its first qualifying bar t whether or not a trade is opened (one entry per gap).\nRISK FILTER: swing low SL = lowest low of bars k-2 .. t inclusive. R = close(t) - SL. Trade only if 0.008 <= R/close(t) <= 0.03; otherwise skip and drop the gap.\nENTRY: buy at open(t+1) only if flat on that pair, fewer than 3 entries already opened on that pair in the current UTC day (counted by entry fill time), and open(t+1) > SL (else skip).\nSTOP: fixed price SL, frozen at entry; equivalently a fixed stop of (entry_price - SL)/entry_price below the entry price, set once per trade (custom_stoploss returning that frozen distance), touched intrabar. Native stoploss backstop -0.035.\nTAKE PROFIT: limit sell at TP = close(t) + 1.5*R, touched intrabar (fill at TP, or at the bar open if the bar opens above TP).\nIf stop and TP are both touched in the same bar, assume the stop.\nTIME EXIT: if still open, sell at the open of the bar 48 bars (12 hours) after the entry bar. No other exits, no trailing stop, no cooldown beyond the rules above.",
+  "parameters": {
+    "timeframe": "15m",
+    "min_gap_pct": 0.004,
+    "min_displacement_body_pct": 0.01,
+    "inversion_window_bars": 24,
+    "min_risk_pct": 0.008,
+    "max_risk_pct": 0.03,
+    "target_r_multiple": 1.5,
+    "time_exit_bars": 48,
+    "max_entries_per_pair_per_utc_day": 3,
+    "native_stoploss_backstop": -0.035,
+    "warmup_bars": 30
+  },
+  "rationale": "A bearish fair value gap after a 15m bar that falls at least 1% open-to-close marks one-sided, aggressive selling (stop runs, forced liquidations, momentum sellers chasing). When, within six hours, a bullish 15m bar closes above the entire gap, every seller who sold inside the imbalance is underwater and the supply that created it has been absorbed. Those sellers' buy-stops sit above the gap; their covering, plus the stops of breakdown shorts on venues where they exist and the reversal buyers, push price further: the trapped-trader logic of Turtle Soup, anchored to the imbalance instead of a prior low. Counterparties: late momentum sellers and liquidated longs who sold the drop. The required displacement bar and 0.4% gap are themselves a volatility-expansion condition implied by the mechanism (rule meaning kept: no extra filter added). Cost: the stop is 0.8-3% away, so the target is 1.2-4.5% gross and an average trade's absolute gross move should be well above 1%, against a 0.30% base / 0.45% conservative round trip (cost <= 0.375R at the narrowest risk, ~0.15R typical); the break-even win rate at base cost is roughly 42-48%. Expected 60-200 trades per year per pair (alts more, BTC fewer), all flat within 12 hours. In a falling market, displacement gaps are more frequent but inversions rarer and more often fail; the 1.5R target and the full-gap close requirement are the protection, not a regime filter. Timeframe 15m is kept as the idea specifies (all bar counts are 15m bars). No published backtest for this exact rule was found; sources give the gap definition and the inversion concept only.",
+  "novelty_vs_tried": "No FVG/imbalance family exists in the lab. HourlyFailedBreakdownReclaim (capped) and SessionRangeJudasSweep buy a reclaim of a prior swing low or session range; VolumeSpikeCrashRebound buys after a volume crash. Here the trigger level is the top of a three-bar price gap left by a measured >=1% down displacement bar, and the entry needs a bullish close through the WHOLE gap within 24 bars, with a structural stop at the swing low of the pattern and a 1.5R target. The gap level is set by the selling bar's own structure, not by a session clock, a lookback extreme, or a volume threshold.",
+  "sources": [
+    {"title": "Tradezella: iFVG trading model", "url": "https://www.tradezella.com/strategies/ifvg-trading-model"},
+    {"title": "LuxAlgo Library: Fair Value Gap (concept)", "url": "https://www.luxalgo.com/library/concept/fair-value-gap/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the H-110 context file (exploration-only learnings digest for the nine enabled pairs) and the two web sources."
+}
