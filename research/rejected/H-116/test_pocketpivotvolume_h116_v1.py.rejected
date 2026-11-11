@@ -1,0 +1,338 @@
+import importlib.util
+import sys
+import types
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "PocketPivotVolume_H116_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+
+def synthetic(n: int = 900, seed: int = 3) -> pd.DataFrame:
+    rng = np.random.RandomState(seed)
+    steps = rng.normal(0.0003, 0.006, n)
+    close = 100.0 * np.exp(np.cumsum(steps))
+    open_ = np.concatenate([[100.0], close[:-1]])
+    high = np.maximum(open_, close) * (1 + np.abs(rng.normal(0, 0.002, n)))
+    low = np.minimum(open_, close) * (1 - np.abs(rng.normal(0, 0.002, n)))
+    volume = rng.lognormal(3.0, 0.6, n)
+    return pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01 00:00", periods=n, freq="1h", tz="UTC"),
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    )
+
+
+def run(strategy, frame: pd.DataFrame) -> pd.DataFrame:
+    out = strategy.populate_indicators(frame.copy(), {})
+    out = strategy.populate_entry_trend(out, {})
+    return strategy.populate_exit_trend(out, {})
+
+
+def entries(frame: pd.DataFrame) -> pd.Series:
+    if "enter_long" not in frame:
+        return pd.Series(False, index=frame.index)
+    return frame["enter_long"].fillna(0) == 1
+
+
+class PocketPivotContractTests(unittest.TestCase):
+    def test_constants(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "1h")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertEqual(Strategy.stoploss, -0.03)
+        self.assertTrue(Strategy.use_custom_stoploss)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 250)
+
+    def test_rule_numbers(self):
+        self.assertEqual(MODULE.DOWN_VOLUME_LOOKBACK, 10)
+        self.assertEqual(MODULE.SMA_FAST, 10)
+        self.assertEqual(MODULE.NEAR_SMA_TOLERANCE, 1.005)
+        self.assertEqual(MODULE.FILTER_SMA_BARS, 50)
+        self.assertEqual(MODULE.MAX_SIGNAL_BAR_RISK, 0.025)
+        self.assertEqual(MODULE.MIN_STOP_DISTANCE, 0.01)
+        self.assertEqual(MODULE.TARGET_R_MULTIPLE, 2.0)
+        self.assertEqual(MODULE.TIME_EXIT_BARS, 12)
+        self.assertEqual(MODULE.MAX_ENTRIES_PER_DAY, 2)
+
+
+class IndicatorTests(unittest.TestCase):
+    def test_down_volume_windows(self):
+        # Down bars: index 2 (10<11, vol 7) and index 6 (11<12, vol 3). Index 3 is an equal close
+        # (not a down bar, vol 99 ignored); the current bar (vol 1000 at index 12) is excluded.
+        close = pd.Series([10, 11, 10, 10, 11, 12, 11, 12, 13, 14, 15, 16, 17], dtype=float)
+        volume = pd.Series([5, 5, 7, 99, 5, 5, 3, 5, 5, 5, 5, 5, 1000], dtype=float)
+        vd = MODULE.max_down_bar_volume(close, volume)
+        # Bar 0 has no previous close, so the first fully defined window is bars 1..10 (at t=11).
+        self.assertTrue(vd.iloc[:11].isna().all())
+        self.assertEqual(vd.iloc[11], 7.0)  # bars 1..10
+        self.assertEqual(vd.iloc[12], 7.0)  # bars 2..11 (index 2 still inside)
+
+    def test_down_volume_none_in_window_is_undefined(self):
+        close = pd.Series(np.arange(1.0, 30.0))
+        volume = pd.Series(np.full(29, 5.0))
+        self.assertTrue(MODULE.max_down_bar_volume(close, volume).isna().all())
+
+    def test_down_volume_drops_out_of_window(self):
+        close = pd.Series([10, 11, 10] + list(range(11, 11 + 20)), dtype=float)
+        volume = pd.Series([1, 1, 50] + [1] * 20, dtype=float)
+        vd = MODULE.max_down_bar_volume(close, volume)
+        self.assertEqual(vd.iloc[12], 50.0)  # bars 2..11
+        self.assertTrue(np.isnan(vd.iloc[13]))  # bars 3..12 hold no down bar
+
+    def test_4h_filter_alignment(self):
+        n = 400
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01 00:00", periods=n, freq="1h", tz="UTC"),
+                "close": np.arange(100.0, 100.0 + n),
+            }
+        )
+        trend = MODULE.completed_4h_uptrend(frame)
+        # 50th complete 4h block (index 49) ends with bar 199 (03:00 of its block).
+        self.assertTrue(trend.iloc[:199].isna().all())
+        self.assertEqual(trend.iloc[199], 1.0)
+        self.assertEqual(trend.iloc[200], 1.0)
+
+    def test_4h_filter_uses_block_closed_at_bar_close(self):
+        n = 400
+        close = np.arange(100.0, 100.0 + n)
+        # Make the block ending at bar 199 (bars 196..199) close far below its SMA.
+        close[199] = 1.0
+        frame = pd.DataFrame(
+            {"date": pd.date_range("2024-01-01", periods=n, freq="1h", tz="UTC"), "close": close}
+        )
+        trend = MODULE.completed_4h_uptrend(frame)
+        self.assertEqual(trend.iloc[199], 0.0)  # bar 199 completes the block with the low close
+        self.assertEqual(trend.iloc[200], 0.0)  # still the last completed block
+        self.assertEqual(trend.iloc[203], 1.0)  # bar 203 completes the next block (close 303)
+
+    def test_4h_filter_missing_bar_makes_block_undefined(self):
+        n = 400
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=n, freq="1h", tz="UTC"),
+                "close": np.arange(100.0, 100.0 + n),
+            }
+        ).drop(index=100)
+        trend = MODULE.completed_4h_uptrend(frame.reset_index(drop=True))
+        # Block 25 is incomplete, so no SMA(50) can be formed before 50 blocks after it.
+        self.assertTrue(trend.iloc[:300].isna().all())
+
+
+class SignalTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = Strategy()
+        self.frame = synthetic()
+
+    def test_signals_exist_and_match_the_written_rule(self):
+        out = run(self.strategy, self.frame)
+        fired = entries(out)
+        self.assertGreater(int(fired.sum()), 0)
+        close, low, volume = out["close"], out["low"], out["volume"]
+        expected = pd.Series(False, index=out.index)
+        for t in range(len(out)):
+            if t < 11:
+                continue
+            window = range(t - 10, t)
+            down_vols = [volume[i] for i in window if close[i] < close[i - 1]]
+            if not down_vols:
+                continue
+            sma10 = close[t - 9 : t + 1].mean()
+            r = (close[t] - low[t]) / close[t]
+            trend = out["trend_4h"][t]
+            expected[t] = bool(
+                close[t] > close[t - 1]
+                and volume[t] > max(down_vols)
+                and close[t] > sma10
+                and low[t] <= 1.005 * sma10
+                and trend == 1.0
+                and r <= 0.025
+                and volume[t] > 0
+            )
+        self.assertTrue((expected == fired).all())
+
+    def test_stop_distance_is_floored_at_one_percent(self):
+        out = run(self.strategy, self.frame)
+        risk = (out["close"] - out["low"]) / out["close"]
+        np.testing.assert_allclose(out["stop_distance"], np.maximum(risk, 0.01))
+        self.assertTrue((out["stop_distance"] >= 0.01).all())
+
+    def test_signal_columns_are_binary(self):
+        out = run(self.strategy, self.frame)
+        for column in ("enter_long", "exit_long"):
+            if column in out:
+                self.assertTrue(set(out[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_candle_has_no_signal(self):
+        out = run(self.strategy, self.frame)
+        fired = entries(out)
+        index = int(fired[fired].index[0])
+        changed = self.frame.copy()
+        changed.loc[index, "volume"] = 0.0
+        self.assertFalse(bool(entries(run(self.strategy, changed))[index]))
+        zero = self.frame.copy()
+        zero["volume"] = 0.0
+        self.assertEqual(int(entries(run(self.strategy, zero)).sum()), 0)
+
+    def test_undefined_startup_values_give_no_signal(self):
+        out = run(self.strategy, self.frame)
+        self.assertTrue(out["trend_4h"].iloc[:199].isna().all())
+        self.assertEqual(int(entries(out).iloc[:199].sum()), 0)
+        # Every fired entry has all inputs defined.
+        fired = out[entries(out)]
+        self.assertFalse(fired[["sma10", "vd", "trend_4h", "signal_risk"]].isna().any().any())
+
+    def test_nan_inputs_give_no_signal(self):
+        out = run(self.strategy, self.frame)
+        fired = entries(out)
+        index = int(fired[fired].index[0])
+        changed = self.frame.copy()
+        changed.loc[index - 3, "close"] = np.nan
+        changed_out = run(self.strategy, changed)
+        self.assertFalse(bool(entries(changed_out)[index]))
+
+    def test_no_lookahead_when_future_candles_are_appended(self):
+        full = self.frame
+        n = 701  # ends mid-4h-block
+        short = run(self.strategy, full.iloc[:n].copy())
+        long = run(self.strategy, full.iloc[: n + 120].copy())
+        columns = ["sma10", "vd", "trend_4h", "signal_risk", "stop_distance"]
+        pd.testing.assert_frame_equal(
+            short.loc[: n - 1, columns], long.loc[: n - 1, columns], check_dtype=False
+        )
+        np.testing.assert_array_equal(
+            entries(short).to_numpy(), entries(long).iloc[:n].to_numpy()
+        )
+
+    def test_no_lookahead_when_future_candles_are_changed(self):
+        changed = self.frame.copy()
+        changed.loc[600:, ["open", "high", "low", "close"]] = 500.0
+        changed.loc[600:, "volume"] = 9999.0
+        a = run(self.strategy, self.frame)
+        b = run(self.strategy, changed)
+        np.testing.assert_array_equal(entries(a).iloc[:600].to_numpy(), entries(b).iloc[:600].to_numpy())
+
+
+class TradeLogicTests(unittest.TestCase):
+    OPEN = pd.Timestamp("2024-03-05 10:00", tz="UTC")
+
+    def setUp(self):
+        self.strategy = Strategy()
+        dates = pd.date_range("2024-03-05 00:00", periods=24, freq="1h", tz="UTC")
+        analyzed = pd.DataFrame({"date": dates, "stop_distance": 0.02})
+        analyzed.loc[analyzed["date"] == pd.Timestamp("2024-03-05 09:00", tz="UTC"), "stop_distance"] = 0.02
+        analyzed.loc[analyzed["date"] == pd.Timestamp("2024-03-05 10:00", tz="UTC"), "stop_distance"] = 0.04
+        self.strategy.dp = SimpleNamespace(
+            get_analyzed_dataframe=lambda pair, timeframe: (analyzed, None)
+        )
+        self.trade = SimpleNamespace(open_date_utc=self.OPEN, open_rate=100.0)
+
+    def test_distance_comes_from_the_signal_bar(self):
+        self.assertEqual(self.strategy.frozen_distance("BTC/USDT", self.trade), 0.02)
+
+    def test_stop_price_is_constant_below_entry(self):
+        for current in (100.0, 103.0, 99.0):
+            value = self.strategy.custom_stoploss(
+                "BTC/USDT", self.trade, self.OPEN, current, current / 100.0 - 1
+            )
+            self.assertLess(value, 0)
+            self.assertAlmostEqual(current * (1 + value), 98.0)
+
+    def test_take_profit_at_two_r(self):
+        later = self.OPEN + pd.Timedelta(hours=3)
+        self.assertIsNone(self.strategy.custom_exit("BTC/USDT", self.trade, later, 103.9, 0.039))
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", self.trade, later, 104.0, 0.0396),
+            "take_profit_2r",
+        )
+
+    def test_time_exit_after_twelve_hours(self):
+        before = self.OPEN + pd.Timedelta(hours=11)
+        at = self.OPEN + pd.Timedelta(hours=12)
+        self.assertIsNone(self.strategy.custom_exit("BTC/USDT", self.trade, before, 100.5, 0.005))
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", self.trade, at, 100.5, 0.005), "time_exit_12h"
+        )
+
+    def test_time_exit_works_without_signal_bar_data(self):
+        self.strategy.dp = SimpleNamespace(
+            get_analyzed_dataframe=lambda pair, timeframe: (pd.DataFrame(), None)
+        )
+        at = self.OPEN + pd.Timedelta(hours=12)
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", self.trade, at, 100.0, 0.0), "time_exit_12h"
+        )
+        self.assertIsNone(self.strategy.custom_stoploss("BTC/USDT", self.trade, at, 100.0, 0.0))
+
+    def test_at_most_two_entries_per_utc_day(self):
+        day = pd.Timestamp("2024-03-05 10:00", tz="UTC")
+        other = pd.Timestamp("2024-03-04 23:00", tz="UTC")
+
+        class FakeTrade:
+            rows = []
+
+            @staticmethod
+            def get_trades_proxy(**kwargs):
+                return list(FakeTrade.rows)
+
+        original = MODULE.Trade
+        MODULE.Trade = FakeTrade
+        try:
+            args = ("BTC/USDT", "limit", 1.0, 100.0, "GTC", day, None, "long")
+            FakeTrade.rows = [SimpleNamespace(open_date_utc=other)]
+            self.assertTrue(self.strategy.confirm_trade_entry(*args))
+            FakeTrade.rows = [SimpleNamespace(open_date_utc=other), SimpleNamespace(open_date_utc=day)]
+            self.assertTrue(self.strategy.confirm_trade_entry(*args))
+            FakeTrade.rows = [
+                SimpleNamespace(open_date_utc=day - pd.Timedelta(hours=5)),
+                SimpleNamespace(open_date_utc=day - pd.Timedelta(hours=2)),
+            ]
+            self.assertFalse(self.strategy.confirm_trade_entry(*args))
+        finally:
+            MODULE.Trade = original
+
+
+if __name__ == "__main__":
+    unittest.main()

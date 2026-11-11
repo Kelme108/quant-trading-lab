@@ -1,0 +1,229 @@
+"""H-116: hourly pocket pivot (up bar out-volumes every recent down bar, near the 10-bar mean),
+4h uptrend filter, 2R target, 12h time exit. Spot, long only.
+
+Closed candles only; signal at the close of bar t, order filled at the open of bar t+1 (price E).
+All times UTC.
+
+DOWN BAR: close(i) < close(i-1). VD(t) = highest volume among the down bars in t-10..t-1
+(current bar excluded); none of those 10 bars down -> no signal. SMA10(t) = mean of closes t-9..t.
+POCKET PIVOT at t when all hold:
+  (1) close(t) > close(t-1); (2) volume(t) > VD(t); (3) close(t) > SMA10(t);
+  (4) low(t) <= 1.005 x SMA10(t).
+FILTER: the last COMPLETED 4h candle (UTC blocks 00,04,...,20, built from four closed 1h bars;
+a block with a missing bar is undefined) closes above the SMA(50) of the last 50 completed 4h closes.
+RISK: r = (close(t) - low(t)) / close(t); r > 0.025 -> skip. d = max(r, 0.01), frozen for the trade.
+ENTRY: buy at open(t+1); fewer than 2 trades opened on the pair during the UTC day of the fill
+(confirm_trade_entry).
+EXITS, first to occur:
+  (a) stop at E x (1 - d), constant (custom_stoploss; native -3% is only a backstop);
+  (b) take-profit at E x (1 + 2d) (custom_exit);
+  (c) time exit: sold at the open of e+12 (12 hours after the fill bar e) (custom_exit).
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+DOWN_VOLUME_LOOKBACK = 10
+SMA_FAST = 10
+NEAR_SMA_TOLERANCE = 1.005
+FILTER_SMA_BARS = 50
+MAX_SIGNAL_BAR_RISK = 0.025
+MIN_STOP_DISTANCE = 0.01
+TARGET_R_MULTIPLE = 2.0
+TIME_EXIT_BARS = 12
+MAX_ENTRIES_PER_DAY = 2
+BAR = pd.Timedelta(hours=1)
+BLOCK = pd.Timedelta(hours=4)
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def naive_utc(value) -> pd.Timestamp:
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts
+
+
+def max_down_bar_volume(close: pd.Series, volume: pd.Series) -> pd.Series:
+    """VD(t): highest volume among the down bars of t-10..t-1; NaN if none of them is a down bar.
+
+    A down bar is close(i) < close(i-1). All 10 prior bars must be defined.
+    """
+    prev_close = close.shift(1)
+    down = (close < prev_close) & close.notna() & prev_close.notna()
+    down_volume = volume.where(down, -1.0)  # volume is never negative, -1 marks "not a down bar"
+    down_volume = down_volume.where(volume.notna() & close.notna() & prev_close.notna())
+    highest = down_volume.shift(1).rolling(DOWN_VOLUME_LOOKBACK).max()
+    return highest.where(highest >= 0)
+
+
+def completed_4h_uptrend(dataframe: DataFrame) -> pd.Series:
+    """1.0 / 0.0 per 1h bar: the last completed 4h candle at the close of the bar closes above the
+    SMA(50) of the last 50 completed 4h closes (that candle included). NaN while undefined.
+
+    4h candles are UTC blocks built from four closed 1h bars; a block missing a bar is undefined.
+    """
+    date = pd.to_datetime(dataframe["date"])
+    block_start = date.dt.floor("4h")
+    helper = pd.DataFrame({"block": block_start, "close": dataframe["close"].astype(float)})
+    grouped = helper.groupby("block")["close"]
+    block_close = grouped.last().where(grouped.count() == 4)
+    full_index = pd.date_range(block_start.min(), block_start.max(), freq="4h")
+    block_close = block_close.reindex(full_index)
+    sma = block_close.rolling(FILTER_SMA_BARS).mean()
+    trend = (block_close > sma).astype(float).where(sma.notna() & block_close.notna())
+
+    # Bar t closes at date + 1h; the last block completed by then starts 4h before the latest
+    # block boundary at or before that close.
+    last_completed = (date + BAR).dt.floor("4h") - BLOCK
+    return pd.Series(trend.reindex(last_completed).to_numpy(), index=dataframe.index)
+
+
+class PocketPivotVolume_H116_v1(IStrategy):
+    """Pocket pivot near the 10-bar mean in a 4h uptrend; frozen stop, 2R target, 12h cap."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "1h"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.03  # engine backstop only; the binding stop is custom_stoploss (d <= 0.025)
+    use_custom_stoploss = True
+    trailing_stop = False
+    use_exit_signal = True
+    startup_candle_count = 250
+
+    @property
+    def protections(self):
+        return []
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        close = dataframe["close"].astype(float)
+        volume = dataframe["volume"].astype(float)
+        low = dataframe["low"].astype(float)
+
+        dataframe["sma10"] = close.rolling(SMA_FAST).mean()
+        dataframe["vd"] = max_down_bar_volume(close, volume)
+        dataframe["trend_4h"] = completed_4h_uptrend(dataframe)
+        risk = (close - low) / close
+        dataframe["signal_risk"] = risk
+        dataframe["stop_distance"] = risk.clip(lower=MIN_STOP_DISTANCE)
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        defined = (
+            dataframe["sma10"].notna()
+            & dataframe["vd"].notna()
+            & dataframe["trend_4h"].notna()
+            & dataframe["signal_risk"].notna()
+        )
+        cond = (
+            defined
+            & (dataframe["close"] > dataframe["close"].shift(1))
+            & (dataframe["volume"] > dataframe["vd"])
+            & (dataframe["close"] > dataframe["sma10"])
+            & (dataframe["low"] <= NEAR_SMA_TOLERANCE * dataframe["sma10"])
+            & (dataframe["trend_4h"] == 1.0)
+            & (dataframe["signal_risk"] <= MAX_SIGNAL_BAR_RISK)
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        dataframe.loc[cond, ["enter_long", "enter_tag"]] = (1, "pocket_pivot")
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit, stop and time exit depend on the open trade: custom_stoploss / custom_exit.
+        return dataframe
+
+    # ------------------------------------------------------------------ trade-level logic
+    def frozen_distance(self, pair: str, trade) -> Optional[float]:
+        """d of the signal bar (the 1h bar before the fill bar), or None if not available."""
+        try:
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        except Exception:
+            return None
+        if dataframe is None or len(dataframe) == 0 or "stop_distance" not in dataframe:
+            return None
+        signal_date = naive_utc(trade.open_date_utc).floor("1h") - BAR
+        dates = pd.to_datetime(dataframe["date"])
+        if dates.dt.tz is not None:
+            dates = dates.dt.tz_convert("UTC").dt.tz_localize(None)
+        rows = dataframe.loc[dates == signal_date, "stop_distance"]
+        if len(rows) == 0:
+            return None
+        value = float(rows.iloc[-1])
+        if not np.isfinite(value) or value <= 0:
+            return None
+        return value
+
+    def custom_stoploss(
+        self,
+        pair: str,
+        trade,
+        current_time,
+        current_rate: float,
+        current_profit: float,
+        after_fill: bool = False,
+        **kwargs,
+    ) -> Optional[float]:
+        """Constant stop price E x (1 - d), expressed relative to the current rate."""
+        distance = self.frozen_distance(pair, trade)
+        if distance is None or not current_rate or current_rate <= 0:
+            return None
+        stop_price = trade.open_rate * (1.0 - distance)
+        ratio = max(1.0 - stop_price / current_rate, 1e-4)
+        return -ratio
+
+    def confirm_trade_entry(
+        self,
+        pair,
+        order_type,
+        amount,
+        rate,
+        time_in_force,
+        current_time,
+        entry_tag,
+        side,
+        **kwargs,
+    ) -> bool:
+        """At most 2 trades opened per pair per UTC day of the fill time (closed trades included)."""
+        today = utc_day(current_time)
+        opened_today = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                opened_today += 1
+        return opened_today < MAX_ENTRIES_PER_DAY
+
+    def custom_exit(
+        self,
+        pair: str,
+        trade,
+        current_time,
+        current_rate: float,
+        current_profit: float,
+        **kwargs,
+    ) -> Optional[str]:
+        distance = self.frozen_distance(pair, trade)
+        if distance is not None and current_rate and trade.open_rate:
+            if current_rate >= trade.open_rate * (1.0 + TARGET_R_MULTIPLE * distance):
+                return "take_profit_2r"
+
+        # Fill at the open of bar e; exit signal at the close of e+11; sold at the open of e+12.
+        fill_bar = naive_utc(trade.open_date_utc).floor("1h")
+        if naive_utc(current_time) >= fill_bar + TIME_EXIT_BARS * BAR:
+            return "time_exit_12h"
+        return None
