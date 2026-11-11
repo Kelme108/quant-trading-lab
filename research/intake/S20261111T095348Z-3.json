@@ -1,0 +1,18 @@
+{
+  "title": "SwingHighToSky: 15m CCI(72) below -175 in an active market, exit at the CCI zero line, 1.5% stop, 12h cap",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/SwingHighToSky.py",
+    "title": "freqtrade-strategies: SwingHighToSky (Kevin Ossenbrueck)",
+    "license": "MIT (file header); repository GPL-3.0"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Typical price TP = (high+low+close)/3. CCI72(t) = (TP(t) - SMA72(TP)) / (0.015 * mean absolute deviation of TP from that SMA over the same 72 bars, current bar included). RSI36 = Wilder RSI(36) of closes. ATRp = Wilder ATR(14)/close. ENTRY (the strategy's published buy condition) at the close of t when CCI72(t) < -175 AND RSI36(t) < 90, plus ATRp(t) >= 0.004 (the single activity filter, volatility type, fixed in advance), no open position, and fewer than 3 entries already taken on this pair in the current UTC day. EXITS, first one wins: (1) MEAN REACHED: the first close with CCI72 > 0 (price back at its 18-hour mean), sell at the next open; (2) TAKE-PROFIT: price trades at entry +4.1% (the strategy's ROI step after 64 minutes, kept as a fixed cap); (3) STOP: price trades 1.5% below the entry price (replaces the source's 34% stop, which does not fit a day-trade); (4) TIME: sell at the open after the 48th bar since entry (12 hours). The source's sell signal (CCI66 > -106 and RSI45 > 88) and its decaying ROI table are not used.",
+  "mechanism": "The source states no mechanism. The closest honest one is short-horizon liquidity provision: CCI72 below -175 means the typical price sits about two mean-absolute-deviations under its 18-hour mean, a swing low made by aggressive, immediacy-demanding sellers; the buyer who absorbs them is paid as price returns toward the mean once the selling pressure ends. Unlike the lab's 15m reversal rules that lost (H-050, H-097), the exit targets the mean itself and the ATR filter limits trading to active markets, where the distance from a CCI -175 low back to the 72-bar mean is typically 1.5-3%, against a 1.5% stop. Gross estimate about 0.5% per trade.",
+  "timeframe": "15m",
+  "longest_lookback": 72,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "CCIDeepOversoldReversal"
+}

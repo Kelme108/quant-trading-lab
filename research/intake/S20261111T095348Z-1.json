@@ -1,0 +1,18 @@
+{
+  "title": "15m Livermore pivot break of the 12-hour high on doubled volume, two-bar fail-fast exit, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md",
+    "title": "Livermore Pivotal Point (LuxAlgo Library)",
+    "license": "Free to use with attribution (LuxAlgo Library licence)"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at the close of bar t is filled at the open of bar t+1. No higher-timeframe filter. P(t) = highest high of bars t-48..t-1 (12 hours, current bar excluded). VA(t) = mean volume of bars t-48..t-1. ENTRY at the close of t when ALL hold: close(t) > 1.002*P(t); close(t) > open(t); volume(t) >= 2.0*VA(t) (the single activity filter, volume type, fixed in advance); no open position; fewer than 3 entries already taken on this pair in the current UTC day; at least 4 bars since the last exit. Store Pe = P(t) and the entry fill price E. EXITS, first one wins: (1) FAIL-FAST: if either of the first two closed bars after the signal bar closes below Pe, sell at the next open; (2) STOP: price trades at or below 0.988*E (1.2% stop, intrabar); (3) TAKE-PROFIT: price trades at or above 1.02*E (+2.0%, intrabar); (4) TIME: at the close of the 48th bar after entry (12 hours), sell at the next open. Same numbers on all nine pairs.",
+  "mechanism": "Livermore's pivotal point: price only commits when it penetrates a level that many traders watch (here the 12-hour high), and the penetration must come with expanding volume and prompt follow-through; a break that hesitates is exited at once. The other side is resting offers at the prior high and short-term faders who sell the break; when real demand absorbs them, stop orders of shorts above the high add fuel. The lab's 1h version (H-046) had the largest intraday gross move of any rule (about 1.07%); this keeps the trigger on 15m to reach daily frequency. Gross estimate about 0.55%: winners capped at +2.0%, full losers at -1.2% (cost 0.30% = 0.25R), and the fail-fast exit cuts most failed breaks near -0.4 to -0.6%.",
+  "timeframe": "15m",
+  "longest_lookback": 48,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.55,
+  "family_hint": "LivermorePivotFailFast"
+}

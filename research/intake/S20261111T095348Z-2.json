@@ -1,0 +1,18 @@
+{
+  "title": "Hummingbot Bollinger V1 on 15m: close below the 100-bar lower band in an active market, triple-barrier exit",
+  "source": {
+    "type": "repo",
+    "url": "https://hummingbot.org/strategies/v2-strategies/examples/",
+    "title": "Hummingbot V2 strategy examples: directional_trading.bollinger_v1 controller",
+    "license": "Apache-2.0"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Bollinger bands on 15m closes: mid = SMA(100), sd = population standard deviation of the same 100 closes, upper = mid + 2.0*sd, lower = mid - 2.0*sd. BBP(t) = (close - lower)/(upper - lower). ATRp(t) = Wilder ATR(14) of 15m bars / close(t). ENTRY (long only) at the close of t when BBP(t) < 0 (the controller's long condition: close below the lower band), ATRp(t) >= 0.004 (the single activity filter, volatility type, fixed in advance), no open position, and fewer than 4 entries already taken on this pair in the current UTC day. EXITS (the controller's triple barrier from the published example configuration), first one wins, checked intrabar: STOP 1% below the entry price; TAKE-PROFIT 3% above the entry price; TRAILING STOP armed once the price has reached entry +0.8%, after which the position is sold when price falls 0.4% below the highest price seen since entry; TIME LIMIT 6 hours: sell at the open after the 24th bar since entry. The controller's 3m default candle is replaced by 15m; the 100-bar band length is kept (about 25 hours).",
+  "mechanism": "A close more than 2 standard deviations below the 25-hour mean is usually forced, immediacy-seeking selling (stop-outs, liquidations) that pushes price below fair value; the buyer is paid for supplying liquidity, as in the price-pressure reversals of Avramov, Chordia and Goyal (JF 2006, ideas.repec.org page opened), who find the reversals largest where turnover is high. The Hummingbot design differs from the lab's earlier band rules by its asymmetric exit: a 1% stop, a trailing barrier that locks a rebound once it reaches +0.8%, and a 3% cap, so rebounds can run while losers are cut. The ATR filter keeps it to active markets where a band touch is a 1-2% overshoot rather than noise. Gross estimate about 0.5%: losers at -1%, trailed winners exit at +0.4% or more, full rebounds of 1-3%.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "BollingerMeanReversionBaseline"
+}
