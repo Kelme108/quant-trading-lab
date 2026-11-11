@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-127",
+  "family": "LivermorePivotFailFast",
+  "title": "15m Livermore pivot break of the 12-hour high on doubled volume, two-bar fail-fast exit, 12h cap",
+  "ex_ante_rule": "Chart 15m, all times UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (fill bar e = t+1, fill price E). Spot, long only, one open position per pair, whole allowed balance, no pyramiding, same rule and numbers on all nine pairs, no higher-timeframe filter, single grid cell. Warm-up: 100 bars (longest lookback 48 bars plus the current bar; no recursive indicators; margin for stability). DEFINITIONS at bar t: P(t) = highest high of bars t-48..t-1 (48 bars = 12 hours, current bar excluded). VA(t) = arithmetic mean of volume of bars t-48..t-1 (current bar excluded); if VA(t) = 0 or any of those bars is missing, no signal. ENTRY signal at the close of bar t when ALL hold: (1) close(t) > 1.002 x P(t); (2) close(t) > open(t); (3) volume(t) >= 2.0 x VA(t) (the single activity filter, volume type, fixed in advance, not scanned); (4) no open position on the pair; (5) fewer than 3 trades on this pair have an entry fill time on the UTC calendar day of the fill bar t+1 (daily cap, reset at 00:00 UTC, checked in confirm_trade_entry); (6) cooldown: no re-entry for 4 candles after any exit on the pair (CooldownPeriod, stop_duration_candles = 4). On entry store Pe = P(t) of the signal bar (carried in the enter_tag), fixed for the trade. EXITS, first one wins: (a) FAIL-FAST: if close(t+1) < Pe, exit signal at the close of t+1, sold at the open of t+2; else if close(t+2) < Pe, exit signal at the close of t+2, sold at the open of t+3 (only these two bars; from t+3 on this exit no longer applies); (b) STOP-LOSS: one fixed 1.2% below E (native stoploss = -0.012, intrabar, triggers as soon as price touches it); (c) TAKE-PROFIT: +2.0% above E, sold at that price as soon as a bar's high reaches it (minimal_roi {\"0\": 0.02}, no other ROI steps; at the open if a bar opens above it); if stop and target are touched in the same bar, the stop counts (engine convention); (d) TIME EXIT: exit signal at the close of bar e+47 (the 48th 15m bar of the trade, counting the fill bar e as the first), sold at the open of e+48, i.e. 12 hours after the fill. No trailing stop, no break-even move, no other filters or exits.",
+  "parameters": {
+    "timeframe": "15m",
+    "pivot_lookback_bars": 48,
+    "breakout_margin": 1.002,
+    "volume_lookback_bars": 48,
+    "volume_multiple": 2.0,
+    "require_up_bar": "close > open",
+    "fail_fast_bars": 2,
+    "stoploss_pct": 0.012,
+    "take_profit_pct": 0.02,
+    "time_exit_bars": 48,
+    "max_entries_per_utc_day": 3,
+    "cooldown_candles": 4,
+    "startup_candle_count": 100
+  },
+  "rationale": "Livermore's pivotal point: a position exists only once price penetrates a level many traders watch (here the 12-hour high), the penetration must come with expanding activity (volume at least twice the 12-hour mean), and the move must follow through at once; a break that slips back below the level is exited immediately. The other side: resting offers at the prior high and short-term faders who sell into the break; when real demand absorbs them, the buy stops of shorts and breakout orders above the high add fuel, so a confirmed break tends to extend. Traders who fade breakouts by reflex, and passive offers resting at an obvious level, give up the extension. The lab's 1h version (H-046) had the largest intraday gross move of any rule (about 1.07% per trade, 3/3 pairs passing exploration); this moves the trigger to 15m to reach day-trade frequency, with the doubled-volume filter that the 2026-11-10 review found to raise the gross move. Expected trades: roughly 150-400 per year per pair (a close more than 0.2% above the 12-hour high on 2x volume happens on most active days, capped at 3 a day). Gross estimate about 0.55% per trade: winners capped at +2.0%, full losers at -1.2% (the 0.30% round trip is 0.25R), and the fail-fast exit cuts most failed breaks near -0.4 to -0.6%. Behaviour in ranges and bear markets: no regime filter (the scout's rule has none); in chop, breaks of the 12-hour high fail and the two-bar fail-fast exit plus the 1.2% stop keep each loss small, so losing streaks cost about 0.5-1.5% per trade rather than the 6-8% of H-005. All numbers were fixed by the scout before any test.",
+  "novelty_vs_tried": "Third variant of LivermorePivotFailFast (H-046 on 1h with a 240-bar pivot, an SMA480 trend filter, a 4% stop and a trailing 48-bar-low exit with no time cap; H-108 on 1h with a 20-bar pivot, SMA40, a session window and a trailing 4-bar-low exit, which never ran because of an implementation failure). This variant fixes the specific mismatch with the owner's day-trade goal: it runs on 15m with a 12-hour pivot so it can trade 1-3 times a day, drops the trend filter and the trailing exit, and uses a fixed bracket (1.2% stop, 2.0% target, 0.25R cost) with a two-bar fail-fast and a mandatory 12-hour time exit. The volume filter is measured against the same 12-hour window as the pivot. It differs from SessionOpeningRangeBreakout (a fixed session range) and HighOfDayRVolBreak (a UTC-day high with time-of-day RVOL) because the level is a rolling 12-hour high, not tied to a session or a calendar day.",
+  "sources": [
+    {
+      "title": "Livermore Pivotal Point (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/livermore-pivotal-point.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file for H-127 (exploration-only summaries of earlier hypotheses on BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL) and the LuxAlgo source page, through 2026-11-11."
+}
