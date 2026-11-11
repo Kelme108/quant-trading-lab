@@ -1,0 +1,285 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+
+def wilder_atr(dataframe, timeperiod=14):
+    """TA-Lib ATR: first true range uses the previous close; seeded with the simple mean of 14 true ranges."""
+    high = dataframe["high"].to_numpy(dtype=float)
+    low = dataframe["low"].to_numpy(dtype=float)
+    close = dataframe["close"].to_numpy(dtype=float)
+    out = np.full(len(close), np.nan)
+    if len(close) <= timeperiod:
+        return pd.Series(out, index=dataframe.index)
+    tr = np.full(len(close), np.nan)
+    tr[1:] = np.maximum.reduce(
+        [high[1:] - low[1:], np.abs(high[1:] - close[:-1]), np.abs(low[1:] - close[:-1])]
+    )
+    out[timeperiod] = tr[1 : timeperiod + 1].mean()
+    for i in range(timeperiod + 1, len(close)):
+        out[i] = (out[i - 1] * (timeperiod - 1) + tr[i]) / timeperiod
+    return pd.Series(out, index=dataframe.index)
+
+
+_ta = sys.modules["talib.abstract"]
+if not hasattr(_ta, "ATR"):
+    _ta.ATR = wilder_atr
+
+ROOT = Path(__file__).parents[1]
+NAME = "ADRExhaustionReversal_H120_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+
+
+def make_frame(drop_day=16, down_bars=40, step=0.25, days=19, start=START, skip_rows=0):
+    """Flat days (range 1.0 around 100); on drop_day price falls to a low, then a green reversal bar.
+
+    The reversal bar is bar index down_bars + 1 of drop_day.
+    """
+    n = days * 96
+    dates = pd.date_range(START, periods=n, freq="15min")
+    open_ = np.full(n, 100.0)
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    base = drop_day * 96
+    for i in range(down_bars + 1):
+        close[base + i] = 100.0 - step * i
+        open_[base + i] = 100.0 if i == 0 else close[base + i - 1]
+        high[base + i] = open_[base + i] + 0.5
+        low[base + i] = min(open_[base + i], close[base + i]) - 0.5
+    bottom = close[base + down_bars]
+    rev = base + down_bars + 1
+    open_[rev] = bottom
+    close[rev] = bottom + 2.0
+    high[rev] = close[rev] + 0.1
+    low[rev] = bottom - 0.4  # above the previous low (bottom - 0.5)
+    # after the reversal the rest of the data stays flat at the reversal close
+    level = close[rev]
+    open_[rev + 1 :] = level
+    close[rev + 1 :] = level
+    high[rev + 1 :] = level + 0.5
+    low[rev + 1 :] = level - 0.5
+    frame = pd.DataFrame(
+        {"date": dates, "open": open_, "high": high, "low": low, "close": close, "volume": 1.0}
+    )
+    return frame.iloc[skip_rows:].reset_index(drop=True)
+
+
+def run(strategy, frame):
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    return strategy.populate_exit_trend(frame, {})
+
+
+def trade(tag, open_rate=92.0, opened=None):
+    return types.SimpleNamespace(
+        enter_tag=tag,
+        open_rate=open_rate,
+        open_date_utc=opened or datetime(2024, 1, 17, 10, 30, tzinfo=timezone.utc),
+    )
+
+
+class ADRExhaustionReversalTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = Strategy()
+        self.signal_row = 16 * 96 + 41
+
+    def signal_rows(self, frame):
+        if "enter_long" not in frame:
+            return []
+        return frame.index[frame["enter_long"].fillna(0) == 1].tolist()
+
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.15)
+        self.assertTrue(Strategy.use_custom_stoploss)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 1440)
+
+    def test_signal_fires_once_on_the_reversal_bar_with_tag(self):
+        frame = run(self.strategy, make_frame())
+        self.assertEqual(self.signal_rows(frame), [self.signal_row])
+        tag = frame.loc[self.signal_row, "enter_tag"]
+        parsed = MODULE.parse_tag(tag)
+        row = frame.loc[self.signal_row]
+        self.assertEqual(parsed[0], row["day_high"])
+        self.assertEqual(parsed[1], row["day_low"])
+        self.assertEqual(parsed[2], (row["day_high"] + row["day_low"]) / 2)
+        self.assertGreater(row["adr"], 0)
+
+    def test_signal_columns_are_binary(self):
+        frame = run(self.strategy, make_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_gives_no_signal(self):
+        frame = make_frame()
+        frame["volume"] = 0.0
+        out = run(self.strategy, frame)
+        self.assertEqual(self.signal_rows(out), [])
+        self.assertEqual(int(out.get("exit_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        frame = make_frame()
+        frame.loc[self.signal_row, "volume"] = 0.0
+        self.assertEqual(self.signal_rows(run(self.strategy, frame)), [])
+
+    def test_undefined_startup_values_give_no_signal(self):
+        # The same pattern before 14 completed days exist: ADR undefined, no signal.
+        frame = run(self.strategy, make_frame(drop_day=5))
+        self.assertTrue(frame.loc[: 14 * 96 - 1, "adr"].isna().all())
+        self.assertEqual(self.signal_rows(frame), [])
+        # Nothing at all fires inside the startup window.
+        full = run(self.strategy, make_frame())
+        startup = Strategy.startup_candle_count
+        self.assertEqual(self.signal_rows(full.iloc[:startup]), [])
+
+    def test_partial_first_day_keeps_adr_undefined_one_day_longer(self):
+        frame = run(self.strategy, make_frame(skip_rows=24))  # starts 06:00 on day 0
+        day0_rows = 72
+        first_valid_day_start = day0_rows + 14 * 96  # day 15 starts here
+        self.assertTrue(frame.loc[: first_valid_day_start - 1, "adr"].isna().all())
+        self.assertTrue(frame.loc[first_valid_day_start:, "adr"].notna().all())
+
+    def test_adr_is_mean_of_previous_14_completed_days(self):
+        frame = run(self.strategy, make_frame())
+        self.assertAlmostEqual(frame.loc[15 * 96 + 10, "adr"], 1.0)
+        # day 16 itself has a large range but is not in ADR(16)
+        self.assertAlmostEqual(frame.loc[16 * 96 + 10, "adr"], 1.0)
+        self.assertGreater(frame.loc[17 * 96 + 10, "adr"], 1.0)
+
+    def test_small_drop_below_target_distance_is_skipped(self):
+        # Mid-range 1% above the close is not reached: bottom 96.0 gives M = 98.0 < 1.01 * 98.0
+        frame = run(self.strategy, make_frame(down_bars=16, step=0.25))
+        self.assertEqual(self.signal_rows(frame), [])
+
+    def test_reversal_outside_time_window_is_ignored(self):
+        frame = run(self.strategy, make_frame(down_bars=4, step=2.5))  # reversal bar opens 01:15
+        self.assertEqual(self.signal_rows(frame), [])
+
+    def test_day_must_have_fallen_below_open(self):
+        # all-flat days: ranges equal ADR and the lows are in the past, but no reversal trigger
+        frame = make_frame()
+        frame.loc[frame.index >= 16 * 96, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
+        self.assertEqual(self.signal_rows(run(self.strategy, frame)), [])
+
+    def test_atr_activity_filter(self):
+        out = run(self.strategy, make_frame())
+        ratio = float(out.loc[self.signal_row, "atr_over_close"])
+        self.assertGreaterEqual(ratio, 0.004)
+        original = MODULE.ATR_OVER_CLOSE_MIN
+        try:
+            MODULE.ATR_OVER_CLOSE_MIN = ratio * 1.01  # just above the signal bar's ratio
+            self.assertEqual(self.signal_rows(run(self.strategy, make_frame())), [])
+        finally:
+            MODULE.ATR_OVER_CLOSE_MIN = original
+        self.assertEqual(MODULE.ATR_OVER_CLOSE_MIN, 0.004)
+
+    def test_no_lookahead(self):
+        full = make_frame(days=20)
+        n = 16 * 96 + 60
+        rng = np.random.default_rng(7)
+        changed = full.copy()
+        tail = changed.index >= n
+        for column in ("open", "high", "low", "close"):
+            changed.loc[tail, column] = rng.uniform(50, 150, tail.sum())
+        changed.loc[tail, "volume"] = 123.0
+        before = run(self.strategy, changed.iloc[:n].copy())
+        after = run(self.strategy, changed.copy()).iloc[:n]
+        original = run(self.strategy, full.copy()).iloc[:n]
+        for other in (after, original):
+            columns = [c for c in before.columns if c in other.columns]
+            pd.testing.assert_frame_equal(before[columns], other[columns], check_dtype=False)
+        self.assertEqual(self.signal_rows(before), [self.signal_row])
+
+    def test_tag_parsing(self):
+        self.assertEqual(MODULE.parse_tag("adr|100.5|89.5|95.0"), (100.5, 89.5, 95.0))
+        for bad in (None, "x", "adr|1|2", "adr|a|b|c", "adr|1|2|nan", "jump|1|2|3", "adr|-1|2|3"):
+            self.assertIsNone(MODULE.parse_tag(bad))
+
+    def test_stop_price(self):
+        self.assertAlmostEqual(MODULE.stop_price(89.5, 92.0), 0.997 * 89.5)
+        self.assertAlmostEqual(MODULE.stop_price(91.9, 92.0), 0.99 * 92.0)
+
+    def test_custom_stoploss_is_fixed_absolute_level(self):
+        t = trade("adr|100.5|89.5|95.0")
+        now = t.open_date_utc + timedelta(hours=1)
+        value = self.strategy.custom_stoploss("BTC/USDT", t, now, 92.0, 0.0)
+        self.assertAlmostEqual(92.0 * (1 + value), 0.997 * 89.5)
+        higher = self.strategy.custom_stoploss("BTC/USDT", t, now, 94.0, 0.02)
+        self.assertAlmostEqual(94.0 * (1 + higher), 0.997 * 89.5)
+        tight = trade("adr|100.5|91.9|96.0")
+        value = self.strategy.custom_stoploss("BTC/USDT", tight, now, 92.0, 0.0)
+        self.assertAlmostEqual(92.0 * (1 + value), 0.99 * 92.0)
+        self.assertEqual(self.strategy.custom_stoploss("BTC/USDT", trade("other"), now, 92.0, 0.0), -0.15)
+
+    def test_custom_exit_target_and_time(self):
+        t = trade("adr|100.5|89.5|95.0")
+        start = t.open_date_utc
+        self.assertIsNone(self.strategy.custom_exit("BTC/USDT", t, start + timedelta(hours=1), 94.99, 0.03))
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", t, start + timedelta(hours=1), 95.0, 0.03), "target_mid_range"
+        )
+        self.assertIsNone(
+            self.strategy.custom_exit("BTC/USDT", t, start + timedelta(hours=11, minutes=45), 93.0, 0.01)
+        )
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", t, start + timedelta(hours=12), 93.0, 0.01), "time_exit_12h"
+        )
+
+    def test_one_entry_per_utc_day(self):
+        existing = types.SimpleNamespace(open_date_utc=datetime(2024, 1, 17, 3, 0, tzinfo=timezone.utc))
+        other_day = types.SimpleNamespace(open_date_utc=datetime(2024, 1, 16, 23, 45, tzinfo=timezone.utc))
+        original = MODULE.Trade
+        now = datetime(2024, 1, 17, 22, 0, tzinfo=timezone.utc)
+        tag = "adr|100.5|89.5|95.0"
+        try:
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: [other_day])})
+            self.assertTrue(self.strategy.confirm_trade_entry("BTC/USDT", "limit", 1, 92.0, "GTC", now, tag, "long"))
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: [other_day, existing])})
+            self.assertFalse(self.strategy.confirm_trade_entry("BTC/USDT", "limit", 1, 92.0, "GTC", now, tag, "long"))
+            self.assertFalse(self.strategy.confirm_trade_entry("BTC/USDT", "limit", 1, 92.0, "GTC", now, "x", "long"))
+        finally:
+            MODULE.Trade = original
+
+
+if __name__ == "__main__":
+    unittest.main()
