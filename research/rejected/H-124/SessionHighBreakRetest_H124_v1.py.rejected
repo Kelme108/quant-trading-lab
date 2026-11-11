@@ -1,0 +1,214 @@
+"""H-124: prior 8h-session high, volume-backed break, then buy the first bullish wick-retest (15m, UTC).
+
+Closed bars only; a signal at the close of bar t fills at the open of bar t+1. Long only, spot.
+
+- Sessions: three 8-hour UTC blocks (00:00, 08:00, 16:00), 32 bars each.
+- PSH for a bar in session S = highest high of the 32 bars of session S-1; if any of those
+  32 bars is missing, session S gives no setup.
+- Break: the FIRST bar b of S with close >= 1.002 * PSH and volume >= 1.5 * mean volume of
+  bars b-20..b-1 (bar b excluded). At most one setup per session. A new setup replaces an older one.
+- Retest window t = b+1..b+16 (may run into the next session), checked in order:
+  close(t) < 0.995 * PSH cancels the setup; otherwise the first bar with low <= 1.002 * PSH,
+  close >= PSH and close > open is the entry signal and uses the setup up. No retest by b+16: expired.
+- Entry at the open of t+1; low(t) goes with the signal in the entry tag.
+- Stop: d = max(1 - 0.998 * low(t) / E, 0.01), frozen at the fill (custom_stoploss); the native
+  -10% stoploss is only a backstop.
+- Take-profit E * 1.02 and the 48-bar (12 h) time exit are in custom_exit (minimal_roi is fixed
+  at 100 by the contract). The take-profit looks at closed bars (entry bar included) and the current rate.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy
+
+BAR = timedelta(minutes=15)
+SESSION_MINUTES = 480
+SESSION_BARS = 32
+BREAK_CLOSE_MULT = 1.002
+VOLUME_LOOKBACK = 20
+VOLUME_MULT = 1.5
+RETEST_WINDOW_BARS = 16
+RETEST_LOW_MULT = 1.002
+INVALIDATION_CLOSE_MULT = 0.995
+STOP_LOW_MULT = 0.998
+MIN_STOP_PCT = 0.01
+TAKE_PROFIT_PCT = 0.02
+TIME_EXIT_BARS = 48
+TAG_PREFIX = "psh_retest"
+EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
+
+
+def parse_tag(tag) -> float | None:
+    """low(t) recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 2 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        value = float(parts[1])
+    except ValueError:
+        return None
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def stop_distance(entry_price: float, signal_low: float) -> float:
+    """d = max(1 - 0.998 * low(t) / E, 0.01), frozen at the fill."""
+    return max(1.0 - STOP_LOW_MULT * signal_low / entry_price, MIN_STOP_PCT)
+
+
+def session_levels(session_key: np.ndarray, minutes: np.ndarray, high: np.ndarray) -> dict:
+    """Highest high of every complete session (32 distinct bars, all highs defined)."""
+    frame = DataFrame({"key": session_key, "minute": minutes, "high": high})
+    grouped = frame.groupby("key")
+    size = grouped.size()
+    unique_minutes = grouped["minute"].nunique()
+    valid_highs = frame["high"].notna().groupby(frame["key"]).sum()
+    top = grouped["high"].max()
+    complete = (size == SESSION_BARS) & (unique_minutes == SESSION_BARS) & (valid_highs == SESSION_BARS)
+    return {int(key): float(top[key]) for key in complete.index[complete.to_numpy()]}
+
+
+class SessionHighBreakRetest_H124_v1(IStrategy):
+    """Buy the first bullish wick-retest of a volume-backed break of the prior 8h session high."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.10
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 100
+
+    dp = None
+
+    # ------------------------------------------------------------------ indicators
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        n = len(dataframe)
+        psh_col = np.full(n, np.nan)
+        signal = np.zeros(n, dtype=int)
+        signal_low = np.full(n, np.nan)
+
+        volume_series = dataframe["volume"].astype(float)
+        # Mean of the 20 bars before the current bar (bar excluded).
+        volume_mean = volume_series.rolling(VOLUME_LOOKBACK).mean().shift(1)
+        dataframe["vol_mean20"] = volume_mean
+
+        if n > 0:
+            dates = pd.to_datetime(dataframe["date"], utc=True)
+            minutes = ((dates - EPOCH) // pd.Timedelta(minutes=1)).to_numpy(dtype=np.int64)
+            session_key = minutes // SESSION_MINUTES
+            open_ = dataframe["open"].to_numpy(dtype=float)
+            high = dataframe["high"].to_numpy(dtype=float)
+            low = dataframe["low"].to_numpy(dtype=float)
+            close = dataframe["close"].to_numpy(dtype=float)
+            volume = volume_series.to_numpy(dtype=float)
+            vol_mean = volume_mean.to_numpy(dtype=float)
+            levels = session_levels(session_key, minutes, high)
+
+            setup = None  # (PSH, minute of break bar b)
+            broken_session = None
+            window_minutes = RETEST_WINDOW_BARS * 15
+            for i in range(n):
+                key = int(session_key[i])
+                level = levels.get(key - 1)
+                if level is not None:
+                    psh_col[i] = level
+
+                # Existing setup: bars b+1..b+16 only, checked in order.
+                if setup is not None:
+                    elapsed = int(minutes[i] - setup[1])
+                    if elapsed > window_minutes:
+                        setup = None
+                    elif np.isfinite(close[i]):
+                        if close[i] < INVALIDATION_CLOSE_MULT * setup[0]:
+                            setup = None
+                        elif (
+                            np.isfinite(open_[i])
+                            and np.isfinite(low[i])
+                            and low[i] <= RETEST_LOW_MULT * setup[0]
+                            and close[i] >= setup[0]
+                            and close[i] > open_[i]
+                        ):
+                            signal[i] = 1
+                            signal_low[i] = low[i]
+                            setup = None
+
+                # Break bar: first qualifying bar of the session; one setup per session.
+                if (
+                    level is not None
+                    and broken_session != key
+                    and i >= VOLUME_LOOKBACK
+                    and minutes[i] - minutes[i - VOLUME_LOOKBACK] == VOLUME_LOOKBACK * 15
+                    and np.isfinite(close[i])
+                    and np.isfinite(volume[i])
+                    and np.isfinite(vol_mean[i])
+                    and volume[i] > 0
+                    and vol_mean[i] > 0
+                    and close[i] >= BREAK_CLOSE_MULT * level
+                    and volume[i] >= VOLUME_MULT * vol_mean[i]
+                ):
+                    broken_session = key
+                    setup = (level, int(minutes[i]))
+
+        dataframe["psh"] = psh_col
+        dataframe["retest_signal"] = signal
+        dataframe["retest_low"] = signal_low
+        return dataframe
+
+    # ------------------------------------------------------------------ signals
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        cond = (
+            (dataframe["retest_signal"] == 1)
+            & dataframe["retest_low"].notna()
+            & dataframe["psh"].notna()
+            & dataframe["vol_mean20"].notna()
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(value)!r}" for value in dataframe.loc[cond, "retest_low"]
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take-profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    # ------------------------------------------------------------------ trade hooks
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        signal_low = parse_tag(trade.enter_tag)
+        if signal_low is None or not current_rate or not trade.open_rate:
+            return None
+        d = stop_distance(float(trade.open_rate), signal_low)
+        stop_price = float(trade.open_rate) * (1.0 - d)
+        # Relative to the current rate; the price stays fixed at d below the fill.
+        return min(stop_price / float(current_rate) - 1.0, -0.0001)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        target = float(trade.open_rate) * (1.0 + TAKE_PROFIT_PCT)
+        if current_rate is not None and current_rate >= target:
+            return "take_profit"
+        if self.dp is not None:
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if dataframe is not None and len(dataframe) > 0:
+                entry_bar = pd.Timestamp(trade.open_date_utc).floor("15min")
+                closed = dataframe.loc[
+                    (dataframe["date"] >= entry_bar) & (dataframe["date"] + BAR <= current_time)
+                ]
+                if not closed.empty and bool(np.any(closed["high"].to_numpy(dtype=float) >= target)):
+                    return "take_profit"
+        if current_time - trade.open_date_utc >= TIME_EXIT_BARS * BAR:
+            return "time_exit_48_bars"
+        return None

@@ -1,0 +1,300 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
+
+# Keep the tests runnable without installing Freqtrade or TA-Lib on the host.
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+freqtrade.strategy = strategy_module
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+
+ROOT = Path(__file__).parents[1]
+
+
+def load_strategy(filename: str, class_name: str):
+    path = ROOT / "user_data" / "strategies" / filename
+    spec = importlib.util.spec_from_file_location(class_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, class_name)
+
+
+Strategy = load_strategy("SessionHighBreakRetest_H124_v1.py", "SessionHighBreakRetest_H124_v1")
+
+START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
+BREAK_BAR = 40
+RETEST_BAR = 42
+N_BARS = 130
+
+
+def make_scenario(n: int = N_BARS) -> pd.DataFrame:
+    """Session 0 (bars 0-31) has PSH = 100. Session 1: break at bar 40, retest at bar 42."""
+    dates = pd.date_range(START, periods=n, freq="15min")
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "open": 99.0,
+            "high": 99.5,
+            "low": 98.5,
+            "close": 99.0,
+            "volume": 1.0,
+        }
+    )
+    frame.loc[5, "high"] = 100.0  # session-0 high
+    # Rest of session 1: below the break level.
+    for i in range(32, 40):
+        frame.loc[i, ["open", "high", "low", "close"]] = [99.4, 99.6, 99.3, 99.5]
+    # Break bar: close >= 100.2, volume 10 vs mean 1.
+    frame.loc[BREAK_BAR, ["open", "high", "low", "close", "volume"]] = [99.6, 101.2, 99.5, 101.0, 10.0]
+    # Bar 41: holds above the invalidation level (99.5), low above 100.2 so no retest.
+    frame.loc[41, ["open", "high", "low", "close"]] = [101.0, 101.0, 100.5, 100.8]
+    # Bar 42: wick into the level, closes up above it.
+    frame.loc[RETEST_BAR, ["open", "high", "low", "close"]] = [100.3, 100.8, 100.1, 100.6]
+    # Later bars: no new break (volume 1) and the setup is used up.
+    for i in range(43, n):
+        frame.loc[i, ["open", "high", "low", "close"]] = [100.5, 100.8, 100.4, 100.6]
+    return frame
+
+
+def run(strategy, frame: pd.DataFrame) -> pd.DataFrame:
+    frame = strategy.populate_indicators(frame.copy(), {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def entries(frame: pd.DataFrame) -> list:
+    if "enter_long" not in frame:
+        return []
+    return frame.index[frame["enter_long"].fillna(0) == 1].tolist()
+
+
+class FakeDp:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def get_analyzed_dataframe(self, pair, timeframe):
+        return self.frame, None
+
+
+class SessionHighBreakRetestTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.strategy = Strategy()
+
+    def test_class_constants(self) -> None:
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertGreaterEqual(Strategy.startup_candle_count, 100)
+
+    def test_signal_on_first_retest_only(self) -> None:
+        frame = run(self.strategy, make_scenario())
+        self.assertEqual(entries(frame), [RETEST_BAR])
+        self.assertEqual(frame.loc[RETEST_BAR, "enter_tag"], "psh_retest|100.1")
+        self.assertEqual(frame.loc[RETEST_BAR, "psh"], 100.0)
+
+    def test_signal_columns_are_binary(self) -> None:
+        frame = run(self.strategy, make_scenario())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+
+    def test_zero_volume_candle_gives_no_signal(self) -> None:
+        data = make_scenario()
+        data.loc[RETEST_BAR, "volume"] = 0.0
+        self.assertEqual(entries(run(self.strategy, data)), [])
+        data = make_scenario()
+        data["volume"] = 0.0
+        self.assertEqual(entries(run(self.strategy, data)), [])
+
+    def test_break_needs_volume_filter(self) -> None:
+        data = make_scenario()
+        data.loc[BREAK_BAR, "volume"] = 1.4  # < 1.5 x mean of 1.0
+        self.assertEqual(entries(run(self.strategy, data)), [])
+
+    def test_invalidation_cancels_setup(self) -> None:
+        data = make_scenario()
+        data.loc[41, ["open", "high", "low", "close"]] = [101.0, 101.0, 99.3, 99.4]  # < 0.995 x 100
+        self.assertEqual(entries(run(self.strategy, data)), [])
+
+    def test_retest_window_is_sixteen_bars(self) -> None:
+        def with_retest_at(bar: int) -> pd.DataFrame:
+            data = make_scenario()
+            for i in range(41, bar):
+                data.loc[i, ["open", "high", "low", "close"]] = [101.0, 101.2, 100.5, 100.8]
+            data.loc[bar, ["open", "high", "low", "close"]] = [100.3, 100.8, 100.1, 100.6]
+            for i in range(bar + 1, N_BARS):
+                data.loc[i, ["open", "high", "low", "close"]] = [101.0, 101.2, 100.5, 100.8]
+            return data
+
+        self.assertEqual(entries(run(self.strategy, with_retest_at(BREAK_BAR + 16))), [BREAK_BAR + 16])
+        self.assertEqual(entries(run(self.strategy, with_retest_at(BREAK_BAR + 17))), [])
+
+    def test_bearish_or_weak_retest_bar_is_not_a_signal(self) -> None:
+        data = make_scenario()
+        data.loc[RETEST_BAR, ["open", "close"]] = [100.7, 100.6]  # close < open
+        frame = run(self.strategy, data)
+        self.assertNotIn(RETEST_BAR, entries(frame))
+        # The next qualifying bar is then the first retest.
+        data.loc[44, ["open", "high", "low", "close"]] = [100.3, 100.8, 100.2, 100.6]
+        self.assertEqual(entries(run(self.strategy, data)), [44])
+
+    def test_one_break_per_session(self) -> None:
+        data = make_scenario()
+        # A second volume break in session 1 after the setup was used up creates no new setup.
+        data.loc[50, ["open", "high", "low", "close", "volume"]] = [100.6, 103.2, 100.5, 103.0, 20.0]
+        data.loc[51, ["open", "high", "low", "close"]] = [103.0, 103.0, 100.0, 100.5]
+        data.loc[51, ["open", "close"]] = [100.0, 100.5]
+        self.assertEqual(entries(run(self.strategy, data)), [RETEST_BAR])
+
+    def test_incomplete_previous_session_gives_no_setup(self) -> None:
+        data = make_scenario().drop(index=10).reset_index(drop=True)
+        self.assertEqual(entries(run(self.strategy, data)), [])
+
+    def test_undefined_values_give_no_signal(self) -> None:
+        data = make_scenario()
+        frame = run(self.strategy, data)
+        self.assertTrue(frame.loc[:31, "psh"].isna().all())
+        self.assertTrue(frame.loc[:19, "vol_mean20"].isna().all())
+        self.assertEqual(int(frame.iloc[:32].get("enter_long", pd.Series(dtype=float)).fillna(0).sum()), 0)
+        data.loc[3, "high"] = np.nan  # session 0 level undefined
+        self.assertEqual(entries(run(self.strategy, data)), [])
+        data = make_scenario()
+        data.loc[30, "volume"] = np.nan  # volume mean undefined at the break bar
+        data.loc[25:39, "volume"] = np.nan
+        self.assertEqual(entries(run(self.strategy, data)), [])
+
+    def test_signal_does_not_change_when_future_candles_are_appended(self) -> None:
+        full = make_scenario()
+        for cut in (41, 43, 60):
+            short = run(self.strategy, full.iloc[:cut].copy())
+            long = run(self.strategy, full.copy())
+            columns = [c for c in short.columns if c not in {"enter_tag"}]
+            pd.testing.assert_frame_equal(
+                short.loc[: cut - 1, columns].reset_index(drop=True),
+                long.loc[: cut - 1, columns].reset_index(drop=True),
+                check_dtype=False,
+            )
+            self.assertEqual(
+                short["enter_tag"].iloc[:cut].fillna("").tolist() if "enter_tag" in short else [""] * cut,
+                long["enter_tag"].iloc[:cut].fillna("").tolist(),
+            )
+
+    def test_no_lookahead_on_random_walk(self) -> None:
+        rng = np.random.default_rng(7)
+        n = 900
+        close = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.004, n)))
+        open_ = np.concatenate([[100.0], close[:-1]])
+        high = np.maximum(open_, close) * (1 + np.abs(rng.normal(0, 0.002, n)))
+        low = np.minimum(open_, close) * (1 - np.abs(rng.normal(0, 0.002, n)))
+        volume = rng.lognormal(0, 0.8, n)
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range(START, periods=n, freq="15min"),
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
+        cut = 600
+        short = run(self.strategy, frame.iloc[:cut].copy())
+        long = run(self.strategy, frame.copy())
+        self.assertGreater(len(entries(long)), 0)
+        columns = [c for c in short.columns if c != "enter_tag"]
+        pd.testing.assert_frame_equal(
+            short[columns].reset_index(drop=True),
+            long.loc[: cut - 1, columns].reset_index(drop=True),
+            check_dtype=False,
+        )
+
+    # ------------------------------------------------------------------ trade hooks
+    def make_trade(self, open_rate=100.0, low=99.5, minutes_ago=0):
+        opened = START + timedelta(hours=20)
+        return SimpleNamespace(
+            open_rate=open_rate,
+            enter_tag=f"psh_retest|{low!r}",
+            open_date_utc=opened,
+        ), opened
+
+    def test_stop_is_frozen_below_entry(self) -> None:
+        trade, opened = self.make_trade(open_rate=100.0, low=97.0)
+        d = 1 - 0.998 * 97.0 / 100.0
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, opened, 100.0, 0.0)
+        self.assertAlmostEqual(value, -d, places=9)
+        # Price rose to 101: the stop price (100 * (1 - d)) is unchanged.
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, opened, 101.0, 0.01)
+        self.assertAlmostEqual(101.0 * (1 + value), 100.0 * (1 - d), places=9)
+
+    def test_stop_has_one_percent_minimum_distance(self) -> None:
+        trade, opened = self.make_trade(open_rate=100.0, low=99.8)
+        value = self.strategy.custom_stoploss("BTC/USDT", trade, opened, 100.0, 0.0)
+        self.assertAlmostEqual(value, -0.01, places=9)
+
+    def test_foreign_tag_leaves_stop_alone(self) -> None:
+        trade, opened = self.make_trade()
+        trade.enter_tag = "other"
+        self.assertIsNone(self.strategy.custom_stoploss("BTC/USDT", trade, opened, 100.0, 0.0))
+
+    def test_take_profit_exit(self) -> None:
+        trade, opened = self.make_trade()
+        self.strategy.dp = None
+        now = opened + timedelta(minutes=60)
+        self.assertEqual(self.strategy.custom_exit("BTC/USDT", trade, now, 102.0, 0.02), "take_profit")
+        self.assertEqual(self.strategy.custom_exit("BTC/USDT", trade, now, 103.0, 0.03), "take_profit")
+        self.assertIsNone(self.strategy.custom_exit("BTC/USDT", trade, now, 101.9, 0.019))
+
+    def test_take_profit_from_closed_bar_high(self) -> None:
+        trade, opened = self.make_trade()
+        bars = pd.DataFrame(
+            {
+                "date": [opened, opened + timedelta(minutes=15), opened + timedelta(minutes=30)],
+                "high": [100.5, 102.1, 100.9],
+            }
+        )
+        self.strategy.dp = FakeDp(bars)
+        try:
+            now = opened + timedelta(minutes=45)
+            self.assertEqual(self.strategy.custom_exit("BTC/USDT", trade, now, 100.5, 0.005), "take_profit")
+            # The 102.1 bar is not closed yet at this time.
+            early = opened + timedelta(minutes=20)
+            self.assertIsNone(self.strategy.custom_exit("BTC/USDT", trade, early, 100.5, 0.005))
+        finally:
+            self.strategy.dp = None
+
+    def test_time_exit_after_48_bars(self) -> None:
+        trade, opened = self.make_trade()
+        self.strategy.dp = None
+        self.assertIsNone(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=705), 100.5, 0.005)
+        )
+        self.assertEqual(
+            self.strategy.custom_exit("BTC/USDT", trade, opened + timedelta(minutes=720), 100.5, 0.005),
+            "time_exit_48_bars",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
