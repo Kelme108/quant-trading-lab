@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-120",
+  "family": "ADRExhaustionReversal",
+  "title": "15m ADR exhaustion reversal: after a full ADR drop from the day high, buy the first up-reversal bar",
+  "ex_ante_rule": "Chart 15m, closed bars only, all times UTC; a signal at the close of bar t fills at the open of bar t+1. A UTC day d is the 96 bars whose open time falls in [00:00, 24:00). ADR(d) = arithmetic mean of (max high - min low) of each of the 14 completed UTC days before day d, built by grouping the 15m bars by UTC date (no data from day d); ADR(d) is constant for the whole day and is undefined (no signal) until 14 completed days exist. Within day d at bar t: DH(t) = highest high and DL(t) = lowest low of day d's bars from 00:00 up to and including t; O = open of day d's 00:00 bar. EXHAUSTION at t: (1) DH(t) - DL(t) >= ADR(d); (2) the day's low was set recently: min(low[t-4..t]) == DL(t) (bars t-4..t are always inside day d because of the time window below); (3) DL(t) < O. TRIGGER at t: close(t) > high(t-1) AND close(t) > open(t). ACTIVITY FILTER (a): ATR(14) on 15m (Wilder, talib ATR) / close(t) >= 0.004. TIME WINDOW: bar t opens between 04:00 and 21:45 UTC inclusive. ONE TRADE PER DAY: no open position on the pair and no earlier entry on the pair in the same UTC day (entry date of the fill; a 21:45 signal fills at 22:00 the same day). TARGET M = (DH(t) + DL(t)) / 2, frozen at the signal bar; if M < 1.01 * close(t) the signal is skipped. ENTRY: buy at the open E of bar t+1. STOP: SP = min(0.997 * DL(t), 0.99 * E), a fixed price set at entry and never moved (so always at least 1% below E), executed intrabar as soon as price touches it (custom_stoploss returning the fixed absolute level, as in earlier lab strategies; native stoploss -0.15 only as an outer backstop). EXIT: first of (i) target: price reaches M (custom_exit when current_rate >= M), (ii) the stop SP, (iii) time exit 48 bars (12 h) after entry. No ROI table, no trailing, no other filters; the same numbers on all nine pairs. DH(t), DL(t) and M can be carried in the entry tag. Warm-up: 1440 bars (14 completed days of 96 bars plus up to 95 bars of the current day; also ample for the recursive Wilder ATR(14)).",
+  "parameters": {
+    "timeframe": "15m",
+    "adr_days": 14,
+    "bars_per_day": 96,
+    "low_recency_bars": 4,
+    "atr_period": 14,
+    "atr_over_close_min": 0.004,
+    "window_start_utc": "04:00",
+    "window_end_utc": "21:45",
+    "max_entries_per_pair_per_day": 1,
+    "target_fraction_of_day_range": 0.5,
+    "min_target_distance": 0.01,
+    "stop_below_day_low": 0.997,
+    "min_stop_distance": 0.01,
+    "time_exit_bars": 48,
+    "backstop_stoploss": -0.15,
+    "startup_candle_count": 1440
+  },
+  "rationale": "ADR (LuxAlgo Library, 14-day default) measures the ordinary width of a day. When price has already fallen a full ADR from the day's high and sits below the day's open, the session has delivered an unusually large one-sided move; on crypto spot such extremes are frequently driven by forced flow (stop cascades, perp liquidations spilling into spot) rather than new information, and whoever absorbs that flow is paid a premium as price reverts toward the middle of the day's range. The counterparty is the forced/momentum seller at the day's extreme. LuxAlgo warns that ADR levels are not support and that trend days run through them, so the entry waits for structure: a green bar closing above the prior bar's high within 5 bars of the new low (sellers stopped pressing), plus ATR(14)/close >= 0.4% so it only trades when the market is actually moving. Move per trade: target = mid-range, roughly half an ADR (typically 1.5-3% on these pairs, and at least 1% by rule), stop at least 1% below entry, cost 0.30-0.45% round trip, so stop distance costs at most about 0.3-0.45R. With a hit rate near 40-45% and time exits the expected gross move is about +0.5% per trade. Expected frequency: a full-ADR drop below the open happens on perhaps 20-35% of days, so about 60-120 trades per year per pair (one per day maximum). Range/bear behaviour: this is a mean-reversion rule within the day, designed to work in chop; in a falling trend days run through ADR and the tight fixed stop and 12 h time exit bound the loss. Numbers are taken from the scout's idea I-115 as written; none were tuned.",
+  "novelty_vs_tried": "No family in the lab uses the day's own range against its trailing average range as the trigger. HourlyFailedBreakdownReclaim (capped) and DailyPivotS1Reclaim buy a reclaim of a fixed prior level; SessionRangeJudasSweep fades a sweep of the Asian-session range; VolumeSpikeCrashRebound/HourlyShockOverreaction buy single-bar shocks. Here the condition is cumulative intraday exhaustion (a full 14-day ADR traversed from today's high, below today's open), the confirmation is a reversal bar right after a fresh low, and the target is endogenous to the day (mid-range), with a stop of at least 1% so cost stays below about 0.45R.",
+  "sources": [
+    {
+      "title": "Average Daily Range (LuxAlgo Library)",
+      "url": "https://www.luxalgo.com/library/concept/average-daily-range.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the research context file H-120.md (exploration-only learnings digest, tried hypotheses) and the LuxAlgo ADR page, as of 2026-11-11."
+}
