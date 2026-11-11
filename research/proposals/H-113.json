@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-113",
+  "family": "CrossSectionalAttentionVolume",
+  "title": "Attention leader on 1h: buy the nine-pair abnormal-volume leader on a rising 4h move, 6-hour cap",
+  "ex_ante_rule": "Chart 1h, closed bars only, all times UTC; signal at the close of bar t, order filled at the open of bar t+1. Spot, long only, one position per traded pair, whole allowed balance, no pyramiding, no sizing hooks. Universe: BTC, ETH, BNB, XRP, ADA, LTC, LINK, DOGE, SOL against USDT; every pair other than the traded pair X is loaded as an informative 1h pair (merge_informative_pair, closed bars, aligned on the same candle timestamp). DEFINITIONS for each pair i at bar t: V4(t) = sum of volume over bars t-3..t (4 bars, current bar included). Base(t) = arithmetic mean of V4(t-4k) for k = 1..42 (42 non-overlapping 4-bar sums covering bars t-171..t-4, the prior 7 days; the current 4-bar window excluded). AV(t) = V4(t)/Base(t). R4(t) = close(t)/close(t-4) - 1. A pair COUNTS in the cross-section at bar t only if it has a candle at t, AV(t) is defined (all 42 V4 terms defined and Base(t) > 0) and R4(t) is defined. If fewer than 5 pairs count, or X does not count, there is no signal (missing-data handling only, needed before late listings). RANK: order the counting pairs by AV(t), largest first; exact AV ties are broken by larger R4(t), then by pair name ascending. MED(t) = median of R4(t) over the counting pairs (even count: mean of the two middle values). ENTRY for X at the close of bar t when ALL hold: (1) X has rank 1 or 2 by AV; (2) AV_X(t) >= 1.5; (3) R4_X(t) >= 0.006 AND R4_X(t) > MED(t) (strict); (4) close_X(t) > open_X(t); (5) no open position in X; (6) fewer than 2 trades on X have been opened on the UTC calendar day of the fill time (open of bar t+1), so at most 2 entries per pair per UTC day; (7) cooldown: no new entry on X for 2 candles after any exit on X (CooldownPeriod, stop_duration_candles = 2). EXIT, first of: (a) TAKE-PROFIT: +1.8% above the entry price, filled at that price as soon as a bar's high reaches it (minimal_roi {\"0\": 0.018}, no other ROI steps); (b) STOP-LOSS: one fixed 1.0% below the entry price, the engine's native intrabar stop (stoploss = -0.01), triggers as soon as price touches it; if stop and target are touched in the same bar, the engine's convention applies (stop first); (c) TIME EXIT: with the entry fill at the open of bar e = t+1, exit signal at the close of bar e+5, filled at the open of bar e+6, so every position lasts at most 6 hours. No trailing stop, no higher-timeframe or trend filter, no other filters. All numbers fixed ex ante; single grid cell. Longest lookback: 172 bars (Base reaches bar t-171); no recursive indicators. Warm-up: 400 bars.",
+  "parameters": {
+    "timeframe": "1h",
+    "volume_window_bars": 4,
+    "baseline_windows": 42,
+    "baseline_step_bars": 4,
+    "rank_top_n": 2,
+    "min_abnormal_volume": 1.5,
+    "return_window_bars": 4,
+    "min_r4": 0.006,
+    "min_counting_pairs": 5,
+    "max_entries_per_utc_day": 2,
+    "cooldown_candles": 2,
+    "take_profit": 0.018,
+    "stoploss": -0.01,
+    "time_exit_hours": 6,
+    "startup_candle_count": 400
+  },
+  "rationale": "Mechanism: attention-induced price pressure. Hoang & Vo (2024) find that cryptocurrencies with abnormal investor attention go on to earn higher returns, with higher volatility and trading volume. The effect is stronger for large coins and only partly reverses. The candle proxy for attention is abnormal 4h volume measured against the pair's own prior 7 days. Ranking it across the nine pairs isolates pair-specific attention from market-wide moves. The rising-price conditions (R4 >= 0.6%, above the cross-sectional median, green signal bar) keep only attention that comes with buying pressure. The counterparty is late retail flow: traders pulled in by top-gainer and top-volume lists who keep buying after the first burst and push the price on for a few hours. The partial reversal is why the hold is capped at 6 hours. Activity filter: volume (AV >= 1.5, fixed in advance, not scanned), so the rule trades only when the pair is moving. Move per trade: the target is +1.8% and the stop -1.0%, on pairs already in a volume burst. The expected average absolute move is about 1% (expected_gross_move_pct about 0.5-0.9 after the time exits), above the 0.30% base and 0.45% conservative round trips. Expected count: about 60-150 trades per pair per year, because only 2 of 9 pairs can qualify on a bar, the volume and return conditions are joint, and entries are capped at 2 per day. Range and bear markets: the rule needs pair-specific outperformance plus a volume burst, not a market uptrend, so it can still fire in chop. Its exposure there is limited to 6 hours with a 1% stop. The source tests weekly Google-search attention, not intraday volume, so the 1h horizon and the volume proxy are adaptations. The paper has no intraday test.",
+  "novelty_vs_tried": "The trigger is new: a cross-sectional rank of abnormal volume. H-073 (BreadthThrustIntraday) uses market-wide breadth of up-closes, not one pair's attention. H-077 ranks 24h returns once a day, and H-078 buys the lowest-return pair on low volume (a reversal). H-031/H-080 (CrossPairCatchUp) buy laggards after a leader's move. H-050/H-053/H-062 condition on a pair's own volume spike in time series, not on its rank among the nine. Here entry requires the pair to be one of the two most abnormally traded pairs on that bar, plus relative return strength above the cross-sectional median. The exit is a short fixed bracket with a 6-hour cap.",
+  "sources": [
+    {
+      "title": "Hoang & Vo (2024), Google search and cross-section of cryptocurrency returns and trading activities, Journal of Behavioral and Experimental Finance 44",
+      "url": "https://ideas.repec.org/a/eee/beexfi/v44y2024ics2214635024001060.html"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No price data inspected; only the research/context/H-113.md exploration digest (nine pairs, exploration split) and the source abstract."
+}
