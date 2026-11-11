@@ -1,0 +1,18 @@
+{
+  "title": "Kaufman efficiency-ratio thrust on 15m: signed ER(10) crosses 0.6, trailing 10-bar-low stop",
+  "source": {
+    "type": "blog",
+    "url": "https://whselfinvest.com/en/trading_strategies_33_Kaufman_Efficiency_Ratio.php",
+    "title": "Trading strategy: Kaufman Efficiency Ratio (WH SelfInvest)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at the close of bar t, fill at the open of bar t+1 (price E). SIGNED EFFICIENCY RATIO ER(t) = (close(t) - close(t-10)) / sum over i=0..9 of |close(t-i) - close(t-i-1)| (10 bars; ER = 0 if the denominator is 0). ATR(t) = Wilder ATR(14) of 15m bars. ENTRY when ALL hold: ER(t-1) <= 0.6 AND ER(t) > 0.6 (fresh cross into the efficient-uptrend zone); ATR(t)/close(t) >= 0.004 (activity filter a, fixed in advance); no open position. STOP: initial stop = min(lowest low of bars t-9..t, 0.99*E), so it is always at least 1% below entry; after each later bar close the stop is raised to the lowest low of the latest 10 bars if that is higher than the current stop (never lowered); executed intrabar. TAKE-PROFIT: E*1.02. TIME EXIT: sell at the open after 32 bars (8 h) in the trade. After an exit, a new entry needs a new cross from at or below 0.6. One position per pair, no higher-timeframe filter, same numbers on all pairs.",
+  "mechanism": "ER is net displacement divided by path length; above 0.6 price climbed with little back-and-forth. Concretum Research's intraday Bitcoin trend study explains short-lived trends by fragmented execution: large holders rebalancing after news split orders over hours, so order flow stays persistent. A smooth, low-noise climb is the footprint of a buyer still working, unlike a single spike that often reverts. Counterparty: liquidity providers and mean-reversion sellers who fade the climb too early. WH SelfInvest gives the +0.6 cross and the 10-period-low stop for 15m day trading; LuxAlgo's Library describes ER as a trend-quality gate for breakouts. Move per trade: with ATR >= 0.4%, a ten-bar move with ER > 0.6 is already about 1.5-2%; target 2%, stop at least 1% and trailing, so exits average about 1% away; a modest continuation edge gives about +0.5% gross.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "EfficiencyRatioThrust"
+}

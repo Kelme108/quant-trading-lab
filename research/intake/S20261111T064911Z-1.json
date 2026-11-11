@@ -1,0 +1,18 @@
+{
+  "title": "Momentum Pinball on 4h blocks: oversold LBR/RSI(3), then 15m first-hour high breakout",
+  "source": {
+    "type": "blog",
+    "url": "https://www.whselfinvest.de/en-de/trading-platform/free-trading-strategies/tradingsystem/48-momentum-pinball-trading-indicator-raschke-linda-connors-larry",
+    "title": "Trading strategy: Momentum Pinball (Raschke and Connors, Street Smarts)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at bar close, fill at next open. BLOCKS: 4-hour UTC blocks starting 00,04,08,12,16,20 (16 bars; block close = close of its 16th bar). LBR/RSI: x(k) = C(k) - C(k-1) of block closes; LBR(k) = Wilder RSI(3) computed on the series x itself (RSI of the 1-period change, not of price). SETUP: at the close of block k, if LBR(k) < 30, block k+1 is armed. OPENING RANGE of block k+1 = its first four 15m bars (first hour): ORH = max high, ORL = min low. ENTRY: the first bar among bars 5-12 of block k+1 (hours 1-3 of the block) that closes above ORH, provided 15m ATR(14)/close >= 0.4% on that bar (activity filter a, fixed); buy at the next open E. One trade per block, one position per pair. STOP: min(ORL, 0.99*E), fixed at entry and executed intrabar (always at least 1% away, so the round trip stays under 0.3R). TAKE-PROFIT: E*1.015. EXITS: if the position is losing (close < E) at the close of the last bar of block k+1, sell at the next open (a loser is never carried into the next block, as in the source); otherwise hold until stop, target, or 48 bars (12 h) after entry, whichever comes first. No daily or higher-timeframe filter; everything comes from 15m bars and the 4h blocks built from them.",
+  "mechanism": "Raschke and Connors built Momentum Pinball for 1-2 day flips: a 3-period RSI of the 1-period change below 30 marks a short burst of selling; the next session's first-hour high breakout confirms the sellers are done and shorts are covering, so the long only buys a reversal already under way. Counterparty: momentum and stop-loss sellers who created the oversold reading, then shorts forced to cover above the first-hour high. The source frames it daily; here a 4h block plays the day (cryptodatadownload.com also describes it on crypto hourly data). Move per trade: stop at least 1%, target 1.5%, and the ATR filter means each 15m bar already spans 0.4% or more, so exits are typically 1-1.5% away; a 50-55% hit rate with losers cut at block end gives about +0.5% gross, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 320,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 250,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "MomentumPinballSession"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Daily-range exhaustion on 15m: after a full ADR drop from the day's high, buy the first up reversal bar",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/average-daily-range.md",
+    "title": "Average Daily Range (LuxAlgo Library)",
+    "license": "LuxAlgo Library licence: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at bar close, fill at next open. ADR(d) = arithmetic mean of (daily high - daily low) over the 14 completed UTC days before day d, built from 15m bars and fixed for the whole day. During day d: DH(t), DL(t) = highest high and lowest low of the day's bars up to and including t; O = open of the day's 00:00 bar. EXHAUSTION at bar t: DL(t) <= DH(t) - ADR (price has fallen a full average range from the day's high), the bar that set DL(t) is one of bars t-4..t, and DL(t) < O. TRIGGER at bar t: close(t) > high(t-1) AND close(t) > open(t), with 15m ATR(14)/close >= 0.4% (activity filter a), bar t opening between 04:00 and 21:45 UTC, no open position and no earlier trade that UTC day. TARGET M = (DH(t) + DL(t))/2, frozen at the signal; if M < 1.01*close(t) the signal is skipped. ENTRY: buy at the next open E. STOP: min(0.997*DL(t), 0.99*E), executed intrabar, so it is always at least 1% below entry. EXIT: target M, the stop, or a time exit 48 bars (12 h) after entry, whichever comes first. Same numbers on all pairs, no other filters.",
+  "mechanism": "ADR (LuxAlgo Library, plus the TradingView 'Daily Range Exhaustion / ADR Probability Map') measures the ordinary width of a day. Once price has fallen a full ADR from the day's high, the session has delivered an unusual move that is more often the end of forced selling (stops, liquidations) than new information. Liquidity providers who buy it earn a premium for absorbing that flow. LuxAlgo warns that trend days run through the levels, so the entry waits for the first up bar that takes out the prior bar's high right after the low, a sign sellers have stopped pressing. Counterparty: forced and momentum sellers at the day's extreme. Move per trade: target = middle of the day's range, about half an ADR (1.5-3% on these pairs), stop about 1%; a 40-45% hit rate plus time exits gives about +0.5% gross.",
+  "timeframe": "15m",
+  "longest_lookback": 1440,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 90,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "ADRExhaustionReversal"
+}

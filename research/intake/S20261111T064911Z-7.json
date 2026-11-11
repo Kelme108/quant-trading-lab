@@ -1,0 +1,18 @@
+{
+  "title": "High-of-day break on a high-volume day: 15m close above a held intraday high, time-matched RVOL >= 1.5",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/relative-volume.md",
+    "title": "Relative Volume (LuxAlgo Library)",
+    "license": "LuxAlgo Library licence: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at bar close, fill at next open. Day d = bars opening 00:00-23:45 UTC; Od = open of the 00:00 bar. CUMULATIVE RVOL(t) = sum of day d's volume from the 00:00 bar through bar t, divided by the arithmetic mean of the same cumulative sum (00:00 through the same clock bar) on each of the 20 previous UTC days (time-of-day matched; day d excluded). HOD(t) = highest high of day d's bars from 00:00 through t-1; the bar that set it must be at least 8 bars before t (a level that held for 2 h). ENTRY when ALL hold: bar t opens between 02:00 and 19:45 UTC; close(t) > HOD(t); RVOL(t) >= 1.5 (activity filter b); close(t)/Od - 1 >= 0.005 (up on the day); no open position; fewer than two entries already taken that day. Buy at the next open E. STOP: E*0.99 (fixed 1%, intrabar). TARGET: E*1.02. TIME EXIT: 32 bars (8 h) after entry, or the open of the 23:45 bar, whichever comes first. Same numbers on all pairs, no higher-timeframe filter.",
+  "mechanism": "LuxAlgo's relative-volume note says intraday participation must be compared with the same time of day (crypto volume has a strong intraday cycle), and that breakouts on high RVOL have more participation behind them than breakouts on quiet volume. A UTC day running at 1.5x its normal cumulative volume is an attention or information day. Breaking a high of day that held for two hours trips the buy stops of shorts and range sellers and draws breakout entries, so on such days the move tends to extend instead of fading. Counterparty: shorts and range sellers whose stops sit above the high of day. This differs from I-093 (prior-day high, single-bar volume) by using the intraday high and a time-matched cumulative volume state. Move per trade: stop 1%, target 2%, so exits are 1-2% away; a 40% target hit plus positive time exits gives about +0.5% gross.",
+  "timeframe": "15m",
+  "longest_lookback": 1920,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 180,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "HighOfDayRVolBreak"
+}

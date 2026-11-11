@@ -1,0 +1,18 @@
+{
+  "title": "Prior-session-high break and retest on 15m: volume-backed break, buy the bullish wick back into the level",
+  "source": {
+    "type": "blog",
+    "url": "https://www.tradezella.com/strategies/break-retest",
+    "title": "Break & Retest strategy (TradeZella)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC; signal at bar close, fill at next open. SESSIONS: three 8-hour blocks per UTC day, 00:00-07:45, 08:00-15:45, 16:00-23:45 (32 bars each). LEVEL: PSH = highest high of the previous completed session. BREAK: in the current session, the first bar b whose close >= 1.002*PSH and whose volume >= 1.5 x mean volume of bars b-20..b-1 (activity filter b). RETEST WINDOW: bars b+1..b+16 (4 h; may run into the next session). RETEST BAR t: low(t) <= 1.002*PSH AND close(t) >= PSH AND close(t) > open(t) (a wick into the level, closing back above it). INVALIDATION: any close < 0.995*PSH after b and before t cancels the setup. ENTRY: at the first retest bar, buy at the next open E. One setup per session, one position per pair. STOP: min(0.998*low(t), 0.99*E), fixed at entry and executed intrabar, so it is always at least 1% below entry. TARGET: E*1.02. TIME EXIT: 48 bars (12 h) after entry. No higher-timeframe filter, same numbers on all pairs.",
+  "mechanism": "Break-and-retest (TradeZella playbook, standard price-action practice): after a prior session's high breaks on volume, resting sell orders above it are absorbed and stopped-out shorts turn buyers. The first pullback tests whether breakout buyers defend the level (role reversal). Entering on a bullish close that wicks into the level puts the stop just under the defended level instead of chasing the break candle, which is where straight breakouts (H-002, I-093) lose to noise and cost. Counterparty: traders fading the breakout and late sellers on the pullback, whose stops sit above the new intraday high. Move per trade: stop at least 1% and target 2%, so exits are 1-2% away; a 45% hit rate plus time exits gives about +0.5% gross, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 64,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "SessionHighBreakRetest"
+}

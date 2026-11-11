@@ -1,0 +1,18 @@
+{
+  "title": "ICT Silver Bullet on 15m: 4-hour-low sweep, volume-backed up gap in a New York window, buy the retest",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/silver-bullet.md",
+    "title": "Silver Bullet (LuxAlgo Library)",
+    "license": "LuxAlgo Library licence: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. CLOCK: New York time (America/New_York, DST per date) from each bar's UTC open time. WINDOWS: three one-hour windows per day, 03:00-04:00, 10:00-11:00 and 14:00-15:00 ET (four 15m bars each). POOLS: PL = lowest low of the 16 bars (4 h) ending just before the window opens. SWEEP: some bar from 8 bars before the window up to the current bar has low < PL; S = lowest low since the first such bar. GAP: three consecutive bars k-1, k, k+1 with k and k+1 inside the window, low(k+1) > high(k-1), (low(k+1) - high(k-1))/close(k+1) >= 0.0025, close(k) > open(k), and volume(k) >= 1.5 x mean volume of bars k-20..k-1 (activity filter b). Gap top GT = low(k+1), bottom GB = high(k-1); the gap must form after the sweep bar. ENTRY: the first bar within the 8 bars after k+1 whose low <= GT and close >= GB (price returns into the gap and holds) -> buy at the next open E. The setup is cancelled if any close < GB or any low < S comes first. One trade per window, one position per pair. STOP: min(S, 0.99*E), so it is always at least 1% below entry. TARGET: E + 2*(E - stop) (2R). TIME EXIT: 32 bars (8 h) after entry. No other filters, same numbers on all pairs.",
+  "mechanism": "ICT's Silver Bullet confines a sweep-displacement-gap sequence to one-hour windows that sit on known liquidity events: the London ramp (03-04 ET), the post-US-open auction (10-11 ET) and afternoon US repositioning (14-15 ET), as LuxAlgo's sceptical reading notes. Sell stops under the 4-hour low are run (stopped-out longs and breakout shorts sell into resting bids); a high-volume up displacement that leaves a gap shows a buyer absorbing them; the retest into the gap is supplied by late sellers. LuxAlgo states that no audited statistics exist. This is a variation of FairValueGapRetest (H-117) that adds the time window and the prior sweep. Move per trade: stop at least 1%, 2R target at least 2%; a 40-45% hit rate plus time exits gives about +0.3 to +0.6% gross; estimate 0.5%.",
+  "timeframe": "15m",
+  "longest_lookback": 40,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 150,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "FairValueGapRetest"
+}
