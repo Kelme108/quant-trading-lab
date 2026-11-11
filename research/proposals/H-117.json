@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-117",
+  "family": "FairValueGapRetest",
+  "title": "15m bullish fair-value-gap midpoint retest after a 2x-volume displacement bar, 1% min stop, 2R target, 12h time exit",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1 (price E). Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on all nine pairs, no higher-timeframe filter. GAP: for three consecutive bars k-1, k, k+1, a bullish fair value gap exists when low(k+1) > high(k-1). Bottom GL = high(k-1), top GH = low(k+1), midpoint CE = (GL+GH)/2. The gap is VALID only if all hold: (1) (GH-GL)/close(k+1) >= 0.003; (2) close(k) > open(k); (3) volume(k) >= 2.0 x arithmetic mean of volume over the 20 bars k-20..k-1 (bar k excluded; activity filter b on the displacement bar). A valid gap becomes known at the close of bar k+1. TRACKING: at the close of bar t the tracked gap is the most recent valid gap with k+1 <= t-1 (a newer valid gap replaces an older one; no fallback to an older gap once the newest is dead). It is ACTIVE on bars t = k+2 .. k+33 (32 bars) unless it was already consumed or invalidated. INVALIDATION: the first bar whose close is below GL kills the gap (from that bar on). CONSUMPTION: the gap is consumed at the first bar t with a retest signal, whether or not an order fills (one signal per gap). ENTRY signal at the close of bar t when the tracked gap is active and low(t) <= CE and close(t) > GL. The order fills at open(t+1) only if the pair is flat and fewer than 4 trades have been opened on this pair during the UTC calendar day of the fill (counted by fill time; confirm_trade_entry). STOP-LOSS: d = max(1 - 0.998 x GL / E, 0.01), computed at the fill from GL (carried with the signal) and the fill price E, frozen for the trade; stop price E x (1 - d) = min(0.998 x GL, 0.99 x E). It is a fixed distance below the entry price, triggered intrabar as soon as the low touches it (custom_stoploss returning the frozen d; native stoploss -0.10 is only an engine backstop). TAKE-PROFIT: target E x (1 + 2d) = E + 2 x (E - stop) (2R), sold at that price when a bar's high reaches it (at the open if a bar opens above it). If stop and target are touched in the same bar, the stop counts. TIME EXIT: with the fill at the open of bar e = t+1, exit signal at the close of bar e+47 (the 48th 15m bar of the trade), sold at the open of e+48, i.e. 12 hours after the fill. No trailing, no break-even move, no cooldown (a new signal may fill at the open right after an exit), no other filters, single grid cell. Warm-up: 100 bars (longest lookback: 20-bar volume mean before bar k, plus the 3-bar pattern, plus 32 active bars = 55 bars, rounded up; no recursive indicators).",
+  "parameters": {
+    "timeframe": "15m",
+    "min_gap_size_frac": 0.003,
+    "displacement_volume_lookback_bars": 20,
+    "displacement_volume_multiple": 2.0,
+    "gap_active_bars": 32,
+    "retest_level": "midpoint_CE",
+    "stop_buffer_below_gap_bottom": 0.998,
+    "min_stop_distance": 0.01,
+    "target_r_multiple": 2.0,
+    "time_exit_bars": 48,
+    "max_entries_per_utc_day": 4,
+    "backstop_stoploss": -0.10,
+    "startup_candle_count": 100
+  },
+  "rationale": "A bullish fair value gap left by a high-volume up bar is a price span where only buyers traded: the displacement outran resting sell liquidity, so part of the aggressive demand went unfilled. When price later retraces to the gap midpoint (consequent encroachment, which the LuxAlgo library describes as the decision line where entries commonly sit), those buyers and late participants step back in and the gap acts as support. The traders on the other side are short-term mean-reversion sellers fading the displacement and holders taking profit into the pullback. The 2x-volume filter on the displacement bar (the lab's digest found relative volume >= 2 the one filter that raised gross move per trade) keeps only moves with real participation; the 0.3% minimum gap keeps out noise gaps. Exits: stop at least 1% away (just under the gap bottom, the invalidation edge), so the 0.30% round trip is at most 0.3R; target 2R (>= 2%); hard 12h exit. Expected roughly 250-500 trades per year per pair (2x-volume displacement gaps of 0.3% occur several times a day in active periods; about half get a midpoint retest within 8 hours; capped at 4 per day). At a hit rate near 40% with -1%/+2% exits the average gross move is about 0.5-0.6% per trade, above the 0.30% base and 0.45% conservative cost. Regime: in falling or quiet markets bullish 2x-volume displacements are rarer, so the rule trades less; there is no trend filter by design (the idea has none; adding one would be a new rule). All numbers come from the scout's idea ex ante; none tuned.",
+  "novelty_vs_tried": "No tried family trades a retest of a bullish fair value gap. H-110 InverseFVGReclaim buys a close back above a BEARISH gap (inversion, breakout logic); this rule buys a pullback INTO a bullish gap at its midpoint (continuation-support logic), and requires a 2x-volume displacement bar rather than a 1% body. H-038/H-055/H-098 HourlyFailedBreakdownReclaim and H-096 SessionRangeJudasSweep buy reclaims of swept lows; H-095 SessionVWAPFirstPullback uses VWAP; H-075 HourlyBullFlagBreak buys a breakout. Here the level comes from a three-bar untraded span created by a volume burst, with a structural stop under the gap and a 2R target.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Fair Value Gap",
+      "url": "https://www.luxalgo.com/library/concept/fair-value-gap/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed; only the exploration-only digest and tried-rule list in research/context/H-117.md (nine pairs, 1h/15m, exploration split) and the LuxAlgo fair value gap page."
+}
