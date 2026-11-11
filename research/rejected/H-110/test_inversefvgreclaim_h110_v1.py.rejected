@@ -1,0 +1,231 @@
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+freqtrade = types.ModuleType("freqtrade")
+strategy_module = types.ModuleType("freqtrade.strategy")
+strategy_module.IStrategy = object
+strategy_module.merge_informative_pair = lambda *a, **k: a[0]
+persistence = types.ModuleType("freqtrade.persistence")
+persistence.Trade = type("Trade", (), {"get_trades_proxy": staticmethod(lambda **k: [])})
+freqtrade.strategy = strategy_module
+freqtrade.persistence = persistence
+sys.modules.setdefault("freqtrade", freqtrade)
+sys.modules.setdefault("freqtrade.strategy", strategy_module)
+sys.modules.setdefault("freqtrade.persistence", persistence)
+talib = types.ModuleType("talib")
+talib_abstract = types.ModuleType("talib.abstract")
+talib_abstract.SMA = lambda dataframe, timeperiod: dataframe["close"].rolling(timeperiod).mean()
+talib_abstract.RSI = lambda dataframe, timeperiod: pd.Series(50.0, index=dataframe.index)
+talib.abstract = talib_abstract
+sys.modules.setdefault("talib", talib)
+sys.modules.setdefault("talib.abstract", talib_abstract)
+
+ROOT = Path(__file__).parents[1]
+NAME = "InverseFVGReclaim_H110_v1"
+
+
+def load():
+    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    spec = importlib.util.spec_from_file_location(NAME, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MODULE = load()
+Strategy = getattr(MODULE, NAME)
+
+GAP_START = 40  # index of bar k-2
+
+
+def make_frame(n=120, with_pattern=True):
+    """Flat 100 series; optional bearish displacement gap at k=GAP_START+2 inverted at t=k+1."""
+    rows = [(100.0, 100.1, 99.9, 100.0)] * n
+    rows = [list(r) for r in rows]
+    if with_pattern:
+        a = GAP_START
+        rows[a] = [100.0, 100.5, 100.0, 100.2]      # k-2: low = 100.0 -> GT
+        rows[a + 1] = [100.0, 100.0, 98.8, 98.9]    # k-1: down body 1.1%
+        rows[a + 2] = [98.9, 99.0, 98.5, 98.7]      # k: high 99.0 < 100.0 -> GB
+        rows[a + 3] = [98.8, 100.6, 98.7, 100.5]    # t: bullish close above GT
+        for i in range(a + 4, n):
+            rows[i] = [100.5, 100.6, 100.4, 100.5]
+    frame = pd.DataFrame(rows, columns=["open", "high", "low", "close"])
+    frame["volume"] = 1.0
+    frame["date"] = pd.date_range("2026-01-01", periods=n, freq="15min", tz="UTC")
+    return frame
+
+
+def run(frame):
+    strategy = Strategy()
+    frame = strategy.populate_indicators(frame, {})
+    frame = strategy.populate_entry_trend(frame, {})
+    frame = strategy.populate_exit_trend(frame, {})
+    return frame
+
+
+def trade(sl=98.5, tp=103.5, opened=None):
+    opened = opened or datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    return types.SimpleNamespace(
+        enter_tag=f"ifvg|{sl!r}|{tp!r}", open_date_utc=opened, open_rate=100.5
+    )
+
+
+class InverseFVGReclaimTests(unittest.TestCase):
+    def test_contract(self):
+        self.assertEqual(Strategy.INTERFACE_VERSION, 3)
+        self.assertEqual(Strategy.timeframe, "15m")
+        self.assertFalse(Strategy.can_short)
+        self.assertLess(Strategy.stoploss, 0)
+        self.assertEqual(Strategy.stoploss, -0.035)
+        self.assertEqual(Strategy.minimal_roi, {"0": 100.0})
+        self.assertGreaterEqual(Strategy.startup_candle_count, 30)
+
+    def test_pattern_gives_one_signal_with_levels(self):
+        frame = run(make_frame())
+        idx = frame.index[frame["enter_long"] == 1].tolist()
+        self.assertEqual(idx, [GAP_START + 3])
+        row = frame.loc[GAP_START + 3]
+        self.assertAlmostEqual(row["ifvg_sl"], 98.5)
+        self.assertAlmostEqual(row["ifvg_tp"], 100.5 + 1.5 * 2.0)
+        self.assertEqual(MODULE.parse_tag(row["enter_tag"]), (row["ifvg_sl"], row["ifvg_tp"]))
+
+    def test_signal_columns_are_binary(self):
+        frame = run(make_frame())
+        for column in ("enter_long", "exit_long"):
+            if column in frame:
+                self.assertTrue(set(frame[column].dropna().unique().tolist()).issubset({1}))
+        self.assertTrue(set(frame["ifvg_signal"].unique().tolist()).issubset({0, 1}))
+
+    def test_no_pattern_no_signal(self):
+        frame = run(make_frame(with_pattern=False))
+        self.assertNotIn("enter_long", frame)
+
+    def test_small_displacement_body_is_not_a_gap(self):
+        frame = make_frame()
+        frame.loc[GAP_START + 1, ["open", "close"]] = [100.0, 99.5]  # 0.5% body only
+        frame = run(frame)
+        self.assertNotIn("enter_long", frame)
+
+    def test_wick_above_gap_without_close_does_not_count(self):
+        frame = make_frame()
+        frame.loc[GAP_START + 3, ["close", "high"]] = [99.9, 100.6]
+        frame.loc[GAP_START + 3, "open"] = 98.8
+        frame = run(frame)
+        self.assertNotIn("enter_long", frame)
+
+    def test_gap_expires_after_24_bars(self):
+        frame = make_frame()
+        t = GAP_START + 3
+        frame.loc[t, ["open", "high", "low", "close"]] = [98.8, 99.2, 98.7, 99.0]
+        late = GAP_START + 2 + 25
+        frame.loc[late, ["open", "high", "low", "close"]] = [99.0, 100.6, 98.9, 100.5]
+        frame = run(frame)
+        self.assertNotIn("enter_long", frame)
+
+    def test_risk_filter_skips_too_wide_or_narrow(self):
+        frame = make_frame()
+        frame.loc[GAP_START + 3, "low"] = 90.0  # R/close ~ 10%
+        self.assertNotIn("enter_long", run(frame))
+        frame = make_frame()
+        frame.loc[GAP_START + 2, "low"] = 100.0  # lift every low in k-2..t so the swing low is 99.9
+        frame.loc[GAP_START + 1, "low"] = 99.9
+        frame.loc[GAP_START + 3, "low"] = 99.9
+        self.assertNotIn("enter_long", run(frame))  # R/close ~ 0.6% < 0.8%
+
+    def test_zero_volume_candle_gives_no_signal(self):
+        frame = make_frame()
+        frame.loc[GAP_START + 3, "volume"] = 0.0
+        frame = run(frame)
+        self.assertNotIn("enter_long", frame)
+        frame = make_frame()
+        frame["volume"] = 0.0
+        self.assertNotIn("enter_long", run(frame))
+
+    def test_startup_values_give_no_signal(self):
+        frame = make_frame()
+        # Move the whole pattern inside the warm-up window.
+        shifted = make_frame(with_pattern=False)
+        for offset in range(4):
+            shifted.iloc[10 + offset, :4] = frame.iloc[GAP_START + offset, :4].to_numpy()
+        shifted = run(shifted)
+        self.assertEqual(int(shifted.iloc[: Strategy.startup_candle_count].get("enter_long", pd.Series()).fillna(0).sum()), 0)
+        self.assertNotIn("enter_long", shifted)
+
+    def test_nan_values_give_no_signal(self):
+        frame = make_frame()
+        frame.loc[GAP_START + 3, "close"] = np.nan
+        self.assertNotIn("enter_long", run(frame))
+
+    def test_future_candles_do_not_change_past_signals(self):
+        rng = np.random.default_rng(7)
+        n, extra = 300, 80
+        steps = rng.normal(0, 0.006, n + extra)
+        close = 100 * np.exp(np.cumsum(steps))
+        open_ = np.concatenate([[100.0], close[:-1]])
+        high = np.maximum(open_, close) * (1 + np.abs(rng.normal(0, 0.002, n + extra)))
+        low = np.minimum(open_, close) * (1 - np.abs(rng.normal(0, 0.002, n + extra)))
+        full = pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": 1.0})
+        full["date"] = pd.date_range("2026-01-01", periods=n + extra, freq="15min", tz="UTC")
+        short = run(full.iloc[:n].copy())
+        long_ = run(full.copy())
+        cols = ["ifvg_signal", "ifvg_sl", "ifvg_tp"]
+        pd.testing.assert_frame_equal(short[cols], long_.loc[: n - 1, cols], check_dtype=False)
+        self.assertGreater(int(long_["ifvg_signal"].sum()), 0)
+
+    def test_take_profit_exit(self):
+        s = Strategy()
+        now = datetime(2026, 1, 1, 13, 0, tzinfo=timezone.utc)
+        self.assertEqual(s.custom_exit("X/USDT", trade(), now, 103.6, 0.03), "take_profit_1_5R")
+        self.assertEqual(s.custom_exit("X/USDT", trade(), now, 103.5, 0.03), "take_profit_1_5R")
+        self.assertIsNone(s.custom_exit("X/USDT", trade(), now, 102.0, 0.01))
+
+    def test_time_exit_after_48_bars(self):
+        s = Strategy()
+        opened = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+        just_before = opened + timedelta(minutes=15 * 47)
+        at = opened + timedelta(minutes=15 * 48)
+        self.assertIsNone(s.custom_exit("X/USDT", trade(opened=opened), just_before, 100.5, 0.0))
+        self.assertEqual(s.custom_exit("X/USDT", trade(opened=opened), at, 100.5, 0.0), "time_exit_12h")
+
+    def test_stop_is_frozen_price_and_capped(self):
+        s = Strategy()
+        now = datetime(2026, 1, 1, 13, 0, tzinfo=timezone.utc)
+        value = s.custom_stoploss("X/USDT", trade(sl=98.5), now, 100.5, 0.0)
+        self.assertAlmostEqual(100.5 * (1 + value), 98.5)
+        value = s.custom_stoploss("X/USDT", trade(sl=98.5), now, 102.0, 0.0)
+        self.assertAlmostEqual(102.0 * (1 + value), 98.5)
+        capped = s.custom_stoploss("X/USDT", trade(sl=90.0), now, 100.0, 0.0)
+        self.assertEqual(capped, Strategy.stoploss)
+        self.assertLess(s.custom_stoploss("X/USDT", trade(sl=98.5), now, 98.0, 0.0), 0)
+
+    def test_entry_confirmation_rules(self):
+        s = Strategy()
+        now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+        tag = "ifvg|98.5|103.5"
+        self.assertTrue(s.confirm_trade_entry("X/USDT", "limit", 1, 100.0, "GTC", now, tag, "long"))
+        self.assertFalse(s.confirm_trade_entry("X/USDT", "limit", 1, 98.5, "GTC", now, tag, "long"))
+        self.assertFalse(s.confirm_trade_entry("X/USDT", "limit", 1, 100.0, "GTC", now, "other", "long"))
+        original = MODULE.Trade
+        try:
+            def make(days):
+                return [types.SimpleNamespace(open_date_utc=d) for d in days]
+            today = datetime(2026, 1, 1, 1, 0, tzinfo=timezone.utc)
+            yesterday = datetime(2025, 12, 31, 23, 45, tzinfo=timezone.utc)
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: make([today, today, yesterday]))})
+            self.assertTrue(s.confirm_trade_entry("X/USDT", "limit", 1, 100.0, "GTC", now, tag, "long"))
+            MODULE.Trade = type("T", (), {"get_trades_proxy": staticmethod(lambda **k: make([today, today, today]))})
+            self.assertFalse(s.confirm_trade_entry("X/USDT", "limit", 1, 100.0, "GTC", now, tag, "long"))
+        finally:
+            MODULE.Trade = original
+
+
+if __name__ == "__main__":
+    unittest.main()

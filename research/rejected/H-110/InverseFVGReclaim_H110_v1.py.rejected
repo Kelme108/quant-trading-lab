@@ -1,0 +1,189 @@
+"""H-110: 15m inverse fair value gap reclaim, buy the first bullish close back above a bearish displacement gap.
+
+All times UTC, closed 15m bars only; a signal at the close of bar t fills at the open of bar t+1.
+Long only, spot, one position per pair (engine), no pyramiding, no trailing stop.
+
+Gap detection at the close of bar k: bearish FVG if high(k) < low(k-2).
+  GT = low(k-2), GB = high(k); valid only if (GT-GB)/GB >= 0.004 and the middle bar k-1 is a down
+  displacement: close(k-1) < open(k-1) and open(k-1)/close(k-1) - 1 >= 0.01.
+  Only the most recent valid gap is tracked; a new valid gap replaces the older one.
+Inversion signal: for t = k+1 .. k+24 the first bar with close(t) > GT and close(t) > open(t).
+  The gap is consumed at that bar (signal or not) and dropped if no such bar occurs by k+24.
+Risk filter: SL = lowest low of bars k-2 .. t, R = close(t) - SL, trade only if 0.008 <= R/close(t) <= 0.03.
+Entry: open(t+1), only if open(t+1) > SL and fewer than 3 entries on that pair today (UTC, entry fill time).
+Stop: price SL frozen at entry (custom_stoploss), native backstop -0.035.
+Take profit: TP = close(t) + 1.5 R (custom_exit; stop wins if both are touched in one bar).
+Time exit: sell at the open of the bar 48 bars after the entry bar (custom_exit).
+
+SL and TP are written into the entry tag at the signal bar and read back from the trade.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+from freqtrade.persistence import Trade
+from freqtrade.strategy import IStrategy
+
+MIN_GAP_PCT = 0.004
+MIN_DISPLACEMENT_BODY_PCT = 0.01
+INVERSION_WINDOW_BARS = 24
+MIN_RISK_PCT = 0.008
+MAX_RISK_PCT = 0.03
+TARGET_R_MULTIPLE = 1.5
+TIME_EXIT_BARS = 48
+MAX_ENTRIES_PER_DAY = 3
+WARMUP_BARS = 30
+BAR = timedelta(minutes=15)
+TAG_PREFIX = "ifvg"
+
+
+def utc_day(value) -> pd.Timestamp:
+    """UTC calendar day of a timestamp (naive timestamps are taken as UTC)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.floor("D")
+
+
+def parse_tag(tag):
+    """(SL, TP) recorded in an entry tag, or None for a tag this strategy did not write."""
+    if not isinstance(tag, str):
+        return None
+    parts = tag.split("|")
+    if len(parts) != 3 or parts[0] != TAG_PREFIX:
+        return None
+    try:
+        stop = float(parts[1])
+        target = float(parts[2])
+    except ValueError:
+        return None
+    if not (np.isfinite(stop) and np.isfinite(target)) or stop <= 0 or target <= stop:
+        return None
+    return stop, target
+
+
+def ifvg_signals(dataframe: DataFrame):
+    """Return (signal, stop, target) arrays. Bar t uses only bars 0..t (state machine, backward-looking)."""
+    open_ = dataframe["open"].to_numpy(dtype=float)
+    high = dataframe["high"].to_numpy(dtype=float)
+    low = dataframe["low"].to_numpy(dtype=float)
+    close = dataframe["close"].to_numpy(dtype=float)
+    volume = dataframe["volume"].to_numpy(dtype=float)
+    n = len(dataframe)
+    signal = np.zeros(n, dtype=bool)
+    stop = np.full(n, np.nan)
+    target = np.full(n, np.nan)
+
+    gap = None  # (k, GT, GB)
+    for t in range(n):
+        # 1) inversion check for the gap tracked since an earlier bar k < t
+        if gap is not None:
+            k, gap_top, _ = gap
+            if t > k + INVERSION_WINDOW_BARS:
+                gap = None
+            elif close[t] > gap_top and close[t] > open_[t]:
+                gap = None  # consumed at its first qualifying bar, trade or not
+                swing_low = np.min(low[k - 2:t + 1])
+                risk = close[t] - swing_low
+                if (
+                    t >= WARMUP_BARS
+                    and volume[t] > 0
+                    and np.isfinite(risk)
+                    and MIN_RISK_PCT <= risk / close[t] <= MAX_RISK_PCT
+                ):
+                    signal[t] = True
+                    stop[t] = swing_low
+                    target[t] = close[t] + TARGET_R_MULTIPLE * risk
+            elif t == k + INVERSION_WINDOW_BARS:
+                gap = None
+        # 2) new bearish gap at the close of bar k = t replaces any older tracked gap
+        if t >= 2 and high[t] < low[t - 2]:
+            gap_top = low[t - 2]
+            gap_bottom = high[t]
+            if (
+                gap_bottom > 0
+                and (gap_top - gap_bottom) / gap_bottom >= MIN_GAP_PCT
+                and close[t - 1] < open_[t - 1]
+                and open_[t - 1] / close[t - 1] - 1.0 >= MIN_DISPLACEMENT_BODY_PCT
+            ):
+                gap = (t, gap_top, gap_bottom)
+    return signal, stop, target
+
+
+class InverseFVGReclaim_H110_v1(IStrategy):
+    """Buy the first bullish close back above a bearish displacement gap; SL at swing low, TP 1.5R, 12h cap."""
+
+    INTERFACE_VERSION = 3
+    timeframe = "15m"
+    can_short = False
+
+    minimal_roi = {"0": 100.0}
+    stoploss = -0.035
+    use_custom_stoploss = True
+    use_exit_signal = True
+    startup_candle_count = 30
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        signal, stop, target = ifvg_signals(dataframe)
+        dataframe["ifvg_signal"] = signal.astype(int)
+        dataframe["ifvg_sl"] = stop
+        dataframe["ifvg_tp"] = target
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        cond = (
+            (dataframe["ifvg_signal"] == 1)
+            & dataframe["ifvg_sl"].notna()
+            & dataframe["ifvg_tp"].notna()
+            & (dataframe["volume"] > 0)
+        ).fillna(False)
+        if cond.any():
+            dataframe.loc[cond, "enter_long"] = 1
+            dataframe.loc[cond, "enter_tag"] = [
+                f"{TAG_PREFIX}|{float(sl)!r}|{float(tp)!r}"
+                for sl, tp in zip(dataframe.loc[cond, "ifvg_sl"], dataframe.loc[cond, "ifvg_tp"])
+            ]
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Take profit and time exit depend on the open trade: see custom_exit.
+        return dataframe
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time,
+                            entry_tag, side, **kwargs) -> bool:
+        levels = parse_tag(entry_tag)
+        if levels is None:
+            return False
+        if not rate > levels[0]:  # open(t+1) must be above the swing low
+            return False
+        today = utc_day(current_time)
+        opened_today = 0
+        for trade in Trade.get_trades_proxy(pair=pair):
+            if utc_day(trade.open_date_utc) == today:
+                opened_today += 1
+        return opened_today < MAX_ENTRIES_PER_DAY
+
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        levels = parse_tag(trade.enter_tag)
+        if levels is None:
+            return None
+        # Frozen price stop SL, expressed relative to the current rate; never wider than the backstop.
+        relative = levels[0] / current_rate - 1.0
+        relative = min(relative, -0.0001)
+        return max(relative, self.stoploss)
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        levels = parse_tag(trade.enter_tag)
+        if levels is not None:
+            stop_price, target_price = levels
+            # The stop wins when both levels are touched, so no take profit at or below the stop.
+            if current_rate > stop_price and current_rate >= target_price:
+                return "take_profit_1_5R"
+        if current_time - trade.open_date_utc >= TIME_EXIT_BARS * BAR:
+            return "time_exit_12h"
+        return None
