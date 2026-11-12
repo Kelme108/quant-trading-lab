@@ -4,7 +4,19 @@ Built 2026-11-10 from a GitHub survey of about 200 repositories (topics: trading
 
 How to use it: take the sources top to bottom, skip any whose URL already appears among the collected ideas, read the README or the strategy description, and restate the RULE in your own words. Never copy code, never report the project's advertised results, and record the licence in `source.license`. A project may yield several ideas, but each must pass the lab's limits (spot, long only, 15m/1h, intraday exit, average gross move of at least 0.45% per trade, an activity filter). Strategies written for stocks, FX or futures are welcome if the mechanism carries to crypto.
 
-## A. Strategy rule sources (mine these first)
+## 0. Evidence first (added 2026-11-12, the owner's request to strengthen the sources; mine these BEFORE section A)
+
+The lab's own scoreboard (in your context, "Day-trade scoreboard") shows that the retail rule sources of section A gave frequent rules with a gross move near zero per trade, and that the ICT / smart-money concepts (fair value gaps, order blocks, SMT divergence, Judas sweeps, killzone reclaims: H-096, H-115, H-117, H-118 and others) were all noise after cost. Start from mechanisms that published research documents, summarised with sources in `research/knowledge/evidence.md` (also in your context). Read the paper itself (open-access copy), restate the mechanism as a candle rule in your own words, cite the paper as the source (`source_type`: paper), and say which finding the rule tests.
+
+| Source | What to read | Why it matters |
+|---|---|---|
+| https://centaur.reading.ac.uk/100181 (Shen, Urquhart and Wang, Financial Review 2022) | how the sessions are defined, which sessions carry the effect, the timing rule | Intraday momentum within a session, strongest on high-volume or high-volatility sessions: a day trade by construction. |
+| https://arxiv.org/abs/2109.12142 (Hansen, Kim and Kimbrough) | the hour-of-day and day-of-week tables for volatility and volume | When moves are large enough to beat the 0.30% round trip: an activity filter, not a signal. |
+| https://link.springer.com/article/10.1007/s42521-024-00116-1 (jumps in six cryptocurrencies) | jump detection, clustering, intraday jump to end-of-day link | Where large intraday moves start; continuation and reversal are two separate hypotheses. |
+| https://ideas.repec.org/a/eee/intfin/v79y2022ics1042443122000816.html (Svogun and Bazán-Palomino 2022) | which rule types kept a profit after costs and in which coins | What NOT to repeat, and which assets kept rules profitable after cost. |
+| https://reference-global.com/2/v2/download/article/10.2478/ceej-2025-0003.pdf (intraday efficiency of 16 cryptocurrencies) | which coins and frequencies were least efficient, and when | Which pairs and periods a rule should target; predictability comes and goes. |
+
+## A. Strategy rule sources (mine these after section 0)
 
 | Source | What to read | Why it matters |
 |---|---|---|

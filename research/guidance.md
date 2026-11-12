@@ -1,4 +1,12 @@
-## Owner's direction, 2026-11-10 (read first)
+## Owner's direction, 2026-11-12 (read first; the most recent direction wins)
+
+DAY TRADE ONLY, and rules that are GOOD and trade A LOT. Three facts decide what to propose:
+1. The dry-run now drops a bot that does not close a trade for 2 days (lab/config/dryrun.json). A rule must therefore close at least about one trade a day across its pairs: with nine pairs that means at least 40 trades a year per pair, and 100+ is the target. Slow rules, however profitable (H-004, H-005, H-009, H-016: holds of days), are out.
+2. The "Day-trade scoreboard" in your context is built from the real trades of every hypothesis. No rule with 100+ trades a year per pair has yet had a positive net move per trade: their gross move was 0.29% at best, below the 0.30% round trip. The rules that came closest (H-104, H-101, H-043, H-100) trade 20-50 times a year per pair with a 0.45-0.70% gross move. So the task is to keep a gross move above 0.6% per trade while trading more: rare-but-real triggers on high-activity bars, applied to all nine pairs, rather than looser triggers.
+3. Read "Outside evidence on intraday crypto" in your context and section 0 of `research/sources-queue.md` first: build on mechanisms that published research documents (intraday session momentum on high-volume sessions, hour-of-day volatility as an activity filter, behaviour after jumps). Do not propose another variant of a mechanism the scoreboard lists as noise (fair value gaps, order blocks, SMT divergence, Judas sweeps, pivot reclaims, same-slot periodicity, generic opening-range breakouts).
+Every proposal states its expected trades per year per pair after the filter and its expected gross move per trade, and why the trigger selects bars whose absolute move beats the cost.
+
+## Owner's direction, 2026-11-10
 
 Still DAY TRADE (positions closed within the day). The owner accepts cost whenever the rule produces a result; what is unwanted is cost without a result and a slow validation. New in this round: (1) read the learnings digest in the context file and build on what came close; (2) use ONE activity filter (volatility, volume, session or higher-timeframe direction) with its number fixed in advance; (3) every idea states `expected_gross_move_pct` of at least 0.45; (4) mine `research/sources-queue.md` (open-source trading and AI-trading projects) before generic searches.
 
