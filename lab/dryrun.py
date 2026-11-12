@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import random
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -221,15 +222,17 @@ def _f(value, digits=2, suffix="") -> str:
     return f"{value:.{digits}f}{suffix}"
 
 
-def render(results: list[dict], cfg: dict) -> str:
+def render(results: list[dict], cfg: dict, retired: list[dict] | None = None) -> str:
     lines = ["# Veredito do dry-run (por número de trades e por todas as métricas)", "",
              "Regra: lab/config/dryrun.json (decisão do dono em 10/11/2026). Aprovação aqui = vale uma análise humana para dinheiro real, "
              "nunca uma ordem. O holdout formal (>= 2027-04-21) continua separado e inalterado.", "",
              f"Mínimo para decidir: {cfg['min_closed_trades']} trades fechados e {cfg['min_days']} dias; reprova cedo com "
              f"{cfg['early_reject']['min_closed_trades']}+ trades e fator de lucro < {cfg['early_reject']['max_profit_factor']}.",
              *([f"Day trade precisa operar: o bot é descartado (`inactive`) com {cfg['inactivity']['discard_after_days']}+ dias rodando e menos de "
-                f"{cfg['inactivity']['min_trades_by_then']} trades fechados, ou sem nenhum trade há mais de {cfg['inactivity']['max_days_without_trade']} dias "
-                f"(decisão do dono, 11/11/2026). O relógio começa no congelamento."] if cfg.get("inactivity") else []), "",
+                f"{cfg['inactivity']['min_trades_by_then']} trade(s) fechado(s), ou sem nenhum trade há mais de {cfg['inactivity']['max_days_without_trade']} dias "
+                f"(decisão do dono, 12/11/2026). O relógio começa no congelamento."
+                + (" O descarte é automático: o bot é parado e o congelamento vai para research/forward/retired/." if cfg['inactivity'].get('auto_retire') else "")]
+               if cfg.get("inactivity") else []), "",
              "| Hipótese | Veredito | Rodando (dias) | Trades | Trades/dia | Sem trade há (dias) | Dias até o mínimo | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |",
              "|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
     for r in results:
@@ -245,15 +248,91 @@ def render(results: list[dict], cfg: dict) -> str:
         if r["verdict"] == "rejected":
             lines += ["Recomendação: parar este bot (os números dizem que a vantagem não existe).", ""]
         if r["verdict"] == "inactive":
-            lines += ["Recomendação: parar e descartar este bot (day trade que não opera não valida nada; libera o espaço para outro).", ""]
+            done = r.get("retired") or {}
+            if done.get("retired"):
+                lines += [f"Retirado do dry-run em {done['at_utc'][:16]} UTC (bot parado; congelamento em research/forward/retired/).", ""]
+            elif done.get("error"):
+                lines += [f"Retirada FALHOU (o bot pode continuar rodando): {done['error'][-200:]}", ""]
+            else:
+                lines += ["Recomendação: parar e descartar este bot (day trade que não opera não valida nada; libera o espaço para outro).", ""]
+    if retired:
+        lines += ["## Retirados do dry-run", "", "| Hipótese | Estratégia | Congelado em | Retirado em | Motivo |", "|---|---|---|---|---|"]
+        for x in retired:
+            why = "; ".join(r for r in x.get("reasons", []) if r.startswith("INACTIVE")) or x.get("verdict", "")
+            lines.append(f"| {x['hypothesis']} | {x['strategy']} | {x['frozen_at']} | {str(x.get('at_utc', ''))[:16]} | {why} |")
+        lines.append("")
     return "\n".join(lines)
 
 
-def run_and_commit(pipeline) -> str:
-    """Evaluate every frozen hypothesis, write the report, commit it. Used by `python -m lab.pipeline dryrun`."""
+RETIRED_DIR = "research/forward/retired"
+
+
+def stop_bots(compose: str, root: Path = ROOT) -> tuple[bool, str]:
+    """Stop and remove the bot containers of one compose file. The database stays in user_data (nothing is deleted)."""
+    if not (root / compose).is_file():
+        return True, f"{compose}: no compose file"
+    done = subprocess.run(["docker", "compose", "-f", compose, "down", "-t", "30"], cwd=root, capture_output=True, text=True)
+    return done.returncode == 0, (done.stdout + done.stderr)[-400:]
+
+
+def retire(hypothesis_id: str, reasons: list[str], root: Path = ROOT, *, stop=stop_bots, now: datetime | None = None) -> dict:
+    """Take a bot out of the dry-run: stop its containers, then move its freeze record to research/forward/retired/ with
+    the reason. The bot then no longer counts against the bot cap, the report lists it under 'retired', and its database,
+    overlay and compose file stay as they were (evidence is kept; a restart would need a new freeze)."""
+    now = now or datetime.now(timezone.utc)
+    source = forward.freeze_path(hypothesis_id, root)
+    record = json.loads(source.read_text(encoding="utf-8"))
+    compose = f"docker-compose.forward.{forward.tag(hypothesis_id)}.yml"
+    ok, output = stop(compose, root)
+    if not ok:  # keep the freeze where it is: a bot that may still run must stay visible
+        return {"hypothesis": hypothesis_id, "retired": False, "error": output}
+    record["retired"] = {"at_utc": now.isoformat(), "verdict": "inactive", "reasons": reasons, "stopped": compose}
+    target = root / RETIRED_DIR / source.name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    source.unlink()
+    rel = lambda p: str(p.relative_to(root)).replace("\\", "/")  # noqa: E731
+    return {"hypothesis": hypothesis_id, "retired": True, "paths": [rel(source), rel(target)], "at_utc": now.isoformat()}
+
+
+def retired_records(root: Path = ROOT) -> list[dict]:
+    out = []
+    for path in sorted((root / RETIRED_DIR).glob("H-*-freeze.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            out.append({"hypothesis": record["hypothesis"], "strategy": record["strategy"]["class"],
+                        "frozen_at": record["frozen_at_utc"][:16], **record.get("retired", {})})
+        except (OSError, ValueError, KeyError):
+            continue
+    return out
+
+
+def run_and_commit(pipeline, *, stop=stop_bots) -> str:
+    """Evaluate every frozen hypothesis, retire the inactive ones (when `inactivity.auto_retire` is on), write the report,
+    commit it. Used by `python -m lab.pipeline dryrun`, which the continuous loop runs after every cycle."""
     cfg = load_config()
     results = [evaluate_hypothesis(h, cfg, pipeline.root) for h in frozen_hypotheses(pipeline.root)]
+    changed = [REPORT]
+    if (cfg.get("inactivity") or {}).get("auto_retire"):
+        for r in results:
+            if r["verdict"] != "inactive":
+                continue
+            done = retire(r["hypothesis"], r["reasons"], pipeline.root, stop=stop)
+            r["retired"] = done
+            if done.get("retired"):
+                changed += done["paths"]
+                pipeline.conn.execute("UPDATE hypotheses SET notes = COALESCE(notes, '') || ' ' || ? WHERE id = ?", (
+                    f"[Retired from the dry-run {done['at_utc'][:16]}: inactive ({'; '.join(x for x in r['reasons'] if x.startswith('INACTIVE'))}); "
+                    "owner rule 2026-11-12: a day-trade bot that does not trade for 2 days leaves the dry-run]", r["hypothesis"]))
+                pipeline.conn.commit()
+    if len(changed) > 1:
+        from lab import registry  # local import: keep dryrun light for the portal
+        registry.sync_ledger_markdown(pipeline.conn, pipeline.root / "research" / "hypothesis-ledger.md")
+        registry.dump_sql(pipeline.conn, pipeline.root / "research" / "registry-dump.sql")
+        changed += ["research/hypothesis-ledger.md", "research/registry-dump.sql"]
     path = pipeline.root / REPORT
-    path.write_text(render(results, cfg), encoding="utf-8")
-    pipeline._commit([REPORT], "dry-run verdicts (by trades and metrics): " + ", ".join(f"{r['hypothesis']} {r['verdict']}" for r in results))
+    path.write_text(render(results, cfg, retired_records(pipeline.root)), encoding="utf-8")
+    gone = [r["hypothesis"] for r in results if (r.get("retired") or {}).get("retired")]
+    pipeline._commit(changed, "dry-run verdicts (by trades and metrics): " + ", ".join(f"{r['hypothesis']} {r['verdict']}" for r in results)
+                     + (f"; retired (inactive): {', '.join(gone)}" if gone else ""))
     return str(path)

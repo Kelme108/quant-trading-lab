@@ -71,14 +71,18 @@ class DryRunVerdictTests(unittest.TestCase):
         self.assertEqual(dryrun.bootstrap_prob_positive([], 10, 1), 0.0)
 
 
+CFG7 = {**CFG, "inactivity": {"warn_after_days": 3, "discard_after_days": 7, "min_trades_by_then": 5, "max_days_without_trade": 5,
+                               "slow_eta_days": 30, "auto_retire": True}}
+
+
 class InactivityTests(unittest.TestCase):
-    """Owner decision 2026-11-11: a day-trade bot that keeps running without trading is discarded, like one that loses."""
+    """The inactivity logic, with explicit numbers (7 days, 5 trades, 5 quiet days) so it does not move with the owner's rule."""
     START = datetime(2026, 11, 1)
 
-    def judge(self, trades, days_running):
+    def judge(self, trades, days_running, cfg=CFG7):
         now = self.START + timedelta(days=days_running)
-        m = {**dryrun.metrics(trades, 1000.0, CFG), **dryrun.activity(trades, self.START, now, CFG)}
-        return m, dryrun.verdict(m, CFG)
+        m = {**dryrun.metrics(trades, 1000.0, cfg), **dryrun.activity(trades, self.START, now, cfg)}
+        return m, dryrun.verdict(m, cfg)
 
     def test_the_clock_starts_at_the_freeze_not_at_the_first_trade(self) -> None:
         m, (state, reasons) = self.judge([], 4.0)
@@ -114,15 +118,79 @@ class InactivityTests(unittest.TestCase):
         self.assertEqual(state, "rejected")
 
     def test_an_unknown_freeze_time_changes_nothing(self) -> None:
-        m = {**dryrun.metrics([], 1000.0, CFG), **dryrun.activity([], None, self.START, CFG)}
-        self.assertEqual(dryrun.verdict(m, CFG)[0], "collecting")
+        m = {**dryrun.metrics([], 1000.0, CFG7), **dryrun.activity([], None, self.START, CFG7)}
+        self.assertEqual(dryrun.verdict(m, CFG7)[0], "collecting")
 
     def test_the_report_lists_the_running_time_and_the_recommendation(self) -> None:
         m, (state, reasons) = self.judge([], 8.0)
-        text = dryrun.render([{"hypothesis": "H-200", "verdict": state, "reasons": reasons, "pooled": m, "per_pair": {}, "wallet": 1000.0}], CFG)
+        text = dryrun.render([{"hypothesis": "H-200", "verdict": state, "reasons": reasons, "pooled": m, "per_pair": {}, "wallet": 1000.0}], CFG7)
         self.assertIn("Rodando (dias)", text)
         self.assertIn("| H-200 | inactive | 8.0 | 0 | 0.00 |", text)
         self.assertIn("parar e descartar este bot", text)
+
+
+class OwnerTwoDayRuleTests(unittest.TestCase):
+    """Owner decision 2026-11-12, as shipped in lab/config/dryrun.json: a bot that does not trade for 2 days leaves the dry-run."""
+    START = datetime(2026, 11, 1)
+
+    def state(self, trades, days_running):
+        now = self.START + timedelta(days=days_running)
+        m = {**dryrun.metrics(trades, 1000.0, CFG), **dryrun.activity(trades, self.START, now, CFG)}
+        return dryrun.verdict(m, CFG)[0]
+
+    def test_the_shipped_rule_is_two_days_and_automatic(self) -> None:
+        rule = CFG["inactivity"]
+        self.assertEqual((rule["discard_after_days"], rule["min_trades_by_then"], rule["max_days_without_trade"]), (2, 1, 2))
+        self.assertTrue(rule["auto_retire"])
+
+    def test_no_trade_in_the_first_two_days_is_out(self) -> None:
+        self.assertEqual(self.state([], 1.9), "collecting")
+        self.assertEqual(self.state([], 2.0), "inactive")
+
+    def test_a_bot_that_trades_every_day_stays_and_two_quiet_days_later_is_out(self) -> None:
+        daily = [{"open_date": f"2026-11-{d:02d} 10:00:00", "close_date": f"2026-11-{d:02d} 12:00:00", "profit_ratio": 0.004, "profit_abs": 1.0}
+                 for d in range(1, 6)]                                       # one trade a day, 1st to 5th
+        self.assertEqual(self.state(daily, 5.0), "collecting")              # last close 4.5 days after the start
+        self.assertEqual(self.state(daily, 6.4), "collecting")              # quiet for 1.9 days
+        self.assertEqual(self.state(daily, 6.6), "inactive")                # quiet for 2.1 days
+
+
+class RetireTests(unittest.TestCase):
+    """An inactive bot is stopped and its freeze moves to research/forward/retired/; nothing is deleted."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = Path(self.tmp.name)
+        folder = self.root / "research" / "forward"
+        folder.mkdir(parents=True)
+        (folder / "H-200-freeze.json").write_text(json.dumps({"hypothesis": "H-200", "frozen_at_utc": "2026-11-01T00:00:00+00:00",
+                                                              "strategy": {"class": "X_H200_v1"}, "databases": {"BTC/USDT": "x"}}), encoding="utf-8")
+        self.stopped = []
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_retire_stops_the_bot_and_moves_the_freeze(self) -> None:
+        done = dryrun.retire("H-200", ["INACTIVE: 0 closed trades in 2.0 days"], self.root,
+                             stop=lambda compose, root: (self.stopped.append(compose) or (True, "")), now=datetime(2026, 11, 3))
+        self.assertTrue(done["retired"])
+        self.assertEqual(self.stopped, ["docker-compose.forward.h200.yml"])
+        self.assertFalse((self.root / "research/forward/H-200-freeze.json").exists())
+        moved = json.loads((self.root / "research/forward/retired/H-200-freeze.json").read_text(encoding="utf-8"))
+        self.assertEqual(moved["retired"]["verdict"], "inactive")
+        self.assertEqual(dryrun.frozen_hypotheses(self.root), [])           # no longer judged nor counted
+        self.assertEqual(dryrun.retired_records(self.root)[0]["hypothesis"], "H-200")
+
+    def test_a_failed_stop_keeps_the_bot_visible(self) -> None:
+        done = dryrun.retire("H-200", [], self.root, stop=lambda compose, root: (False, "docker down"))
+        self.assertFalse(done["retired"])
+        self.assertEqual(dryrun.frozen_hypotheses(self.root), ["H-200"])
+
+    def test_the_report_lists_the_retired_bots(self) -> None:
+        dryrun.retire("H-200", ["INACTIVE: 0 closed trades in 2.0 days"], self.root, stop=lambda c, r: (True, ""), now=datetime(2026, 11, 3))
+        text = dryrun.render([], CFG, dryrun.retired_records(self.root))
+        self.assertIn("## Retirados do dry-run", text)
+        self.assertIn("| H-200 | X_H200_v1 | 2026-11-01T00:00 | 2026-11-03T00:00 | INACTIVE: 0 closed trades in 2.0 days |", text)
 
 
 def multi_pair_root(root: Path, pairs: list[str], wallet_per_pair: float = 1000.0) -> None:
