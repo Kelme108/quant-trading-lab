@@ -81,6 +81,8 @@ def bots_state(root: Path = ROOT, prices: dict[str, float] | None = None) -> dic
     cfg = dryrun.load_config()
     prices = prices or {}
     bots = []
+    # the owner's discard rule (2 days without a trade), so the page can show how long each bot has left
+    inactivity = {k: v for k, v in (cfg.get("inactivity") or {}).items() if not k.startswith("_")} or None
     for hid in dryrun.frozen_hypotheses(root):
         try:
             result = dryrun.evaluate_hypothesis(hid, cfg, root)
@@ -100,10 +102,10 @@ def bots_state(root: Path = ROOT, prices: dict[str, float] | None = None) -> dic
             bots.append({"id": hid, "strategy": freeze["strategy"]["class"], "frozen_at": freeze["frozen_at_utc"][:16],
                          "verdict": result["verdict"], "reasons": result["reasons"], "pooled": result["pooled"],
                          "wallet": result["wallet"], "pairs": pairs, "open": open_trades, "closed": closed_trades[:60],
-                         "need_trades": cfg["min_closed_trades"], "need_days": cfg["min_days"]})
+                         "need_trades": cfg["min_closed_trades"], "need_days": cfg["min_days"], "inactivity": inactivity})
         except Exception as error:  # one broken bot must not hide the others
             bots.append({"id": hid, "error": f"{type(error).__name__}: {error}"[:200]})
-    return {"bots": bots}
+    return {"bots": bots, "retired": dryrun.retired_records(root), "inactivity": inactivity}
 
 
 def live_chart(pair: str, tf: str, root: Path = ROOT, *, fetch=fetch_klines) -> dict:

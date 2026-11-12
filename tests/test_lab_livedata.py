@@ -75,7 +75,9 @@ class LiveDataTests(unittest.TestCase):
         bot = state["bots"][0]
         self.assertNotIn("error", bot)
         self.assertEqual(set(bot), {"id", "strategy", "frozen_at", "verdict", "reasons", "pooled", "wallet", "pairs", "open",
-                                    "closed", "need_trades", "need_days"})
+                                    "closed", "need_trades", "need_days", "inactivity"})
+        self.assertEqual(bot["inactivity"]["discard_after_days"], 2)            # the owner's rule, for the countdown on the page
+        self.assertEqual(state["retired"], [])
         self.assertEqual(bot["wallet"], 2000.0)
         self.assertEqual(set(bot["pairs"]), {"ETH/USDT", "SOL/USDT"})
         self.assertEqual((bot["pairs"]["ETH/USDT"]["trades"], bot["pairs"]["ETH/USDT"]["open"]), (1, 0))
