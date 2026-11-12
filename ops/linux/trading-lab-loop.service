@@ -1,0 +1,21 @@
+# systemd USER unit: the continuous research loop (ops/linux/research-loop.sh). THIS SPENDS AGENT MONEY (up to 4 USD per agent call and
+# 60 USD per cycle, lab/config/budget.json). It is NOT enabled by the manual's default steps: enable it only after the owner agrees and
+# the `claude` CLI is logged in (docs/migracao-linux.md, section 8).
+# Stop it cleanly (the running cycle finishes first):   touch ~/Trade-Initial/ops/state/STOP_CYCLES
+# Stop it now:                                          systemctl --user stop trading-lab-loop
+# The loop exits by itself after three STOPPED cycles in a row; Restart=no on purpose, so a human looks at why.
+[Unit]
+Description=Trading Lab research loop (spends agent budget)
+After=network-online.target docker.service
+
+[Service]
+WorkingDirectory=%h/Trade-Initial
+Environment=APP_DIR=%h/Trade-Initial
+Environment=PYTHONIOENCODING=utf-8
+# the claude CLI is usually installed under ~/.local/bin or an npm prefix; edit this line if `command -v claude` says otherwise
+Environment=PATH=%h/.local/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/Trade-Initial/ops/linux/research-loop.sh
+Restart=no
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,18 @@
+# systemd USER unit: the lab's read-only portal on http://127.0.0.1:8765 (it binds to the loopback only; from another machine use
+# an SSH tunnel: ssh -L 8765:127.0.0.1:8765 user@server). The portal reads the registry and the bot databases and never writes them.
+# After changing any Python file under lab/, restart it: systemctl --user restart trading-lab-portal
+# The project is expected at ~/Trade-Initial. Another place: systemctl --user edit trading-lab-portal  and override WorkingDirectory
+# and ExecStart.
+[Unit]
+Description=Trading Lab portal (read-only dashboard, 127.0.0.1:8765)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/Trade-Initial
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=%h/Trade-Initial/.venv/bin/python -m lab.dashboard serve
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

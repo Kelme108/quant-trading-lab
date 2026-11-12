@@ -8,6 +8,8 @@ Laboratório **reproduzível e auditável** para pesquisar, validar e (futuramen
 > - O laboratório **nunca aprova operação real**. Isso é uma decisão exclusiva do usuário.
 > - Isto não é recomendação de investimento. Resultados negativos são esperados e preservados de propósito.
 
+> **Mover o laboratório para Linux:** o manual passo a passo, escrito para o Claude do Linux ler, está em [docs/migracao-linux.md](docs/migracao-linux.md) (scripts em `ops/linux/`).
+
 ---
 
 ## Sumário

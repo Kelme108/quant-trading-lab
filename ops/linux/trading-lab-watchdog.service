@@ -1,0 +1,16 @@
+# systemd USER unit: keeps every active dry-run bot container running (ops/linux/bot-watchdog.sh). It only starts containers from the
+# existing compose files and never edits them, so the freeze hashes stay valid. Retired bots are not restarted.
+# The project is expected at ~/Trade-Initial (see trading-lab-portal.service for another place).
+[Unit]
+Description=Trading Lab dry-run bot watchdog
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/Trade-Initial
+Environment=APP_DIR=%h/Trade-Initial
+ExecStart=%h/Trade-Initial/ops/linux/bot-watchdog.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target
