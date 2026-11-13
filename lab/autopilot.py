@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import breadth, experiment, forward, orchestrator, registry, runner
+from lab import activity, breadth, experiment, forward, orchestrator, registry, runner
 
 ROOT = Path(__file__).parents[1]
 POLICY_PATH = ROOT / "lab" / "config" / "autopilot.json"
@@ -266,6 +266,12 @@ def freeze(conn, hypothesis_id: str, root: Path = ROOT) -> dict:
     if path.exists():
         raise PolicyError(f"{hypothesis_id}: already frozen; a change is a new hypothesis")
     frozen = forward.build_freeze(hypothesis_id, root)
+    # D1 (2026-11-13): the activity the bot's own exploration predicts, recorded before it runs (lab/activity.py).
+    pairs = (frozen.get("bot") or {}).get("pairs") or list(frozen.get("exposure_by_pair") or {})
+    try:
+        frozen["activity_expectation"] = activity.expectation_for(conn, hypothesis_id, pairs, root)
+    except (ValueError, OSError, KeyError) as error:
+        frozen["activity_expectation"] = {"error": str(error)[:300]}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(frozen, indent=2, ensure_ascii=False), encoding="utf-8")
     conn.execute("UPDATE hypotheses SET notes = COALESCE(notes, '') || ' ' || ? WHERE id = ?", (

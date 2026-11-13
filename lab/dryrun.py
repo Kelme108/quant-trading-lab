@@ -22,7 +22,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from lab import costs, forward
+from lab import activity as activity_record, costs, forward
 
 ROOT = Path(__file__).parents[1]
 CONFIG = Path(__file__).parent / "config" / "dryrun.json"
@@ -101,22 +101,57 @@ def activity(closed: list[dict], frozen_at: datetime | None, now: datetime, cfg:
             "eta_days_to_min_trades": 0.0 if need == 0 else (need / rate if rate else None)}
 
 
+def _freeze(hypothesis_id: str, root: Path) -> dict:
+    try:
+        return json.loads((root / "research" / "forward" / f"{hypothesis_id}-freeze.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 def _frozen_at(hypothesis_id: str, root: Path) -> datetime | None:
     try:
-        raw = json.loads((root / "research" / "forward" / f"{hypothesis_id}-freeze.json").read_text(encoding="utf-8"))["frozen_at_utc"]
-        return forward._ts(raw)
-    except (OSError, ValueError, KeyError, TypeError):
+        return forward._ts(_freeze(hypothesis_id, root)["frozen_at_utc"])
+    except (KeyError, TypeError, ValueError):
         return None
 
 
-def inactivity_reasons(m: dict, cfg: dict) -> tuple[bool, list[str]]:
+def expected_activity_reasons(m: dict, rule: dict, expected: dict) -> tuple[bool, list[str]]:
+    """(discard, notes) under the owner's decision D1 of 2026-11-13 (lab/activity.py): the bot is compared with its own
+    exploration over the same number of days. Discard when its closed trades are below the 1st percentile of what the
+    exploration produced in windows of that length, or when it has gone longer without a closed trade than the longest
+    stretch of the exploration; warn below the 5th percentile."""
+    days = m["days_running"]
+    notes = [f"running {days:.1f} days, {m['trades']} closed trades; the exploration of these pairs averaged "
+             f"{expected['trades_per_day']:.2f}/day, longest stretch without a trade {expected['max_gap_days']:.1f} days"]
+    floor = activity_record.floor_for(expected, days, int(rule.get("discard_below_percentile", 1)))
+    warn = activity_record.floor_for(expected, days, int(rule.get("warn_below_percentile", 5)))
+    if floor is not None and m["trades"] < floor:
+        return True, notes + [f"INACTIVE: {m['trades']} closed trades in {days:.1f} days, below the "
+                              f"{rule.get('discard_below_percentile', 1)}st percentile of the exploration ({floor})"]
+    quiet = m.get("days_since_last_trade")
+    quiet = days if quiet is None else quiet
+    limit = expected["max_gap_days"] * float(rule.get("max_gap_factor", 1.0))
+    if quiet > limit:
+        return True, notes + [f"INACTIVE: no closed trade for {quiet:.1f} days, longer than the longest stretch of the "
+                              f"exploration ({limit:.1f} days)"]
+    if warn is not None and m["trades"] < warn:
+        notes.append(f"warning: {m['trades']} closed trades in {days:.1f} days, below the "
+                     f"{rule.get('warn_below_percentile', 5)}th percentile of the exploration ({warn})")
+    return False, notes
+
+
+def inactivity_reasons(m: dict, cfg: dict, expected: dict | None = None) -> tuple[bool, list[str]]:
     """(discard, notes). Owner decision 2026-11-11: the goal is a FAST validation by day trading, so a bot that keeps running without
-    trading is dropped like one that loses. Discard once it has run `discard_after_days` with fewer than `min_trades_by_then` closed
-    trades, or (past that age) with no closed trade for `max_days_without_trade` days. Notes also warn of a slow pace."""
+    trading is dropped like one that loses. Since D1 (2026-11-13) a bot whose freeze carries its exploration activity record
+    (`expected`, lab/activity.py) is judged against it (expected_activity_reasons). Without that record, the earlier rule:
+    discard once it has run `discard_after_days` with fewer than `min_trades_by_then` closed trades, or (past that age) with
+    no closed trade for `max_days_without_trade` days. Notes also warn of a slow pace."""
     rule = cfg.get("inactivity")
     days = m.get("days_running")
     if not rule or days is None:
         return False, []
+    if expected and rule.get("mode") == "expected_vs_observed":
+        return expected_activity_reasons(m, rule, expected)
     notes = [f"running {days:.1f} days, {m['trades_per_day']:.2f} trades/day"]
     eta = m.get("eta_days_to_min_trades")
     if eta is not None and eta > 0:
@@ -134,7 +169,7 @@ def inactivity_reasons(m: dict, cfg: dict) -> tuple[bool, list[str]]:
     return False, notes
 
 
-def verdict(m: dict, cfg: dict, execution: dict | None = None) -> tuple[str, list[str]]:
+def verdict(m: dict, cfg: dict, execution: dict | None = None, expected: dict | None = None) -> tuple[str, list[str]]:
     """('collecting' | 'approved_for_review' | 'rejected' | 'inactive', reasons). Every checked bar is listed."""
     reasons: list[str] = []
     pf = m["profit_factor"]
@@ -143,7 +178,7 @@ def verdict(m: dict, cfg: dict, execution: dict | None = None) -> tuple[str, lis
         return "rejected", [f"early reject: profit factor {pf:.2f} < {early['max_profit_factor']} after {m['trades']} trades"]
     enough = m["trades"] >= cfg["min_closed_trades"] and m["days"] >= cfg["min_days"]
     if not enough:
-        discard, notes = inactivity_reasons(m, cfg)
+        discard, notes = inactivity_reasons(m, cfg, expected)
         head = f"{m['trades']}/{cfg['min_closed_trades']} closed trades, {m['days']:.1f}/{cfg['min_days']} days"
         return ("inactive" if discard else "collecting"), [head, *notes]
     if pf is None or pf < cfg["reject_at_min_trades"]["max_profit_factor"] or m["net_profit"] <= 0:
@@ -205,7 +240,8 @@ def evaluate_hypothesis(hypothesis_id: str, cfg: dict | None = None, root: Path 
         per_pair[pair] = metrics(closed, bot_wallet, cfg)
     pooled_metrics = {**metrics(pooled, wallet, cfg), **activity(pooled, _frozen_at(hypothesis_id, root), now, cfg)}
     execution = forward.execution_quality(raw_trades, raw_orders) if raw_trades else None
-    state, reasons = verdict(pooled_metrics, cfg, execution)
+    expected = _freeze(hypothesis_id, root).get("activity_expectation")
+    state, reasons = verdict(pooled_metrics, cfg, execution, expected if isinstance(expected, dict) and "max_gap_days" in expected else None)
     return {"hypothesis": hypothesis_id, "verdict": state, "reasons": reasons, "pooled": pooled_metrics,
             "per_pair": per_pair, "wallet": wallet}
 
@@ -228,9 +264,17 @@ def render(results: list[dict], cfg: dict, retired: list[dict] | None = None) ->
              "nunca uma ordem. O holdout formal (>= 2027-04-21) continua separado e inalterado.", "",
              f"Mínimo para decidir: {cfg['min_closed_trades']} trades fechados e {cfg['min_days']} dias; reprova cedo com "
              f"{cfg['early_reject']['min_closed_trades']}+ trades e fator de lucro < {cfg['early_reject']['max_profit_factor']}.",
-             *([f"Day trade precisa operar: o bot é descartado (`inactive`) com {cfg['inactivity']['discard_after_days']}+ dias rodando e menos de "
-                f"{cfg['inactivity']['min_trades_by_then']} trade(s) fechado(s), ou sem nenhum trade há mais de {cfg['inactivity']['max_days_without_trade']} dias "
-                f"(decisão do dono, 12/11/2026). O relógio começa no congelamento."
+             *([(f"Day trade precisa operar, comparado com a própria exploração (decisão do dono D1, 13/11/2026): o bot é descartado "
+                 f"(`inactive`) se, depois de T dias, fechou menos trades que o percentil {cfg['inactivity'].get('discard_below_percentile', 1)} "
+                 f"do que a exploração dos mesmos pares fechou em janelas de T dias, ou se ficou mais tempo sem trade que o maior intervalo "
+                 f"da exploração; aviso abaixo do percentil {cfg['inactivity'].get('warn_below_percentile', 5)}. O registro é gravado no "
+                 f"congelamento, antes de o bot rodar. Congelamentos sem esse registro seguem a regra anterior: descarte com "
+                 f"{cfg['inactivity']['discard_after_days']}+ dias e menos de {cfg['inactivity']['min_trades_by_then']} trade(s), ou "
+                 f"sem trade há mais de {cfg['inactivity']['max_days_without_trade']} dias."
+                 if cfg['inactivity'].get('mode') == 'expected_vs_observed' else
+                 f"Day trade precisa operar: o bot é descartado (`inactive`) com {cfg['inactivity']['discard_after_days']}+ dias rodando e menos de "
+                 f"{cfg['inactivity']['min_trades_by_then']} trade(s) fechado(s), ou sem nenhum trade há mais de {cfg['inactivity']['max_days_without_trade']} dias "
+                 f"(decisão do dono, 12/11/2026).") + " O relógio começa no congelamento."
                 + (" O descarte é automático: o bot é parado e o congelamento vai para research/forward/retired/." if cfg['inactivity'].get('auto_retire') else "")]
                if cfg.get("inactivity") else []), "",
              "| Hipótese | Veredito | Rodando (dias) | Trades | Trades/dia | Sem trade há (dias) | Dias até o mínimo | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |",
