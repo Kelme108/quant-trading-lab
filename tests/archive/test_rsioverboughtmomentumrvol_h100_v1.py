@@ -26,12 +26,12 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "RSIOverboughtMomentumRVol_H100_v1"
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
