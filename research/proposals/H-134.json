@@ -1,0 +1,30 @@
+{
+  "hypothesis_id": "H-134",
+  "family": "AwesomeOscillatorSaucer",
+  "title": "Awesome Oscillator saucer on 15m: momentum resumption above zero in an active market, 1% minimum stop, 1.5R target",
+  "ex_ante_rule": "Chart 15m, closed bars only; signal at the close of bar t, fill at the open of bar t+1 (price E). No higher-timeframe inputs. Indicators: mp = (high+low)/2; AO(t) = SMA(mp,5) - SMA(mp,34) (simple means of the last 5 and 34 bars including t). ATR14 = Wilder ATR(14) of 15m bars (true range, Wilder smoothing alpha 1/14). LL6(t) = lowest low of bars t-5..t (6 bars). SAUCER(t): AO(t-3)>0, AO(t-2)>0, AO(t-1)>0, AO(t)>0, AND AO(t-2)<AO(t-3), AND AO(t-1)<AO(t-2), AND AO(t)>AO(t-1). ENTRY (long, at the open of t+1) when all hold at the close of t: SAUCER(t); activity filter ATR14(t)/close(t) >= 0.004; close(t) > open(t); the pair has no open position. Stop distance, fixed at the signal and kept for the whole trade: raw = (close(t) - LL6(t))/close(t); if raw > 0.025 the signal is skipped (no trade); otherwise d = max(raw, 0.01), so d is between 1.0% and 2.5%. STOP-LOSS: a fixed percentage d below the fill price, at E x (1 - d), native intrabar stop (fires as soon as the low touches it). TAKE-PROFIT: intrabar at E x (1 + 1.5 x d) (1.5R, i.e. 1.5% to 3.75%), filled at that price. If stop and target are both touched in the same bar, the stop is assumed to fill first. SIGNAL EXIT: if a 15m bar closes with AO < 0 while in a trade, exit at the open of the next bar. TIME EXIT: exit at the close of the 48th 15m bar after the entry (entry bar counts as bar 1), i.e. at most 12 hours in the trade. Whichever exit comes first applies. No cooldown, no daily limits, no pyramiding; one position per pair; identical numbers on every enabled pair. Warm-up: 400 bars (longest direct lookback is SMA34 plus the 3-bar AO pattern = 37 bars; 400 lets the recursive Wilder ATR(14) converge).",
+  "parameters": {
+    "timeframe": "15m",
+    "ao_fast_sma": 5,
+    "ao_slow_sma": 34,
+    "saucer_pattern_bars": 4,
+    "atr_period": 14,
+    "atr_min_pct_of_close": 0.004,
+    "swing_low_bars": 6,
+    "min_stop_pct": 0.01,
+    "max_stop_pct_skip": 0.025,
+    "target_r_multiple": 1.5,
+    "ao_exit_level": 0,
+    "time_exit_bars": 48,
+    "startup_candle_count": 400
+  },
+  "rationale": "When AO is above zero, the 5-bar mean price is above the 34-bar mean, so an intraday up-move is under way. Two falling AO bars show profit-taking and mean-reversion selling that slow the move without reversing it (AO stays above zero). The first rising bar, on a green 15m candle, suggests the remaining buy flow is still there and starting again, for example large orders split over hours. The sellers who faded the pause supply the liquidity and give up the continuation. The source repository lists the saucer only as a signal type and gives no mechanism, so this explanation is our own reasoning, not a cited finding. Cost: the activity filter (15m ATR at least 0.4% of price, filter (a) from the owner's list, fixed in advance) keeps out quiet bars where the move cannot beat the 0.30% round trip. The 1% minimum stop keeps cost at or below 0.3R, and the target is 1.5R, i.e. at least 1.5%. With roughly a 40% hit rate, plus partial AO and time exits, the scout expects about 0.5% average gross move per trade, above the 0.30% base cost. Expected frequency: saucers above zero are common on 15m, and the ATR filter, green-bar and skip conditions cut them down. Expect about 300-800 trades per year per pair, more on volatile alts and fewer on BTC/TRX. In a falling or range market AO is seldom above zero for long and the AO<0 exit closes failed resumptions quickly. Even so, a bear-market rally can still trigger it; the 12h time exit caps exposure.",
+  "novelty_vs_tried": "No earlier hypothesis uses the Awesome Oscillator or a histogram-shape trigger. The closest families measure momentum differently. RSIOverboughtMomentum uses an RSI level, MultiTimeframeMACDTrend and MACDBollingerTurn use a MACD cross or turn on close prices, IntradayReturnAcceleration uses a change in returns, and BrooksH2Pullback counts bar-by-bar higher highs. The saucer needs a specific sequence: an above-zero midpoint oscillator, two decelerating bars, then a re-acceleration. It runs on 15m with a volatility floor and a stop distance tied to the swing low (1-2.5%), not a fixed ATR stop. It is a new family, not a variant of any capped one.",
+  "sources": [
+    {"title": "je-suis-tm/quant-trading: Awesome Oscillator (saucer signal) backtest, Apache-2.0", "url": "https://github.com/je-suis-tm/quant-trading"},
+    {"title": "Forex.com: What is the Awesome Oscillator (saucer pattern definition)", "url": "https://www.forex.com/en-us/trading-guides/what-is-the-awesome-oscillator/"},
+    {"title": "IG: A trader's guide to using the Awesome Oscillator", "url": "https://www.ig.com/en/trading-strategies/a-traders-guide-to-using-the-awesome-oscillator-200130"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed; only research/context/H-134.md (exploration-only summaries of earlier hypotheses) and the cited web pages, through 2026-11-13."
+}
