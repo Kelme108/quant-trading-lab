@@ -1,0 +1,18 @@
+{
+  "title": "Churn absorption after a decline on 15m: high-volume narrow bar, buy the expansion close above the churn zone",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/indicator/churn/",
+    "title": "Churn (LuxAlgo library)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, signal at close, fill next open. MV(t) = mean volume of bars t-96..t-1; MR(t) = mean (high-low) of bars t-96..t-1 (24h, current bar excluded). CHURN bar c: volume(c) >= 2.0*MV(c) AND high(c)-low(c) <= 0.6*MR(c). CONTEXT (accumulation after a decline): close(c-32) - close(c) >= 3*MR(c). ZONE: ZH = high(c), ZL = low(c); any further churn bar within 4 bars after the last one extends the zone (ZH = max high, ZL = min low) and moves the zone end. The zone is void if any bar closes below ZL. ENTRY: the first bar t, 1 to 16 bars after the zone end, with close(t) > ZH AND high(t)-low(t) >= 1.5*MR(t); skip if ZL < 0.97*close(t). Buy at open of t+1 (price E). STOP = min(ZL, 0.99*E) (never closer than 1%). TARGET = E + 1.5*(E - stop). TIME EXIT at the open of the 49th bar after entry (12h). One position per pair; a zone is used once. Volume is the activity filter (2x mean); no higher-timeframe filter.",
+  "mechanism": "Wyckoff effort-versus-result: heavy volume that fails to move price after a decline means a large passive buyer is absorbing the sellers (limit orders soaking up market sells). When the absorption ends, a wide bar closing above the zone shows the supply is gone; sellers who sold into the churn are trapped below and short-term shorts cover. The stop under the zone is at least 1% away so the 0.30% round trip is under 0.3R; the target is 1.5R (1.5-4.5%). The average absolute outcome is about 1.8%, and a 45% target rate gives a mean gross near +0.6%. Related lab mechanism VSAStopTestConfirm used a retest; this one uses the high-volume narrow-range zone and an expansion breakout instead.",
+  "timeframe": "15m",
+  "longest_lookback": 150,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 90,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "ChurnAbsorptionBreakout"
+}

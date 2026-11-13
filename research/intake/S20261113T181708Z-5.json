@@ -1,0 +1,18 @@
+{
+  "title": "Late-session spike acceptance on 15m: last-2h up-spike of an 8h UTC session held by the next session",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/indicator/spike-rules/",
+    "title": "Spike Rules (LuxAlgo library)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC. Sessions: S1 00:00-07:45, S2 08:00-15:45, S3 16:00-23:45 (32 bars each; a session with a missing bar is skipped). For a completed session: BASE = max high of its bars 1-24; WINDOW = bars 25-32 (last 2h); WH, WL = max high, min low of the window; C = close of bar 32. AR = mean of (session high - session low) of the previous 10 completed sessions of the same type. SPIKE if WH > BASE AND C >= BASE + 0.25*AR AND (C - WL)/(WH - WL) >= 0.7. ACCEPTANCE in the next session: none of its bars 1-4 closes below (BASE + WH)/2, and bar 4 closes above WH. Buy at the open of bar 5 (price E). STOP = min(BASE, 0.99*E); skip if BASE < 0.97*E. TARGET E + 1.5*(E - stop). EXIT at the first of stop, target, or the open of the first bar of the session after the entry session (at most 7 hours). One position per pair. Activity filter: the spike itself must exceed 0.25 x the 10-session average range.",
+  "mechanism": "A breakout late in a session is easy to fake (thin book, end-of-session stop runs); whether the next region's participants accept the new price is the information. If the incoming session, with fresh liquidity, holds price in the upper half of the spike and makes a new high within its first hour, the move was accepted as new value; traders who faded the late spike are caught and cover, and trend followers in the new session buy. Stop at the spike base, at least 1% away, so cost stays under 0.3R; target 1.5R (1.5-4.5%). Average absolute outcome about 1.8%; a 42% target rate gives a mean gross around +0.5%. The source also defines the opposite rejection case, which is short only and not used here.",
+  "timeframe": "15m",
+  "longest_lookback": 960,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 60,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "SessionSpikeAcceptance"
+}

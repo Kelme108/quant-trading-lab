@@ -1,0 +1,18 @@
+{
+  "title": "Hourly trend entered on 15m counter-move streaks (fast-alpha overlay), volatility gate, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://concretumgroup.com/quantip-improving-performance-with-fast-alphas-a-tactical-overlay-for-intraday-trend-trading/",
+    "title": "QuanTip: Improving Performance with Fast Alphas; A Tactical Overlay for Intraday Trend Trading (Concretum Group)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m; 1h bars built from closed 15m bars (last completed hour only). BASE TREND (hourly): ON when the last closed 1h close > (max high + min low)/2 of the 48 closed 1h bars ending with it AND that close > the 1h close 24 bars earlier. ACTIVITY (hourly, fixed): 1h ATR14 (Wilder) >= 1.5 x its median over the previous 480 closed 1h bars (20 days). ENTRY (15m) at the close of bar t when BASE TREND and ACTIVITY are true AND bars t-2, t-1, t each closed below the previous close (three consecutive lower closes) AND close(t) <= 0.994*close(t-3) (counter-move at least 0.6%). Buy at open of t+1 (price E). EXIT at the first of: stop at 0.988*E, take profit at 1.015*E, BASE TREND turning OFF at a completed hour (sell at the next 15m open), or time exit at the open of the 49th bar after entry (12h). One position per pair; after an exit wait at least 4 bars.",
+  "mechanism": "Two documented effects combined. Trend persistence in active regimes (the lab's nearest day-trade misses were hourly trend entries in volatile, rising markets) supplies the drift; a short-term mean-reversion signal that is too small to trade alone (Concretum's 'informational' fast alpha: short streaks against the trend revert) improves the entry price by buying from short-horizon liquidity demanders who push price against the trend. The other side is the impatient seller during a brief dip inside an hourly uptrend. Stop 1.2% and target 1.5% make the average absolute outcome about 1.35%; a win rate of 55%, helped by the better entry, gives a mean gross near +0.5%, above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 1920,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "TrendCounterMoveOverlay"
+}

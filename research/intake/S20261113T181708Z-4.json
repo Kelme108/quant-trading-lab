@@ -1,0 +1,18 @@
+{
+  "title": "Intraday Darvas box on 15m: confirmed box of 1-3% height, volume-backed close above the top, box-bottom stop, 12h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.tradingview.com/script/hZV01YX6-Advanced-Intraday-Darvas-Box",
+    "title": "Advanced Intraday Darvas Box (TradingView open-source script description)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, signal at close, fill next open. BOX TOP: bar k with high(k) = max high of bars k-16..k and high(k+1), high(k+2), high(k+3) all < high(k); T = high(k), confirmed at the close of k+3. BOX BOTTOM: after k, bar b (b > k) whose low is the lowest low since k and whose next 3 bars all have lows > low(b); B = low(b), confirmed at close of b+3. All bars from k to the confirmation must have highs <= T, and confirmation must come within 48 bars of k; otherwise the box is dropped. VALID if 1.0% <= (T-B)/T <= 3.0%. ENTRY: first bar t after confirmation with close(t) >= 1.002*T AND volume(t) >= 1.5 x mean volume of bars k..t-1 AND close(t) > EMA200 of 15m closes. The box is void if a bar closes below B first. Buy at open of t+1 (price E). STOP at B. TARGET E + 1.5*(T - B). TIME EXIT at the open of the 49th bar after entry (12h). One position per pair. Volume (1.5x box mean) is the activity filter.",
+  "mechanism": "A Darvas box is a confirmed pause where supply at the top and demand at the bottom are both tested; a close beyond the top on expanded volume shows a new buyer cohort taking the remaining supply, and resting buy stops of breakout traders above the top add to the move. Requiring a box of at least 1% height puts the stop at least 1% away, so the 0.30% round trip costs under 0.3R, unlike narrow-range brackets. Target 1.5x box height (1.5-4.5%), stop 1-3%: average absolute outcome about 2%; a 42% target rate gives a mean gross around +0.5%. Differs from the Livermore pivot rule (single prior high, fail-fast exit) by the confirmed two-sided box and box-bottom stop. Second view: Darvas' original close-above-box rule (neostox write-up in search results, not relied on).",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "DarvasBoxBreakout"
+}

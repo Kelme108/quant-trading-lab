@@ -1,0 +1,18 @@
+{
+  "title": "Al Brooks H2 two-legged pullback on 15m in an active market, pullback-low stop, 1.5R target, 12h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/indicator/bar-counting-h1-h2/",
+    "title": "Bar Counting H1/H2 (LuxAlgo library)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, signal at bar close, fill next open. Trend: EMA20 of close rising (EMA20(t) > EMA20(t-4)). Activity filter (fixed): ATR14(t)/close(t) >= 0.4% (Wilder ATR). Setup: bar P makes a new 24-bar high (high(P) > max high of P-24..P-1). Pullback: H1 = first bar i > P+1 with high(i) > high(i-1) and high(i) < high(P); L1 = lowest low of P+1..i-1. Second leg: a later bar k with low(k) < L1. H2 trigger: first bar m > k with close(m) > high(m-1) and close(m) < high(P), m - P <= 24 bars. Pullback low PL = min low of P+1..m; require (high(P) - PL)/high(P) >= 1.0% and (close(m) - PL)/close(m) <= 2.5%, trend and activity filters true at m. Buy at open of m+1 (price E). Stop = min(PL, 0.992*E). Target = E + 1.5*(E - stop). Time exit: market sell at the open of the 49th bar after entry (12h). Exit at the first of stop, target, time. A new setup needs a new 24-bar high after the exit. All 15m, no higher-timeframe input.",
+  "mechanism": "Brooks' H2: in an uptrend the first rebound attempt after a pullback often fails (late sellers and profit takers), the second attempt after a two-legged correction marks the point where counter-trend traders give up; their stops above the signal bar add buying, and the trend's participants re-enter. The ATR floor keeps it to active periods when 15m ranges are large. Stop under the pullback low is 0.8-2.5% away and the target is 1.5R (1.2-3.7%), so the average absolute outcome is about 1.5%; with a 45% hit rate of the target the mean gross is about +0.5%, above the 0.30% round trip, and the stop distance keeps cost under 0.3R. Second source: none read beyond this page; Brooks' books describe the H1/H2 count.",
+  "timeframe": "15m",
+  "longest_lookback": 48,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 300,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "BrooksH2Pullback"
+}
