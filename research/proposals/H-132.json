@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-132",
+  "family": "BrooksH2Pullback",
+  "title": "Al Brooks H2 two-legged pullback on 15m in an active market, pullback-low stop, 1.5R target, 12h exit",
+  "ex_ante_rule": "Chart 15m (idea I-124 uses only 15m bars, no higher timeframe). UTC, closed bars; a signal at the close of bar m fills at the open of m+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, same rule on every enabled pair, single grid cell. Warm-up: 400 bars (longest raw lookback 48 bars = 24-bar high check + 24-bar setup life; EMA20 and Wilder ATR14 are recursive, 400 bars let seeds decay; startup_candle_count = 400). INDICATORS (15m, bar t included): EMA20 of close (alpha 2/21, talib EMA); ATR14 = Wilder ATR 14 (talib ATR); ATRp = ATR14/close. SETUP: bar P with high(P) > max(high of P-24..P-1). A newer setup bar replaces the active setup (only the latest P is tracked). H1: first bar i >= P+2 with high(i) > high(i-1) and high(i) < high(P); L1 = min(low of P+1..i-1). SECOND LEG: first bar k > i with low(k) < L1. H2 CANDIDATE: first bar m > k with close(m) > high(m-1) and close(m) < high(P). The setup expires if no candidate occurs with m - P <= 24. The candidate is the setup's only shot: PL = min(low of P+1..m); entry signal at m only if ALL hold: (1) (high(P) - PL)/high(P) >= 0.010; (2) (close(m) - PL)/close(m) <= 0.025; (3) EMA20(m) > EMA20(m-4); (4) ATRp(m) >= 0.004 (single activity filter, volatility type, fixed in advance); (5) pair flat. Traded or not, the setup is then used up. ENTRY: buy at open(m+1), price E; PL goes in the enter_tag. STOP: d = max(1 - PL/E, 0.008), computed at the fill and frozen; stop price E*(1-d) = min(PL, 0.992*E), fixed below E, intrabar as soon as the low touches it (custom_stoploss returning d; native stoploss -0.10 only as backstop). TARGET: T = E*(1 + 1.5*d), sold at T when a bar's high reaches it (at the open if a bar opens above it); stop counts if both touched in one bar. TIME EXIT: fill bar e = m+1; exit signal at the close of e+47, sold at the open of e+48 (49th bar, 12 h). First of stop, target, time wins. RE-ARM: after an exit filled at the open of bar x, only a setup bar P >= x can start a new setup. No trailing, no break-even, no cooldown or daily cap, no other filters or exits.",
+  "parameters": {
+    "timeframe": "15m",
+    "setup_high_lookback_bars": 24,
+    "max_setup_life_bars": 24,
+    "ema_trend_length": 20,
+    "ema_slope_lag_bars": 4,
+    "atr_length": 14,
+    "atr_pct_min": 0.004,
+    "min_pullback_depth_pct": 0.01,
+    "max_entry_to_pullback_low_pct": 0.025,
+    "min_stop_distance_pct": 0.008,
+    "target_r_multiple": 1.5,
+    "time_exit_bars": 48,
+    "native_backstop_stoploss": -0.1,
+    "startup_candle_count": 400
+  },
+  "rationale": "Brooks' H2: in an uptrend the first rebound after a pullback (H1) often fails as late sellers and profit takers lean on it; the second attempt after a two-legged correction marks where counter-trend traders give up. Their stops above the signal bar add demand and trend participants re-enter, so a close above the prior bar's high after the second leg tends to resume the move toward the swing high. The pullback must be at least 1% deep and the market active (15m ATR >= 0.4% of price), so only bars whose absolute move can beat the 0.30% round trip are traded; a rising EMA20 and a fresh 24-bar high keep it to uptrends, so in falling or flat markets the rule mostly stands aside. The stop sits under the pullback low, 0.8-2.5% away, so the round trip costs about 0.12-0.4R; the 1.5R target (1.2-3.7%) makes the mean absolute outcome about 1.5% per trade, and with a target hit rate near 45% the expected gross is about +0.5% per trade (the scout's estimate, not measured). Expected frequency: new 24-bar highs occur several times a week per pair, and the two-leg pattern with the depth and ATR filters should leave roughly 80-200 trades per year per pair (estimate), several trades a day across the 26 pairs, each closed within 12 hours. Evidence is practitioner-level only (LuxAlgo, NexusFi, Trading Setups Review describing Brooks); no peer-reviewed test of H2 on crypto was found.",
+  "novelty_vs_tried": "No family in the context counts pullback legs. HourlyBullFlagBreak (H-075) breaks a flag high on 1h; SessionHighBreakRetest (H-124) retests a broken session level; TrendCounterMoveOverlay (H-131) buys three lower 15m closes in an hourly uptrend with a fixed stop/target; FairValueGapRetest and OrderBlockRetest buy gap or candle zones. H-132 instead requires a specific structure: a fresh 24-bar high, a failed first rebound (H1), a second leg below the first-leg low, and the second close above a prior bar's high, with the stop placed structurally under the pullback low and a target scaled in R, all within 24 bars of the high. It uses the volatility activity filter (ATR/close) rather than volume.",
+  "sources": [
+    {"title": "Bar Counting H1/H2 (LuxAlgo library)", "url": "https://www.luxalgo.com/library/indicator/bar-counting-h1-h2/"},
+    {"title": "Two-legged Pullback Trading (NexusFi)", "url": "https://nexusfi.com/a/strategies/two-legged-pullback-trading"},
+    {"title": "Two-legged Pullback to Moving Average (M2B, M2S) - Trading Setups Review", "url": "https://www.tradingsetupsreview.com/two-legged-pullback-to-moving-average-m2b-m2s"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only the exploration-only summaries in research/context/H-132.md (dated 2026-11-13) and the cited web pages."
+}
