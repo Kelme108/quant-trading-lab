@@ -260,9 +260,13 @@ class Pipeline:
                         (hid,),
                     ).fetchone():
                         raise StepFailed(f"{hid} already has a gate decision; re-running it would be a second draw")
-                restored = archive.restore_hypothesis(self.conn, hid, root=self.root)
-                self._commit(restored["paths"], f"recalibrate({hid}): byte-identical strategy restored from the archive "
-                                                f"(sha256 {restored['sha256'][:12]}) for the {calibrate.WALLET_QUOTE:g} USDT wallet")
+                archived = self.conn.execute("SELECT 1 FROM archived_strategies WHERE hypothesis_id = ?", (hid,)).fetchone()
+                if archived is None and rule_change_reason and any((self.root / "user_data" / "strategies").glob(f"*_H{int(hid.split('-')[1]):03d}_v*.py")):
+                    pass  # never archived: the strategy file is still in place, byte-identical by construction (nothing to restore)
+                else:
+                    restored = archive.restore_hypothesis(self.conn, hid, root=self.root)
+                    self._commit(restored["paths"], f"recalibrate({hid}): byte-identical strategy restored from the archive "
+                                                    f"(sha256 {restored['sha256'][:12]}) for the {calibrate.WALLET_QUOTE:g} USDT wallet")
                 registry.set_hypothesis_status(self.conn, hid, "implemented")
                 rows.append(self.process_hypothesis(hid, implemented=True))
         except Exception as error:
