@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-133",
+  "family": "SessionSpikeAcceptance",
+  "title": "Late-session spike acceptance on 15m: last-2h up-spike of an 8h UTC session held by the next session",
+  "ex_ante_rule": "Chart 15m, closed bars only, UTC, bar time = open time; a signal at a bar close fills at the next bar open. Spot, long only, one position per pair, no pyramiding, no sizing hooks, no other filters, every calendar day, same numbers on all pairs. SESSIONS: S1 = bars 00:00-07:45, S2 = 08:00-15:45, S3 = 16:00-23:45 (32 bars each, numbered 1-32). A session with any of its 32 bars missing is incomplete: it cannot be a spike session and does not count toward AR. SPIKE (evaluated at the close of bar 32 of a complete session X): BASE = max high of bars 1-24 of X; WH = max high and WL = min low of bars 25-32 (the last 2h); C = close of bar 32. AR = mean of (session high - session low, over all 32 bars) of the 10 most recent complete sessions of the same type (S1, S2 or S3) before X; if fewer than 10 exist, no spike. SPIKE is true if WH > BASE AND WH > WL AND C >= BASE + 0.25*AR AND (C - WL)/(WH - WL) >= 0.70. ACCEPTANCE (in the session N that immediately follows X; S3 is followed by the next day's S1): bars 1-4 of N must all exist; MID = (BASE + WH)/2; none of the closes of bars 1-4 is below MID, AND the close of bar 4 is above WH. Signal at the close of bar 4 of N; buy at the open of bar 5 of N (01:00, 09:00 or 17:00 UTC), fill price E, only if no position is open on the pair. FILL CHECK (confirm_trade_entry with the fill rate E): skip the trade if BASE < 0.97*E. STOP: SP = min(BASE, 0.99*E); d = (E - SP)/E (between 1% and 3%) is computed once at the fill and frozen: a fixed percentage below the entry price, intrabar (custom_stoploss returns d; it triggers as soon as price touches SP). Native stoploss -0.03 as backstop only. TAKE-PROFIT: TP = E + 1.5*(E - SP) (1.5%-4.5% above E), filled at TP when a bar high reaches it (at the bar open if a bar opens above TP). If stop and TP are touched in the same bar, the stop counts first. TIME EXIT: exit signal at the close of bar 32 of N (07:45, 15:45 or 23:45 bar), sold at the open of the first bar of the next session (08:00, 16:00 or 00:00): at most 7 hours in the trade. Each spike gives at most one trade; no cooldown beyond that; single cell, no grid. Warm-up: 1000 bars (longest lookback: 10 same-type sessions = 30 sessions x 32 = 960 bars, plus the 32-bar spike session and 4 acceptance bars = 996; no recursive indicators).",
+  "parameters": {
+    "timeframe": "15m",
+    "session_starts_utc": "00:00,08:00,16:00",
+    "session_bars": 32,
+    "base_bars": 24,
+    "spike_window_bars": 8,
+    "avg_range_sessions": 10,
+    "min_spike_ar_mult": 0.25,
+    "min_close_location": 0.7,
+    "acceptance_bars": 4,
+    "min_stop_pct": 0.01,
+    "max_stop_pct": 0.03,
+    "target_r_multiple": 1.5,
+    "backstop_stoploss": -0.03,
+    "max_hold_hours": 7,
+    "warmup_bars": 1000
+  },
+  "rationale": "A breakout in the last two hours of a regional session is cheap to fake: the book is thin, end-of-session stop runs push price through the session high, and late breakouts often fail. Whether the next region's participants, arriving with fresh liquidity, accept the new price is information. If the incoming session's first hour holds above the midpoint of the spike and closes above the spike high, the move has been accepted as new value. Traders who faded the late spike are now caught and must cover, and trend followers in the new session buy. That is the counterparty who pays. This matches the documented liquidity-provision mechanism behind intraday crypto momentum (Shen, Urquhart and Wang 2022: the effect is strongest in high-volume/volatility periods). Here the spike size (>= 0.25 x the 10-session average range) is the one activity filter, fixed ex ante as in the idea. Cost: the stop is at the spike base, at least 1% away (capped at 3%), so the 0.30% round trip is at most 0.3R. The target is 1.5R (1.5-4.5%), so the average absolute outcome is about 1.8%. A target rate near 42% gives a mean gross of about +0.5% per trade, above the 0.30% base and near the 0.45% conservative cost. Expected trades: about 1095 sessions/year/pair; perhaps 8-12% qualify as up-spikes, and about a third of those are accepted, so roughly 25-50 trades/year/pair, i.e. about 2-3 trades a day across 26 pairs. In a falling market up-spikes that close strong and get accepted are rarer, so the rule mostly stands aside. Failed acceptances in chop are cut by the 1-3% stop or the 7-hour time exit. The number estimates are the scout's, not lab results. The LuxAlgo source describes the indicator qualitatively without published defaults; the numbers here are the idea's, fixed before any test.",
+  "novelty_vs_tried": "No tried family conditions on a two-session sequence: a late-session spike in session X followed by acceptance in the next session N. SessionOpeningRangeBreakout (H-034/069/092) breaks a range formed at the open. SessionRangeJudasSweep (H-096) buys a reclaim after a downside sweep. SessionHighBreakRetest (H-124) buys a retest of a broken session high. H-133 instead needs an upside break in the LAST 2h of an 8h session that closes in the top 30% of its window and exceeds 0.25 x the 10-session average range. The next session must then hold above the spike midpoint and close above the spike high within its first hour. Entry comes only after that cross-session confirmation, with the stop at the pre-spike session high (1-3%).",
+  "sources": [
+    {"title": "Spike Rules (LuxAlgo library)", "url": "https://www.luxalgo.com/library/indicator/spike-rules/"},
+    {"title": "Bitcoin intraday time-series momentum (Shen, Urquhart, Wang; Financial Review 2022)", "url": "https://centaur.reading.ac.uk/100181"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the context file research/context/H-133.md (exploration summaries of earlier hypotheses) and the cited web pages, as of 2026-11-13."
+}
