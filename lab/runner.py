@@ -250,25 +250,31 @@ def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, s
     strategy. Nothing is exported or recorded, and the numbers are ignored: the
     unit tests stub TA-Lib and Freqtrade, so this is what catches a strategy
     that passes them and still fails in the real engine."""
-    result = run_compose(
-        [
-            "backtesting",
-            "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
-            "--strategy", strategy,
-            "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
-            "--timeframe", "1h",
-            "--pairs", pair,
-            "--timerange", timerange,
-            "--dry-run-wallet", f"{BACKTEST_WALLET:g}",
-            "--stake-amount", "unlimited",
-            "--fee", "0.001",
-            "--export", "none",
-            "--cache", "none",
-            "--enable-protections",
-        ]
-    )
-    output = result.stdout + result.stderr
-    failed = result.returncode != 0 or "Traceback" in output
+    # A file that Docker Desktop's bind mount momentarily cannot show to the container makes the engine report "Impossible to
+    # load Strategy" for a strategy that loads fine a minute later (seen 2026-11-13 on H-100). A real code error fails every
+    # time, so up to three attempts cannot turn a failure into a pass.
+    for attempt in range(3):
+        result = run_compose(
+            [
+                "backtesting",
+                "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+                "--strategy", strategy,
+                "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
+                "--timeframe", "1h",
+                "--pairs", pair,
+                "--timerange", timerange,
+                "--dry-run-wallet", f"{BACKTEST_WALLET:g}",
+                "--stake-amount", "unlimited",
+                "--fee", "0.001",
+                "--export", "none",
+                "--cache", "none",
+                "--enable-protections",
+            ]
+        )
+        output = result.stdout + result.stderr
+        failed = result.returncode != 0 or "Traceback" in output
+        if not failed:
+            break
     return (not failed), output[-1500:]
 
 
