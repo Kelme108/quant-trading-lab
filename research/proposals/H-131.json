@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-131",
+  "family": "TrendCounterMoveOverlay",
+  "title": "Hourly trend entered on 15m three-bar counter-move streaks, 1h ATR expansion gate, 12h cap",
+  "ex_ante_rule": "Chart: 15m. Informative 1h bars built from closed 15m candles (merge_informative_pair, 1h); at a 15m bar only the last COMPLETED 1h bar is used. Long only, spot, one position per pair. Hourly quantities (on the 1h series, index h = last completed hour): MID48(h) = (max of 1h high over the 48 1h bars h-47..h + min of 1h low over the same 48 bars) / 2. BASE_TREND(h) is true when close_1h(h) > MID48(h) AND close_1h(h) > close_1h(h-24). ATR14_1h = Wilder ATR with period 14 on the 1h bars. ACTIVITY(h) is true when ATR14_1h(h) >= 1.5 x the median of ATR14_1h over the 480 1h bars h-480..h-1 (the previous 480 closed hours, 20 days, not including h). ENTRY signal at the close of 15m bar t when all hold: BASE_TREND and ACTIVITY are true for the last completed hour; close(t) < close(t-1) AND close(t-1) < close(t-2) AND close(t-2) < close(t-3) (three consecutive lower 15m closes); close(t) <= 0.994 x close(t-3) (counter-move of at least 0.6% over the three bars); no open position on the pair; at least 4 15m bars have passed since the last exit on the pair (cooldown 4 candles). Fill: buy at the open of bar t+1 (entry price E). EXITS, first one that occurs: (1) stop-loss fixed at 1.2% below E (price 0.988 x E), native intrabar stop; (2) take-profit at 1.5% above E (1.015 x E), native ROI fill as soon as price touches it; (3) trend exit: at the close of any 15m bar where BASE_TREND of the last completed hour is false, emit an exit signal and sell at the next 15m open (BASE_TREND only changes at hour boundaries); (4) time exit: sell at the open of the 49th 15m bar after entry, i.e. 720 minutes (12h) after the entry fill (e.g. minimal_roi {\"0\": 0.015, \"720\": -1}). ACTIVITY is an entry condition only, not an exit. No other filters, no trailing stop, no position sizing. Warm-up: 2400 bars (15m) = 600 1h bars: 480-bar ATR median + 1 shift + 14-bar ATR + about 105 extra hours for the Wilder recursion to converge; MID48 and the 24-bar change need fewer.",
+  "parameters": {
+    "timeframe": "15m",
+    "informative_timeframe": "1h",
+    "trend_range_window_1h": 48,
+    "trend_change_lag_1h": 24,
+    "atr_period_1h": 14,
+    "atr_median_window_1h": 480,
+    "atr_expansion_mult": 1.5,
+    "streak_bars": 3,
+    "min_counter_move_pct": 0.6,
+    "stoploss_pct": 1.2,
+    "take_profit_pct": 1.5,
+    "time_exit_minutes": 720,
+    "time_exit_bars_15m": 48,
+    "cooldown_bars_15m": 4,
+    "warmup_bars_15m": 2400
+  },
+  "rationale": "Two effects combined. (1) Drift: in an active (ATR at least 1.5x its 20-day median) and rising hourly market (close above the 48h range midpoint and above the close 24h ago) trend persistence supplies a positive drift over the next hours; the lab's nearest day-trade misses (H-043, H-101) were hourly trend entries in volatile rising markets with 0.5% gross per trade. (2) Entry price: Concretum Group report that a short streak mean-reversion signal, unprofitable alone after costs because of turnover, raises a trend model's Sharpe (0.87 to 0.99 on SPY 5m) when used only to time entries on counter-moves against the trend. The counterparty is the impatient short-horizon seller who pushes price 0.6%+ down over 45 minutes inside an hourly uptrend and pays the liquidity provider who buys that dip. Falling or ranging markets: BASE_TREND is false, the rule stands aside, and a trend loss mid-trade forces an exit. Expected frequency: the ATR gate is on roughly 15-25% of hours, the trend on about half of those, and a 0.6% three-bar dip inside an active hour happens a few times per active day, so about 80-200 trades per year per pair (2-5 a day across 26 pairs). Move per trade: with a 1.2% stop and 1.5% target the mean absolute outcome is about 1.2-1.4%, far above the noise moves (0.1%) of ungated rules; a 55% hit rate gives about +0.5% gross, above the 0.30% base round trip. The ATR gate ensures the 1.2% stop is about 2x the typical 15m bar range in those regimes, so cost is about 0.25R. Expectation, not a promise: if the counter-move is information (not liquidity demand), the hit rate falls below 45% and the rule loses.",
+  "novelty_vs_tried": "No family in the context uses a trend-direction state on 1h combined with a 15m multi-bar counter-streak as the entry timer. Closest tried: H-010 UptrendPullbackRecovery and H-006 RegimeGatedPullbackTrend (slow pullbacks on 1h with days-long holds, no volatility gate); H-012/H-014 EMASnapbackATR (distance from an EMA, no trend state, no activity gate); H-019/H-091 DailyRSI2Dip and H-020/H-106 Double7ChannelDip (daily-bar dips). Here the dip is a three-consecutive-lower-close streak of at least 0.6% on 15m, entered only when the 1h ATR is expanded (activity filter a) and the hourly trend is up, with a fixed 1.2%/1.5% bracket and a 12h cap: an intraday trend entry timed by a fast alpha, not a dip-buy rule on its own.",
+  "sources": [
+    {
+      "title": "QuanTip: Improving Performance with Fast Alphas - A Tactical Overlay for Intraday Trend Trading (Concretum Group)",
+      "url": "https://concretumgroup.com/quantip-improving-performance-with-fast-alphas-a-tactical-overlay-for-intraday-trend-trading/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only the lab context file research/context/H-131.md (exploration-only summaries of earlier hypotheses) and the cited web page, as of 2026-11-13."
+}
