@@ -337,12 +337,14 @@ class CalibrateTests(unittest.TestCase):
         self.conn.close()
         self.tmp.cleanup()
 
-    def run_calibration(self, trades: int, explorer: FakeExplorer):
+    def run_calibration(self, trades: int, explorer: FakeExplorer, pairs=None, **kw):
         fake = FakeBacktest(trades)
+        pairs = list(pairs or PAIRS)
+        splits = {"pairs": {p: {"exploration": {"timerange": "1-2", "start_utc": "2018-01-01T00:00:00Z", "end_utc": "2024-01-01T00:00:00Z"}} for p in pairs}}
         return calibrate.calibrate_and_explore(
             self.conn, "H-001", strategy_name="S_H001_v1", strategy_file="user_data/strategies/S_H001_v1.py",
-            root=Path(self.tmp.name), splits=self.splits, backtest=fake, read_trades=fake.read_trades,
-            experiments=explorer, pairs=list(PAIRS),
+            root=Path(self.tmp.name), splits=splits, backtest=fake, read_trades=fake.read_trades,
+            experiments=explorer, pairs=pairs, **kw,
         )
 
     def test_an_exposure_below_the_minimum_order_drops_instead_of_running_a_backtest_with_no_trades(self) -> None:
@@ -385,8 +387,55 @@ class CalibrateTests(unittest.TestCase):
             "net_profit[base]: FAIL (net_profit_quote=-0.1 <= required 1.0000, after 0 prior variant(s) in family)",
             "minimum_trades[stress]: inconclusive (20 < 30)",
         ])
-        result = self.run_calibration(60, explorer)
+        result = self.run_calibration(60, explorer, early_stop=False)
         self.assertEqual(result["failed_gates"], {p: ["net_profit[base]", "minimum_trades[stress]"] for p in PAIRS})
+
+    TEN = [f"P{i}/USDT" for i in range(10)]          # K = ceil(0.6 * 10) = 6, so a 5th non-candidate settles it
+
+    def explorer_by_pair(self, decisions: dict) -> FakeExplorer:
+        explorer = FakeExplorer()
+        explorer.decide_experiment = lambda conn, eid, hid: (
+            decisions[registry.get_experiment(conn, eid)["pair"]], ["fake"])
+        return explorer
+
+    def test_exploration_stops_once_the_breadth_rule_can_no_longer_be_met(self) -> None:
+        explorer = FakeExplorer("rejected")
+        result = self.run_calibration(60, explorer, pairs=self.TEN, workers=1)
+        self.assertEqual(len(explorer.exposures), 5)
+        self.assertEqual(result["skipped_pairs"], self.TEN[5:])
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "rejected at exploration")
+        self.assertIn("Early stop", registry.get_hypothesis(self.conn, "H-001")["notes"])
+
+    def test_without_a_rejected_pair_every_pair_runs_so_inconclusive_stays_inconclusive(self) -> None:
+        explorer = FakeExplorer("inconclusive")
+        result = self.run_calibration(60, explorer, pairs=self.TEN, workers=1)
+        self.assertEqual(len(explorer.exposures), 10)
+        self.assertEqual(result["skipped_pairs"], [])
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "inconclusive at exploration")
+
+    def test_a_hypothesis_that_can_still_pass_is_never_stopped(self) -> None:
+        decisions = {p: ("rejected" if i < 4 else "candidate_for_portfolio") for i, p in enumerate(self.TEN)}
+        result = self.run_calibration(60, self.explorer_by_pair(decisions), pairs=self.TEN, workers=1)
+        self.assertEqual(result["skipped_pairs"], [])
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "exploration: candidate")
+
+    def test_parallel_pairs_give_the_same_decisions_and_status_as_one_at_a_time(self) -> None:
+        decisions = {p: ("candidate_for_portfolio" if i % 2 else "rejected") for i, p in enumerate(self.TEN)}
+        serial = self.run_calibration(60, self.explorer_by_pair(decisions), pairs=self.TEN, workers=1, early_stop=False)
+        status_serial = registry.get_hypothesis(self.conn, "H-001")["status"]
+        with mock.patch.object(calibrate, "_stamp", return_value="20990101T000000Z"):
+            parallel = self.run_calibration(60, self.explorer_by_pair(decisions), pairs=self.TEN, workers=4, early_stop=False)
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], status_serial)
+        self.assertEqual(sorted(serial["decisions"].values()), sorted(parallel["decisions"].values()))
+        self.assertEqual(len(parallel["decisions"]), 10)
+        self.assertEqual(serial["failed_gates"], parallel["failed_gates"])
+
+    def test_parallel_early_stop_never_changes_the_status(self) -> None:
+        explorer = FakeExplorer("rejected")
+        result = self.run_calibration(60, explorer, pairs=self.TEN, workers=3)
+        self.assertGreaterEqual(len(explorer.exposures), 5)
+        self.assertEqual(len(explorer.exposures) + len(result["skipped_pairs"]), 10)
+        self.assertEqual(registry.get_hypothesis(self.conn, "H-001")["status"], "rejected at exploration")
 
     def test_a_failed_calibration_backtest_is_reported(self) -> None:
         result = calibrate.calibrate_and_explore(

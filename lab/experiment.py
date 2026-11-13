@@ -154,7 +154,7 @@ def run_experiment(
         all_metrics[f"max_drawdown_pct__{scenario.name}"] = bt["max_drawdown_pct"]
         all_metrics[f"max_relative_drawdown_pct__{scenario.name}"] = bt["max_relative_drawdown_pct"]
         print(
-            f"  {scenario.name:12s} trades={bt['total_trades']:5d} "
+            f"  {pair} {scenario.name:12s} trades={bt['total_trades']:5d} "
             f"net_profit={bt['net_profit_quote']:10.2f} max_dd%={bt['max_drawdown_pct']:6.1f}"
         )
 
@@ -174,7 +174,7 @@ def run_experiment(
     )
     all_metrics["recursive_is_stable"] = recursive.get("recursive_is_stable")
     print(
-        f"  lookahead has_bias={all_metrics['lookahead_has_bias']} "
+        f"  {pair} lookahead has_bias={all_metrics['lookahead_has_bias']} "
         f"recursive stable={all_metrics['recursive_is_stable']}"
     )
 
