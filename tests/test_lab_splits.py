@@ -57,7 +57,8 @@ class ShippedSplitsTests(unittest.TestCase):
             self.assertAlmostEqual(actual, share, delta=0.01, msg=pair)
 
     def test_pairs_added_in_2026_11_end_exploration_on_the_shared_calendar(self) -> None:
-        for pair in ("XRP/USDT", "ADA/USDT", "LTC/USDT", "LINK/USDT", "DOGE/USDT", "SOL/USDT"):
+        for pair in ("XRP/USDT", "ADA/USDT", "LTC/USDT", "LINK/USDT", "DOGE/USDT", "SOL/USDT",
+                     "AVAX/USDT", "DOT/USDT", "TRX/USDT", "NEAR/USDT", "UNI/USDT", "BCH/USDT", "XLM/USDT", "FIL/USDT", "AAVE/USDT", "INJ/USDT", "HBAR/USDT", "OP/USDT", "APT/USDT", "ARB/USDT", "SUI/USDT", "ATOM/USDT", "ETC/USDT"):
             entry = self.splits["pairs"][pair]
             self.assertEqual(entry["exploration"]["end_utc"], "2024-07-04T23:00:00Z", pair)
             self.assertEqual(entry["validation"]["start_utc"], "2024-07-05T00:00:00Z", pair)

@@ -7,6 +7,7 @@ class BreadthRuleTests(unittest.TestCase):
     def test_k_of_n_with_the_shipped_config(self) -> None:
         self.assertEqual(breadth.exploration_min_pairs(3), 3)
         self.assertEqual(breadth.exploration_min_pairs(9), 6)
+        self.assertEqual(breadth.exploration_min_pairs(26), 16)   # same pre-registered 0.6 fraction on the 26-pair universe
         self.assertEqual(breadth.exploration_min_pairs(2), 2)
         self.assertEqual(breadth.validation_min_pairs(), 2)
 
@@ -23,7 +24,7 @@ class BreadthRuleTests(unittest.TestCase):
         self.assertGreater(two["exposure"], every["exposure"] or 0)
 
     def test_every_pair_has_a_forward_key_and_old_freezes_keep_three(self) -> None:
-        self.assertEqual(len(forward.PAIR_KEYS), 9)
+        self.assertEqual(len(forward.PAIR_KEYS), 26)
         self.assertEqual(forward.pair_keys("H-999"), ["btc", "eth", "bnb"])
 
 

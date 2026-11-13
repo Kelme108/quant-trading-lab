@@ -37,7 +37,12 @@ from lab import costs
 
 ROOT = Path(__file__).parents[1]
 PAIR_KEYS = {"btc": "BTC/USDT", "eth": "ETH/USDT", "bnb": "BNB/USDT", "xrp": "XRP/USDT", "ada": "ADA/USDT",
-             "ltc": "LTC/USDT", "link": "LINK/USDT", "doge": "DOGE/USDT", "sol": "SOL/USDT"}
+             "ltc": "LTC/USDT", "link": "LINK/USDT", "doge": "DOGE/USDT", "sol": "SOL/USDT",
+             # 2026-11-13: universe of 26 (owner's choice "more pairs")
+             "avax": "AVAX/USDT", "dot": "DOT/USDT", "trx": "TRX/USDT", "near": "NEAR/USDT", "uni": "UNI/USDT",
+             "bch": "BCH/USDT", "xlm": "XLM/USDT", "fil": "FIL/USDT", "aave": "AAVE/USDT", "inj": "INJ/USDT",
+             "hbar": "HBAR/USDT", "op": "OP/USDT", "apt": "APT/USDT", "arb": "ARB/USDT", "sui": "SUI/USDT",
+             "atom": "ATOM/USDT", "etc": "ETC/USDT"}
 # Hypotheses frozen before the 9-pair universe (2026-11-06) and with no overlay files ran on these three.
 LEGACY_KEYS = ("btc", "eth", "bnb")
 COMPOSE = "docker-compose.forward.yml"

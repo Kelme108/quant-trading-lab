@@ -63,7 +63,7 @@ class ForwardFilesTests(unittest.TestCase):
         overlay = json.loads((self.root / "forward" / "config.h105.json").read_text(encoding="utf-8"))
         self.assertEqual(overlay, {
             "bot_name": "forward-h105", "strategy": "Thing_H105_v1", "db_url": "sqlite:///user_data/tradesv3.forward.h105.sqlite",
-            "max_open_trades": 9, "stake_amount": "unlimited", "tradable_balance_ratio": 0.25, "dry_run_wallet": 9000.0,
+            "max_open_trades": len(pairs), "stake_amount": "unlimited", "tradable_balance_ratio": 0.25, "dry_run_wallet": 1000.0 * len(pairs),
             "exchange": {"pair_whitelist": pairs}})
         # Freqtrade's unlimited stake: (wallet + closed profit) x ratio / max_open_trades
         self.assertEqual(overlay["dry_run_wallet"] * overlay["tradable_balance_ratio"] / overlay["max_open_trades"], 1000.0 * 0.25)
@@ -78,7 +78,7 @@ class ForwardFilesTests(unittest.TestCase):
         for forbidden in ("ports:", "8080", "api_server", "dry_run", "secret", "password"):
             self.assertNotIn(forbidden, compose.lower())
         self.assertEqual(forward.layout("H-105", self.root), forward.MULTI_PAIR)
-        self.assertEqual(len(forward.pair_keys("H-105", self.root)), 9)
+        self.assertEqual(len(forward.pair_keys("H-105", self.root)), len(forward.PAIR_KEYS))
 
     def test_the_per_pair_layout_writes_the_same_bytes_as_before(self) -> None:
         written = autopilot.write_forward_files("H-104", ["BNB/USDT", "ETH/USDT"], 0.25, "HourlyWilliamsVolBreakoutRVol_H104_v1",
@@ -109,7 +109,7 @@ class ForwardFilesTests(unittest.TestCase):
         (folder / "H-105-freeze.json").write_text(json.dumps({"layout": forward.MULTI_PAIR,
                                                               "databases": {p: "x" for p in forward.PAIR_KEYS.values()}}), encoding="utf-8")
         self.assertEqual(autopilot.running_forward_bots(self.root), 4)
-        self.assertEqual(autopilot.running_forward_pairs(self.root), 12)
+        self.assertEqual(autopilot.running_forward_pairs(self.root), 3 + len(forward.PAIR_KEYS))
 
     def test_the_shipped_bots_never_count_more_containers_than_pairs(self) -> None:
         # per-pair bots: one container per pair; multi-pair bots: one container for several pairs
