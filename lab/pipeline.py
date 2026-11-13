@@ -15,10 +15,9 @@ from __future__ import annotations
 import argparse
 import functools
 import json
-import subprocess
 from pathlib import Path
 
-from lab import archive, autopilot, calibrate, checks, orchestrator, registry, tradereport, triage
+from lab import archive, autopilot, calibrate, checks, gitops, orchestrator, registry, tradereport, triage
 from lab.orchestrator import BudgetExhausted, GuardAbort, StepFailed, _now, _stamp
 
 ROOT = Path(__file__).parents[1]
@@ -53,11 +52,8 @@ class Pipeline:
     # -- git ------------------------------------------------------------------
 
     def _commit(self, paths: list[str], message: str) -> None:
-        """Stage exactly these paths (creations, changes and removals) and commit if anything is staged."""
-        for path in paths:
-            subprocess.run(["git", "add", "-A", "--", path], cwd=self.root, capture_output=True)
-        if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=self.root).returncode != 0:
-            subprocess.run(["git", "commit", "-q", "-m", message], cwd=self.root, check=True, capture_output=True)
+        """Stage exactly these paths (creations, changes and removals) and commit only them (lab/gitops.py)."""
+        gitops.commit_paths(self.root, paths, message, add_all=True)
 
     def _hypothesis_paths(self, hid: str, strategy_name: str | None) -> list[str]:
         low = hid.lower()

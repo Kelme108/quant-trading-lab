@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import breadth, agents, context, experiment, guard, intake, portfolio, proposals, registry, runner, strategy_check, triage
+from lab import breadth, agents, context, gitops, experiment, guard, intake, portfolio, proposals, registry, runner, strategy_check, triage
 
 ROOT = Path(__file__).parents[1]
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
@@ -104,14 +104,7 @@ class Lab:
     def _commit(self, paths: list[str], message: str) -> None:
         """Commit exactly `paths` (those that exist) if they changed."""
         existing = [p for p in paths if (self.root / p).exists()]
-        if not existing:
-            return
-        subprocess.run(["git", "add", "--", *existing], cwd=self.root, check=True, capture_output=True)
-        staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=self.root)
-        if staged.returncode != 0:
-            subprocess.run(
-                ["git", "commit", "-q", "-m", message], cwd=self.root, check=True, capture_output=True
-            )
+        gitops.commit_paths(self.root, existing, message, add_all=False)
 
     def _sync_ledger(self) -> None:
         registry.sync_ledger_markdown(self.conn, self.root / "research" / "hypothesis-ledger.md")
