@@ -21,6 +21,8 @@ from pathlib import Path
 
 # Owner's decision 2026-11-08: every lab backtest and new dry-run bot starts with a 1000 USDT PAPER wallet (was
 # 100): calibrated stakes stay above the 10 USDT minimum order. Results before that date used 100.
+from lab import lanes
+
 BACKTEST_WALLET = 1000.0
 
 ROOT = Path(__file__).parents[1]
@@ -169,6 +171,7 @@ def run_backtest(
     dry_run_wallet: float = BACKTEST_WALLET,
     stake_amount: float | str = "unlimited",
     exposure: float = 1.0,
+    lane: str = "spot",
 ) -> dict:
     """Runs `backtesting --export trades`, saves raw output + artifacts, and
     returns parsed metrics read from the exported zip (never from stdout text).
@@ -195,13 +198,14 @@ def run_backtest(
     # also creates it inside the container.
     host_export_dir.mkdir(parents=True, exist_ok=True)
 
+    market = lanes.get(lane)
     args = [
         "backtesting",
-        "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+        "--config", f"{CONTAINER_USER_DATA}/{market.config}",
         "--strategy", strategy,
         "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
         "--timeframe", timeframe,
-        "--pairs", pair,
+        "--pairs", market.pair(pair),
         "--timerange", timerange,
         "--dry-run-wallet", str(dry_run_wallet),
         "--stake-amount", str(stake_amount),
@@ -395,19 +399,21 @@ def run_lookahead_analysis(
     pair: str = "BTC/USDT",
     timeframe: str = "1h",
     minimum_trade_amount: int = 1,
+    lane: str = "spot",
 ) -> dict:
     """Runs lookahead-analysis, requesting a CSV export, and parses that CSV
     (not the stdout text) for the bias verdict."""
     csv_name = f"lookahead-{experiment_id}.csv"
     container_csv_path = f"{CONTAINER_USER_DATA}/{csv_name}"
 
+    market = lanes.get(lane)
     args = [
         "lookahead-analysis",
-        "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+        "--config", f"{CONTAINER_USER_DATA}/{market.config}",
         "--strategy", strategy,
         "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
         "--timeframe", timeframe,
-        "--pairs", pair,
+        "--pairs", market.pair(pair),
         "--timerange", timerange,
         "--fee", str(fee),
         "--minimum-trade-amount", str(minimum_trade_amount),
@@ -454,17 +460,19 @@ def run_recursive_analysis(
     timerange: str,
     pair: str = "BTC/USDT",
     timeframe: str = "1h",
+    lane: str = "spot",
 ) -> dict:
     """Runs recursive-analysis. It has no structured export flag, so the
     verdict is parsed from its stdout table, and the raw stdout is always
     kept alongside for a human to re-check the parse."""
+    market = lanes.get(lane)
     args = [
         "recursive-analysis",
-        "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+        "--config", f"{CONTAINER_USER_DATA}/{market.config}",
         "--strategy", strategy,
         "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
         "--timeframe", timeframe,
-        "--pairs", pair,
+        "--pairs", market.pair(pair),
         "--timerange", timerange,
     ]
     result = run_compose(args)

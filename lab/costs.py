@@ -99,8 +99,20 @@ def get_scenario(name: str) -> CostScenario:
         ) from exc
 
 
-def all_required_scenarios() -> list[CostScenario]:
-    return [SCENARIOS[name] for name in REQUIRED_SCENARIO_NAMES]
+def all_required_scenarios(lane: str = "spot") -> list[CostScenario]:
+    return [lane_scenario(name, lane) for name in REQUIRED_SCENARIO_NAMES]
+
+
+def lane_scenario(name: str, lane: str = "spot") -> CostScenario:
+    """The scenario for a market lane (lab/lanes.py): spot is SCENARIOS as it is; futures keeps the same slippage and
+    spread and only swaps the fee for the futures fee (docs/faixa-futuros.md, section 2)."""
+    scenario = get_scenario(name)
+    if lane == "spot" or name == "base_2x":
+        return scenario
+    from lab import lanes  # local import: lanes has no dependency on costs, and costs stays importable alone
+
+    return CostScenario(name=scenario.name, fee_per_side=lanes.get(lane).fee_per_side,
+                        slippage_per_side=scenario.slippage_per_side, spread_total=scenario.spread_total)
 
 
 def round_trip_cost(scenario: CostScenario) -> float:

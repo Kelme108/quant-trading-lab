@@ -60,7 +60,7 @@ def _constant(node: ast.AST) -> object:
     return node.value if isinstance(node, ast.Constant) else object()
 
 
-def _screen_tree(tree: ast.AST) -> list[str]:
+def _screen_tree(tree: ast.AST, *, allow_short: bool = False) -> list[str]:
     """AST allow-list shared by strategy files and the sibling helper modules."""
     found: list[str] = []
     for node in ast.walk(tree):
@@ -87,7 +87,7 @@ def _screen_tree(tree: ast.AST) -> list[str]:
             if _is_dunder(node.id):
                 found.append(f"line {node.lineno}: name '{node.id}' is not allowed")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            for forbidden in FORBIDDEN_STRINGS:
+            for forbidden in () if allow_short else FORBIDDEN_STRINGS:
                 if forbidden in node.value:
                     found.append(f"line {node.lineno}: '{forbidden}' (shorting) is not allowed")
     return found
@@ -115,8 +115,11 @@ def check_strategy_source(
     *,
     expected_hypothesis_id: str | None = None,
     allowed_timeframes: tuple[str, ...] = ("1h",),
+    lane: str = "spot",
 ) -> list[str]:
-    """Violations found in a strategy file; an empty list means it passed."""
+    """Violations found in a strategy file; an empty list means it passed. In the futures lane (docs/faixa-futuros.md)
+    `can_short` may be True and the short signal columns are allowed; `leverage()` stays forbidden, so trades are 1x."""
+    allow_short = lane == "futures"
     problems: list[str] = []
     stem = path.stem
 
@@ -134,7 +137,7 @@ def check_strategy_source(
     except SyntaxError as error:
         return problems + [f"does not parse: {error}"]
 
-    problems += _screen_tree(tree)
+    problems += _screen_tree(tree, allow_short=allow_short)
 
     classes = [
         node
@@ -176,7 +179,10 @@ def check_strategy_source(
             f"startup_candle_count {startup} is above {MAX_STARTUP_CANDLES}: Freqtrade cannot load more "
             "than about 4999 candles of 1h history, so the backtest would never start"
         )
-    if assigned.get("can_short") is not False:
+    if allow_short:
+        if not isinstance(assigned.get("can_short"), bool):
+            problems.append("class must set can_short to True or False (futures lane)")
+    elif assigned.get("can_short") is not False:
         problems.append("class must set can_short = False (spot, long only)")
     if assigned.get("INTERFACE_VERSION") != 3:
         problems.append("class must set INTERFACE_VERSION = 3")

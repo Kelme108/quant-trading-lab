@@ -1,6 +1,6 @@
 # Faixa de futuros perpétuos em dry-run (decisão do dono D2, 13/11/2026)
 
-Especificação pré-registrada, escrita **antes de qualquer backtest de futuros**. Nenhum retorno de futuros foi calculado ou olhado. Dinheiro real continua bloqueado (`real_money: false`). O spot continua como está.
+Especificação pré-registrada, escrita **antes de qualquer backtest de futuros**. Até agora o único backtest de futuros é a conferência da referência congelada SmaTrendBaseline (seção 6), que não é hipótese; nenhuma hipótese foi testada em futuros. Dinheiro real continua bloqueado (`real_money: false`). O spot continua como está.
 
 ## 1. O que muda e o que não muda
 
@@ -27,6 +27,8 @@ Taxa de taker da Binance para usuário comum: 0,05% por lado; 0,045% pagando em 
 
 **Atenção, para não criar expectativa errada:** com o modelo de derrapagem do lab, o ganho de custo é de só 0,06 ponto por ida e volta. O número de 0,15% usado no placar supunha derrapagem e spread bem menores que os do modelo (0,05 ponto por ida e volta, contra 0,15 do cenário base). A medição de hoje sugere que o spread real é pequeno (seção 2.2 do plano), mas a derrapagem por atraso nas barras de gatilho não foi medida. O ganho principal da faixa de futuros é **poder vender**, o que ataca as perdas de 2022-2024 de todas as regras de momentum só compradas. O custo só deve mudar de novo quando houver custo medido em bots rodando.
 
+**Funding (medido na conferência de 13/11, seção 6):** a referência SmaTrendBaseline, comprada em BTC durante 2021, pagou 0,38% do valor da posição por trade em funding (posições de ~57 h, cerca de 0,05% a cada 8 h, num ano de alta). Num day trade comprado de ~10 h, isso seria 0,05 a 0,1% por trade em anos assim: o mesmo tamanho da economia de taxa. Em posição vendida, o funding costuma ser receita nesses anos. Conclusão: em futuros, uma regra comprada pode custar MAIS que no spot em mercado de alta. O backtest já cobra o funding real de cada hora, então isso aparece nos resultados sem ajuste manual.
+
 ## 3. Dados
 
 - Candles de 1h e 15m, mark price e funding, por `freqtrade download-data --trading-mode futures`, em `user_data/data/binance/futures/` (fora do git, como os dados do spot).
@@ -50,3 +52,14 @@ Alternativa mais rígida: validar futuros só em dados depois de 20/10/2026. Hoj
 6. Dry-run: compose e congelamento da faixa de futuros, com a mesma regra de atividade (D1).
 
 Critério de aceite: o teste de conferência da etapa 5 bate com o cálculo manual; a suíte passa; nenhum arquivo protegido muda; `real_money` continua false.
+
+## 6. Andamento (13/11/2026)
+
+| Etapa | Estado |
+|---|---|
+| 1. Dados | Feito: 26 pares, candles 1h e 15m, mark e funding (104 arquivos) |
+| 2. Config | Feito: `user_data/config.futures.dryrun.json` (dry-run, futures, isolated, sem chaves, banco próprio) |
+| 3. Lab | Parte feita: `lab/lanes.py`; custos por faixa (`costs.lane_scenario`); o runner usa a config e o nome de par da faixa; a checagem estática aceita venda só na faixa de futuros e continua recusando `leverage()`. Falta: divisões de futuros (esperam sua confirmação da seção 4), a faixa no registro e no pipeline |
+| 4. Agentes | Falta |
+| 5. Conferência | Feito. SmaTrendBaseline, BTC, 2021, só comprada, custo base. 44 das 47 entradas de futuros no mesmo horário do spot; as outras 3 deslocadas 1 hora pela pequena diferença de preço. Funding cobrado de 0,38% por trade (ver seção 2). Nenhuma posição vendida, como esperado |
+| 6. Dry-run | Falta |
