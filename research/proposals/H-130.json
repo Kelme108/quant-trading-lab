@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-130",
+  "family": "ChurnAbsorptionBreakout",
+  "title": "15m churn absorption after a decline: high-volume narrow-range zone, buy the wide-bar close above it",
+  "ex_ante_rule": "Chart 15m (as in idea I-125; all lookbacks below are 15m bars), closed bars only, all times UTC. Signal at the close of bar t, fill at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no higher-timeframe filter. Warm-up: 200 bars (longest lookback 96+1 bars for the means, plus 32 bars of context and up to 20 bars of zone life; no recursive indicators). DEFINITIONS: MV(t) = mean volume of bars t-96..t-1; MR(t) = mean (high-low) of bars t-96..t-1 (24h, bar t excluded). CHURN bar c: volume(c) >= 2.0*MV(c) AND high(c)-low(c) <= 0.6*MR(c). CONTEXT (decline before the churn): close(c-32) - close(c) >= 3.0*MR(c). ZONE START: a churn bar c that meets CONTEXT and is not an extension of a live zone opens a zone with ZH = high(c), ZL = low(c), zone end z = c; it replaces any older unused zone. EXTENSION: a churn bar c' with 1 <= c' - z <= 4 (CONTEXT not required) extends the live zone: ZH = max(ZH, high(c')), ZL = min(ZL, low(c')), z = c'. VOID: the zone is cancelled if any bar after its start closes below ZL, or if no entry signal occurs by bar z+16. ENTRY: the first bar t with 1 <= t - z <= 16 such that close(t) > ZH AND high(t)-low(t) >= 1.5*MR(t) is the breakout bar. If ZL < 0.97*close(t) the zone is discarded with no trade; otherwise raise the entry signal at the close of t and buy at the open of t+1 (price E). If a position is already open on the pair at bar t, the zone is discarded. Each zone gives at most one breakout bar (used once). STOP: stop price S = min(ZL, 0.99*E), i.e. a per-trade fixed stop distance d = max(1%, (E-ZL)/E) below E, set at entry, never moved, triggered intrabar as soon as the low touches S (custom stoploss returning d; native safety stoploss -5%). TARGET: T = E + 1.5*(E - S), exit at T intrabar as soon as a bar's high reaches it; if stop and target are both touched in the same bar, assume the stop. TIME EXIT: if neither is hit, exit signal at the close of the 48th bar counted from the fill bar (fill bar = bar 1), filled at the open of the next (49th) bar, i.e. 12 hours after entry. No other exits, no trailing, no cooldown beyond one-position-per-pair and one-use zones.",
+  "parameters": {
+    "timeframe": "15m",
+    "baseline_lookback_bars": 96,
+    "churn_volume_mult": 2.0,
+    "churn_range_max_mult": 0.6,
+    "context_lookback_bars": 32,
+    "context_decline_mr_mult": 3.0,
+    "zone_extension_bars": 4,
+    "entry_window_bars": 16,
+    "breakout_range_min_mult": 1.5,
+    "max_zone_depth_pct": 3.0,
+    "min_stop_pct": 1.0,
+    "target_r_multiple": 1.5,
+    "time_exit_bars": 48,
+    "native_safety_stoploss_pct": 5.0,
+    "warmup_bars": 200
+  },
+  "rationale": "Wyckoff effort versus result: after an 8-hour decline of at least three average 15m ranges, a bar with double the 24h mean volume but at most 0.6x the mean range means heavy market selling hit a passive buyer whose limit orders soaked it up. Volume is high and price barely moves. While the zone holds (no close below its low), supply is being absorbed. A wide bar (>= 1.5x mean range) closing above the zone high shows the absorption finished and the offer side thinned. Late sellers who sold into the churn are trapped below, and short-term shorts cover, which feeds the follow-through that the long side collects. The counterparties are the trapped sellers and the stop-run shorts. Activity filter: volume (2x mean) is built into the trigger, and the range-expansion breakout bar means entries happen only when the market is moving. Cost: the stop is 1-3% from entry, so the 0.30% round trip is at most 0.3R. The target is 1.5R (1.5-4.5%), and the 12h time exit bounds the hold. The expected mean absolute outcome is about 1.8%; with a ~45% target rate the mean gross move is about +0.6%, above the 0.45% conservative round trip. Expected frequency: the joint condition (decline + volume burst + narrow bar + expansion breakout within 4h) is rare per bar, so roughly 30-80 trades per year per pair, i.e. ~2-5 trades a day across 26 pairs. Falling market: the rule is built for declines (it needs one), but the void condition and the 1-3% stop cut failed absorptions fast. In a steady downtrend, zones get voided by new closes below ZL and generate no entry. Numbers come from idea I-125 and were fixed before any test; none were tuned. The source is a practitioner indicator description (LuxAlgo Churn), not peer-reviewed evidence.",
+  "novelty_vs_tried": "VSAStopTestConfirm (H-076, 1h) needed a 48-bar-low stopping bar, then a low-volume test bar and a confirmation over the test bar's high. This rule has no retest: it defines a zone from high-volume NARROW-RANGE bars (effort without result) after a measured decline and enters on a range-EXPANSION close above the zone. VolumeSpikeCrashRebound (H-032/H-062) and VolumeConditionedReversal buy right after a volume spike or a drop without requiring a narrow range, a zone or a breakout, and H-062 was noise. HourlyFailedBreakdownReclaim and the Judas/SMT sweep rules need a break below a prior low and a reclaim. This rule needs no sweep, and a close below the zone voids it. The bracket here is structural (zone low stop, 1% minimum, 3% maximum, 1.5R target), unlike the session opening-range families.",
+  "sources": [
+    {"title": "Churn (LuxAlgo library)", "url": "https://www.luxalgo.com/library/indicator/churn/"},
+    {"title": "Effort vs Result (LuxAlgo library)", "url": "https://www.luxalgo.com/library/concept/effort-vs-result/"},
+    {"title": "Absorption (LuxAlgo library)", "url": "https://www.luxalgo.com/library/concept/absorption/"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the H-130 context file (exploration-only aggregates through 2026-11-13) and the cited web pages."
+}
