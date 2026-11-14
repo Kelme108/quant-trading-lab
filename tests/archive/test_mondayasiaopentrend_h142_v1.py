@@ -50,12 +50,12 @@ def _fake_atr(dataframe, timeperiod=14):
 if not hasattr(sys.modules["talib.abstract"], "ATR"):
     sys.modules["talib.abstract"].ATR = _fake_atr
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "MondayAsiaOpenTrend_H142_v1"
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
