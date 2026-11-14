@@ -1,0 +1,34 @@
+{
+  "hypothesis_id": "H-141",
+  "family": "MomentumThrustIgnition",
+  "title": "1h momentum thrust from rest: RSI 50 to 70 within 3 bars on a 2x range, 2x volume ignition bar, fail-fast exit",
+  "ex_ante_rule": "Chart 1h, UTC, closed bars only; a signal at the close of bar t fills at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on every pair. No informative timeframe, no trend or session filter. INDICATORS: RSI14 = Wilder RSI(14) of 1h closes (talib RSI). MR(t) = mean of (high - low) over bars t-20..t-1 (20 bars, bar t excluded). MV(t) = mean volume over bars t-20..t-1 (bar t excluded). IGNITION at bar t when ALL hold: (1) RSI14(t) >= 70; (2) min(RSI14(t-3), RSI14(t-2), RSI14(t-1)) <= 50; (3) high(t) - low(t) >= 2.0 x MR(t); (4) high(t) > low(t) and (close(t) - low(t)) / (high(t) - low(t)) >= 0.75; (5) volume(t) >= 2.0 x MV(t) (the one activity filter: volume). ENTRY: buy at the open of t+1 if flat. No new ignition is taken while a trade is open. Store low(t), high(t) and the midpoint M = (high(t) + low(t)) / 2 of the ignition bar with the trade (e.g. in the enter_tag or from the signal row). STOP-LOSS (intrabar, fixed once at entry): stop_pct = max((entry - low(t)) / entry, 0.01); stop price = entry x (1 - stop_pct), so the stop is low(t) unless low(t) is less than 1.0% below entry (or at/above entry), in which case it is entry x 0.99. stop_pct is constant for the life of the trade; implement as a custom stop relative to the open rate, with the native stoploss = -0.10 as a backstop only (it binds only if stop_pct would exceed 10%). No trailing. EXITS, the first that occurs: (a) the stop, intrabar; (b) TARGET: T = entry + 2 x (entry - stop price); a 1h bar whose high >= T exits at T (intrabar take-profit; if the engine cannot fill a per-trade price intrabar, exit at the close of the first bar whose close >= T, and the developer states which was used); (c) FAIL-FAST: a 1h bar closes below M, sell at the next open; (d) TIME: at the close of the 12th 1h bar after entry (the entry bar t+1 counts as bar 1), i.e. sell at the open of bar t+13; maximum hold 12 hours. If several exits trigger on the same bar, one exit order is sent (stop first, then target, then the close-based exits). No cooldown beyond the flat requirement: a new ignition bar may signal on the bar after the exit. Warm-up: 300 bars (longest direct lookback is 24 bars: 20-bar means plus RSI(t-3); RSI(14) is recursive Wilder smoothing, so 300 bars are taken for convergence and the recursive gate; startup_candle_count = 300).",
+  "parameters": {
+    "rsi_length": 14,
+    "rsi_thrust_level": 70,
+    "rsi_rest_level": 50,
+    "rsi_rest_lookback_bars": 3,
+    "range_volume_lookback_bars": 20,
+    "range_multiple": 2.0,
+    "close_location_min": 0.75,
+    "volume_multiple": 2.0,
+    "min_stop_pct": 0.01,
+    "backstop_stoploss": -0.10,
+    "target_r_multiple": 2.0,
+    "fail_fast_level": "ignition_bar_midpoint",
+    "time_exit_bars": 12,
+    "startup_candle_count": 300,
+    "timeframe": "1h"
+  },
+  "rationale": "A thrust reads the speed of momentum rather than its level: RSI going from neutral (<=50) to overbought (>=70) within three bars, on a bar with at least twice the recent range, a close in the top quarter and at least twice the recent volume, marks initiative buying that starts a move rather than one that ends it (LuxAlgo's momentum-thrust concept; Zweig breadth thrust and Stockbee momentum bursts follow the same logic). Who pays: mean-reversion sellers who sell 'overbought' into the burst and get squeezed, and late followers who buy in the following hours. The midpoint fail-fast is the source's own failure test (a burst that fully retraces was exhaustion) and cuts those trades early. Cost: the ignition bar is at least 2x the mean range, so the stop is usually 1.5-3% below entry and the 2R target 3-6% above it. The absolute moves after such bars are large, so the expected average gross move is about 0.5% per trade against the 0.30% base / 0.45% conservative round trip. Frequency: all five conditions together are rare. I expect about 20-50 trades per year per pair (bursty, mostly in active weeks), so 500-1300 a year across the 26 pairs, with every position closed within 12 hours. Falling or ranging markets: an RSI jump from <=50 to >=70 on 2x volume happens less often in a downtrend, so the rule mostly stands aside then. The bear-market squeeze rallies it does take are cut by the midpoint fail-fast and the fixed stop. That is a stated risk: there is no regime filter, because the idea forbids adding one.",
+  "novelty_vs_tried": "H-085 (RSIOverboughtMomentum) bought any fresh RSI>70 cross (0.35% gross, 81 trades/yr) and so caught slow drifts into 70. This rule needs acceleration from rest (RSI <=50 within the previous 3 bars), a 2x-range bar, a top-quarter close and 2x volume, and it exits on the ignition bar's own midpoint and a structural low-of-bar stop instead of an RSI-55 exit. H-043/H-104 (Williams volatility breakouts) trigger on price crossing open + k x range, with no oscillator-speed condition and no fail-fast on the trigger bar. H-116 (PocketPivotVolume) and H-121 (HighOfDayRVolBreak) are volume or level breakouts with no momentum-acceleration test. New family.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Momentum Thrust (definition, RSI neutral-to-70 within a few bars, volume confirmation, failure on full retracement)",
+      "url": "https://www.luxalgo.com/library/concept/momentum-thrust/"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data inspected; only the exploration summaries in research/context/H-141.md (exploration splits ending 2024-07-04) and the LuxAlgo source page.",
+  "market": "spot"
+}
