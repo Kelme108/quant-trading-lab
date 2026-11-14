@@ -27,12 +27,12 @@ sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 CLASS_NAME = "IntradayCrossSectionalMomentum_H143_v1"
 
 
 def load_strategy(filename: str, class_name: str):
-    path = ROOT / "user_data" / "strategies" / filename
+    path = ROOT / "user_data" / "strategies" / "_archive" / filename
     spec = importlib.util.spec_from_file_location(class_name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -125,7 +125,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(Strategy.startup_candle_count, 200)
 
     def test_no_futures_marker(self) -> None:
-        source = (ROOT / "user_data" / "strategies" / (CLASS_NAME + ".py")).read_text()
+        source = (ROOT / "user_data" / "strategies" / "_archive" / (CLASS_NAME + ".py")).read_text()
         self.assertNotIn("LAB_MARKET", source)
 
     def test_signal_columns_binary(self) -> None:
