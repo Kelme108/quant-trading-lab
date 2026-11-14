@@ -43,12 +43,12 @@ def merge_informative_pair(dataframe, informative, timeframe, timeframe_inf, ffi
 # The shared stubs are created with setdefault, so another test module may own the module object.
 sys.modules["freqtrade.strategy"].merge_informative_pair = merge_informative_pair
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "GreatestSwingValue_H138_v1"
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
