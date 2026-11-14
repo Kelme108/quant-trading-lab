@@ -1,0 +1,42 @@
+{
+  "hypothesis_id": "H-140",
+  "family": "DailyNR7Breakout",
+  "title": "Open-anchored half-range breakout after an NR4 or inside day, 15m entry, flat by day end or 12h",
+  "ex_ante_rule": "Chart 15m, UTC, closed bars only; every signal is taken at a 15m bar close and filled at the next 15m open. Spot, long only, one position per pair, no pyramiding, no take-profit. DAILY BARS: from completed UTC days only (informative 1d via merge_informative_pair, or built from the 96 completed 15m bars of each UTC day); range(X) = high(X) - low(X). For the current UTC day D: R1 = range(D-1). CONTRACTION (both inputs are closed days): day D-1 is NR4 when R1 <= range(D-2) AND R1 <= range(D-3) AND R1 <= range(D-4) (ties count), OR day D-1 is an inside day when high(D-1) < high(D-2) AND low(D-1) > low(D-2). O = open of the 15m bar opening at 00:00 UTC of day D. TRIGGER T = O + 0.5 x R1. STOP LEVEL S = O - 0.5 x R1. ARMED: day D is armed only if CONTRACTION holds AND R1 / O >= 0.01. FILTER (higher-timeframe direction): 4h blocks start at 00, 04, 08, 12, 16, 20 UTC and are complete only after their last (16th) 15m bar closes; at the signal bar's close, the close of the last completed 4h block must be > SMA(50) of the last 50 completed 4h closes (including that block). ENTRY: on an armed day D, the first 15m bar opening between 00:00 and 11:45 UTC inclusive whose close > T while the FILTER holds and the pair is flat; buy at the next 15m open. At most one entry per UTC day per pair; no entry on bars opening at or after 12:00 UTC. STOP-LOSS (intrabar, fixed once at entry): stop_pct = (entry_price - S) / entry_price, constant for the life of the trade (stop price = S); implement as a custom stop relative to the open rate with S carried in the enter_tag; native hard stoploss -0.10 as a backstop only (it binds only if stop_pct would exceed 10%). EXIT (first that occurs): (a) the stop; (b) at the close of the 15m bar opening 23:45 UTC of the entry day, exit at the next open; (c) at the close of the 48th 15m bar after entry, counting the entry bar as bar 1, exit at the next open (12h). No other filters, exits or cooldown beyond the one-entry-per-day rule. Warm-up: 900 bars (SMA(50) of 4h closes = 800 15m bars, plus 16 bars of 4h-block alignment, plus margin; the daily lookback D-4..D-1 is 4 days = 384 bars and fits inside it).",
+  "parameters": {
+    "timeframe": "15m",
+    "nr_window_days": 4,
+    "inside_day_lookback_days": 2,
+    "trigger_range_multiple": 0.5,
+    "stop_range_multiple": 0.5,
+    "min_range_pct": 1.0,
+    "filter_tf": "4h",
+    "filter_sma_length": 50,
+    "session_anchor_utc": "00:00",
+    "last_entry_bar_open_utc": "11:45",
+    "day_end_exit_bar_open_utc": "23:45",
+    "time_exit_bars": 48,
+    "max_entries_per_day": 1,
+    "native_backstop_stoploss_pct": 10,
+    "warmup_bars": 900
+  },
+  "rationale": "Volatility clusters and alternates: a narrow (NR4) or inside day is a coil in which liquidity providers have compressed the range, and the following day is more likely to expand (Crabel's ID/NR4 setups). A move away from the day's open of half the coil's range, while the 4h trend is up, signals which side wins the expansion: range sellers who faded the coil are trapped and stop-buy orders resting above it feed the move, so the buyer on the other side is the trapped short and the late breakout chaser. The 4h SMA(50) filter keeps the long-only rule out of falling markets (it stands aside in 2022-style declines) and the 1% minimum range keeps the stop wide enough that the 0.30% round trip costs at most about 0.3R (stop distance = entry - S >= R1 >= 1% of O). The hold runs to the day end on expansion days with no target, so the gross move per trade comes from a few full-day expansions; I expect about 0.8% average gross per trade. Expected frequency: contraction days (NR4 with ties or inside) roughly 30-35% of days, about 85% of them with R1 >= 1% on most alts, the 4h filter true about half the time, and the trigger reached before noon on roughly a third of armed days: about 15-25 trades per year per pair, 400-600 across the 26 pairs. This is the third and last variant of the family: H-114 had the family's large gross move but too few trades on most pairs.",
+  "novelty_vs_tried": "H-040 used a daily NR7 and entered on a 1h close above the NR7 day's high, held up to 48h with a 3% stop. H-114 used session-aware hourly NR4 bars with a 2R target and an 8h exit. This variant (the scout's I-133) changes the trigger structurally: it is anchored at the 00:00 UTC open (Crabel stretch / LuxAlgo open-anchored breakout, T = open + 0.5 x prior range) instead of a break of the prior bar's high, it widens the setup to NR4 OR inside days (roughly twice H-040's setup count), it has no profit cap (lab lesson: caps hurt), the stop sits at open - 0.5 x prior range (full-range risk, >= 1% of price), and every trade is flat by 23:45 UTC or 12h. It is not an opening-range breakout of the first minutes (H-034/H-069/H-092): the range is the prior full day's coil.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Volatility Breakout indicator (open-anchored trigger with contraction and trend filters)",
+      "url": "https://www.luxalgo.com/library/indicator/volatility-breakout/"
+    },
+    {
+      "title": "Inside Day NR4 (ID/NR4) Pattern Trading Guide",
+      "url": "https://tradingsetupsreview.com/inside-daynr4"
+    },
+    {
+      "title": "LuxAlgo: NR4/NR7 Narrow-range Bars",
+      "url": "https://www.luxalgo.com/library/concept/nr4-nr7-narrow-range-bars.md"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candles viewed; only the exploration summaries of H-001..H-139 and the learnings digest in research/context/H-140.md (exploration splits ending 2024-07-04), through 2026-11-14.",
+  "market": "spot"
+}
