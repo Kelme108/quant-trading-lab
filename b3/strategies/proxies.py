@@ -136,4 +136,96 @@ class NoiseAreaMomentum(ProxyStrategy):
         return Signal(HOLD)
 
 
-RULES = {"P-001": OpeningRangeBreakout, "P-002": IntradayMomentum, "P-003": NoiseAreaMomentum}
+# ---------------------------------------------------------------------------------------------
+# Second batch, registered 2026-11-14 AFTER the first batch's results were read (P-001/P-002 rejected, P-003
+# passed exploration and validation and failed the final test). Published parameters, not tuned here.
+#
+# P-004 RestOfDayMomentum  - Baltussen, Da, Lammers & Martens (JFE 2021, "Hedging demand and market intraday
+#                            momentum"): the return from the previous close to 30 minutes before the close
+#                            predicts the last 30 minutes, in 60+ futures since 1974. P-002 used only the first
+#                            half hour (Gao et al.); this uses the whole day up to the entry.
+# P-005 VwapTrend1m        - Zarattini & Aziz (2023, SSRN 4631351) on QQQ with 1-MINUTE bars: long while the
+#                            close is above the session VWAP, short while below, flat at the close. Here a flip
+#                            takes two bars (exit, then enter), and VWAP uses tick volume (CFD data has no real
+#                            volume). Catastrophic stop 1% away.
+# P-006 FirstCandleOrb5m   - Zarattini & Aziz (2023, SSRN 4416622) on QQQ: trade in the direction of the first
+#                            5-minute candle, stop at that candle's low/high, hold to the close (the paper's 10R
+#                            target is left out: the engine has no limit exits). A doji first candle: no trade.
+# ---------------------------------------------------------------------------------------------
+
+def _prev_session_close(df: pd.DataFrame) -> pd.Series:
+    order = list(dict.fromkeys(df["local_date"]))
+    last = df.groupby("local_date")["close"].last()
+    prev = {d: (last[order[i - 1]] if i > 0 else np.nan) for i, d in enumerate(order)}
+    return df["local_date"].map(prev)
+
+
+class RestOfDayMomentum(ProxyStrategy):
+    name = "P-004_rest_of_day_momentum_last_half_hour"
+    timeframe_min = 5
+    warmup = 400
+    rules = SessionRules(entry_start_after_open_min=30, entry_end_before_close_min=25, flatten_before_close_min=5)
+    params = {"hold_minutes": 30, "stop_frac": 0.01}
+
+    def indicators(self, df):
+        df["rod_ret"] = df["close"] / _prev_session_close(df) - 1.0
+        return df
+
+    def decide(self, row, position):
+        if position is not None or pd.isna(row.rod_ret) or row.rod_ret == 0:
+            return Signal(HOLD)
+        if row.minutes_to_close != self.params["hold_minutes"]:
+            return Signal(HOLD)
+        tick, f = self.market.tick_size, self.params["stop_frac"]
+        if row.rod_ret > 0:
+            return Signal(ENTER_LONG, stop_price=tick_floor(row.close * (1 - f), tick), reason="day_up_so_far")
+        return Signal(ENTER_SHORT, stop_price=tick_ceil(row.close * (1 + f), tick), reason="day_down_so_far")
+
+
+class VwapTrend1m(ProxyStrategy):
+    name = "P-005_vwap_trend_1m"
+    timeframe_min = 1
+    warmup = 560          # the live window must hold the whole session (at most 540 one-minute bars)
+    rules = SessionRules(entry_start_after_open_min=1, entry_end_before_close_min=5, flatten_before_close_min=1)
+    params = {"stop_frac": 0.01}
+
+    def indicators(self, df):
+        typical = (df["high"] + df["low"] + df["close"]) / 3.0
+        vol = df["volume"].astype(float).clip(lower=1.0)
+        df["vwap"] = (typical * vol).groupby(df["local_date"]).cumsum() / vol.groupby(df["local_date"]).cumsum()
+        return df
+
+    def decide(self, row, position):
+        if pd.isna(row.vwap) or row.close == row.vwap:
+            return Signal(HOLD)
+        above = row.close > row.vwap
+        if position is None:
+            tick, f = self.market.tick_size, self.params["stop_frac"]
+            if above:
+                return Signal(ENTER_LONG, stop_price=tick_floor(row.close * (1 - f), tick), reason="above_vwap")
+            return Signal(ENTER_SHORT, stop_price=tick_ceil(row.close * (1 + f), tick), reason="below_vwap")
+        if (position.volume > 0) != above:
+            return Signal(EXIT, reason="crossed_vwap")
+        return Signal(HOLD)
+
+
+class FirstCandleOrb5m(ProxyStrategy):
+    name = "P-006_first_candle_orb_5m"
+    timeframe_min = 5
+    warmup = 120
+    rules = SessionRules(entry_start_after_open_min=5, entry_end_before_close_min=60, flatten_before_close_min=5)
+    params = {}
+
+    def decide(self, row, position):
+        if position is not None or row.bar_in_day != 0 or row.close == row.open:
+            return Signal(HOLD)
+        tick = self.market.tick_size
+        if row.close > row.open:
+            stop = tick_floor(row.low, tick)
+            return Signal(ENTER_LONG, stop_price=stop, reason="first_candle_up") if stop < row.close else Signal(HOLD)
+        stop = tick_ceil(row.high, tick)
+        return Signal(ENTER_SHORT, stop_price=stop, reason="first_candle_down") if stop > row.close else Signal(HOLD)
+
+
+RULES = {"P-001": OpeningRangeBreakout, "P-002": IntradayMomentum, "P-003": NoiseAreaMomentum,
+         "P-004": RestOfDayMomentum, "P-005": VwapTrend1m, "P-006": FirstCandleOrb5m}

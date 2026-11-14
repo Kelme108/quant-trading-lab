@@ -15,7 +15,7 @@ from b3.strategies.proxies import RULES, OpeningRangeBreakout
 UTC = timezone.utc
 
 
-def synthetic_sessions(symbol, days=30, seed=3, start=5000.0, step=0.5):
+def synthetic_sessions(symbol, days=30, seed=3, start=5000.0, step=0.5, tf=5):
     m = market(symbol)
     rng = random.Random(seed)
     d, rows, prev = date(2026, 1, 5), [], start
@@ -23,12 +23,12 @@ def synthetic_sessions(symbol, days=30, seed=3, start=5000.0, step=0.5):
         if d.weekday() < 5:
             t = datetime.combine(d, m.open, m.zone)
             end = datetime.combine(d, m.close, m.zone)
-            while t + timedelta(minutes=5) <= end:
+            while t + timedelta(minutes=tf) <= end:
                 o = prev + step * rng.randint(-3, 3)           # overnight / bar gaps
                 c = o + step * rng.randint(-6, 6)
                 rows.append((t, o, max(o, c) + step * rng.randint(0, 3), min(o, c) - step * rng.randint(0, 3), c,
                              float(rng.randint(50, 500))))
-                prev, t = c, t + timedelta(minutes=5)
+                prev, t = c, t + timedelta(minutes=tf)
         d += timedelta(days=1)
     return pd.DataFrame([(pd.Timestamp(r[0].astimezone(UTC)),) + r[1:] for r in rows],
                         columns=["time", "open", "high", "low", "close", "volume"])
@@ -39,15 +39,17 @@ def synthetic_sessions(symbol, days=30, seed=3, start=5000.0, step=0.5):
 def test_rules_are_causal_and_match_the_live_window(rule_id, symbol):
     step = 0.5 if symbol == "US500" else 0.0001
     start = 5000.0 if symbol == "US500" else 1.1
-    frame = synthetic_sessions(symbol, step=step, start=start)
+    tf = RULES[rule_id].timeframe_min
+    frame = synthetic_sessions(symbol, step=step, start=start, tf=tf, days=30 if tf == 5 else 6)
     strategy = RULES[rule_id].on(symbol)()
     assert causality_problems(strategy, frame) == []
     assert window_parity_problems(strategy, frame, samples=60) == []
 
 
 def test_rules_trade_on_synthetic_data_and_never_hold_overnight():
-    frame = synthetic_sessions("US500", days=30)
     for rule_id, rule in RULES.items():
+        tf = rule.timeframe_min
+        frame = synthetic_sessions("US500", days=30 if tf == 5 else 6, tf=tf)
         cfg = BacktestConfig(max_entries_per_day=1) if rule_id == "P-001" else BacktestConfig()
         r = run(frame, rule.on("US500")(), market("US500").cost("base"), cfg)
         assert r.trades, rule_id
