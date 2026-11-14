@@ -1,0 +1,50 @@
+{
+ "rule_id": "P-008",
+ "title": "Fade a large opening move (previous close to 15 minutes after the open) for one hour, US500 and USTEC",
+ "class_name": "LargeOpeningMoveReversal",
+ "file_stem": "p008_large_opening_move_reversal",
+ "markets": [
+  "US500",
+  "USTEC"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (New York regular session). prev_close = close of the last bar of the previous session (same helper as _prev_session_close in b3/strategies/proxies.py). Signal bar = the bar with bar_in_day == 2 (it closes 15 minutes after the open); C = its close. Opening move M = C / prev_close - 1. Scale S = mean of |M| over the previous 20 sessions that have a valid M (today excluded; no trade until 20 are available). Skip the day if CPI_today or NFP_today is true (mark_events with kinds [CPI, NFP]): on those days the opening move is news, not order imbalance. ENTRY (only on the signal bar, so at most 1 entry per day; market order at the open of the next bar, i.e. 15 minutes after the open): if M >= +1.5*S and M >= +0.002 -> ENTER_SHORT; if M <= -1.5*S and M <= -0.002 -> ENTER_LONG. Both sides are symmetric. STOP (on every entry, tick-rounded away from the price): short stop = C + 0.5*(C - prev_close); long stop = C - 0.5*(prev_close - C), i.e. the opening move extends another half of itself. EXITS: (1) gap-fill exit: at the close of any bar after entry, if short and close <= prev_close, or long and close >= prev_close, EXIT at the next bar open; (2) time exit: at the close of the bar with bar_in_day == 14 (closes 75 minutes after the open) EXIT at the next bar open, so the longest hold is 60 minutes; (3) the stop; (4) the engine's flatten 5 minutes before the close (only matters on half days). No other entries: entry window is exactly minute 15 after the open; max_entries_per_day = 1. Lookbacks: 20 sessions for S, 1 session for prev_close.",
+ "parameters": {
+  "signal_bar_in_day": 2,
+  "signal_minutes_after_open": 15,
+  "scale_lookback_sessions": 20,
+  "threshold_mult": 1.5,
+  "min_abs_move_frac": 0.002,
+  "stop_extension_frac_of_move": 0.5,
+  "time_exit_bar_in_day": 14,
+  "max_hold_minutes": 60,
+  "max_entries_per_day": 1,
+  "flatten_before_close_min": 5
+ },
+ "mechanism": "Between the cash close and the cash open the index trades only in thin overnight futures/CFD markets; news and Asian/European flows move it there, and at 09:30 New York the accumulated cash orders (market-on-open orders, retail and institutional reactions to the overnight move, ETF and basket hedges) arrive at once in the direction of that move. Market makers and index arbitrageurs absorb the imbalance and charge a price concession for the inventory they take on; when the opening rush is done (the first 15 minutes), part of the concession comes back as they unload the inventory. Fung, Mok and Lam (2000) found that large opening price changes in S&P 500 and Hang Seng futures reverse within the day, with reversals that grow with the size of the opening change, and argue it is not bid-ask bounce. Grant, Wolf and Yu (2005) confirmed highly significant reversals after large opening moves in S&P 500 futures over 1987-2002, stronger after large up-openings. The other side is the impatient opening flow that pays for immediacy; the rule supplies liquidity to it a quarter hour late, with a stop. CPI/payroll mornings are excluded because there the gap is information, not inventory pressure. Counter-evidence I found and kept in mind: the NY Fed's overnight-drift work reports that the UNCONDITIONAL morning weakness is not a reversal of the overnight return; this rule conditions on LARGE moves only (about one day in five), which is where the reversal papers place the effect.",
+ "why_gross_beats_3x_cost": "Trades happen only on days with an opening move of at least 1.5x its 20-day average, so the typical |M| on a trading day is roughly 0.6-1.0% on US500 and more on USTEC, and those are high-activity mornings: the measured 30-minute median move in the 09:xx hour is 13.8x the cost on US500 and 26x on USTEC (anatomy.json), and the 60-minute median 0.13% / 0.22% on an average bar, larger on big-gap mornings. The papers report reversals proportional to the opening move; if the hour after minute 15 gives back only 5-10% of M on average, the mean gross is 0.04-0.08% on US500 and more on USTEC, i.e. 4-8x the 0.01% cost. Payoff shape: winners that reach the previous close make about |M| (0.6%+), stops lose 0.5|M| plus the 0.005% stop slippage, most trades end at the 60-minute time exit with small signed moves. Expected hit rate 50-55%, average win/average loss about 1.2-1.4. Because the stop is at least 0.1% away (min |M| 0.2%), stop slippage is at most 5% of the risk.",
+ "expected_trades_per_year": 50,
+ "expected_median_hold_min": 55,
+ "novelty_vs_tried": "Every rule in the table bets on CONTINUATION: P-001/P-006 opening-range and first-candle breakouts, P-002/P-004/P-007 first-half-hour or rest-of-day momentum into the close, P-003 noise-area breakout, P-005 VWAP trend, and the event rules (FOMC/CPI/NFP/DE40 continuation, pre-FOMC drift). This rule is the opposite sign: it FADES the opening move, only when that move is unusually large against its own 20-day history, trades only in the first 75 minutes, exits on a gap fill or after 60 minutes instead of holding to the close, and explicitly skips the CPI/NFP mornings that the event rules traded. None of the tried rules has a target at the previous close or a size-conditioned contrarian entry.",
+ "sources": [
+  {
+   "title": "Fung, Mok & Lam (2000), Intraday price reversals for index futures in the US and Hong Kong, Journal of Banking & Finance 24(7)",
+   "url": "https://scholars.hkbu.edu.hk/en/publications/intraday-price-reversals-for-index-futures-in-the-us-and-hong-kon/"
+  },
+  {
+   "title": "Grant, Wolf & Yu (2005), Intraday price reversals in the US stock index futures market: A 15-year study, Journal of Banking & Finance 29(5)",
+   "url": "https://researchwith.montclair.edu/en/publications/intraday-price-reversals-in-the-us-stock-index-futures-market-a-1/"
+  },
+  {
+   "title": "Liberty Street Economics (NY Fed, 2021), The Overnight Drift in U.S. Equity Returns (counter-evidence on unconditional opening reversal; dealer inventory)",
+   "url": "https://libertystreeteconomics.newyorkfed.org/2021/05/the-overnight-drift-in-us-equity-returns"
+  },
+  {
+   "title": "CXO Advisory summary of Della Corte, Kosowski & Wang (2015), Market Closure and Short-Term Reversal",
+   "url": "https://www.cxoadvisory.com/technical-trading/overnightintraday-return-reversal-trading/"
+  }
+ ],
+ "data_visible_at_proposal": "research/proxies/context/P-008.md; research/proxies/anatomy.json (move sizes by horizon and hour); research/proxies/failure_anatomy.json (first part: P-001..P-003 by side/year/hour/exit reason); b3/strategies/proxies.py (P-001..P-007 code, prev-session-close helper); b3/events.py (mark_events API). Web: the four pages in sources (abstract/summary level only; full texts paywalled), plus a search result list mentioning a JOIM NASDAQ-100 intraday momentum-or-reversal paper whose page returned 404 and is not cited. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-14T16:33:35+00:00"
+}
