@@ -12,6 +12,7 @@ Everything defaults to the spot lane, so every existing call behaves exactly as 
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,7 @@ class Lane:
     can_short: bool           # whether a strategy of this lane may sell short
     data_subdir: str          # under user_data/data/binance/
     candle_suffix: str        # file name suffix of the candles Freqtrade stores
+    splits: str               # file name under lab/config/
 
     def pair(self, base_pair: str) -> str:
         """'BTC/USDT' -> the lane's Freqtrade name ('BTC/USDT' or 'BTC/USDT:USDT')."""
@@ -41,10 +43,20 @@ class Lane:
 
 
 SPOT = Lane(name="spot", config="config.dryrun.json", fee_per_side=0.00075, pair_suffix="", can_short=False,
-            data_subdir="", candle_suffix="")
+            data_subdir="", candle_suffix="", splits="splits.json")
 FUTURES = Lane(name="futures", config="config.futures.dryrun.json", fee_per_side=0.00045, pair_suffix=":USDT",
-               can_short=True, data_subdir="futures", candle_suffix="-futures")
+               can_short=True, data_subdir="futures", candle_suffix="-futures", splits="splits_futures.json")
 LANES = {SPOT.name: SPOT, FUTURES.name: FUTURES}
+
+
+MARKET_RE = re.compile(r'^LAB_MARKET\s*=\s*["\']([a-z]+)["\']', re.M)
+
+
+def strategy_market(strategy_file: Path) -> str:
+    """The lane a strategy file declares with a module constant `LAB_MARKET = "futures"`; "spot" when it has none, so
+    every strategy written before the futures lane stays spot. The constant is part of the strategy's frozen bytes."""
+    found = MARKET_RE.search(Path(strategy_file).read_text(encoding="utf-8"))
+    return get(found.group(1)).name if found else SPOT.name
 
 
 def get(name: str) -> Lane:

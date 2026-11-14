@@ -34,7 +34,7 @@ Taxa de taker da Binance para usuário comum: 0,05% por lado; 0,045% pagando em 
 - Candles de 1h e 15m, mark price e funding, por `freqtrade download-data --trading-mode futures`, em `user_data/data/binance/futures/` (fora do git, como os dados do spot).
 - Início do histórico de futuros (Binance, conferido em 13/11/2026): BTC dez/2019; a maioria jan-out/2020; HBAR mar/2021; OP jun/2022; INJ ago/2022; APT out/2022; ARB mar/2023; SUI mai/2023. A exploração de futuros é mais curta que a do spot: BTC tem cerca de 4,5 anos em vez de 7.
 
-## 4. Divisões de exploração e validação (precisa da sua confirmação)
+## 4. Divisões de exploração e validação (confirmado pelo dono em 13/11/2026: "faça o ideal")
 
 Proposta: **as mesmas datas do spot.** A exploração de cada par vai do primeiro candle de futuros até 04/07/2024 19:00 UTC, e a validação vai de 04/07/2024 20:00 a 20/10/2026 16:00. Assim nenhum período é escolhido olhando resultado.
 
@@ -59,7 +59,7 @@ Critério de aceite: o teste de conferência da etapa 5 bate com o cálculo manu
 |---|---|
 | 1. Dados | Feito: 26 pares, candles 1h e 15m, mark e funding (104 arquivos) |
 | 2. Config | Feito: `user_data/config.futures.dryrun.json` (dry-run, futures, isolated, sem chaves, banco próprio) |
-| 3. Lab | Parte feita: `lab/lanes.py`; custos por faixa (`costs.lane_scenario`); o runner usa a config e o nome de par da faixa; a checagem estática aceita venda só na faixa de futuros e continua recusando `leverage()`. Falta: divisões de futuros (esperam sua confirmação da seção 4), a faixa no registro e no pipeline |
-| 4. Agentes | Falta |
+| 3. Lab | Feito. Faixa e custos por faixa; divisões em `lab/config/splits_futures.json`, geradas por `research/tools/build_futures_splits.py` (a opção `--check` confere o arquivo contra a regra). A estratégia declara a faixa com `LAB_MARKET = "futures"`, e checagens, calibração, experimentos e validação seguem a faixa (o registro marca `futures:` no cenário de custo). Um futuros de família com validação spot já lida, ou de família cujo nome estende uma dessas (H-104 `HourlyWilliamsVolBreakoutRVol` estende H-043 `HourlyWilliamsVolBreakout`), não lê a validação (`autopilot.family_spot_validations`); a comparação por prefixo pode barrar de mais um nome parecido, nunca de menos. Placar, curva de patrimônio (DSR) e MAE/MFE tratam vendas com o sinal certo. Teste real no Docker com uma estratégia descartável comprada e vendida: lookahead e recursive limpos em BTC, ETH e BNB; 21 de 42 trades vendidos, todos com alavancagem 1,0, funding cobrado |
+| 4. Agentes | Feito. Pesquisador: campo opcional `"market": "futures"` com a linha obrigatória `Short side: ...`, custos e funding explicados. Desenvolvedor: `LAB_MARKET`, `can_short` e colunas de venda só nessa faixa. Direção do dono de 13/11 em `research/guidance.md` |
 | 5. Conferência | Feito. SmaTrendBaseline, BTC, 2021, só comprada, custo base. 44 das 47 entradas de futuros no mesmo horário do spot; as outras 3 deslocadas 1 hora pela pequena diferença de preço. Funding cobrado de 0,38% por trade (ver seção 2). Nenhuma posição vendida, como esperado |
-| 6. Dry-run | Falta |
+| 6. Dry-run | Feito no código: bot multi-par com pares `:USDT` e `config.futures.dryrun.json`; a config de futuros entra nos hashes do congelamento; o banco do bot é lido pela chave do par; a derrapagem de venda tem o sinal invertido; o registro de atividade (D1) usa as divisões de futuros. O primeiro bot só nasce quando uma hipótese de futuros passar exploração e validação |

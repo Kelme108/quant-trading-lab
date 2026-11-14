@@ -109,7 +109,10 @@ def run_compose(args: list[str], cwd: Path = ROOT) -> subprocess.CompletedProces
     )
 
 
-def load_splits(splits_path: Path = SPLITS_PATH) -> dict:
+def load_splits(splits_path: Path = SPLITS_PATH, lane: str = "spot") -> dict:
+    """The splits of a lane: lab/config/splits.json for spot, lab/config/splits_futures.json for futures."""
+    if lane != "spot" and splits_path == SPLITS_PATH:
+        splits_path = SPLITS_PATH.parent / lanes.get(lane).splits
     return json.loads(splits_path.read_text(encoding="utf-8"))
 
 
@@ -249,7 +252,7 @@ def _latest_zip(directory: Path) -> Path | None:
     return zips[-1] if zips else None
 
 
-def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, str]:
+def smoke_backtest(*, strategy: str, pair: str, timerange: str, lane: str = "spot") -> tuple[bool, str]:
     """Run a short backtest only to learn whether Freqtrade can load and run a
     strategy. Nothing is exported or recorded, and the numbers are ignored: the
     unit tests stub TA-Lib and Freqtrade, so this is what catches a strategy
@@ -261,11 +264,11 @@ def smoke_backtest(*, strategy: str, pair: str, timerange: str) -> tuple[bool, s
         result = run_compose(
             [
                 "backtesting",
-                "--config", f"{CONTAINER_USER_DATA}/config.dryrun.json",
+                "--config", f"{CONTAINER_USER_DATA}/{lanes.get(lane).config}",
                 "--strategy", strategy,
                 "--strategy-path", f"{CONTAINER_USER_DATA}/strategies",
                 "--timeframe", "1h",
-                "--pairs", pair,
+                "--pairs", lanes.get(lane).pair(pair),
                 "--timerange", timerange,
                 "--dry-run-wallet", f"{BACKTEST_WALLET:g}",
                 "--stake-amount", "unlimited",

@@ -57,6 +57,8 @@ def excursions(trade: dict) -> tuple[float | None, float | None]:
     open_rate, low, high = _num(trade.get("open_rate")), _num(trade.get("min_rate")), _num(trade.get("max_rate"))
     if not open_rate or low is None or high is None:
         return None, None
+    if trade.get("is_short"):           # a short is hurt by the high and helped by the low
+        return min(1.0 - high / open_rate, 0.0), max(1.0 - low / open_rate, 0.0)
     return min(low / open_rate - 1.0, 0.0), max(high / open_rate - 1.0, 0.0)
 
 

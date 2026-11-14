@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from lab import benchmarks, costs, gates, manifest, registry, runner
+from lab import benchmarks, costs, gates, lanes, manifest, registry, runner
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "research"))
@@ -105,6 +105,7 @@ def run_experiment(
     notes: str = "",
     exposure: float = 1.0,
     timeframe: str = "1h",
+    lane: str = "spot",
 ) -> str:
     """Run the experiment and return its id. Raises ExperimentFailed on a failed
     backtest, after marking the experiment row `failed`."""
@@ -120,7 +121,7 @@ def run_experiment(
         hypothesis_id=hypothesis_id,
         strategy_file=strategy_file,
         strategy_sha256=sha256_file(ROOT / strategy_file),
-        cost_scenario="multi:optimistic,base,conservative,stress",
+        cost_scenario=("" if lane == "spot" else f"{lane}:") + "multi:optimistic,base,conservative,stress",
         split=split_name,
         command="see raw/*.stdout.txt per cost scenario",
         created_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -132,7 +133,8 @@ def run_experiment(
     commands: list[str] = []
     base_bt: dict = {}
 
-    for scenario in costs.all_required_scenarios():
+    extra = {} if lane == "spot" else {"lane": lane}   # spot calls stay exactly as before
+    for scenario in costs.all_required_scenarios(lane):
         bt = runner.run_backtest(
             experiment_id=experiment_id,
             strategy=strategy_name,
@@ -141,6 +143,7 @@ def run_experiment(
             pair=pair,
             exposure=exposure,
             timeframe=timeframe,
+            **extra,
         )
         commands.append(bt.get("command", ""))
         if bt.get("status") != "completed":
@@ -158,7 +161,7 @@ def run_experiment(
             f"net_profit={bt['net_profit_quote']:10.2f} max_dd%={bt['max_drawdown_pct']:6.1f}"
         )
 
-    base_scenario = costs.get_scenario("base")
+    base_scenario = costs.lane_scenario("base", lane)
     lookahead = runner.run_lookahead_analysis(
         experiment_id=experiment_id,
         strategy=strategy_name,
@@ -166,11 +169,12 @@ def run_experiment(
         fee=base_scenario.effective_fee_per_side,
         pair=pair,
         timeframe=timeframe,
+        **extra,
     )
     all_metrics["lookahead_has_bias"] = lookahead.get("lookahead_has_bias")
     recursive = runner.run_recursive_analysis(
         experiment_id=experiment_id, strategy=strategy_name, timerange=timerange, pair=pair,
-        timeframe=timeframe,
+        timeframe=timeframe, **extra,
     )
     all_metrics["recursive_is_stable"] = recursive.get("recursive_is_stable")
     print(
@@ -178,7 +182,7 @@ def run_experiment(
         f"recursive stable={all_metrics['recursive_is_stable']}"
     )
 
-    data_path = feather_path(pair, timeframe)
+    data_path = feather_path(pair, timeframe) if lane == "spot" else lanes.get(lane).feather_path(pair, timeframe, ROOT)
     bench = benchmarks.compute_benchmarks(data_path, split["start_utc"], split["end_utc"])
     all_metrics["benchmark_cash_return_pct"] = bench["cash"]["return_pct"]
     all_metrics["benchmark_buy_and_hold_return_pct"] = bench["buy_and_hold"]["return_pct"]
@@ -218,7 +222,8 @@ def run_experiment(
     data["backtest"]["order_types"] = {"entry": "limit", "exit": "limit", "stoploss": "market"}
     data["data"]["path"] = str(data_path.relative_to(ROOT)).replace("\\", "/")
     data["data"]["sha256"] = ohlcv["sha256"]
-    data["data"]["source"] = "Binance public OHLCV through Freqtrade download-data"
+    data["data"]["source"] = ("Binance public OHLCV through Freqtrade download-data" if lane == "spot" else
+                              f"Binance USD-M perpetual futures OHLCV through Freqtrade download-data (lane {lane})")
     data["data"]["first_candle_utc"] = ohlcv["first_candle_utc"]
     data["data"]["last_complete_candle_utc"] = ohlcv["last_candle_utc"]
     data["data"]["candle_count"] = ohlcv["rows"]

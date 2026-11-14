@@ -20,12 +20,12 @@ Write exactly two new files:
 Never edit or delete any existing file. A change to an existing strategy is a new hypothesis, not an edit.
 
 ## Strategy contract (a static check rejects violations before anything runs)
-- `INTERFACE_VERSION = 3`, `timeframe` equal to the proposal's timeframe (`"15m"` or `"1h"`; a `1d` rule runs on `"1h"` with daily candles via `merge_informative_pair`), `can_short = False`, `minimal_roi = {"0": 100.0}`, a negative `stoploss`.
+- `INTERFACE_VERSION = 3`, `timeframe` equal to the proposal's timeframe (`"15m"` or `"1h"`; a `1d` rule runs on `"1h"` with daily candles via `merge_informative_pair`), `can_short = False`, `minimal_roi = {"0": 100.0}`, a negative `stoploss`. **Futures lane exception:** when the proposal has `"market": "futures"`, put the module-level constant `LAB_MARKET = "futures"` right after the imports, set `can_short = True` if the rule has a short side (False for `Short side: none`), and write the short entries and exits in the `enter_short` / `exit_short` columns exactly as the rule states. Never define `leverage()` (trades stay 1x). A spot proposal has no `LAB_MARKET` line.
 - `startup_candle_count` at least the longest lookback in the rule.
 - Indicators use only closed candles. Anything that looks at neighbouring rows must look backwards only: no `shift` with a negative argument, no centered windows. A channel or level that the current candle is compared with must be shifted by one candle, as in `DonchianBreakoutBaseline`.
 - Signals are exactly 1 where set; entry and exit never fire on a candle with zero volume or on undefined (NaN) indicator values.
 - Imports only from: `pandas`, `numpy`, `talib`, `technical`, `freqtrade`, `math`, `typing`, `datetime`, `functools`, `__future__`.
-- Not allowed: file or network access, `eval`/`exec`/`open`/`getattr`, dunder attributes, the words `enter_short`/`exit_short`, and the methods `leverage`, `custom_stake_amount`, `adjust_trade_position`.
+- Not allowed: file or network access, `eval`/`exec`/`open`/`getattr`, dunder attributes, the words `enter_short`/`exit_short` (allowed only in a futures-lane strategy, see above), and the methods `leverage`, `custom_stake_amount`, `adjust_trade_position`.
 
 ## Day-trade mechanics (owner's direction 2026-11-08)
 Most rules now trade intraday with a take-profit and a time exit. With `minimal_roi = {"0": 100.0}` fixed by the contract, implement the take-profit and the time exit in `custom_exit` (from `current_profit` and the trade's `open_date_utc` versus `current_time`, using only closed candles for any indicator), keep the stop in `stoploss` (or `custom_stoploss` if the rule says so), and test both exits in the unit test.

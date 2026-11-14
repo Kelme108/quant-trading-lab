@@ -115,10 +115,17 @@ def check_strategy_source(
     *,
     expected_hypothesis_id: str | None = None,
     allowed_timeframes: tuple[str, ...] = ("1h",),
-    lane: str = "spot",
+    lane: str | None = None,
 ) -> list[str]:
     """Violations found in a strategy file; an empty list means it passed. In the futures lane (docs/faixa-futuros.md)
     `can_short` may be True and the short signal columns are allowed; `leverage()` stays forbidden, so trades are 1x."""
+    declared_bad = False
+    if lane is None:                       # the lane the file declares (LAB_MARKET), spot when it declares none
+        from lab import lanes as _lanes
+        try:
+            lane = _lanes.strategy_market(path)
+        except (ValueError, OSError):
+            lane, declared_bad = "spot", True
     allow_short = lane == "futures"
     problems: list[str] = []
     stem = path.stem
@@ -138,6 +145,8 @@ def check_strategy_source(
         return problems + [f"does not parse: {error}"]
 
     problems += _screen_tree(tree, allow_short=allow_short)
+    if declared_bad:
+        problems.append('LAB_MARKET must be "spot" or "futures"')
 
     classes = [
         node

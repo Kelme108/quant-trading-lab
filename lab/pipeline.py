@@ -17,7 +17,7 @@ import functools
 import json
 from pathlib import Path
 
-from lab import archive, autopilot, calibrate, checks, gitops, orchestrator, registry, tradereport, triage
+from lab import archive, autopilot, calibrate, checks, gitops, lanes, orchestrator, registry, tradereport, triage
 from lab.orchestrator import BudgetExhausted, GuardAbort, StepFailed, _now, _stamp
 
 ROOT = Path(__file__).parents[1]
@@ -185,12 +185,15 @@ class Pipeline:
         )
 
     def _check_and_explore(self, hid: str, name: str, strategy_file: str, timeframe: str) -> tuple[str, str]:
-        result = self.run_checks(name, timeframe=timeframe, root=self.root)
+        lane = lanes.strategy_market(self.root / strategy_file)
+        extra = {} if lane == "spot" else {"lane": lane}
+        result = self.run_checks(name, timeframe=timeframe, root=self.root, **extra)
         if not checks.passed(result):
             registry.set_hypothesis_status(self.conn, hid, "failed: causality checks")
             brief = {pair: {k: v for k, v in cell.items() if k != "lookahead_row"} for pair, cell in result.items()}
             return "failed the causality checks", json.dumps(brief)[:300]
-        cal = self.explore(self.conn, hid, strategy_name=name, strategy_file=strategy_file, timeframe=timeframe, root=self.root)
+        cal = self.explore(self.conn, hid, strategy_name=name, strategy_file=strategy_file, timeframe=timeframe, root=self.root,
+                           **extra)
         if cal["outcome"] == "failed":
             registry.set_hypothesis_status(self.conn, hid, "failed: calibration")
             return "calibration failed", cal.get("reason", "")

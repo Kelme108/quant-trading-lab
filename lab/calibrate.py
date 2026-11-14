@@ -66,12 +66,14 @@ def calibrate_and_explore(
     conn, hypothesis_id: str, *, strategy_name: str, strategy_file: str, timeframe: str = "1h",
     root: Path = ROOT, splits: dict | None = None, backtest=runner.run_backtest, read_trades=runner.read_trades,
     experiments=experiment, pairs: list[str] | None = None, workers: int | None = None, early_stop: bool = True,
+    lane: str = "spot",
 ) -> dict:
     """{'outcome': 'explored'|'dropped_trades'|'dropped_exposure'|'failed', 'counts', 'exposure', 'status', 'decisions'}."""
-    splits = splits if splits is not None else runner.load_splits()
+    splits = splits if splits is not None else (runner.load_splits(lane=lane) if lane != "spot" else runner.load_splits())
     pairs = pairs or runner.enabled_pairs()
     stamp = _stamp()
-    base = costs.get_scenario("base")
+    base = costs.lane_scenario("base", lane)
+    extra = {} if lane == "spot" else {"lane": lane}   # spot calls stay exactly as before
     workers = default_workers() if workers is None else max(1, int(workers))
     db_file = _db_file(conn)
     if not db_file:
@@ -82,6 +84,7 @@ def calibrate_and_explore(
         return backtest(
             experiment_id=f"calib-{hypothesis_id.lower()}-{stamp}-{pair.replace('/', '-').lower()}",
             strategy=strategy_name, timerange=timerange, fee=base.effective_fee_per_side, pair=pair, timeframe=timeframe,
+            **extra,
         )
 
     ratios, counts = {}, {}
@@ -130,7 +133,7 @@ def calibrate_and_explore(
                 worker_conn, hypothesis_id=hypothesis_id, strategy_name=strategy_name, strategy_file=strategy_file,
                 pair=pair, split_name="exploration", timestamp=stamp, splits=splits, version=version,
                 notes=f"exposure {exposure} (p95 {chosen['p95_by_pair']}); calibration trades {counts}",
-                exposure=exposure, timeframe=timeframe,
+                exposure=exposure, timeframe=timeframe, **extra,
             )
         finally:
             if own_connection:

@@ -123,3 +123,21 @@ class LoadProposalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarketTests(unittest.TestCase):
+    """The optional `market` key of the futures lane (docs/faixa-futuros.md)."""
+
+    def test_a_futures_proposal_must_state_its_short_side(self) -> None:
+        base = mutated()
+        rule = base["ex_ante_rule"]
+        self.assertTrue(any("short side" in e for e in validate({**base, "market": "futures"})))
+        self.assertEqual(validate({**base, "market": "futures", "ex_ante_rule": rule + " Short side: none (long only)."}), [])
+        self.assertEqual(validate({**base, "market": "futures",
+                                   "ex_ante_rule": rule + " Short side: the mirror rule below the session low."}), [])
+
+    def test_an_unknown_market_is_rejected_and_spot_needs_nothing_new(self) -> None:
+        base = mutated()
+        self.assertTrue(any("market must be" in e for e in validate({**base, "market": "margin"})))
+        self.assertEqual(validate({**base, "market": "spot"}), [])
+        self.assertEqual(validate(base), [])

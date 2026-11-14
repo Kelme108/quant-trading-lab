@@ -82,7 +82,8 @@ def rows(conn, root: Path = ROOT) -> list[dict]:
             for t, n in zip(trades, pair_net):
                 yearly[str(t["open_date"])[:4]] += n
             durations += [t["trade_duration"] for t in trades]
-            gross += [100.0 * (t["close_rate"] / t["open_rate"] - 1.0) for t in trades]
+            # a short (futures lane) gains when the price falls: its gross move is the opposite sign
+            gross += [(-100.0 if t.get("is_short") else 100.0) * (t["close_rate"] / t["open_rate"] - 1.0) for t in trades]
             net += pair_net
             per_pair.append({"per_year": len(trades) / _years(splits[r["pair"]]["exploration"]), "net_sum": sum(pair_net),
                              "passing": decisions.get((hid, r["pair"])) == "candidate_for_portfolio"})

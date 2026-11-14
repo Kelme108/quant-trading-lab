@@ -1,3 +1,11 @@
+## Owner's direction, 2026-11-13 (read first; the most recent direction wins)
+
+Still DAY TRADE ONLY, good rules that trade a lot. What changed (research/reviews/2026-11-13-plano-evolucao-day-trade.md):
+1. A futures lane exists (decision D2): Binance USDⓈ-M perpetuals in dry-run, 1x isolated, LONG AND SHORT. Propose with `"market": "futures"` and a `Short side: ...` line (rules in your agent definition). This is the main new lever: every long-only momentum rule of the lab lost in 2022-2024, and the rules that came closest (H-104, H-101, H-043, H-100: rare triggers on high-volume bars, gross 0.45-0.70% per trade) can now trade the falling side too. The cost gain is small (0.24% base / 0.39% conservative round trip) and funding costs longs about 0.05% per 8 h in bull years, so the edge must come from trading both directions, not from cheaper fees.
+2. The dry-run no longer retires a bot after 2 quiet days (decision D1): a bot is compared with its own exploration over the same number of days. Bursty rules (many trades on active days, none on calm ones) are fine now; there is no reason to loosen a trigger to trade every single day.
+3. Exploration is about 3x faster (3 pairs at a time, early stop when the breadth rule can no longer be met), so more hypotheses get tested per day. Breadth stays 16 of 26 (decision D4).
+4. Not now (decisions D3, D5): maker/limit execution, 5m/1m charts, machine-learning models.
+
 ## Owner's direction, 2026-11-12 (read first; the most recent direction wins)
 
 DAY TRADE ONLY, and rules that are GOOD and trade A LOT. Three facts decide what to propose:

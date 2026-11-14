@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from lab import activity, breadth, experiment, forward, orchestrator, registry, runner
+from lab import activity, breadth, experiment, forward, lanes, orchestrator, registry, runner
 
 ROOT = Path(__file__).parents[1]
 POLICY_PATH = ROOT / "lab" / "config" / "autopilot.json"
@@ -98,19 +98,43 @@ def read_validation(conn, hypothesis_id: str, exposure: float, *, root: Path = R
     strategy = forward.find_strategy(hypothesis_id, root)
     name, strategy_file = strategy.stem, str(strategy.relative_to(root)).replace("\\", "/")
     timeframe = orchestrator.strategy_timeframe(strategy)
+    lane = lanes.strategy_market(strategy)
+    if lane != "spot":
+        read_before = family_spot_validations(conn, hypothesis_id)
+        if read_before:
+            raise PolicyError(f"{hypothesis_id}: its family already read the SPOT validation ({', '.join(read_before)}); "
+                              f"futures prices track spot, so the futures validation would not be out of sample")
+    extra = {} if lane == "spot" else {"lane": lane}
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    splits, version = runner.load_splits(), version or experiment.freqtrade_version()
+    splits = runner.load_splits(lane=lane) if lane != "spot" else runner.load_splits()
+    version = version or experiment.freqtrade_version()
     decisions = {}
     for pair in pairs:
         experiment_id = run_experiment(
             conn, hypothesis_id=hypothesis_id, strategy_name=name, strategy_file=strategy_file, pair=pair,
             split_name="validation", timestamp=stamp, splits=splits, version=version,
             notes=f"single validation read, exposure {exposure} (calibrated on exploration)",
-            exposure=exposure, timeframe=timeframe,
+            exposure=exposure, timeframe=timeframe, **extra,
         )
         decisions[pair], _ = decide(conn, experiment_id, hypothesis_id)
     registry.set_hypothesis_status(conn, hypothesis_id, validation_status(decisions))
     return decisions
+
+
+def family_spot_validations(conn, hypothesis_id: str) -> list[str]:
+    """Other hypotheses whose SPOT validation split was read and whose family is this one's, or a family this one's
+    name extends (the lab names a variant by extending its parent's name: HourlyWilliamsVolBreakoutRVol is
+    HourlyWilliamsVolBreakout plus a volume filter). docs/faixa-futuros.md, section 4: futures prices track spot, so for
+    such a hypothesis the futures validation window would not be out of sample."""
+    row = conn.execute("SELECT family FROM hypotheses WHERE id = ?", (hypothesis_id,)).fetchone()
+    if row is None:
+        return []
+    family = row[0]
+    rows = conn.execute(
+        "SELECT DISTINCT h.id, h.family FROM hypotheses h JOIN experiments e ON e.hypothesis_id = h.id "
+        "WHERE e.split = 'validation' AND h.id != ? AND e.cost_scenario NOT LIKE 'futures:%' ORDER BY h.id",
+        (hypothesis_id,)).fetchall()
+    return [r[0] for r in rows if family == r[1] or family.startswith(r[1])]
 
 
 # -- dry-run files -------------------------------------------------------------------------------------------------
@@ -123,7 +147,7 @@ def compose_name(hypothesis_id: str) -> str:
 
 
 def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: float, strategy_class: str,
-                            root: Path, image: str, wallet_quote: float) -> list[str]:
+                            root: Path, image: str, wallet_quote: float, lane: str = "spot") -> list[str]:
     """ONE overlay and ONE service for all the pairs (lab/forward.py, layout multi_pair).
 
     Same stake per trade as a one-pair bot with `wallet_quote`: Freqtrade's unlimited stake is
@@ -140,7 +164,7 @@ def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: floa
         "stake_amount": "unlimited",
         "tradable_balance_ratio": exposure,
         "dry_run_wallet": float(wallet_quote) * n,
-        "exchange": {"pair_whitelist": list(pairs)},
+        "exchange": {"pair_whitelist": [lanes.get(lane).pair(p) for p in pairs]},
     }
     path = root / forward.multi_overlay_path(hypothesis_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,7 +177,9 @@ def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: floa
         f"# (layout multi_pair, lab/forward.py): max_open_trades {n} and a {float(wallet_quote) * n:g} USDT paper wallet,\n"
         f"# so each pair trades {float(wallet_quote):g} x {exposure} per trade, as in its one-pair backtest. Base config\n"
         f"# first, the overlay changes only bot name, strategy, database, slots, wallet, exposure and pairs.\n"
-        f"# No API server, no exchange keys, no real money.\n"
+        + (f"# FUTURES lane (docs/faixa-futuros.md): {lanes.get(lane).config}, isolated margin, leverage 1x (the strategy may\n"
+           f"# not define leverage()), long and short. Dry-run only.\n" if lane != "spot" else "")
+        + f"# No API server, no exchange keys, no real money.\n"
         f"# Check the freeze first:  python research/tools/forward_freeze.py {hypothesis_id} --check\n"
         f"name: trading-lab-forward-{tag}\n\nservices:\n"
     )
@@ -166,7 +192,7 @@ def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: floa
         f"      - \"./user_data:/freqtrade/user_data\"\n"
         f"      - \"./forward:/freqtrade/forward:ro\"\n"
         f"    command: >-\n"
-        f"      trade --config /freqtrade/user_data/config.dryrun.json --config /freqtrade/{forward.multi_overlay_path(hypothesis_id)}\n"
+        f"      trade --config /freqtrade/user_data/{lanes.get(lane).config} --config /freqtrade/{forward.multi_overlay_path(hypothesis_id)}\n"
         f"      --strategy-path /freqtrade/user_data/strategies --logfile /freqtrade/user_data/logs/{name}.log\n"
     )
     (root / compose_name(hypothesis_id)).write_text(header + service, encoding="utf-8")
@@ -175,14 +201,17 @@ def _write_multi_pair_files(hypothesis_id: str, pairs: list[str], exposure: floa
 
 def write_forward_files(hypothesis_id: str, pairs: list[str], exposure: float, strategy_class: str,
                         root: Path = ROOT, image: str = "freqtradeorg/freqtrade:2026.9",
-                        wallet_quote: float = runner.BACKTEST_WALLET, layout: str = forward.MULTI_PAIR) -> list[str]:
+                        wallet_quote: float = runner.BACKTEST_WALLET, layout: str = forward.MULTI_PAIR,
+                        lane: str = "spot") -> list[str]:
     """The hypothesis' overlay(s) and its own compose file. Returns the paths.
 
     layout multi_pair (default for new bots): one overlay and one container for all the pairs.
     layout per_pair (every bot frozen up to 2026-11-10): one overlay and one service per pair, in the shape of the
     H-016 ones; its bytes are unchanged so the old freezes stay reproducible."""
     if layout == forward.MULTI_PAIR:
-        return _write_multi_pair_files(hypothesis_id, pairs, exposure, strategy_class, root, image, wallet_quote)
+        return _write_multi_pair_files(hypothesis_id, pairs, exposure, strategy_class, root, image, wallet_quote, lane)
+    if lane != "spot":
+        raise ValueError("the futures lane runs only the multi_pair layout")
     if layout != forward.PER_PAIR:
         raise ValueError(f"unknown forward layout {layout!r}")
     tag = forward.tag(hypothesis_id)
@@ -269,7 +298,8 @@ def freeze(conn, hypothesis_id: str, root: Path = ROOT) -> dict:
     # D1 (2026-11-13): the activity the bot's own exploration predicts, recorded before it runs (lab/activity.py).
     pairs = (frozen.get("bot") or {}).get("pairs") or list(frozen.get("exposure_by_pair") or {})
     try:
-        frozen["activity_expectation"] = activity.expectation_for(conn, hypothesis_id, pairs, root)
+        splits = runner.load_splits(lane="futures") if forward.is_futures(hypothesis_id, root) else None
+        frozen["activity_expectation"] = activity.expectation_for(conn, hypothesis_id, pairs, root, splits=splits)
     except (ValueError, OSError, KeyError) as error:
         frozen["activity_expectation"] = {"error": str(error)[:300]}
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,7 +371,9 @@ def run(conn, hypothesis_id: str, *, commit: Callable[[list[str], str], None], r
     registry.add_approval(conn, hypothesis_id=hypothesis_id, stage="dryrun", approved_by=ACTOR,
                           note=f"{note}; pairs {', '.join(passed)}"[:300], created_at_utc=_now())
     strategy = forward.find_strategy(hypothesis_id, root)
-    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root, wallet_quote=wallet, layout=layout)
+    lane = lanes.strategy_market(strategy)
+    files = write_forward_files(hypothesis_id, passed, exposure, strategy.stem, root, wallet_quote=wallet, layout=layout,
+                                **({} if lane == "spot" else {"lane": lane}))
     commit(files + [str(strategy.relative_to(root)).replace("\\", "/")],
            f"forward({hypothesis_id}): dry-run files written by the autopilot policy ({', '.join(passed)})")
     frozen = freeze(conn, hypothesis_id, root)

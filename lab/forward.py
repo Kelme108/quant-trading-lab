@@ -47,6 +47,12 @@ PAIR_KEYS = {"btc": "BTC/USDT", "eth": "ETH/USDT", "bnb": "BNB/USDT", "xrp": "XR
 LEGACY_KEYS = ("btc", "eth", "bnb")
 COMPOSE = "docker-compose.forward.yml"
 BASE_FILES = ("user_data/config.dryrun.json", "docker-compose.yml")
+FUTURES_CONFIG = "user_data/config.futures.dryrun.json"   # futures lane (lab/lanes.py): also hashed in its freezes
+
+
+def base_pair(pair: str) -> str:
+    """"BTC/USDT:USDT" (a futures pair) -> "BTC/USDT"; spot names are unchanged."""
+    return str(pair).split(":", 1)[0]
 LABEL = ("Dry-run como coleta de evidência: NÃO validada; sem evidência prospectiva; não é aprovação, não é holdout "
          "e não consome a leitura da validação.")
 RULES = (
@@ -152,7 +158,8 @@ def pair_keys(hypothesis_id: str, root: Path = ROOT) -> list[str]:
         return present
     if (root / multi_overlay_path(hypothesis_id)).is_file():
         whitelist = multi_overlay(hypothesis_id, root)["exchange"]["pair_whitelist"]
-        return [key for key, pair in PAIR_KEYS.items() if pair in whitelist]
+        bases = {base_pair(p) for p in whitelist}
+        return [key for key, pair in PAIR_KEYS.items() if pair in bases]
     return list(LEGACY_KEYS)
 
 
@@ -169,9 +176,18 @@ def tracked_files(hypothesis_id: str, root: Path = ROOT) -> list[str]:
     files = [str(find_strategy(hypothesis_id, root).relative_to(root)).replace("\\", "/"),
              compose_path(hypothesis_id, root), *BASE_FILES]
     if layout(hypothesis_id, root) == MULTI_PAIR:
+        if is_futures(hypothesis_id, root):
+            files.append(FUTURES_CONFIG)
         return files + [multi_overlay_path(hypothesis_id)]
     files += [overlay_path(hypothesis_id, key) for key in pair_keys(hypothesis_id, root)]
     return files
+
+
+def is_futures(hypothesis_id: str, root: Path = ROOT) -> bool:
+    """A multi-pair bot of the futures lane: its whitelist holds futures pair names."""
+    if not (root / multi_overlay_path(hypothesis_id)).is_file():
+        return False
+    return any(":" in str(p) for p in multi_overlay(hypothesis_id, root)["exchange"]["pair_whitelist"])
 
 
 def _git(args: list[str], root: Path) -> str:
@@ -287,7 +303,7 @@ def read_database(db: Path, pair: str | None = None) -> tuple[list[dict], list[d
     finally:
         conn.close()
     if pair is not None:
-        trades = [t for t in trades if t.get("pair") == pair]
+        trades = [t for t in trades if base_pair(t.get("pair") or "") == base_pair(pair)]
         ids = {t.get("id") for t in trades}
         orders = [o for o in orders if o.get("ft_trade_id") in ids]
     return trades, orders
@@ -333,9 +349,11 @@ def execution_quality(trades: list[dict], orders: list[dict], scenario: str = "b
     entry_slip, exit_slip, fee_open, fee_close = [], [], [], []
     for t in trades:
         if t.get("open_rate") and t.get("open_rate_requested"):
-            entry_slip.append(t["open_rate"] / t["open_rate_requested"] - 1.0)
+            sign = -1.0 if t.get("is_short") else 1.0      # a short is filled better at a HIGHER entry price
+            entry_slip.append(sign * (t["open_rate"] / t["open_rate_requested"] - 1.0))
         if not t.get("is_open") and t.get("close_rate") and t.get("close_rate_requested"):
-            exit_slip.append(1.0 - t["close_rate"] / t["close_rate_requested"])
+            sign = -1.0 if t.get("is_short") else 1.0      # and better at a LOWER exit price
+            exit_slip.append(sign * (1.0 - t["close_rate"] / t["close_rate_requested"]))
         if t.get("fee_open") is not None:
             fee_open.append(float(t["fee_open"]))
         if not t.get("is_open") and t.get("fee_close") is not None:

@@ -32,6 +32,11 @@ REQUIRED_KEYS = (
     "data_visible_at_proposal",
 )
 
+# Optional: the market lane (lab/lanes.py, docs/faixa-futuros.md). Absent = "spot", as every proposal before 2026-11-13.
+OPTIONAL_KEYS = ("market",)
+MARKETS = ("spot", "futures")
+SHORT_SIDE = re.compile(r"short\s*(side|entry|entries|rule|leg)?\s*:", re.IGNORECASE)
+
 WARMUP = re.compile(r"warm-?up\s*:?\s*(\d[\d,._]*)\s*(?:bars|candles)", re.IGNORECASE)
 FAMILY = re.compile(r"^[A-Za-z][A-Za-z0-9]{2,39}$")
 HYPOTHESIS_ID = re.compile(r"^H-\d{3}$")
@@ -75,7 +80,7 @@ def validate_proposal(
     """Every problem found; an empty list means the proposal is acceptable."""
     errors: list[str] = []
 
-    unknown = sorted(set(proposal) - set(REQUIRED_KEYS))
+    unknown = sorted(set(proposal) - set(REQUIRED_KEYS) - set(OPTIONAL_KEYS))
     if unknown:
         errors.append(f"unknown key(s): {unknown}")
     missing = [key for key in REQUIRED_KEYS if key not in proposal]
@@ -124,6 +129,13 @@ def validate_proposal(
         for name, value in parameters.items():
             if isinstance(value, int) and not isinstance(value, bool) and value > MAX_STARTUP_CANDLES:
                 errors.append(f"parameter '{name}' = {value} is above {MAX_STARTUP_CANDLES} bars; Freqtrade cannot load that much 1h history")
+
+    market = proposal.get("market", "spot")
+    if market not in MARKETS:
+        errors.append(f"market must be one of {list(MARKETS)}")
+    elif market == "futures" and not SHORT_SIDE.search(rule):
+        errors.append("a futures proposal must state its short side in ex_ante_rule as 'Short side: ...' "
+                      "(the exact short rule, or 'Short side: none' for a long-only futures rule)")
 
     if proposal["timeframe"] not in enabled_timeframes:
         errors.append(f"timeframe must be one of {enabled_timeframes}")

@@ -11,6 +11,10 @@ rebuilt here, mark-to-market on the hourly closes:
 By construction the account equity after a trade equals E0 * (1 + w * profit_ratio) with the exported net
 profit_ratio, so the curve compounds exactly like the backtest (tested). Trades must not overlap (the lab runs one
 position per pair). Nothing is re-simulated: this only reads what Freqtrade exported.
+
+Futures lane (lab/lanes.py): a SHORT is marked as 2 - close/open_rate/(1-f) during the trade, and a trade that is short
+or paid funding exits at exactly 1 + profit_ratio (the exported ratio already holds the fees and the funding), so the
+same identity holds. Spot trades are computed exactly as before.
 """
 
 from __future__ import annotations
@@ -41,9 +45,15 @@ def equity_curve(trades: list[dict], hourly: pd.DataFrame, *, exposure: float = 
         x = min(max(x, e), len(frame) - 1)
         equity[cursor:e] = balance
         open_rate, close_rate = float(trade["open_rate"]), float(trade["close_rate"])
+        short = bool(trade.get("is_short"))
+        exact_exit = short or float(trade.get("funding_fees") or 0.0) != 0.0
         for i in range(e, x + 1):
-            if i == x:
+            if i == x and exact_exit:
+                value = 1.0 + float(trade["profit_ratio"])
+            elif i == x:
                 value = close_rate / open_rate * (1.0 - fee_per_side) / (1.0 + fee_per_side)
+            elif short:
+                value = 2.0 - closes[i] / open_rate / (1.0 - fee_per_side)
             else:
                 value = closes[i] / open_rate / (1.0 + fee_per_side)
             equity[i] = balance * (1.0 - exposure + exposure * value)
