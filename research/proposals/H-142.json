@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-142",
+  "family": "MondayAsiaOpenTrend",
+  "title": "Monday Asia-open trend window on 15m: prior 8-hour-high breakouts on Monday UTC only, flat by Monday end",
+  "ex_ante_rule": "Chart: 15m, UTC clock, closed candles only; a signal at a bar close fills at the open of the next 15m bar. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks. Weekday = day of week of the bar OPEN time in UTC (Monday = 0).\nINDICATORS (all on 15m): HH32(t) = highest high of the 32 bars t-32..t-1 (the 8 hours before bar t, bar t excluded; on the first Monday bars this covers Sunday 16:00-23:45 UTC). ATR14(t) = Wilder ATR(14) of the 15m bars (talib ATR, period 14). NATR(t) = ATR14(t) / close(t).\nWINDOW: entry signals only on bars whose open time is Monday 00:00 through Monday 23:30 UTC (a signal on the Monday 23:45 bar would fill at Tuesday 00:00, the forced exit time, so it is excluded). No entries on any other day.\nENTRY (long), on the close of bar t inside the window when ALL hold: (1) close(t) > HH32(t); (2) activity filter (volatility): NATR(t) >= 0.004 (0.4%); (3) no open position on the pair; (4) fewer than 3 entries already made on this pair on this Monday (UTC date); (5) bar t is after the bar on which the previous trade of this pair exited (re-entry needs a new close above the then-current HH32). Buy at the open of bar t+1.\nEXITS (first that occurs): take-profit at entry price x 1.018 (+1.8%, intrabar, e.g. minimal_roi {\"0\": 0.018}); stop-loss fixed 1.0% below the entry price (stoploss = -0.01, the engine's native intrabar stop, no trailing); time exit: exit signal on the close of the bar whose open is Monday 23:45 UTC (fill at the Tuesday 00:00 open), or on the close of the 48th 15m bar after entry (12 hours after the entry fill), whichever comes first. No exit indicator otherwise. No other filters, no cooldown beyond conditions (3)-(5).\nEvery position is closed within 12 hours and never held past Tuesday 00:00 UTC. Missing bars: if any of the 32 bars of HH32 or the ATR is missing/NaN, no signal.\nWarm-up: 400 bars (longest lookback 32 bars; Wilder ATR(14) is recursive, so 400 bars, about 4 days of 15m, are reserved for convergence; startup_candle_count = 400, under the 4500 limit).",
+  "parameters": {
+    "timeframe": "15m",
+    "window_weekday_utc": "Monday",
+    "window_first_signal_bar_open_utc": "00:00",
+    "window_last_signal_bar_open_utc": "23:30",
+    "forced_exit_bar_open_utc": "Monday 23:45 (fill Tuesday 00:00)",
+    "breakout_lookback_bars": 32,
+    "atr_period": 14,
+    "natr_min": 0.004,
+    "max_entries_per_pair_per_monday": 3,
+    "take_profit_pct": 1.8,
+    "stop_loss_pct": 1.0,
+    "max_hold_bars": 48,
+    "max_hold_hours": 12,
+    "warmup_bars": 400
+  },
+  "rationale": "Concretum Group report that an intraday Bitcoin trend benchmark (2018-2025) earns strongly from about Sunday 19:00 New York time through Monday, aligned with the Tokyo cash open (Monday 00:00 UTC, no daylight saving), and is weak in choppy Sunday daytime; the effect is much stronger after mid-2020. Their explanation: fresh Asian liquidity and start-of-week repositioning are executed gradually over hours, like equity rebalancing, so order flow is serially correlated. Who pays: start-of-week rebalancers and late buyers who accumulate in pieces into a move already under way; a close above the prior 8-hour high (which spans the Sunday-evening range) marks that the repositioning has started in the up direction. The volatility filter (15m NATR >= 0.4%, the lab's pre-approved threshold, not scanned) keeps only Mondays where a 1-2% intraday move is plausible, since the lab's data show ordinary bars move about 0.1%. Cost: the 1.0% stop makes the 0.30% base round trip 0.3R; with the +1.8% target, a target-hit share near half plus positive time exits gives an expected mean gross of roughly +0.4-0.6% per trade, above the 0.30% base cost but thin against the 0.45% conservative one. Expected frequency: 52 Mondays x about 1.5 entries (max 3) x share of Mondays passing the volatility filter, so roughly 40-75 trades per year per pair, bursty (all on Mondays), below the owner's 100+ goal; acceptable under decision D1 (bursty rules are compared with their own exploration). Falling markets: long only, so on down-trending Mondays fewer upside breakouts trigger and each failure costs about 1.3% after cost; no regime filter is added because the idea is formalised as written. The source gives no trading rule or return figures for this window; the breakout trigger, 8-hour lookback and bracket are the scout's, fixed in advance.",
+  "novelty_vs_tried": "MondayEffectLong (H-029) bought every Monday 00:00 open unconditionally (daily SMA50 filter) and held 24h with a 3% stop: a pure calendar hold, no intraday trigger. WeekendDaytimeSession (H-039) held weekend 13:00-21:00 UTC. SessionOpeningRangeBreakout (H-034/069/092) broke the first minutes of a daily session every day, with narrow ranges. HourlyWilliamsVolBreakout and DailyNR7Breakout use daily-range breakouts on every day. H-142 is the only rule that confines a trend-breakout trigger to the one documented weekly window (Monday Asia open, post-Sunday-evening), with a prior 8-hour high (not a session opening range), a volatility gate, a 1%/1.8% bracket and a 12-hour cap; it trades no other day.",
+  "sources": [
+    {
+      "title": "Seasonality in Bitcoin Intraday Trend Trading (Concretum Group)",
+      "url": "https://concretumgroup.com/seasonality-in-bitcoin-intraday-trend-trading/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No candle data opened; only the exploration-only digest and tried-rules list in research/context/H-142.md (exploration split ends 2024-07-04) and the Concretum article text.",
+  "market": "spot"
+}
