@@ -1,0 +1,36 @@
+{
+  "hypothesis_id": "H-138",
+  "family": "GreatestSwingValue",
+  "title": "Williams Greatest Swing Value breakout on 8-hour UTC sessions, 15m entry, flat at session end",
+  "ex_ante_rule": "Chart 15m, closed bars only, all times UTC; signal at a bar's close, order at the next bar's open. Spot, long only, one position, whole allowed balance. SESSIONS: fixed 8h blocks starting 00:00, 08:00 and 16:00 UTC; each session has 32 15m bars (offsets 0..31, offset k opens at session start + 15*k minutes). Session candle of a completed session: open = open of its first 15m bar, high = max high, low = min low, close = close of its last 15m bar (built from the 15m bars present in the block). NOISE of a completed session candle: if close > open, NOISE = open - low; if close < open, NOISE = high - open; if close = open, NOISE = min(open - low, high - open). AvgNoise = simple mean of NOISE over the last 10 completed session candles (the current session excluded). GSV = 2 x AvgNoise, fixed for the whole session at its start. O = open of the session's first 15m bar. LEVEL_UP = O + GSV; LEVEL_DN = O - GSV. ARMED: the session is tradable only if GSV / O >= 0.008. FILTER (higher-timeframe direction, the only filter): the close of the last COMPLETED 4h candle (4h candles start 00:00, 04:00, ... UTC, merged with merge_informative_pair so only closed 4h bars are visible at the signal bar's close) > SMA(50) of 4h closes. ENTRY: on a 15m bar of an armed session with offset 0..27 (its close is at least 1h before the session end), signal when ALL hold: bar close > LEVEL_UP; FILTER true at that bar; no open position; no entry already made in this session. Buy at the next 15m bar's open. At most one entry per session; no re-entry in the same session after any exit. EXIT, whichever comes first: (a) GSV exit: a 15m bar after entry closes < LEVEL_DN of the entry session -> sell at the next bar's open; (b) time exit: the session's last 15m bar (offset 31, opening at session start + 7h45m) gives the exit signal at its close, so the position is sold at the next bar's open, which is the session boundary (max hold under 8h); (c) native fixed stop-loss 3% below the entry price (intrabar), the engine-required fixed protection against moves between closed-bar checks (the GSV exit level sits about 2 x GSV >= 1.6% below entry). No take-profit, no trailing stop, no cooldown beyond the once-per-session rule, no pyramiding, no other filters. Warm-up: 900 bars (800 15m bars for SMA(50) of 4h closes + 16 bars for the completed-4h lag + margin; the 10-session noise average needs 352 bars).",
+  "parameters": {
+    "timeframe": "15m",
+    "session_hours": 8,
+    "session_starts_utc": "00:00,08:00,16:00",
+    "bars_per_session": 32,
+    "noise_lookback_sessions": 10,
+    "gsv_multiple": 2,
+    "min_gsv_to_open": 0.008,
+    "last_entry_signal_offset": 27,
+    "htf_timeframe": "4h",
+    "htf_sma_length": 50,
+    "stoploss_pct": 0.03,
+    "max_entries_per_session": 1,
+    "time_exit_signal_offset": 31,
+    "startup_candle_count": 900
+  },
+  "rationale": "Larry Williams' Greatest Swing Value measures how far price typically swings AGAINST a period's eventual direction (the failed counter-swing: open-low on up periods, high-open on down periods). A move from the session open larger than twice that typical noise is unlikely to be ordinary two-way liquidity churn; it marks initiative buying, and the late buyers plus stopped-out sellers who chased the wrong side keep pushing price within the same session (the intraday time-series momentum documented by Shen, Urquhart and Wang for Bitcoin, strongest when the session moves a lot). The counterparties are liquidity providers and faders who sell the first leg as noise. The ARMED test (GSV/O >= 0.8%) makes the rule trade only when typical noise is large, so the absolute move per trade can beat the cost: the breakout already requires a move of at least 0.8% from the open, the GSV exit sits about 2 x GSV >= 1.6% below entry, so the 0.30% round trip is under 0.2R. The 4h close > SMA(50) filter keeps the long-only rule out of falling markets, the failure mode of every long-only momentum rule of the lab in 2022-2024. Expected activity: about 1095 sessions a year, most armed on alts and fewer on BTC/TRX; a close beyond 2x noise in the first 7h on perhaps 15-25% of them, about half passing the trend filter: roughly 80-150 trades per year per pair. Expected gross move about 0.5-0.6% per trade (no target, so session-end extensions of 1-2% carry the average); this is an expectation, not a result. Source: Oxford Strat's description of Williams' GSV (10-bar average noise, multiple 2, buy stop at open + GSV, exit at open - GSV).",
+  "novelty_vs_tried": "It shares the open-anchored volatility-breakout skeleton with H-043/H-104 (HourlyWilliamsVolBreakout), which came closest on the day-trade scoreboard (0.54% gross), but the trigger is structurally different: H-043 uses 0.6 x the prior day's full high-low range on 24h UTC days; this rule uses the counter-swing noise (open-to-adverse-extreme, conditional on the period's close direction), averaged over 10 periods and doubled, on 8h sessions, giving up to three attempts a day on a 15m chart, with the stop level tied to the same noise measure below the open. It is not an opening-range bracket (no first-N-minutes range), not a Keltner/ATR band and not a squeeze; no existing family measures failed counter-swings.",
+  "sources": [
+    {
+      "title": "Oxford Strat: Greatest Swing Value (GSV) strategy by Larry Williams",
+      "url": "https://oxfordstrat.com/?p=6896"
+    },
+    {
+      "title": "Shen, Urquhart and Wang, Bitcoin intraday time-series momentum (Financial Review, 2022)",
+      "url": "https://centaur.reading.ac.uk/100181"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the lab's exploration digest in research/context/H-138.md (exploration splits, ending 2024-07-04) and the Oxford Strat page."
+}
