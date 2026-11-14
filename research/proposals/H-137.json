@@ -1,0 +1,35 @@
+{
+  "hypothesis_id": "H-137",
+  "family": "MacroReleaseResolution",
+  "title": "US 08:30 ET macro-release spike: buy the first post-shakeout 15m close above the release-bar high, 1.5R or 8h",
+  "ex_ante_rule": "Chart 15m (idea I-131 is defined on 15m bars; no higher-timeframe input), closed bars only, bar time = bar open time; a signal at the close of bar t fills at the open of bar t+1 (fill bar e, price P). Spot, long only, one open position per pair, whole allowed balance, no pyramiding, same rule and numbers on every enabled pair, single grid cell. Warm-up: 3000 bars (longest lookback: 20 earlier weekday release bars span about 28 calendar days = 2688 15m bars; 3000 leaves room for missing days; no recursive indicators). CLOCK: convert each bar's UTC open time to America/New_York local time with DST (zoneinfo; 08:30 NY = 12:30 UTC in summer time, 13:30 UTC in winter time). Monday-Friday NY dates only. RELEASE BAR E = the 15m bar whose NY open time is 08:30 on a weekday; range(E) = high(E) - low(E). BASELINE(E) = median of (high - low) of the 08:30 NY bars of the 20 most recent EARLIER weekdays present in the data within the 2900 bars before E (E itself excluded); if fewer than 20 such bars exist, that day has no event. EVENT if range(E) >= 3.0 x BASELINE(E) AND range(E) / open(E) >= 0.008 (the single activity filter, volatility expansion, fixed in advance; no other filter). SHAKEOUT: no action on E itself. ENTRY WINDOW: the 8 bars after E, NY open times 08:45 through 10:30 of the same day. Entry signal at the close of the FIRST bar t in that window with close(t) > high(E); only the first such bar counts (if the pair is not flat then, no trade that day); at most one trade per pair per NY day. Buy at open(t+1) = P. Store low(E) in the enter_tag. STOP: stop price S = min(low(E), 0.99 x P), i.e. d = max(1 - low(E)/P, 0.01), computed at the fill and frozen; a fixed percentage d below P, triggered intrabar as soon as the low touches S (custom_stoploss returning d; native stoploss -0.20 only as engine backstop). TARGET: T = P + 1.5 x (P - S) = P x (1 + 1.5 x d), sold at T as soon as a bar's high reaches it (at the open if a bar opens above T). If stop and target are touched in the same bar, the stop counts. TIME EXIT: the fill bar e is bar 1; exit signal at the close of bar e+31 (the 32nd 15m bar of the trade), sold at the open of e+32, i.e. 8 hours after the fill. First of stop, target, time wins. No trailing stop, no break-even move, no cooldown beyond one trade per day, no event calendar (the spike marks the event), no other filters or exits.",
+  "parameters": {
+    "timeframe": "15m",
+    "timezone": "America/New_York",
+    "release_bar_ny_time": "08:30",
+    "weekdays_only": "Mon-Fri",
+    "baseline_weekdays": 20,
+    "baseline_search_bars": 2900,
+    "baseline_statistic": "median",
+    "range_vs_baseline_min": 3.0,
+    "range_over_open_min": 0.008,
+    "entry_window_bars": 8,
+    "max_trades_per_day": 1,
+    "stop_floor_pct": 0.01,
+    "target_r_multiple": 1.5,
+    "time_exit_bars": 32,
+    "native_backstop_stoploss": -0.2,
+    "startup_candle_count": 3000
+  },
+  "rationale": "Scheduled US releases at 08:30 New York (CPI, payrolls, PPI, retail sales, jobless claims) reprice risk assets, and crypto reacts within minutes. The release bar is typically a two-sided whipsaw in thin liquidity, running stops on both sides; LuxAlgo's event-driven volatility page notes the first move is often wrong and that event traders wait for the shakeout to resolve and trade the level that holds. A 15m close above the release-bar high within the next two hours says the news has been resolved upward: the counterparties are traders who faded the spike and must cover, and slower participants (the US equity cash open at 09:30 NY falls inside the window) who reposition for hours. The trigger is rare and only fires on genuine activity: the release bar must be 3x its own 20-day median and at least 0.8% wide, so the stop sits at least 1% away (cost 0.30% <= 0.3R) and the 1.5R target is 1.5-3%+. Expected frequency: big 08:30 surprises that pass both filters and then resolve upward, roughly 10-25 trades per year per pair, bursty around CPI/NFP days, many pairs firing on the same days. Expected gross move about 0.6% per trade (event days carry 2-3x normal volatility; win ~45% at 1.5R with R>=1% gives ~+0.5-0.8%). In falling markets the rule only buys after an upward resolution and stands aside when the release resolves down; it is long-only spot and may still give back in bear years. Frequency is below the owner's 40/yr target; I formalise the scout's idea unchanged as instructed.",
+  "novelty_vs_tried": "No earlier hypothesis uses the US macro-release clock (08:30 New York with DST) or a same-slot release-bar volatility baseline. H-034/H-069/H-092 (SessionOpeningRangeBreakout) bracket fixed UTC session opens every day with no event condition; H-036 (USOpenVolumeContinuation) trades the 13:30 UTC equity open on volume; H-060/H-064 (SameSlotPeriodicity) use the same slot as a return signal. Here the slot is only a clock: a trade needs an abnormal release bar (3x its 20-weekday median and >= 0.8% wide), a shakeout wait, and a close above the release-bar high, with the stop at the release-bar low floored at 1% so cost stays under 0.3R.",
+  "sources": [
+    {
+      "title": "LuxAlgo Library: Event-driven Volatility",
+      "url": "https://www.luxalgo.com/library/concept/event-driven-volatility/"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data inspected; only the context file research/context/H-137.md (exploration summaries of earlier hypotheses through 2026-11-14) and the LuxAlgo page.",
+  "market": "spot"
+}
