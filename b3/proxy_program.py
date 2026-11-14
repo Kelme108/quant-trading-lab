@@ -77,7 +77,8 @@ def status(today: date | None = None, *, program: dict | None = None, props: lis
     props = proposals() if props is None else props
     ledger = ledger_rows() if ledger is None else ledger
     first = _num(cfg["first_counted_rule"])
-    counted = [p for p in props if _num(p["rule_id"]) >= first and p.get("status") != "invalid"]
+    # only rules that were registered and run count; invalid, failed or interrupted proposals never read any data
+    counted = [p for p in props if _num(p["rule_id"]) >= first and p.get("status") == "registered"]
     ids = {p["rule_id"] for p in counted}
     monday = today - timedelta(days=today.weekday())
     week = sum(1 for p in counted if p.get("registered_at_utc")

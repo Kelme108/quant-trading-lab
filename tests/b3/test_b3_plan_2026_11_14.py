@@ -250,6 +250,30 @@ def test_context_has_exploration_only(tmp_path, monkeypatch):
     assert "validation" not in text.lower().replace("validation pass", "")
 
 
+def test_errored_and_failed_proposals_do_not_count():
+    props = _props(3, "2026-11-17")
+    props[0]["status"], props[1]["status"] = "error", "implementation_failed"
+    st = prog.status(date(2026, 11, 18), program=_program(), props=props, ledger=[])
+    assert st.counted_rules == ["P-010"] and st.registered_this_week == 1
+
+
+def test_two_cycle_errors_in_a_row_pause_the_pipeline(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipe, "LOG", tmp_path / "log.jsonl")
+    monkeypatch.setattr(pipe, "STOP_FILE", tmp_path / "STOP")
+    monkeypatch.setattr(prog, "PROPOSALS", tmp_path)
+    (tmp_path / "P-009.json").write_text(json.dumps({"rule_id": "P-009"}), encoding="utf-8")
+    pipe.CURRENT["rule"] = "P-009"
+    pipe.after_error(RuntimeError("boom"))
+    assert json.loads((tmp_path / "P-009.json").read_text(encoding="utf-8"))["status"] == "error"
+    assert not (tmp_path / "STOP").exists()
+    pipe.log("cycle_end", outcome="done")
+    pipe.after_error(RuntimeError("boom"))
+    assert not (tmp_path / "STOP").exists()                        # not two in a row
+    pipe.after_error(RuntimeError("boom again"))
+    assert "boom again" in (tmp_path / "STOP").read_text(encoding="utf-8")
+    pipe.CURRENT.clear()
+
+
 # ---- pipeline guard ------------------------------------------------------------------------------
 
 def test_guard_rejects_files_outside_the_allowed_set(monkeypatch):

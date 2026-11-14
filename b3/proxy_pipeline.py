@@ -149,6 +149,33 @@ def commit(paths: list[str], message: str) -> None:
     commit_paths(ROOT, paths, message + TRAILER)
 
 
+CURRENT: dict = {}
+MAX_CONSECUTIVE_ERRORS = 2
+
+
+def after_error(error: Exception) -> None:
+    """Unattended runs: mark an interrupted proposal (it read no data and does not count) and, after
+    MAX_CONSECUTIVE_ERRORS errors in a row, create the pause file so a broken cycle never loops on agent spend."""
+    rid = CURRENT.get("rule")
+    path = prog.PROPOSALS / f"{rid}.json" if rid else None
+    if path and path.exists():
+        try:
+            p = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            p = {"rule_id": rid}
+        if p.get("status") is None:
+            p |= {"status": "error", "problems": [str(error)[:500]]}
+            path.write_text(json.dumps(p, indent=1, ensure_ascii=False), encoding="utf-8")
+    log("cycle_error", rule=rid, error=str(error))
+    ends = [json.loads(x)["event"] for x in LOG.read_text(encoding="utf-8").splitlines()
+            if x.strip() and json.loads(x)["event"] in ("cycle_error", "cycle_end")]
+    if ends[-MAX_CONSECUTIVE_ERRORS:] == ["cycle_error"] * MAX_CONSECUTIVE_ERRORS:
+        STOP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STOP_FILE.write_text(f"paused automatically {datetime.now(timezone.utc).isoformat()} after "
+                             f"{MAX_CONSECUTIVE_ERRORS} cycle errors in a row; last: {error}\n", encoding="utf-8")
+        log("paused", reason=f"{MAX_CONSECUTIVE_ERRORS} consecutive cycle errors", stop_file=str(STOP_FILE))
+
+
 def cycle() -> str:
     cfg = prog.load_program()
     st = prog.status(program=cfg)
@@ -156,6 +183,7 @@ def cycle() -> str:
         log("program_stop", reasons=st.reasons, notices=st.notices)
         return "stopped"
     rid = prog.next_rule_id()
+    CURRENT["rule"] = rid
     ctx = prog.write_context(rid, st, cfg)
     out = prog.PROPOSALS / f"{rid}.json"
     rel = lambda p: p.relative_to(ROOT).as_posix()  # noqa: E731
@@ -246,11 +274,14 @@ def main(argv=None) -> int:
     try:
         os.write(fd, str(os.getpid()).encode())
         for _ in range(a.max):
+            CURRENT.clear()
             try:
                 outcome = cycle()
-            except CycleError as e:
-                log("cycle_error", error=str(e))
+            except Exception as e:                       # any failure: record, maybe pause, never retry here
+                after_error(e)
                 return 1
+            if outcome != "stopped":
+                log("cycle_end", rule=CURRENT.get("rule"), outcome=outcome)
             if outcome == "stopped":
                 break
         return 0
