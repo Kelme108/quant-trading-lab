@@ -1,0 +1,18 @@
+{
+  "title": "Hourly cross-sectional momentum: buy the 4-hour leaders of the 26 pairs on volume, 2% target, 12h cap",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/eee/riibaf/v52y2020ics0275531919308062.html",
+    "title": "High frequency momentum trading with cryptocurrencies (Chu, Chan and Zhang, Research in International Business and Finance 52, 2020)",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 1h candles of all 26 pairs, aligned on the same timestamps; signal at a bar close, order at the next bar open. All signals are hourly. CHECK TIMES: the closes of the 03:00, 07:00, 11:00, 15:00, 19:00 and 23:00 UTC bars (every 4 hours). At a check, for every pair r4 = close(t)/close(t-4) - 1 (last 4 hourly bars). Rank the 26 pairs by r4, highest first. ENTRY for pair i when ALL hold: rank of i <= 5; r4(i) >= +1.5%; activity filter (volume): mean volume of the last 4 bars of i >= 1.5 x mean volume of i over the 120 bars before them (5 days); no open position in i. EXIT (first that occurs): take-profit +2.0% above entry (intrabar); stop -1.2% below entry (intrabar); at the next check, exit unless pair i again has rank <= 5 and r4 >= +1.5%, in which case hold to the following check; at any check exit if rank > 10; hard time exit 12 bars (12 hours) after entry. One position per pair, no re-entry until the next check after an exit.",
+  "mechanism": "Chu, Chan and Zhang test time-series and cross-sectional momentum at high frequency on the largest coins; Wen et al. (2022) explain intraday crypto momentum by late-informed investors. Who pays: late buyers drawn by exchange top-gainer lists and social attention hours after the move started. Only leaders with a 4h move of at least 1.5% on 1.5x volume qualify, pairs already moving 2-4% per 4h; the 2.0% target and 1.2% stop give an average absolute exit near 1.5%, and about 55% of brackets reaching the target gives a mean gross near +0.5%, above the 0.30% round trip. In falling markets few leaders clear the bar, so the rule stands aside. Unlike I-065 (daily ranking) and I-108 (volume leader), it ranks intraday returns and exits within the day.",
+  "timeframe": "1h",
+  "longest_lookback": 124,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "IntradayCrossSectionalMomentum"
+}

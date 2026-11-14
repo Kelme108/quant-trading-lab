@@ -1,0 +1,18 @@
+{
+  "title": "Monday Asia-open trend window on 15m: 8-hour-high breakouts only from Monday 00:00 UTC, flat by Monday end",
+  "source": {
+    "type": "blog",
+    "url": "https://concretumgroup.com/seasonality-in-bitcoin-intraday-trend-trading/",
+    "title": "Seasonality in Bitcoin Intraday Trend Trading (Concretum Group)",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 15m candles, UTC clock; signal at a bar close, order at the next bar open. All signals are on 15m. WINDOW: bars that open from Monday 00:00 UTC (the Tokyo open, 09:00 Tokyo time, which has no daylight saving) to Monday 23:45 UTC. ENTRY inside the window when ALL hold: close(t) > highest high of the 32 bars before t (the prior 8 hours, which spans the Sunday-evening range on the first bars); activity filter (volatility): ATR(14)/close of the 15m bars >= 0.4%; no open position. Re-entry after an exit is allowed on a new breakout, at most 3 entries per pair per Monday. EXIT (first that occurs): take-profit +1.8% above entry (intrabar); stop 1.0% below entry (intrabar); time exit at the close of the Monday 23:45 UTC bar, and never later than 12 hours after entry. No trades outside the window.",
+  "mechanism": "Concretum report that an intraday Bitcoin trend benchmark earns mostly from about 7-8 pm New York time on Sunday through Monday, timed with the Tokyo open, and loses on choppy Sunday mornings; stronger after mid-2020. They suggest fresh Asian liquidity and start-of-week repositioning arrive in pieces over hours, so order flow is serially correlated. Who pays: start-of-week rebalancers buying gradually into the move. The rule takes trend entries only in that window. The 1.0% stop keeps cost under 0.3R; with the 1.8% target, about half the brackets reaching the target plus positive time exits give a mean gross near +0.5%. Unlike MondayEffectLong (I-012), it needs a breakout trigger. About 1.5 trades per Monday per pair, below the frequency goal.",
+  "timeframe": "15m",
+  "longest_lookback": 32,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 80,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "MondayAsiaOpenTrend"
+}

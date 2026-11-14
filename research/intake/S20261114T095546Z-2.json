@@ -1,0 +1,18 @@
+{
+  "title": "Idiosyncratic alt surge while BTC is flat on 15m: volume-backed coin-specific move continuation, 12h cap",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/eee/ecofin/v62y2022ics1062940822000833.html",
+    "title": "Intraday return predictability in the cryptocurrency markets: Momentum, reversal, or both (Wen, Bouri, Xu and Zhao, North American Journal of Economics and Finance 62, 2022)",
+    "license": "unknown"
+  },
+  "rule_summary": "Closed 15m candles; signal at a bar close, order at the next bar open. BTC/USDT is the market reference and is not traded; the rule trades the other 25 pairs. All signals are on 15m. For pair i at bar t: r16(i) = close(t)/close(t-16) - 1 (last 4 hours); r16(BTC) the same for BTC on the same timestamp; resid = r16(i) - r16(BTC). ENTRY when ALL hold: resid >= +2.0%; absolute r16(BTC) <= 0.75% (the market is quiet, so the move is coin-specific); activity filter (volume): volume of bar t >= 1.5 x mean volume of the 96 bars before it (24 hours); close location (close - low)/(high - low) of bar t >= 0.7 (bars with high = low are skipped); no open position in i; at least 8 bars since the last exit in i. EXIT (first that occurs): take-profit +2.5% above entry (intrabar); stop 1.25% below entry (intrabar); time exit at the close of the 48th bar after entry (12 hours).",
+  "mechanism": "Wen et al. find intraday momentum in crypto and attribute it to late-informed investors. Coin-specific news (listings, upgrades, unlocks) spreads over hours; requiring BTC to be flat separates news-driven moves from market beta. Who pays: holders who sell into the first leg and late buyers who arrive afterwards. The lab's residual REVERSAL rule (I-058/H-072, buying idiosyncratic drops) had negative gross, a hint that residual moves continue; this tests that side. The 2.5% target and 1.25% stop on alts already up at least 2% in 4h give an average absolute exit near 1.7%; about 47% of brackets reaching the target gives a mean gross near +0.5%, above the 0.30% round trip. In a market-wide selloff BTC is rarely flat while an alt surges, so the rule stands aside.",
+  "timeframe": "15m",
+  "longest_lookback": 96,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "IdiosyncraticSurgeMomentum"
+}
