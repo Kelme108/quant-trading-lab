@@ -32,6 +32,18 @@ class B3Cost:
     # Share of the traded notional paid per side (0.0001 = 0.01%). Zero for WIN and WDO, whose costs are fixed BRL per
     # contract; used by the proxy markets (b3/markets.py), whose costs are quoted as a share of the price.
     notional_frac_per_side: float = 0.0
+    # Extra adverse move on a STOP fill, as a share of the fill price (0.00005 = 0.005%). A stop is a market order
+    # sent when the price touches it; in the ticks the price jumps past it (research/proxies/tick_fidelity.json:
+    # p99 jump 0.009-0.013% on the index CFDs), while the bar replay fills exactly at the stop. Owner decision
+    # 2026-11-14 (review 2026-11-14-veredito-1m-5m, option a). Zero for WIN/WDO, whose stops already pay
+    # `slippage_ticks_per_side`.
+    stop_slippage_frac: float = 0.0
+
+    def stop_fill(self, touched: float, side: str, tick_size: float) -> float:
+        """Price of a stop fill: the touched price (stop, or the open when the bar gapped through it) moved against
+        the position by the slippage ticks and by `stop_slippage_frac`. `side` is the position's side."""
+        extra = self.slippage_ticks_per_side * tick_size + self.stop_slippage_frac * touched
+        return touched - extra if side == "long" else touched + extra
 
     def cash_cost(self, inst: Instrument, price: float, contracts: float = 1.0) -> float:
         """Cash paid on one side of a fill: fixed fees per contract plus the share of the notional."""

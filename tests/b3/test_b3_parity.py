@@ -2,6 +2,7 @@
 same fills on the same bars: same times, sides, prices, PnL and reasons. Long-only, because the
 live engine does not short yet (plan F3)."""
 
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -24,7 +25,8 @@ SPEC = SymbolSpec(SYMBOL, tick_size=5.0, tick_value=1.0)
 def engine_fills(tmp_path, frame, strategy, cost, risk: RiskConfig):
     bars = to_bars(frame)
     clock = FakeClock(bars[0].time)
-    broker = PaperBroker(clock, {SYMBOL: SPEC}, PaperConfig(cost.cash_per_side_brl, cost.slippage_ticks_per_side))
+    broker = PaperBroker(clock, {SYMBOL: SPEC}, PaperConfig(cost.cash_per_side_brl, cost.slippage_ticks_per_side,
+                                                            stop_slippage_frac=cost.stop_slippage_frac))
     broker.load_bars(SYMBOL, bars, TF)
     journal = Journal(":memory:", clock, strategy.name)
     engine = Engine(broker, strategy, clock, strategy.calendar, journal, RiskManager(risk),
@@ -65,6 +67,25 @@ def test_backtest_equals_live_engine_without_account_limits(tmp_path, seed):
     res, bt = backtest_fills(frame, strategy, cost, BacktestConfig(allow_short=False, max_contracts=1))
     assert len(res.trades) >= 10                      # the scenario really trades
     assert {t.exit_reason for t in res.trades} >= {"stop_loss", "below mean"}
+    assert_same(live, bt)
+
+
+@pytest.mark.parametrize("seed", [3, 7])
+def test_backtest_equals_live_engine_with_stop_slippage(tmp_path, seed):
+    """Owner decision 2026-11-14 (a): stop fills pay an extra share of the price; the paper broker pays the same."""
+    frame = random_walk_frame(seed=seed)
+    strategy = ChannelBreakout()
+    cost = replace(get_cost("WIN", "base"), stop_slippage_frac=0.0005)
+    risk = RiskConfig(max_contracts_per_symbol=1, max_entries_per_day=10_000, max_daily_loss=1e12,
+                      max_weekly_loss=1e12, require_stop=True, long_only=True, max_data_age_bars=2.0)
+    live = engine_fills(tmp_path, frame, strategy, cost, risk)
+    res, bt = backtest_fills(frame, strategy, cost, BacktestConfig(allow_short=False, max_contracts=1))
+    stops = [t for t in res.trades if t.exit_reason == "stop_loss"]
+    assert stops
+    plain = run(frame.assign(contract=SYMBOL), strategy, get_cost("WIN", "base"),
+                BacktestConfig(allow_short=False, max_contracts=1))
+    first_plain = next(t for t in plain.trades if t.exit_reason == "stop_loss")
+    assert stops[0].exit_price < first_plain.exit_price          # the stop now fills worse
     assert_same(live, bt)
 
 

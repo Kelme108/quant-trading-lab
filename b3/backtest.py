@@ -3,7 +3,8 @@
 Replay model (one step at the close of every bar k, time `now = open_k + timeframe`):
 1. server-side stop (PaperBroker.sync): if a position is open and bar k started at or after the
    entry, a long is stopped when low_k <= stop and fills at min(open_k, stop) minus slippage; a
-   short when high_k >= stop, at max(open_k, stop) plus slippage. The fill is stamped `now`.
+   short when high_k >= stop, at max(open_k, stop) plus slippage (ticks, plus the cost's
+   `stop_slippage_frac` of the price: the jump past the stop that bars cannot show). The fill is stamped `now`.
 2. engine step at `now`, by session phase (B3SessionCalendar):
    closed  -> nothing;
    flatten -> close any position at the execution price (below), reason end_of_day_flatten;
@@ -158,9 +159,9 @@ def run(frame: pd.DataFrame, strategy: B3Strategy, cost: B3Cost,
         # 1. server-side stop on the bar that just closed
         if pos is not None and pos.stop is not None and bar_time >= pos.entered_at:
             if pos.side == "long" and row.low <= pos.stop:
-                close(now, min(row.open, pos.stop) - slip, "stop_loss")
+                close(now, cost.stop_fill(min(row.open, pos.stop), "long", tick), "stop_loss")
             elif pos.side == "short" and row.high >= pos.stop:
-                close(now, max(row.open, pos.stop) + slip, "stop_loss")
+                close(now, cost.stop_fill(max(row.open, pos.stop), "short", tick), "stop_loss")
 
         # 2. engine step
         phase = cal.phase(now.to_pydatetime())

@@ -18,6 +18,11 @@ What changes per market is only data that is fixed in advance:
     * EURUSD / GBPUSD / USDJPY -> ECN spot FX: ~0.7 pip round trip incl. commission, ~0.006%.
   optimistic = half of base, conservative = 2x base, stress = 4x base. Nothing in the results may move
   these numbers; a change is an owner decision recorded here with its date.
+- 2026-11-14, owner decision (review 2026-11-14-veredito-1m-5m, option a): every STOP fill on an index pays
+  0.005% of the price more in the base scenario (scaled like the other costs: 0.0025% / 0.005% / 0.01% /
+  0.02%), because the bar replay fills exactly at the stop while the ticks jump past it (p99 0.009-0.013%,
+  research/proxies/tick_fidelity.json). The FX pairs and USDBRL are out of the research scope
+  (b3/config/scope_proxies.json) and keep 0.
 
 Results are in the quote currency per 1 unit (index points, or currency units for FX). Gates read
 them as a share of the price (b3/metrics.py works on the trade list).
@@ -61,6 +66,7 @@ class ProxyMarket:
     currency: str               # quote currency (results are in it, per 1 unit)
     base_round_trip: float      # share of notional per round trip, base scenario
     source: str
+    stop_slippage_frac: float = 0.0   # extra adverse share of the price on each stop fill, base scenario
 
     @property
     def zone(self) -> ZoneInfo:
@@ -75,12 +81,16 @@ class ProxyMarket:
         factor = {"optimistic": 0.5, "base": 1.0, "conservative": 2.0, "stress": 4.0}
         if scenario not in factor:
             raise ValueError(f"unknown scenario {scenario!r}; expected {REQUIRED_SCENARIOS}")
-        return B3Cost(scenario, 0.0, 0.0, 0.0, notional_frac_per_side=self.base_round_trip * factor[scenario] / 2)
+        f = factor[scenario]
+        return B3Cost(scenario, 0.0, 0.0, 0.0, notional_frac_per_side=self.base_round_trip * f / 2,
+                      stop_slippage_frac=self.stop_slippage_frac * f)
 
 
 _IDX = ("CME micro/mini index futures: ~0.01% round trip incl. 1 tick (MES ~US$1.1-2.5 fees + US$1.25 tick "
         "on ~US$33k); Optimus Futures, NexusFi, broker tables 2026")
-_US = dict(tz="America/New_York", open=time(9, 30), close=time(16, 0), currency="USD", base_round_trip=0.0001)
+INDEX_STOP_SLIPPAGE = 0.00005
+_US = dict(tz="America/New_York", open=time(9, 30), close=time(16, 0), currency="USD", base_round_trip=0.0001,
+           stop_slippage_frac=INDEX_STOP_SLIPPAGE)
 _FX = ("ECN spot FX: ~0.7 pip round trip incl. commission (~0.006%); base rounded up to 0.01%")
 _LDN = dict(tz="Europe/London", open=time(8, 0), close=time(17, 0), base_round_trip=0.0001)
 
@@ -90,7 +100,8 @@ MARKETS: dict[str, ProxyMarket] = {m.symbol: m for m in (
     ProxyMarket("US30", "Dow futures (YM/MYM)", tick_size=0.01, source=_IDX, **_US),
     ProxyMarket("US2000", "Russell 2000 futures (RTY/M2K)", tick_size=0.01, source=_IDX, **_US),
     ProxyMarket("DE40", "DAX futures (FDAX/FDXS)", tz="Europe/Berlin", open=time(9, 0), close=time(17, 30),
-                tick_size=0.01, currency="EUR", base_round_trip=0.0001, source=_IDX + "; Xetra session"),
+                tick_size=0.01, currency="EUR", base_round_trip=0.0001, source=_IDX + "; Xetra session",
+                stop_slippage_frac=INDEX_STOP_SLIPPAGE),
     # MetaQuotes-Demo quotes USDBRL only ~09:30-17:00 Sao Paulo (counted on the export, 2026-11-14)
     ProxyMarket("USDBRL", "B3 mini dollar (WDO)", tz="America/Sao_Paulo", open=time(9, 30), close=time(17, 0),
                 tick_size=0.0001, currency="BRL", base_round_trip=0.0002,
@@ -206,6 +217,23 @@ def infer_closed_days(bars: pd.DataFrame, mkt: ProxyMarket) -> frozenset[date]:
             out.add(d)
         d += timedelta(days=1)
     return frozenset(out)
+
+
+def session_coverage(bars: pd.DataFrame, mkt: ProxyMarket, timeframe_min: int) -> pd.Series:
+    """Per local session day that has bars: the share of the regular session's bar slots that hold a bar."""
+    local = bars["time"].dt.tz_convert(mkt.zone)
+    t = local.dt.time
+    inside = local[(t >= mkt.open) & (t < mkt.close)]
+    minutes = (datetime.combine(date(2000, 1, 3), mkt.close) - datetime.combine(date(2000, 1, 3), mkt.open))
+    expected = minutes.total_seconds() / 60 / timeframe_min
+    return inside.groupby(inside.dt.date).size() / expected
+
+
+def incomplete_days(bars: pd.DataFrame, mkt: ProxyMarket, timeframe_min: int, min_coverage: float) -> frozenset[date]:
+    """Session days with bars but fewer than `min_coverage` of the session's slots (feed holes, early closes).
+    HISTORY ONLY (it counts the whole day's bars): b3/config/scope_proxies.json min_session_coverage."""
+    cov = session_coverage(bars, mkt, timeframe_min)
+    return frozenset(cov.index[cov < min_coverage])
 
 
 # ---------------------------------------------------------------------------------------------

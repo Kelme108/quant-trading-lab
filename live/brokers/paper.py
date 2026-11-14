@@ -28,6 +28,7 @@ class PaperConfig:
     cost_per_contract_per_side: float = 0.0
     slippage_ticks: float = 1.0
     balance: float = 10_000.0
+    stop_slippage_frac: float = 0.0   # extra adverse share of the price on stop fills (b3.costs.B3Cost)
 
 
 @dataclass
@@ -153,7 +154,8 @@ class PaperBroker:
                 self._scanned[symbol] = b.time
                 if b.low <= p.stop:
                     price = min(b.open, p.stop)
-                    slip = self.cfg.slippage_ticks * self.specs[symbol].tick_size
+                    slip = (self.cfg.slippage_ticks * self.specs[symbol].tick_size
+                            + self.cfg.stop_slippage_frac * price)
                     fill = self._close_part(
                         symbol, p.volume, price - slip,
                         f"stop-{symbol}-{int(b.time.timestamp())}", "stop_loss")

@@ -21,12 +21,13 @@ import pandas as pd
 
 from b3.backtest import BacktestConfig, run
 from b3.costs import REQUIRED_SCENARIOS
-from b3.markets import ProxySessionCalendar, infer_closed_days, load_bars, market, session_only
-from b3.strategies.proxies import RULES
+from b3.markets import ProxySessionCalendar, incomplete_days, infer_closed_days, load_bars, market, session_only
+from b3.proxy_rules import RULES
 
 ROOT = Path(__file__).resolve().parents[1]
 SPLITS_PATH = ROOT / "b3" / "config" / "splits_proxies.json"
 GATES_PATH = ROOT / "b3" / "config" / "gates_proxies.json"
+SCOPE_PATH = ROOT / "b3" / "config" / "scope_proxies.json"
 OUT_DIR = ROOT / "research" / "proxies"
 LEDGER = OUT_DIR / "ledger.jsonl"
 CONFIGS = {"P-001": BacktestConfig(max_entries_per_day=1)}
@@ -38,6 +39,18 @@ class NotApproved(RuntimeError):
 
 class AlreadyRead(RuntimeError):
     """This rule's validation on this market was already read."""
+
+
+class OutOfScope(RuntimeError):
+    """The market or the timeframe is outside the research scope the owner set (scope_proxies.json)."""
+
+
+def check_scope(symbol: str, timeframe_min: int, scope: dict) -> None:
+    if symbol not in scope["markets"]:
+        why = scope.get("out_of_scope", {}).get(symbol, "not in the research scope")
+        raise OutOfScope(f"{symbol}: {why} (b3/config/scope_proxies.json)")
+    if timeframe_min < scope["min_timeframe_min"]:
+        raise OutOfScope(f"{timeframe_min}-minute bars: below the scope's minimum of {scope['min_timeframe_min']} minutes")
 
 
 def _approved(path: Path) -> dict:
@@ -144,14 +157,15 @@ def gate_report(by_scenario: dict, gates: dict, variants: int) -> dict:
 # ---------------------------------------------------------------------------------------------
 
 def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = None, record: bool = True) -> dict:
-    splits, gates = _approved(SPLITS_PATH), _approved(GATES_PATH)
+    splits, gates, scope = _approved(SPLITS_PATH), _approved(GATES_PATH), _approved(SCOPE_PATH)
     ledger = ledger_rows()
     if split in ("validation", "final_test") and any(
             r["rule"] == rule_id and r["symbol"] == symbol and r["split"] == split for r in ledger):
         raise AlreadyRead(f"{rule_id} on {symbol}: {split} was already read; it is read once")
-    start, end = split_window(symbol, split, splits, rule_id)
     mkt = market(symbol)
     rule = RULES[rule_id].on(symbol)
+    check_scope(mkt.symbol, rule.timeframe_min, scope)
+    start, end = split_window(symbol, split, splits, rule_id)
     bars = load_bars(symbol, f"{rule.timeframe_min}m", **({"data_dir": data_dir} if data_dir else {}))
     bars = session_only(bars, mkt)
     bars = bars[bars["time"] < end]
@@ -159,11 +173,16 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
     if len(first) == 0:
         raise ValueError(f"{symbol}: no bars in {split}")
     bars = bars.iloc[max(0, first[0] - rule.warmup):].reset_index(drop=True)     # warm-up from the earlier data
-    cal = ProxySessionCalendar(mkt, rule.rules, infer_closed_days(bars, mkt))
+    skipped = incomplete_days(bars, mkt, rule.timeframe_min, scope["min_session_coverage"])
+    cal = ProxySessionCalendar(mkt, rule.rules, infer_closed_days(bars, mkt) | skipped)
     strategy = rule(cal)
+    first_day, last_day = start.tz_convert(mkt.zone).date(), end.tz_convert(mkt.zone).date()
     out = {"rule": rule_id, "strategy": strategy.name, "strategy_hash": strategy.hash, "symbol": symbol,
            "stands_for": mkt.stands_for, "split": split, "start_utc": str(start), "end_utc": str(end),
-           "bars": len(bars), "cost_round_trip_base_pct": 100 * mkt.base_round_trip, "scenarios": {}}
+           "bars": len(bars), "cost_round_trip_base_pct": 100 * mkt.base_round_trip,
+           "stop_slippage_base_pct": 100 * mkt.stop_slippage_frac,
+           "min_session_coverage": scope["min_session_coverage"],
+           "days_skipped_incomplete": sum(first_day <= d < last_day for d in skipped), "scenarios": {}}
     for scen in REQUIRED_SCENARIOS:
         res = run(bars, strategy, mkt.cost(scen), CONFIGS.get(rule_id, BacktestConfig()))
         tr = res.trades_frame()
