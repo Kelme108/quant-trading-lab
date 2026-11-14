@@ -1,0 +1,33 @@
+{
+  "hypothesis_id": "H-139",
+  "family": "DualThrustIntraday",
+  "title": "Dual Thrust long-only on 1h: UTC-day open plus half the 4-day range, 4h SMA50 filter, flat by day end or 12h",
+  "ex_ante_rule": "Chart 1h, closed candles only, all times UTC; a signal at a bar close is executed at the next bar open. Spot, long only, one position, whole allowed balance, no pyramiding, no take-profit. DAYS: UTC day = the 24 1h bars opening 00:00..23:00. Daily candle of a completed day: high = max of its 24 highs, low = min of its 24 lows, close = close of its 23:00 bar. For day D: O = open of the 00:00 bar of D. From the 4 completed days D-4, D-3, D-2, D-1: HH = highest daily high, LL = lowest daily low, HC = highest daily close, LC = lowest daily close. RANGE = max(HH - LC, HC - LL). UPPER = O + 0.5 * RANGE; LOWER = O - 0.5 * RANGE. If any of those 4 days or the 00:00 bar of D is missing, no entry on day D. ARMED (day D) only if 0.5 * RANGE / O >= 0.01. FILTER (higher-timeframe direction): 4h candles are UTC blocks starting 00,04,08,12,16,20 built from 1h bars (close = close of the block's last 1h bar); use the most recent 4h bar fully completed at or before the close of the signal bar (as merge_informative_pair provides; the block 00-04 becomes usable at the close of the 03:00 bar); its close must be > SMA(50) of 4h closes (the last 50 completed 4h bars, including that one). ENTRY: at the close of a 1h bar of day D whose open time is between 00:00 and 17:00 inclusive, when ALL hold: close > UPPER; ARMED; FILTER true; no open position; no entry already made on day D. Buy at the next bar open. At most one entry per UTC day; no re-entry on the same day after any exit. EXIT, whichever comes first: (a) a 1h bar closes < LOWER of the entry day D; sell at the next bar open; (b) day end: the close of the 23:00 bar of day D is a sell signal, filled at the open of the 00:00 bar of D+1; (c) time exit: sell at the open of the 12th bar after the entry bar (maximum hold 12 hours); (d) native fixed stop-loss 5% below the entry price, intrabar, as the engine-required gap protection between the closed-bar checks. No cooldown beyond the one-entry-per-day rule. No other filters. Warm-up: 300 bars (longest lookback is SMA(50) of 4h closes = 200 1h bars, plus up to 4 bars of 4h alignment; the 4-day range needs at most 96 + 23 bars; the rest is margin; no recursive indicators).",
+  "parameters": {
+    "timeframe": "1h",
+    "range_days_N": 4,
+    "k1_upper": 0.5,
+    "k2_lower": 0.5,
+    "min_half_range_over_open": 0.01,
+    "filter_timeframe": "4h",
+    "filter_sma_length_4h_bars": 50,
+    "entry_window_first_bar_open_utc": "00:00",
+    "entry_window_last_bar_open_utc": "17:00",
+    "max_entries_per_day": 1,
+    "day_end_exit_bar_open_utc": "23:00",
+    "time_exit_bars": 12,
+    "stoploss_pct": 5,
+    "warmup_bars": 300
+  },
+  "rationale": "Dual Thrust (Michael Chalek; Gang Wei 2012, as reproduced by QuantConnect) is an open-anchored range breakout: when price moves away from the day's open by more than half of the recent multi-day range, the day is read as a trend day. The counterparties are the liquidity providers and intraday faders who sold into the rise expecting a return to the open; once the move exceeds a typical several-day swing, their inventory is under water and they must buy back, while late momentum traders join, so the move tends to extend into the end of the session. Using the 4-day range with both close-to-extreme spreads (HH-LC, HC-LL) scales the trigger to recent volatility, so only days with an unusually large displacement fire, and the 1% minimum half-range keeps the trigger at least 1% above the open. Bear and chop: the 4h close above its SMA(50) stands aside in falling markets, where long breakouts lost in 2022-24 in the lab. Expected frequency: roughly 15-40 trades per year per pair (a close more than half the 4-day range above the open, in an uptrend), i.e. about 1-3 trades a day across 26 pairs, bursty on active days (acceptable under D1). Expected gross move about 0.7% per trade, because only large-displacement days are traded and winners are held to day end or 12 h without a cap; the stop distance (to LOWER, at least RANGE >= 2%, or the 5% native stop) makes the 0.30% round trip about 0.1-0.15R. QuantConnect's own SPY test of the symmetric version was poor (Sharpe -0.17), so this is a test of the mechanism on crypto, not a reported edge.",
+  "novelty_vs_tried": "Closest lab relative is H-043/H-104 (HourlyWilliamsVolBreakout): also an open-anchored breakout, but it uses the single prior day's high-low range at 0.6x, a 2% minimum range, a daily SMA(50) regime and only a midnight exit. Dual Thrust differs in the trigger construction: a 4-day range that takes the larger of HH-LC and HC-LL (so gaps between closes and extremes over several days set the level, not one day's span), K=0.5, a 4h-close-over-SMA(50) intraday trend filter instead of a daily regime, and a mandatory 12-hour time exit in addition to the day-end exit. It is not a generic session opening-range breakout (no first-minutes range) and uses no volume filter. Disclosed for multiple-testing purposes: it belongs to the same broad class (volatility-scaled breakout from the daily open) as HourlyWilliamsVolBreakout, whose validation was already read.",
+  "sources": [
+    {
+      "title": "QuantConnect Strategy Library: Dual Thrust Trading Algorithm",
+      "url": "https://www.quantconnect.com/tutorials/strategy-library/dual-thrust-trading-algorithm"
+    }
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data opened; only the exploration-split summaries in research/context/H-139.md (26 USDT pairs, exploration ends 2024-07-04) and the QuantConnect page.",
+  "market": "spot"
+}
