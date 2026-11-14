@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import os
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
@@ -43,7 +44,9 @@ from live.core.clock import B3Calendar, SessionConfig
 
 UTC = ZoneInfo("UTC")
 NEW_YORK = ZoneInfo("America/New_York")
-DATA_DIR = Path(__file__).resolve().parents[1] / "user_data" / "data" / "mt5" / "MetaQuotes-Demo"
+# git-ignored exports (research tools run from a worktree point MT5_PROXY_DATA at the main checkout's folder)
+DATA_DIR = Path(os.environ.get("MT5_PROXY_DATA") or
+                Path(__file__).resolve().parents[1] / "user_data" / "data" / "mt5" / "MetaQuotes-Demo")
 COSTS_WRITTEN = "2026-11-14"
 
 

@@ -59,11 +59,11 @@ def test_nothing_is_read_before_the_owner_approves(lab):
         pr.evaluate("P-001", "US500", "exploration", data_dir=lab)
 
 
-def test_the_real_config_files_start_unapproved():
+def test_the_real_config_files_record_the_owner_approval():
     for path in (pr.SPLITS_PATH, pr.GATES_PATH):
-        if path.exists():
-            assert json.loads(path.read_text(encoding="utf-8"))["approved_by_owner"] in (False, True)
-    assert json.loads(pr.GATES_PATH.read_text(encoding="utf-8"))["approved_by_owner"] is False
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        assert cfg["approved_by_owner"] is True and "2026-11-14" in cfg["_approved"]
+    assert json.loads(pr.SPLITS_PATH.read_text(encoding="utf-8"))["final_test_unlocked"] is False
 
 
 def test_final_test_is_locked(lab):
