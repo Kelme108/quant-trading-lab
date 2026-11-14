@@ -1,0 +1,18 @@
+{
+  "title": "Open-anchored volatility breakout after an NR4 or inside day, 15m entry, flat by day end or 12h",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/indicator/volatility-breakout/",
+    "title": "LuxAlgo Library: Volatility Breakout indicator (open-anchored trigger with contraction and trend filters)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC. Daily candles are built from completed UTC days only. For day D let R1 = high(D-1) - low(D-1). CONTRACTION (daily, from closed days): day D-1 is NR4 (R1 is the smallest range of days D-4..D-1, ties count) OR an inside day (high(D-1) < high(D-2) AND low(D-1) > low(D-2)). O = open of the 00:00 UTC 15m bar of day D. TRIGGER T = O + 0.5 x R1. ARMED only if CONTRACTION holds AND R1/O >= 1.0%. FILTER (one, higher-timeframe direction): last completed 4h close > SMA(50) of 4h closes. ENTRY: first 15m bar of day D opening between 00:00 and 11:45 UTC whose close > T; buy the next 15m open; at most one entry per day. STOP: O - 0.5 x R1 (native, fixed at entry). EXIT (first that occurs): stop; the close of the 23:45 UTC bar; the close of the 48th 15m bar after entry (12h). No target ('period close' exit of the source).",
+  "mechanism": "Volatility clusters and alternates: a narrow or inside day is a coil where liquidity providers have tightened prices, and the day after it is more likely to expand. A move from the open of half the coil's range, in the direction of the 4h trend, signals which side wins the expansion; trapped range sellers and stop-buy orders above the coil feed the move. This is the third variant of the lab's DailyNR7Breakout family (H-114 had a large gross move but fired rarely); NR4 or inside days roughly double the number of setups, and an open-anchored trigger replaces the prior-high break. Gross: stop distance = R1 >= 1% (cost <= 0.3R) and the hold runs to day end on expansion days, so I expect about 0.8% average.",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 30,
+  "expected_gross_move_pct": 0.8,
+  "family_hint": "DailyNR7Breakout"
+}

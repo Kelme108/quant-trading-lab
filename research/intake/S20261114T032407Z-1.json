@@ -1,0 +1,18 @@
+{
+  "title": "Williams Greatest Swing Value breakout on 8-hour UTC sessions, 15m entry, flat at session end",
+  "source": {
+    "type": "blog",
+    "url": "https://oxfordstrat.com/?p=6896",
+    "title": "Oxford Strat: Greatest Swing Value (GSV) strategy by Larry Williams",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars, UTC. Sessions are 8h blocks starting 00:00, 08:00, 16:00 UTC; a session candle is built from its 32 15m bars. NOISE of a completed session candle: if close>open, open-low; if close<open, high-open; if equal, the smaller of the two. AvgNoise = simple mean of NOISE over the last 10 completed session candles (current session excluded). GSV = 2 x AvgNoise, fixed at the session open O. ARMED only if GSV/O >= 0.8%. FILTER (one, higher-timeframe direction): the last completed 4h close > SMA(50) of 4h closes. ENTRY: the first 15m bar of an armed session, with its close at least 1h before session end, whose close > O + GSV; buy the next 15m open; at most one entry per session. STOP: O - GSV (native stop, set at entry). EXIT: at the close of the session's last 15m bar (max hold under 8h). No target, no re-entry in the same session.",
+  "mechanism": "Williams' GSV measures how far price usually swings against the day's eventual direction (the failed counter-swing). A move from the open larger than twice that typical noise is unlikely to be random liquidity churn; it marks initiative buying that late traders and stop-outs of sellers keep pushing within the session. It is the same open-anchored volatility-breakout family that came closest in the lab (H-043, 0.54% gross), with a different, noise-based trigger and shorter 8h sessions that give up to 3 chances a day. Gross: stop distance is about 2 x GSV >= 1.6% (cost under 0.2R); sessions that break 2x noise often extend 1-2% by session end, so I expect about 0.5-0.6% average. Source: Oxford Strat summary of Williams' GSV (10-bar average, multiple 2).",
+  "timeframe": "15m",
+  "longest_lookback": 800,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 200,
+  "expected_gross_move_pct": 0.55,
+  "family_hint": "GreatestSwingValue"
+}

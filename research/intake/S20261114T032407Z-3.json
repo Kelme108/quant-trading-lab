@@ -1,0 +1,18 @@
+{
+  "title": "US 08:30 ET macro-release spike: buy the post-shakeout close above the release bar, 1.5R or 8h",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/event-driven-volatility/",
+    "title": "LuxAlgo Library: Event-driven Volatility concept",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars. Clock: New York local time with DST (08:30 NY = 12:30 UTC in summer, 13:30 UTC in winter); Monday-Friday only. RELEASE BAR E = the 15m bar opening at 08:30 NY. BASELINE = median of (high - low) of the 08:30 NY bar over the previous 20 weekdays (E excluded). EVENT if range(E) >= 3 x BASELINE AND range(E)/open(E) >= 0.8% (activity filter: volatility expansion; no other filter). SHAKEOUT: do nothing on E itself; during the next 8 bars (opening 08:45 to 10:30 NY) the entry is the first 15m close > high(E); buy the next 15m open; at most one trade per day. STOP: low(E); if that is less than 1.0% below entry, use entry x 0.99. TARGET: entry + 1.5 x (entry - stop). TIME EXIT: close of the 32nd 15m bar after entry (8h). No event calendar needed: the spike itself marks the event (CPI, payrolls, PPI, retail sales are released at 08:30 NY).",
+  "mechanism": "Scheduled US releases reprice risk assets, and crypto now reacts to them. The release bar is usually a two-sided whipsaw while liquidity is thin and stops on both sides are run; the LuxAlgo page notes the first move often reverses and that traders wait for the shakeout to resolve, then trade the level that holds. A close above the release-bar high means the market has resolved the news upward; the counterparties are sellers who faded the spike and must cover, plus slower participants (US equity open at 09:30 NY falls inside the window) re-positioning for hours. Gross: stop distance is at least the 0.8% release range and floored at 1% (cost <= 0.3R), target 1.5R = 1.5-3%; event days carry 2-3x normal volatility, so I expect about 0.6% average.",
+  "timeframe": "15m",
+  "longest_lookback": 2700,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 20,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "MacroReleaseResolution"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Dual Thrust long-only on 1h: UTC-day open plus half the 4-day range, flat by day end or 12h",
+  "source": {
+    "type": "blog",
+    "url": "https://www.quantconnect.com/tutorials/strategy-library/dual-thrust-trading-algorithm",
+    "title": "QuantConnect Strategy Library: Dual Thrust Trading Algorithm",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars, UTC. For UTC day D, O = open of the 00:00 bar. From the 4 completed days D-4..D-1 (daily candles built from 1h): HH = highest high, LL = lowest low, HC = highest close, LC = lowest close; RANGE = max(HH - LC, HC - LL). UPPER = O + 0.5 x RANGE, LOWER = O - 0.5 x RANGE (K1 = K2 = 0.5, N = 4 as published). ARMED only if 0.5 x RANGE / O >= 1.0%. FILTER (one, higher-timeframe direction): last completed 4h close > SMA(50) of 4h closes. ENTRY: first 1h bar of day D opening between 00:00 and 17:00 UTC whose close > UPPER; buy the next 1h open; at most one entry per day. EXIT (first that occurs): a 1h close < LOWER (the published reversal level, used as a long-only stop, executed next open); the close of the 23:00 UTC bar (flat by day end); 12 bars after entry. No target.",
+  "mechanism": "Dual Thrust (Michael Chalek) is an open-anchored range breakout: a move away from the day's open larger than half of the recent multi-day range is read as a trend day, when liquidity providers who sold into the rise and short-term faders are forced to cover and late momentum traders join. The 4-day range with both close-to-extreme spreads makes the trigger more robust than a one-day range (Williams breakout, H-043, the closest day-trade rule in the lab), and the 4h trend filter avoids the 2022-24 losses of long breakouts in down trends. Also described in je-suis-tm/quant-trading (Apache-2.0). Gross: the trigger sits at least 1% from the open, only strong days fire, and the hold runs to day end, so I expect about 0.7% average; stop distance is RANGE (>= 2%), cost about 0.15R.",
+  "timeframe": "1h",
+  "longest_lookback": 200,
+  "free_parameters": 5,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 40,
+  "expected_gross_move_pct": 0.7,
+  "family_hint": "DualThrustIntraday"
+}

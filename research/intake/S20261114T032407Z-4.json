@@ -1,0 +1,18 @@
+{
+  "title": "1h momentum thrust from rest: RSI jumps from 50 to 70 in 3 bars on a 2x volume ignition bar, fail-fast",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/momentum-thrust/",
+    "title": "LuxAlgo Library: Momentum Thrust definition and indicators",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 1h, closed bars; signal at the close of bar t, fill at the open of t+1. RSI14 = Wilder RSI(14) of 1h closes. MR = mean of (high - low) over bars t-20..t-1; MV = mean volume over bars t-20..t-1. IGNITION at bar t when ALL hold: (1) RSI14(t) >= 70; (2) min RSI14 over t-3..t-1 <= 50 (the oscillator jumped from neutral within at most 3 bars); (3) high(t) - low(t) >= 2 x MR; (4) (close(t) - low(t)) / (high(t) - low(t)) >= 0.75 (close in the top quarter); (5) volume(t) >= 2 x MV (the one activity filter: volume). No trend or session filter. ENTRY: buy at the open of t+1 if flat. STOP: low(t); if that is less than 1.0% below entry, use entry x 0.99. EXITS (first that occurs): TARGET entry + 2 x (entry - stop); FAIL-FAST: a 1h close below the midpoint (high(t)+low(t))/2 of the ignition bar (executed next open); TIME: close of the 12th bar after entry. One position per pair; no new ignition is taken while in a trade.",
+  "mechanism": "The thrust reading treats speed, not level, as the signal: an oscillator that goes from neutral to overbought within a few bars on an outsized, volume-backed bar marks initiative buying that starts a move rather than ends it (LuxAlgo; Stockbee momentum bursts and the Zweig breadth thrust are the same idea). Who pays: sellers and mean-reversion traders who sell 'overbought' into the burst and are squeezed, and late followers who buy the next hours. Unlike the plain RSI>70 cross tried before (H-085, 0.35% gross), the rule needs acceleration from rest, a 2x range, a strong close and 2x volume, which removes slow drifts into 70; the midpoint fail-fast cuts bursts that fully retrace (the page's sign of exhaustion). Gross: the ignition bar is at least 2x the mean range, so the stop is usually 1.5-3% and the 2R target 3-6%; I expect about 0.5% average.",
+  "timeframe": "1h",
+  "longest_lookback": 24,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 50,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "MomentumThrustIgnition"
+}
