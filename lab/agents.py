@@ -26,7 +26,8 @@ ROOT = Path(__file__).parents[1]
 DEFAULT_MODEL = "sonnet"
 # Owner's request (2026-11-06): the agents that design and implement the rule run on the stronger model;
 # the others stay on the default. Costs more per call; the per-call and per-cycle caps still apply.
-AGENT_MODELS: dict[str, str] = {"scout": "opus", "research": "opus"}  # developer back on sonnet 2026-11-09: same error rate, ~3x cheaper
+AGENT_MODELS: dict[str, str] = {"scout": "opus", "research": "opus",  # developer back on sonnet 2026-11-09: same error rate, ~3x cheaper
+                                "proxy-research": "opus"}
 
 # tools: the built-in tools the agent gets at all (--tools).
 # allow: tool rules pre-approved so a headless run never stops on a prompt;
@@ -78,6 +79,30 @@ AGENT_SPECS: dict[str, dict[str, list[str]]] = {
         "tools": ["Read", "Grep", "Glob", "Write", "Edit", "Bash"],
         "allow": ["Write", "Edit", "Bash(python -m unittest *)"],
         "deny": [],
+    },
+    # Proxy-market lane (b3/proxy_pipeline.py, plan item 4 of research/reviews/2026-11-14-veredito-1m-5m.md).
+    # The proxy researcher sees exploration diagnostics only: no result file (they hold validation and final-test
+    # reads), no ledger, no scoreboard, no review, no splits file (it names the rules that reached the final test).
+    "proxy-research": {
+        "tools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Write"],
+        "allow": ["WebSearch", "WebFetch", "Write"],
+        "deny": [
+            "Read(./research/proxies/results/**)",
+            "Read(./research/proxies/ledger.jsonl)",
+            "Read(./research/proxies/SCOREBOARD.md)",
+            "Read(./research/proxies/scoreboard.json)",
+            "Read(./research/proxies/pipeline_log.jsonl)",
+            "Read(./research/reviews/**)",
+            "Read(./b3/config/splits_proxies.json)",
+            "Read(./research/command-log.md)",
+            "Read(./research/experiments/**)",
+            "Read(./research/lab.sqlite)",
+        ],
+    },
+    "proxy-developer": {
+        "tools": ["Read", "Grep", "Glob", "Write", "Edit", "Bash"],
+        "allow": ["Write", "Edit", "Bash(python -m pytest *)"],
+        "deny": ["Read(./research/proxies/results/**)", "Read(./research/proxies/ledger.jsonl)"],
     },
     "quant": {"tools": ["Read", "Grep", "Glob", "Write"], "allow": ["Write"], "deny": []},
     "risk": {"tools": ["Read", "Grep", "Glob", "Write"], "allow": ["Write"], "deny": []},

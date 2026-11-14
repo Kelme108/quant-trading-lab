@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from b3.backtest import BacktestConfig, run  # noqa: E402
 from b3.markets import ProxySessionCalendar, infer_closed_days, load_bars, market, session_only  # noqa: E402
 from b3.proxy_research import CONFIGS, split_window  # noqa: E402
-from b3.strategies.proxies import RULES  # noqa: E402
+from b3.proxy_rules import RULES  # noqa: E402
 
 
 def previous_day_volatility(bars: pd.DataFrame, zone) -> pd.Series:

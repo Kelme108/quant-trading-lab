@@ -31,7 +31,7 @@ class BuildArgvTests(unittest.TestCase):
 
     def test_scout_and_research_run_on_the_stronger_model_the_rest_on_the_default(self) -> None:
         for name in agents.AGENT_SPECS:
-            expected = "opus" if name in ("scout", "research") else agents.DEFAULT_MODEL
+            expected = "opus" if name in ("scout", "research", "proxy-research") else agents.DEFAULT_MODEL
             self.assertEqual(self.after(self.argv(name), "--model"), [expected], name)
             frontmatter = (agents.ROOT / ".claude" / "agents" / f"{name}.md").read_text(encoding="utf-8")
             self.assertIn(f"model: {expected}\n", frontmatter, name)
@@ -56,7 +56,7 @@ class BuildArgvTests(unittest.TestCase):
     def test_only_the_developer_gets_bash_or_edit(self) -> None:
         for name, spec in agents.AGENT_SPECS.items():
             tools = set(spec["tools"])
-            if name == "developer":
+            if name in ("developer", "proxy-developer"):
                 self.assertTrue({"Bash", "Edit"} <= tools)
             else:
                 self.assertFalse({"Bash", "Edit"} & tools, name)
@@ -64,7 +64,16 @@ class BuildArgvTests(unittest.TestCase):
     def test_only_research_and_scout_can_use_the_web(self) -> None:
         for name, spec in agents.AGENT_SPECS.items():
             has_web = bool({"WebSearch", "WebFetch"} & set(spec["tools"]))
-            self.assertEqual(has_web, name in ("research", "scout"), name)
+            self.assertEqual(has_web, name in ("research", "scout", "proxy-research"), name)
+
+    def test_the_proxy_developer_may_only_run_pytest_and_the_proxy_researcher_sees_no_result(self) -> None:
+        allow = self.after(self.argv("proxy-developer"), "--allowedTools")
+        self.assertIn("Bash(python -m pytest *)", allow)
+        self.assertNotIn("Bash", allow)
+        deny = agents.AGENT_SPECS["proxy-research"]["deny"]
+        for path in ("./research/proxies/results/**", "./research/proxies/ledger.jsonl",
+                     "./research/proxies/SCOREBOARD.md", "./b3/config/splits_proxies.json"):
+            self.assertIn(f"Read({path})", deny)
 
     def test_the_scout_is_denied_every_kind_of_result(self) -> None:
         deny = self.after(self.argv("scout"), "--disallowedTools")

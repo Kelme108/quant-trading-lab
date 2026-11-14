@@ -62,6 +62,64 @@ def _screen(tree: ast.AST) -> list[str]:
     return found
 
 
+PROXY_FILE_STEM = re.compile(r"^p(\d{3})_[a-z0-9_]+$")
+PROXY_FROM_MODULES = frozenset({"b3.strategy", "b3.calendar", "b3.markets", "b3.events", "live.core.models"})
+PROXY_TIMEFRAMES = (5, 15, 30, 60)
+
+
+def check_proxy_rule_source(path: Path, rule_id: str | None = None) -> list[str]:
+    """Screen for an agent-written proxy rule (b3/proxy_rules/p<NNN>_<name>.py): the same allow-list, one
+    ProxyStrategy subclass with its constants, and RULE_ID = "P-<NNN>" matching the file name."""
+    problems: list[str] = []
+    m = PROXY_FILE_STEM.match(path.stem)
+    if not m:
+        problems.append(f"file name '{path.name}' must look like p<NNN>_<snake_name>.py")
+    elif rule_id is not None and f"P-{m.group(1)}" != rule_id:
+        problems.append(f"file name says P-{m.group(1)} but the rule is {rule_id}")
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as error:
+        return problems + [f"does not parse: {error}"]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            problems += [f"line {node.lineno}: import of '{a.name}' is not allowed" for a in node.names
+                         if a.name.split(".")[0] not in ALLOWED_IMPORT_ROOTS]
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if node.level or (mod not in PROXY_FROM_MODULES and mod.split(".")[0] not in ALLOWED_IMPORT_ROOTS):
+                problems.append(f"line {node.lineno}: import from '{mod}' is not allowed")
+    problems += [p for p in _screen(tree) if ": import" not in p]
+    if any(isinstance(n, ast.ImportFrom) and n.module == "b3.markets"
+           and any(a.name != "ProxyStrategy" for a in n.names) for n in ast.walk(tree)):
+        problems.append("from b3.markets only ProxyStrategy may be imported")
+    ids = [n for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+           and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "RULE_ID"]
+    if len(ids) != 1 or not isinstance(ids[0].value, ast.Constant) or (
+            rule_id is not None and ids[0].value.value != rule_id):
+        problems.append(f"module must set RULE_ID = {rule_id or 'P-<NNN>'!r} once")
+    classes = [n for n in tree.body if isinstance(n, ast.ClassDef)
+               and any(isinstance(b, ast.Name) and b.id == "ProxyStrategy" for b in n.bases)]
+    if len(classes) != 1:
+        return problems + [f"expected exactly one ProxyStrategy subclass, found {len(classes)}"]
+    consts = {}
+    for st in classes[0].body:
+        if isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name):
+            consts[st.targets[0].id] = st.value.value if isinstance(st.value, ast.Constant) else object()
+    if "symbol" in consts:
+        problems.append("do not set `symbol`: the runner binds the rule to each market with Rule.on(symbol)")
+    if not isinstance(consts.get("name"), str) or not str(consts.get("name", "")).startswith(f"{rule_id or 'P-'}"):
+        problems.append(f"class must set name to a string starting with {rule_id or 'P-<NNN>'!r}")
+    if consts.get("timeframe_min") not in PROXY_TIMEFRAMES:
+        problems.append(f"class must set timeframe_min to one of {list(PROXY_TIMEFRAMES)}")
+    warmup = consts.get("warmup")
+    if not isinstance(warmup, int) or isinstance(warmup, bool) or not 1 <= warmup <= MAX_WARMUP:
+        problems.append(f"class must set warmup to an integer constant between 1 and {MAX_WARMUP}")
+    for key in ("rules", "params"):
+        if key not in consts:
+            problems.append(f"class must set `{key}`")
+    return problems
+
+
 def check_b3_strategy_source(path: Path, expected_hypothesis_id: str | None = None) -> list[str]:
     problems: list[str] = []
     m = FILE_STEM.match(path.stem)

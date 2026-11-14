@@ -11,7 +11,7 @@ from pathlib import Path
 
 from b3.markets import MARKETS
 from b3.proxy_research import OUT_DIR, ledger_rows
-from b3.strategies.proxies import RULES
+from b3.proxy_rules import RULES
 
 SPLITS = ("exploration", "validation", "final_test")
 
