@@ -3,50 +3,10 @@
 Regra: lab/config/dryrun.json (decisão do dono em 10/11/2026). Aprovação aqui = vale uma análise humana para dinheiro real, nunca uma ordem. O holdout formal (>= 2027-04-21) continua separado e inalterado.
 
 Mínimo para decidir: 60 trades fechados e 14 dias; reprova cedo com 30+ trades e fator de lucro < 0.7.
-Day trade precisa operar: o bot é descartado (`inactive`) com 2+ dias rodando e menos de 1 trade(s) fechado(s), ou sem nenhum trade há mais de 2 dias (decisão do dono, 12/11/2026). O relógio começa no congelamento. O descarte é automático: o bot é parado e o congelamento vai para research/forward/retired/.
+Day trade precisa operar, comparado com a própria exploração (decisão do dono D1, 13/11/2026): o bot é descartado (`inactive`) se, depois de T dias, fechou menos trades que o percentil 1 do que a exploração dos mesmos pares fechou em janelas de T dias, ou se ficou mais tempo sem trade que o maior intervalo da exploração; aviso abaixo do percentil 5. O registro é gravado no congelamento, antes de o bot rodar. Congelamentos sem esse registro seguem a regra anterior: descarte com 2+ dias e menos de 1 trade(s), ou sem trade há mais de 2 dias. O relógio começa no congelamento. O descarte é automático: o bot é parado e o congelamento vai para research/forward/retired/.
 
 | Hipótese | Veredito | Rodando (dias) | Trades | Trades/dia | Sem trade há (dias) | Dias até o mínimo | Acerto | Payoff | Fator de lucro | Expectativa/trade | Lucro (USDT) | Sem o melhor | Drawdown | P(média>0) |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| H-100 | inactive | 2.0 | 0 | 0.00 | – | – | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
-| H-101 | inactive | 2.0 | 0 | 0.00 | – | – | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
-| H-102 | inactive | 2.0 | 0 | 0.00 | – | – | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
-| H-103 | inactive | 2.0 | 0 | 0.00 | – | – | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
-| H-104 | inactive | 2.0 | 0 | 0.00 | – | – | – | – | – | – | 0.00 | – | 0.0% | 0.00 |
-
-## H-100: inactive
-- 0/60 closed trades, 0.0/14 days
-- running 2.0 days, 0.00 trades/day
-- INACTIVE: 0 closed trades in 2.0 days (needs 1 within 2 days)
-
-Retirado do dry-run em 2026-11-13T00:32 UTC (bot parado; congelamento em research/forward/retired/).
-
-## H-101: inactive
-- 0/60 closed trades, 0.0/14 days
-- running 2.0 days, 0.00 trades/day
-- INACTIVE: 0 closed trades in 2.0 days (needs 1 within 2 days)
-
-Retirado do dry-run em 2026-11-13T00:32 UTC (bot parado; congelamento em research/forward/retired/).
-
-## H-102: inactive
-- 0/60 closed trades, 0.0/14 days
-- running 2.0 days, 0.00 trades/day
-- INACTIVE: 0 closed trades in 2.0 days (needs 1 within 2 days)
-
-Retirado do dry-run em 2026-11-13T00:33 UTC (bot parado; congelamento em research/forward/retired/).
-
-## H-103: inactive
-- 0/60 closed trades, 0.0/14 days
-- running 2.0 days, 0.00 trades/day
-- INACTIVE: 0 closed trades in 2.0 days (needs 1 within 2 days)
-
-Retirado do dry-run em 2026-11-13T00:33 UTC (bot parado; congelamento em research/forward/retired/).
-
-## H-104: inactive
-- 0/60 closed trades, 0.0/14 days
-- running 2.0 days, 0.00 trades/day
-- INACTIVE: 0 closed trades in 2.0 days (needs 1 within 2 days)
-
-Retirado do dry-run em 2026-11-13T00:33 UTC (bot parado; congelamento em research/forward/retired/).
 
 ## Retirados do dry-run
 
