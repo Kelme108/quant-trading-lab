@@ -101,3 +101,14 @@ def test_metrics_of_two_hand_made_trades():
     assert m["max_drawdown_pct"] == pytest.approx(1.0)
     assert m["positive_years_share"] == 0.5
     assert m["net_return_excl_best_pct"] == pytest.approx(-1.0)
+
+
+def test_final_test_unlocked_for_one_rule_and_market_only_and_read_once(lab):
+    s = json.loads((lab / "splits.json").read_text(encoding="utf-8"))
+    s["final_test_unlocked_for"] = [{"rule": "P-003", "symbols": ["US500"]}]
+    (lab / "splits.json").write_text(json.dumps(s), encoding="utf-8")
+    with pytest.raises(pr.NotApproved):
+        pr.evaluate("P-001", "US500", "final_test", data_dir=lab)
+    with pytest.raises(pr.NotApproved):
+        pr.split_window("USTEC", "final_test", s, "P-003")
+    assert pr.split_window("US500", "final_test", s, "P-003")[0] == pd.Timestamp("2024-02-01T00:00:00Z")

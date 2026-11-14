@@ -47,10 +47,18 @@ def _approved(path: Path) -> dict:
     return cfg
 
 
-def split_window(symbol: str, split: str, splits: dict | None = None) -> tuple[pd.Timestamp, pd.Timestamp]:
+def final_test_open(rule_id: str | None, symbol: str, splits: dict) -> bool:
+    """Globally unlocked, or unlocked by the owner for this rule on this market only."""
+    if splits.get("final_test_unlocked"):
+        return True
+    return any(u["rule"] == rule_id and symbol in u["symbols"] for u in splits.get("final_test_unlocked_for", []))
+
+
+def split_window(symbol: str, split: str, splits: dict | None = None,
+                 rule_id: str | None = None) -> tuple[pd.Timestamp, pd.Timestamp]:
     splits = splits or _approved(SPLITS_PATH)
-    if split == "final_test" and not splits["final_test_unlocked"]:
-        raise NotApproved("the final test is locked (final_test_unlocked: false); only the owner unlocks it")
+    if split == "final_test" and not final_test_open(rule_id, symbol, splits):
+        raise NotApproved(f"the final test is locked for {rule_id} on {symbol}; only the owner unlocks it")
     s = splits["symbols"][symbol][split]
     end = s.get("end_utc") or datetime.now(timezone.utc).isoformat()
     return pd.Timestamp(s["start_utc"]), pd.Timestamp(end)
@@ -138,10 +146,10 @@ def gate_report(by_scenario: dict, gates: dict, variants: int) -> dict:
 def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = None, record: bool = True) -> dict:
     splits, gates = _approved(SPLITS_PATH), _approved(GATES_PATH)
     ledger = ledger_rows()
-    if split == "validation" and any(r["rule"] == rule_id and r["symbol"] == symbol and r["split"] == "validation"
-                                     for r in ledger):
-        raise AlreadyRead(f"{rule_id} on {symbol}: validation was already read; it is read once")
-    start, end = split_window(symbol, split, splits)
+    if split in ("validation", "final_test") and any(
+            r["rule"] == rule_id and r["symbol"] == symbol and r["split"] == split for r in ledger):
+        raise AlreadyRead(f"{rule_id} on {symbol}: {split} was already read; it is read once")
+    start, end = split_window(symbol, split, splits, rule_id)
     mkt = market(symbol)
     rule = RULES[rule_id].on(symbol)
     bars = load_bars(symbol, f"{rule.timeframe_min}m", **({"data_dir": data_dir} if data_dir else {}))
