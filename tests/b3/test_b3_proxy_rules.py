@@ -40,7 +40,7 @@ def test_rules_are_causal_and_match_the_live_window(rule_id, symbol):
     step = 0.5 if symbol == "US500" else 0.0001
     start = 5000.0 if symbol == "US500" else 1.1
     tf = RULES[rule_id].timeframe_min
-    frame = synthetic_sessions(symbol, step=step, start=start, tf=tf, days=30 if tf == 5 else 6)
+    frame = synthetic_sessions(symbol, step=step, start=start, tf=tf, days=45 if tf == 5 else 6)
     strategy = RULES[rule_id].on(symbol)()
     assert causality_problems(strategy, frame) == []
     assert window_parity_problems(strategy, frame, samples=60) == []
@@ -49,7 +49,7 @@ def test_rules_are_causal_and_match_the_live_window(rule_id, symbol):
 def test_rules_trade_on_synthetic_data_and_never_hold_overnight():
     for rule_id, rule in RULES.items():
         tf = rule.timeframe_min
-        frame = synthetic_sessions("US500", days=30 if tf == 5 else 6, tf=tf)
+        frame = synthetic_sessions("US500", days=45 if tf == 5 else 6, tf=tf)
         cfg = BacktestConfig(max_entries_per_day=1) if rule_id == "P-001" else BacktestConfig()
         r = run(frame, rule.on("US500")(), market("US500").cost("base"), cfg)
         assert r.trades, rule_id

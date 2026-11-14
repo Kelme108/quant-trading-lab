@@ -227,5 +227,42 @@ class FirstCandleOrb5m(ProxyStrategy):
         return Signal(ENTER_SHORT, stop_price=stop, reason="first_candle_down") if stop > row.close else Signal(HOLD)
 
 
+# ---------------------------------------------------------------------------------------------
+# Third batch, registered 2026-11-14 after the diagnostics of research/tools/proxy_failure_anatomy.py
+# (EXPLORATION data only; validation and final test of these markets were not looked at for this rule).
+#
+# P-007 RestOfDayMomentumAfterVolatileDay - P-004 traded only when the PREVIOUS session was volatile.
+#   Mechanism (Baltussen et al. 2021): dealers short gamma hedge in the direction of the day's move near the
+#   close, and that hedging demand is larger when volatility is high. Own measurement on exploration: P-004's
+#   gross per trade after a top-tercile-range day was +0.0175% (US500), +0.0359% (USTEC), +0.0148% (US30),
+#   +0.0341% (US2000), against ~0 after calm days. Markets fixed before running: US500, USTEC, US30, US2000,
+#   5-minute bars. Volatile = the previous session's (high-low)/open above the 2/3 quantile of the 20
+#   sessions before it (the diagnostic used 60 sessions; 20 keeps the live warm-up short and is fixed here
+#   before any run). Expected frequency: about 80 trades per year per market (BELOW the 200 the owner asked
+#   for; a conditioned rule trades less by construction).
+# ---------------------------------------------------------------------------------------------
+
+class RestOfDayMomentumAfterVolatileDay(RestOfDayMomentum):
+    name = "P-007_rest_of_day_momentum_after_volatile_day"
+    warmup = 2500         # 21 full earlier sessions of up to 108 five-minute bars, plus today
+    params = {"hold_minutes": 30, "stop_frac": 0.01, "vol_lookback_days": 20, "vol_quantile": 2 / 3}
+
+    def indicators(self, df):
+        df = super().indicators(df)
+        g = df.groupby("local_date")
+        rng = (g["high"].max() - g["low"].min()) / g["open"].first()          # one value per session, in order
+        n, q = self.params["vol_lookback_days"], self.params["vol_quantile"]
+        threshold = rng.shift(2).rolling(n, min_periods=n).quantile(q)         # the n sessions before yesterday
+        volatile = rng.shift(1) > threshold                                    # NaN threshold -> False
+        df["prev_day_volatile"] = df["local_date"].map(volatile).fillna(False).astype(bool)
+        return df
+
+    def decide(self, row, position):
+        if not row.prev_day_volatile:
+            return Signal(HOLD)
+        return super().decide(row, position)
+
+
 RULES = {"P-001": OpeningRangeBreakout, "P-002": IntradayMomentum, "P-003": NoiseAreaMomentum,
-         "P-004": RestOfDayMomentum, "P-005": VwapTrend1m, "P-006": FirstCandleOrb5m}
+         "P-004": RestOfDayMomentum, "P-005": VwapTrend1m, "P-006": FirstCandleOrb5m,
+         "P-007": RestOfDayMomentumAfterVolatileDay}
