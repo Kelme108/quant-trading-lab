@@ -1,0 +1,31 @@
+{
+  "hypothesis_id": "H-135",
+  "family": "DarvasBoxBreakout",
+  "title": "Intraday Darvas box on 15m: confirmed 1-3% box, volume-backed close above the top, box-bottom stop, 12h exit",
+  "ex_ante_rule": "Chart 15m (idea I-127 is defined on 15m bars; no higher timeframe), UTC, closed bars; a signal at the close of bar t fills at the open of t+1. Spot, long only, one position per pair, whole allowed balance, same numbers on every enabled pair, single grid cell. Warm-up: 1000 bars (EMA200 is recursive, 5x its length lets the seed decay; the box needs at most 16+48 bars). EMA200 = talib EMA(close, 200) on 15m. BOX TOP: bar k with high(k) = max high of bars k-16..k AND high(k+1), high(k+2), high(k+3) all < high(k); T = high(k), known at the close of k+3. Every such k starts its own box attempt. BOX BOTTOM: for j = k+1, k+2, ..., candidate b = the latest bar with the lowest low of bars k+1..j; the bottom is confirmed at the close of bar c = b+3 (c >= k+3) when low(b+1), low(b+2), low(b+3) are all > low(b); B = low(b). DROP the attempt if any bar k+1..c has high > T, or if it is not confirmed by c = k+48. VALID only if 0.010 <= (T-B)/T <= 0.030, else dropped. A newly confirmed valid box replaces any older active box on the pair (one active box per pair; if two confirm on the same bar, the one with the later k wins). ENTRY: the first bar t > c with close(t) >= 1.002*T AND volume(t) >= 1.5 x arithmetic mean of volume of bars k..t-1 AND close(t) > EMA200(t) is the signal. The box is void (no trade) if any bar c+1..t-1 closes below B before that. The box is used up at its signal bar; if a position is already open on the pair then, it is discarded. Store T and B in the enter_tag. Buy at open(t+1) = E; skip the trade if E <= B (confirm_trade_entry). STOP: d = (E-B)/E, computed at the fill and frozen; stop price B, a fixed distance below E, intrabar as soon as the low touches it (custom_stoploss returns d; native stoploss -0.10 only as engine backstop). TARGET: E + 1.5*(T-B), sold at that price as soon as a bar's high reaches it (at the open if a bar opens above it); if stop and target are touched in the same bar, the stop counts. TIME EXIT: the fill bar e = t+1 is bar 1; exit signal at the close of bar e+47, sold at the open of e+48 (49th bar, 12 hours). First of stop, target, time wins. Activity filter (b), volume: 1.5x the box's own mean volume, fixed in advance, not scanned. No trailing stop, no break-even move, no cooldown, no daily cap, no other filters or exits.",
+  "parameters": {
+    "timeframe": "15m",
+    "top_lookback_bars": 16,
+    "top_confirm_bars": 3,
+    "bottom_confirm_bars": 3,
+    "box_max_formation_bars": 48,
+    "box_min_height_pct": 1.0,
+    "box_max_height_pct": 3.0,
+    "breakout_close_factor": 1.002,
+    "volume_mult_vs_box_mean": 1.5,
+    "trend_ema_length": 200,
+    "target_box_multiple": 1.5,
+    "time_exit_bars": 48,
+    "native_backstop_stoploss": -0.10,
+    "warmup_bars": 1000
+  },
+  "rationale": "A Darvas box is a confirmed pause: the top is a 17-bar high not exceeded for 3 bars (sellers defended it), the bottom a low held for 3 bars (buyers defended it). A close above the top on volume at least 1.5x the box's own mean shows a new buyer cohort absorbing the remaining supply, and buy stops of breakout traders resting above the top add to the move. Sellers who capped the box and short-term mean-reverters selling into the break are the counterparties. Requiring a 1-3% box puts the stop 1-3% away, so the 0.30% round trip is at most 0.3R, unlike the narrow opening-range brackets that lost to cost. The target is 1.5x box height (1.5-4.5%), so the average absolute outcome per trade is about 2%. A hit rate near 42% gives a mean gross of roughly +0.5% per trade, above the 0.45% conservative round trip. The EMA200 (about 50 hours) keeps the rule out of falling markets, where breakouts fail most (the lab's 2022-24 losses). In chop, boxes fail and are stopped at the bottom. Expected frequency: valid 1-3% boxes on 15m form a few times a week to daily per pair. After the volume and EMA filters, I expect about 100-250 trades per year per pair. This is an estimate, not a measurement. The source is a TradingView script description (box from confirmed swings, minimum height, volume and trend filter) plus Darvas-box write-ups. None documents intraday crypto results.",
+  "novelty_vs_tried": "This is a new family. It differs from the LivermorePivotFailFast family (H-046/H-108/H-127), which uses one prior 48-bar high, a fixed 1.2% stop and a fail-fast exit. Here the setup is a two-sided box whose top and bottom are both confirmed, the stop sits at the confirmed box bottom, and the target scales with box height. It differs from SessionOpeningRangeBreakout (clock-defined range, too narrow) because the box is defined by price structure and must be at least 1% high. It differs from SessionHighBreakRetest (H-124: previous-session high with a retest entry) and ChurnAbsorptionBreakout (H-130: churn zone after a decline). The volume threshold is relative to the box's own bars, not to a rolling 20/120-bar mean.",
+  "sources": [
+    {"title": "Advanced Intraday Darvas Box (TradingView open-source script description)", "url": "https://www.tradingview.com/script/hZV01YX6-Advanced-Intraday-Darvas-Box"},
+    {"title": "What Is a Darvas Box Theory and How Does It Work in Trading? (FXOpen)", "url": "https://fxopen.com/blog/en/what-is-a-darvas-box-theory-and-how-does-it-work-in-trading"},
+    {"title": "Darvas Box (ThePatternSite, Thomas Bulkowski)", "url": "https://thepatternsite.com/Darvas.html"}
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data viewed. Only the exploration-split summaries in research/context/H-135.md (through 2026-11-13) and research/validation-protocol-v2.md."
+}
