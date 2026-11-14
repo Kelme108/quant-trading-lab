@@ -1,0 +1,35 @@
+{
+  "hypothesis_id": "H-136",
+  "family": "ParabolicSARVolumeFlip",
+  "title": "Parabolic SAR up-flip on a 1.5x volume surge, 15m: Wilder accelerating SAR as the only trailing exit, 12h cap",
+  "ex_ante_rule": "Chart 15m (idea I-122 is a 15m rule; no higher timeframe), UTC, closed bars; signal at the close of bar t, fill at open(t+1) = E. Spot, long only, one position per pair, same numbers on all pairs, one grid cell. Warm-up: 500 bars (direct lookback 21 bars; the recursive SAR resets at each reversal, 500 bars hold many, so runs converge; startup_candle_count = 500). PSAR, Wilder, causal loop, AF start 0.02, step 0.02, max 0.20: bar 0: dir=up, SAR=low(0), EP=high(0), AF=0.02, NXT(0)=SAR(0). For t>=1, S=NXT(t-1): if dir up and low(t)<S, flip down: SAR(t)=EP, EP=low(t), AF=0.02; if dir down and high(t)>S, flip up: SAR(t)=EP, EP=high(t), AF=0.02; else SAR(t)=S and, if high(t)>EP (up) or low(t)<EP (down), EP=that extreme and AF=min(AF+0.02,0.20). Then NXT(t)=SAR(t)+AF*(EP-SAR(t)), capped at min(low(t),low(t-1)) if up, floored at max(high(t),high(t-1)) if down. dir(t)=direction after bar t; NXT(t)=SAR for bar t+1, known at the close of t. Vmean(t)=mean volume of bars t-20..t-1. ENTRY at the close of t if ALL hold: (1) dir(t-1)=down and dir(t)=up; (2) activity filter (b), fixed: volume(t)>=1.5*Vmean(t); (3) close(t)>open(t); (4) pair flat. FILL CHECK (confirm_trade_entry, rate E): skip if NXT(t)<0.97*E. INITIAL STOP, frozen at the fill: S0=min(NXT(t),0.99*E) (1-3% below E); G=NXT(t)-S0 (>=0; 0 when the SAR is already >=1% below E). TRAIL: for each bar k>=t+1 in the trade, stop level L(k)=max(S0, NXT(k-1)-G), from values known at the close of k-1 (L(t+1)=S0, then L follows the rising, accelerating SAR shifted down by the fixed G); sold at L(k) intrabar as soon as low(k) touches it (at open(k) if it opens below). Use custom_stoploss; native stoploss -0.03 as backstop only. SAR EXIT: if dir(k)=down at the close of k (close below the current SAR), sell at open(k+1). TIME EXIT: fill bar t+1 is bar 1; exit signal at the close of bar t+48, sold at open(t+49) (12 h). First exit wins. No take-profit, cooldown, daily cap or other filter.",
+  "parameters": {
+    "timeframe": "15m",
+    "sar_af_start": 0.02,
+    "sar_af_step": 0.02,
+    "sar_af_max": 0.2,
+    "volume_lookback_bars": 20,
+    "volume_multiple": 1.5,
+    "min_initial_stop_pct": 0.01,
+    "max_sar_distance_pct": 0.03,
+    "time_exit_bars": 48,
+    "native_stoploss_backstop": -0.03,
+    "take_profit": "none",
+    "cooldown_bars": 0,
+    "warmup_bars": 500
+  },
+  "rationale": "The source (je-suis-tm/quant-trading, Parabolic SAR backtest) gives only the stop-and-reverse mechanics; it states no edge, so the mechanism here is the scout's hypothesis and is not documented by research. An up-flip of Wilder's SAR on a bar with at least 1.5x its 20-bar mean volume and an up close marks a reversal pushed by real flow (shorts covering and new buyers), not drift; the sellers who held the prior down leg give up the move. Wilder's SAR is a time-and-price stop that accelerates: it gives a new move room at first and tightens as the move ages, so failed flips are cut fast and moves that extend are held. That right-skewed payoff has the same shape as the fail-fast exit of H-046 (1.07% gross), the lab's closest intraday rule, applied to a different trigger, with no profit cap, following the 2026-11-10 lesson that caps hurt. Cost: the initial stop is 1%-3% below the entry, so the 0.30% round trip stays at or under 0.3R. Expected frequency: 15m SAR up-flips happen roughly every 20-40 bars; the volume and up-close conditions keep perhaps a quarter to a third of them, and one position at a time gives about 300-500 trades per year per pair (about 1 per day). Expected gross move: about 0.5% per trade on the scout's estimate (trending flips on active bars run 1.5-3% before the SAR catches them, failed flips lose 1-1.5%). This is uncertain: the lab's median 15m rule made 0.09% gross. In a falling market or in chop, flips fail more often and get cut at S0 or at the first SAR down-flip; there is no regime filter, because the idea adds none and the formalisation must not add filters.",
+  "novelty_vs_tried": "No Parabolic SAR rule is in the registry. The nearest rules use other triggers: H-046 (LivermorePivotFailFast, a pivot breakout with a fail-fast exit), H-027 and H-083 (Supertrend, an ATR band flip with fixed-multiple bands), and H-071 (ATR trailing). Here the trailing exit is Wilder's acceleration-factor SAR, which tightens with time and with each new high rather than keeping a fixed ATR distance, and the entry is the SAR's own reversal confirmed by a volume burst and an up close. It has no take-profit, unlike the bracket rules (H-132, H-134, H-135) whose capped targets the lab found harmful.",
+  "sources": [
+    {
+      "title": "je-suis-tm/quant-trading (Apache-2.0): Parabolic SAR backtest",
+      "url": "https://github.com/je-suis-tm/quant-trading"
+    },
+    {
+      "title": "StockCharts ChartSchool: Parabolic SAR (Wilder's calculation, AF 0.02/0.02/0.20, prior-two-lows rule)",
+      "url": "https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data was viewed. Only the research context file for H-136 (exploration summaries of earlier hypotheses through 2026-11-13) and the two cited web pages."
+}
