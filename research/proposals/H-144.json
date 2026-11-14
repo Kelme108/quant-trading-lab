@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-144",
+  "family": "IdiosyncraticSurgeMomentum",
+  "title": "Idiosyncratic alt surge while BTC is flat on 15m: volume-backed coin-specific continuation, 12h cap",
+  "ex_ante_rule": "Chart 15m, UTC, closed candles only, candle time = open time; a signal at the close of bar t fills at the open of bar t+1. Spot, long only, one position per pair, whole allowed balance, no pyramiding, no sizing hooks, same numbers on every pair. REFERENCE: BTC/USDT is the market reference and is never traded (the strategy returns no entry signal when the traded pair is BTC/USDT); the rule trades the other 25 enabled pairs. BTC/USDT 15m is loaded as an informative pair of the SAME 15m timeframe and joined on the identical candle open time (bar t of BTC closes at the same instant as bar t of the traded pair; no later BTC bar is ever used). DEFINITIONS for traded pair i at bar t: r16(i,t) = close(i,t) / close(i,t-16) - 1 (the last 4 hours; bar t-16 is the candle whose open time is exactly 240 minutes before bar t); r16(BTC,t) = close(BTC,t) / close(BTC,t-16) - 1 on the same timestamps; resid(t) = r16(i,t) - r16(BTC,t) (plain difference, no beta). MV(t) = mean volume of pair i over the 96 bars t-96..t-1 (24 hours, bar t excluded). CL(t) = (close(t) - low(t)) / (high(t) - low(t)); if high(t) = low(t) there is no signal. ENTRY at the close of bar t when ALL hold: (1) resid(t) >= 0.020; (2) abs(r16(BTC,t)) <= 0.0075; (3) activity filter (b), volume, fixed in advance: volume(t) >= 1.5 x MV(t); (4) CL(t) >= 0.70; (5) no open position in pair i; (6) cooldown: no entry signal on the 8 candles that follow the candle on which the previous trade of pair i exited (Freqtrade CooldownPeriod protection, stop_duration_candles = 8). Buy at the open of bar t+1 (fill bar e = t+1). MISSING DATA: if any input (pair or BTC close at t or t-16, any of the 96 volume bars) is missing or NaN, no signal. EXITS, the first that occurs: (a) TAKE-PROFIT +2.5% above the entry price, intrabar (minimal_roi {\"0\": 0.025}, no other step); (b) STOP-LOSS fixed 1.25% below the entry price, the engine's native intrabar stop (stoploss = -0.0125, no trailing); if target and stop are touched in the same bar, the stop counts; (c) TIME EXIT: exit signal at the close of the 48th 15m bar after entry, counting the fill bar e as bar 1 (the close of bar e+47), sold at the open of bar e+48, i.e. 12 hours after the fill. No other exit, filter, trend or session condition, daily cap or trailing. One grid cell only. Warm-up: 120 bars (longest lookback is the 96-bar volume mean plus bar t; r16 needs 16 bars; no recursive indicators; startup_candle_count = 120, under the 4500 limit).",
+  "parameters": {
+    "timeframe": "15m",
+    "reference_pair": "BTC/USDT",
+    "return_lookback_bars": 16,
+    "min_residual_return": 0.02,
+    "max_abs_btc_return": 0.0075,
+    "volume_mean_bars": 96,
+    "volume_multiple": 1.5,
+    "min_close_location": 0.7,
+    "cooldown_bars": 8,
+    "take_profit": 0.025,
+    "stop_loss": 0.0125,
+    "time_exit_bars": 48,
+    "warmup_bars": 120
+  },
+  "rationale": "Wen, Bouri, Xu and Zhao (2022) document intraday momentum in crypto and link it to late-informed investors: information reaches traders over hours, so a move started by informed flow keeps drifting while later traders arrive. Coin-specific news (listings, upgrades, unlocks, partnerships) is the cleanest case: requiring BTC to be flat (|4h BTC return| <= 0.75%) while the alt is up at least 2% more than BTC separates a coin-specific information move from market beta, and the 1.5x 24h-mean volume plus a close in the top 30% of the bar require that the move is being bought now, not drifting on thin volume. Who pays: holders who sell into the first leg of the move and late buyers who arrive after it. The lab's residual REVERSAL rule (H-072, buying idiosyncratic drops) had a negative gross move, a hint that residual moves continue; this rule tests that side. In a market-wide selloff BTC is rarely flat while an alt surges, so the rule mostly stands aside in falling markets. Expected activity: a 2% residual with a flat BTC, a volume burst and a strong close is a rare per-bar event, roughly 40-100 trades per year per pair on 25 pairs (bursty, clustered on news days). Move per trade: the bracket is +2.5% / -1.25% with a 12h cap on alts that just moved 2%+ in 4h (realised volatility is elevated), so the average absolute exit is near 1.5-1.8%; with about 45-50% of brackets reaching the target the expected mean gross move is near +0.5%, above the 0.30% base round trip. The scout's idea was written for 15m (16 bars = 4h, 96 bars = 24h, 48 bars = 12h), so the strategy runs on 15m to keep the rule's meaning. BTC/USDT cannot trade under this rule, so breadth is measured on the 25 traded pairs.",
+  "novelty_vs_tried": "H-072 (IdiosyncraticResidualReversal) bought idiosyncratic DROPS on 1h with a rolling beta and lost gross; this buys idiosyncratic SURGES (the opposite sign, continuation) on 15m with a plain BTC-difference residual, a volume burst and a strong-close condition. CrossPairCatchUp (H-031, H-080) bought alts LAGGING a BTC move (BTC leads); here BTC must be flat and the alt leads on its own news. H-143 ranked pairs cross-sectionally on 4h returns at fixed check hours with no market-neutral condition; H-059/H-102 jump continuation used the pair's own jump without separating it from market moves. No tried rule conditions on a flat market reference to isolate coin-specific information flow.",
+  "sources": [
+    {
+      "title": "Intraday return predictability in the cryptocurrency markets: Momentum, reversal, or both (Wen, Bouri, Xu, Zhao; North American Journal of Economics and Finance 62, 2022)",
+      "url": "https://ideas.repec.org/a/eee/ecofin/v62y2022ics1062940822000833.html"
+    }
+  ],
+  "timeframe": "15m",
+  "data_visible_at_proposal": "No price data opened; only the lab's exploration summaries in research/context/H-144.md (exploration splits ending 2024-07-04) and the source abstract.",
+  "market": "spot"
+}
