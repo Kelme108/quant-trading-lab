@@ -23,7 +23,7 @@ talib.abstract = talib_abstract
 sys.modules.setdefault("talib", talib)
 sys.modules.setdefault("talib.abstract", talib_abstract)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 NAME = "MomentumThrustIgnition_H141_v1"
 START = pd.Timestamp("2024-01-01 00:00", tz="UTC")
 
@@ -39,7 +39,7 @@ def fake_rsi(dataframe, timeperiod=14):
 
 
 def load():
-    path = ROOT / "user_data" / "strategies" / f"{NAME}.py"
+    path = ROOT / "user_data" / "strategies" / "_archive" / f"{NAME}.py"
     spec = importlib.util.spec_from_file_location(NAME, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
