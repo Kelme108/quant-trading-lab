@@ -1,0 +1,32 @@
+{
+  "hypothesis_id": "H-143",
+  "family": "IntradayCrossSectionalMomentum",
+  "title": "Hourly cross-sectional momentum: buy 4-hour leaders of the 26 pairs on volume, 2% target, 1.2% stop, 12h cap",
+  "ex_ante_rule": "Chart 1h, UTC, closed bars, bar time = open time; a signal at the close of bar t fills at open(t+1). Spot, long only, one position per pair, whole allowed balance, no pyramiding, same numbers on every pair, one grid cell. Every other enabled pair is loaded as an informative 1h pair (merge_informative_pair, same timestamp, closed bars). CHECK BARS: the bars opening 03:00, 07:00, 11:00, 15:00, 19:00, 23:00 UTC. For each pair i at bar t: r4(t) = close(t)/close(t-4) - 1; VR(t) = mean volume of bars t-3..t / mean volume of bars t-123..t-4 (the 120 bars before). Pair i COUNTS at t if it has a candle at t and r4 and VR are defined (denominator > 0). If fewer than 10 pairs count, or X does not count, no entry at t (missing-data rule for late listings). RANK: counting pairs ordered by r4(t), highest = rank 1; exact ties by pair name ascending. ENTRY for X at the close of check bar t when ALL hold: (1) rank(X) <= 5; (2) r4_X(t) >= 0.015; (3) activity filter (b), volume, fixed in advance: VR_X(t) >= 1.5; (4) X is flat; (5) no exit signal for X was issued at this same bar t. Buy at open(t+1) = E; fill bar e = t+1. EXITS, first that occurs: (a) TAKE-PROFIT at E x 1.02, intrabar as soon as a high reaches it (minimal_roi {\"0\": 0.02}, no other step); (b) STOP-LOSS fixed 1.2% below E, native intrabar stop (stoploss = -0.012); if stop and target touch in one bar, the stop counts; (c) CHECK EXIT: at the close of every later check bar k while in the trade, exit signal (sold at open(k+1)) unless X counts at k with rank(X) <= 5 AND r4_X(k) >= 0.015 (no volume condition to hold); this covers the idea's 'exit at any check if rank > 10'; (d) TIME EXIT: exit signal at the close of bar e+11 (fill bar = bar 1), sold at open(e+12), 12 hours after the fill, whatever the check says. Entries happen only at check bars, so after any exit there is no re-entry before the next check bar. No trailing stop, break-even, cooldown, daily cap, trend or session filter, or other filters. Warm-up: 200 bars (longest lookback 124 bars: 4-bar volume window plus the 120 bars before it; no recursive indicators; startup_candle_count = 200).",
+  "parameters": {
+    "timeframe": "1h",
+    "check_bar_open_hours_utc": "03,07,11,15,19,23",
+    "return_lookback_bars": 4,
+    "rank_max_entry": 5,
+    "min_r4": 0.015,
+    "volume_recent_bars": 4,
+    "volume_base_bars": 120,
+    "volume_ratio_min": 1.5,
+    "min_counting_pairs": 10,
+    "take_profit": 0.02,
+    "stoploss": -0.012,
+    "rank_exit_above": 10,
+    "time_exit_bars": 12,
+    "startup_candle_count": 200
+  },
+  "rationale": "Mechanism: cross-sectional and time-series momentum at high frequency in the largest coins (Chu, Chan and Zhang 2020 report abnormal returns over a passive portfolio). Intraday crypto momentum has been linked to late-informed and attention-driven flow: Wen, Bouri, Xu and Zhao 2022 study intraday momentum versus reversal, but I could not open their abstract, so the late-informed reading is the scout's. Shen, Urquhart and Wang 2022 instead credit liquidity provision. Who pays: late buyers drawn in by exchange top-gainer lists and social attention hours after a move began, and liquidity providers who sell into the burst too early. The trigger is rare per pair-bar but common across 26 pairs: a pair must be top-5 of 26 on its 4-hour return, up at least 1.5%, on 4-hour volume at least 1.5x its 5-day mean. That picks pairs already moving 2-4% per 4h, so the expected absolute move is large. The 2.0% target and 1.2% stop give an average absolute exit near 1.5%; if about 55% of brackets reach the target, the mean gross is near +0.5%, above the 0.30% base round trip (thin at the 0.45% conservative cost; that is the main risk). Expected frequency: about 1-2 qualifying pairs per check across the portfolio, 6 checks a day, so about 80-150 trades a year per pair, held 4-12 hours. In falling or choppy markets few pairs post +1.5% on high volume, so the rule mostly stands aside. The tight stop and the hold-only-while-leading exit limit losses in failed bursts. All numbers are the scout's, fixed before any test.",
+  "novelty_vs_tried": "No tested rule ranks the 26 pairs by their intraday return. H-113 (CrossSectionalAttentionVolume) ranked 9 pairs by abnormal volume, used return only as a side condition and checked every bar. H-077 (CrossSectionalDailyMomentum) ranked daily returns and held for days. H-031/H-080 (CrossPairCatchUp) bought laggards behind BTC, not leaders. H-073 (BreadthThrustIntraday) used market breadth, not relative rank. This rule checks only six fixed times a day and enters on the 4-hour leaders. It holds only while the pair stays a leader at the next check (a re-ranking exit), with a 12h cap. New family.",
+  "sources": [
+    {"title": "High frequency momentum trading with cryptocurrencies (Chu, Chan, Zhang, Research in International Business and Finance 52, 2020)", "url": "https://ideas.repec.org/a/eee/riibaf/v52y2020ics0275531919308062.html"},
+    {"title": "Intraday return predictability in the cryptocurrency markets: Momentum, reversal, or both (Wen, Bouri, Xu, Zhao, NAJEF 62, 2022)", "url": "https://ideas.repec.org/a/eee/ecofin/v62y2022ics1062940822000833.html"},
+    {"title": "Bitcoin intraday time-series momentum (Shen, Urquhart, Wang, Financial Review 2022)", "url": "https://research.birmingham.ac.uk/en/publications/bitcoin-intraday-time-series-momentum/"}
+  ],
+  "timeframe": "1h",
+  "data_visible_at_proposal": "No candle data inspected; only the exploration summaries in research/context/H-143.md (exploration splits ending 2024-07-04) as of 2026-11-14.",
+  "market": "spot"
+}
