@@ -1,0 +1,55 @@
+{
+ "rule_id": "P-011",
+ "title": "Round-number rejection: fade the first touch of a 50-point S&P level that the bar fails to close through, US500",
+ "class_name": "RoundNumberRejectionFade",
+ "file_stem": "p011_round_number_rejection_fade",
+ "markets": [
+  "US500"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (New York regular session 09:30-16:00); O/H/Lo/C are the bar's open, high, low and close. LEVELS: every multiple of G = 50 index points of the proxy price (..., 4950, 5000, 5050, ...). b = 1.0 point touch tolerance. A bar TOUCHES level L if H >= L - b and Lo <= L + b. FRESH: L is fresh at bar t if no earlier bar of today's session (all bars from bar_in_day 0, including bars before the entry window and bars where a position was open) touched L. Each level is spent at its first touch of the day, traded or not. DAY FILTER: skip FOMC_today days (mark_events with kinds [FOMC]). DECISION BARS: bars opening at minute_of_day 595 to 890 inclusive (09:55 to 14:50 NY), so fills happen from 10:00 (30 min after the open) to 14:55 (65 min before the close); no position may be open. Let Cp = close of the previous bar (same session). SHORT (resistance rejection): a fresh L with Cp < L, H >= L - b, C < L and H < L*(1+0.0015) -> ENTER_SHORT at the next bar open, stop = tick_ceil(L*(1+0.0015)). LONG (support rejection): a fresh L with Cp > L, Lo <= L + b, C > L and Lo > L*(1-0.0015) -> ENTER_LONG at the next bar open, stop = tick_floor(L*(1-0.0015)). If more than one level qualifies, use the one nearest C; if a long and a short both qualify on the same bar, no trade. A touch that closes through L, or that reaches the stop level, is not traded (the level is spent). EXIT: time exit at the open of the 12th bar after the entry bar (hold 60 minutes); the stop; the engine flatten 5 minutes before the close. No target, no re-entry on a spent level. Max entries per day = 2. Lookbacks: today's session bars only (for freshness) and the previous bar's close.",
+ "parameters": {
+  "level_grid_points": 50,
+  "touch_tolerance_points": 1.0,
+  "stop_beyond_level_frac": 0.0015,
+  "first_decision_bar_open_minute": 595,
+  "last_decision_bar_open_minute": 890,
+  "entry_start_after_open_min": 30,
+  "entry_end_before_close_min": 65,
+  "hold_bars": 12,
+  "max_hold_minutes": 60,
+  "max_entries_per_day": 2,
+  "skip_fomc_days": 1,
+  "flatten_before_close_min": 5
+ },
+ "mechanism": "Resting orders are not spread evenly over prices. Osler (JF 2003), using RBS's full book of conditional orders, found that take-profit orders cluster especially strongly at round numbers and stop-loss orders cluster just beyond them. That explains two old chart claims: trends tend to reverse at round-number support and resistance, and they accelerate once the level breaks. In equities, Zhang's limit-order-clustering work finds that stocks just above a round price rise the next day and stocks just below fall, because buy (sell) depth is piled up at the round number. Bourghelle and Cellier report that round-number clustering builds depth on Euronext that is hard to break through. In the S&P complex, the 50- and 100-point levels are the round numbers traders and headlines watch, and listed index options are also concentrated at round strikes. The other side of this trade is the traders who park take-profit and resting limit orders at the round number for convenience. They are price-insensitive about the exact level and supply a wall of liquidity there, which stalls and turns the price on its first test. The rule sells (buys) right after a bar tests the level from below (above) and fails to close through it. It places its stop beyond the stop-loss cluster, where the level has truly broken and the cascade Osler describes takes over. Only the first touch of the day is traded, because that is when the clustered orders are still resting.",
+ "why_gross_beats_3x_cost": "US500 5-minute anatomy: the 60-minute median move is 0.128% (mean 0.208%) and the midday 30-minute medians are 7.7-11x the cost. Entry is usually 0.02-0.05% inside the level. The stop sits 0.15% beyond it, so the full risk is about 0.18% plus 0.005% stop slippage. About one trade in four should be stopped, costing about 0.19% each. The rest exit after 60 minutes, and conditional on the level holding the average move away from it should be 0.10-0.13% (roughly the 60-minute median move). Expected hit rate is about 55%, with average win about 0.14% and average loss about 0.11%. That gives a mean gross of about 0.03-0.04% per trade, 3-4x the 0.01% round trip. Stop slippage is about 3% of the risk. The stop is a fixed level, not a fixed time, so the trade's losses are capped while a held level pays out the full hour's move. Both sides are symmetric. Rejections at resistance put it short, so the result does not rest on the index's upward drift. Known risks: the clustering evidence is from FX and single stocks, not index futures. The CFD price may differ from the ES or SPX price that traders watch by the futures basis, which would shift the true level.",
+ "expected_trades_per_year": 110,
+ "expected_median_hold_min": 60,
+ "novelty_vs_tried": "Every earlier rule triggers on time and return: opening-range and first-candle breakouts (P-001, P-006), noise-area momentum (P-003), VWAP trend (P-005), first/rest-of-day momentum into the close (P-002, P-004, P-007), fading a large opening move at minute 15 (P-008), month-end month-to-date rebalancing in the last hour (P-009), fading the European-close window at 12:30 (P-010), and the FOMC/CPI/NFP event rules. This rule triggers on a fixed PRICE LEVEL, the absolute round number, at whatever time it is first touched between 10:00 and 14:55. It has no return threshold, no volatility scale, no reference to the open, the previous close, VWAP or the day's trend. Its side is set by which side of the level the price came from and by a failed close through it. Its stop is anchored to the level, not to the entry or to a move size. It fades, so it is the opposite of the momentum and breakout rules. It differs from P-008/P-010 because those fade a large move at a fixed clock time.",
+ "sources": [
+  {
+   "title": "Osler (2003), Currency Orders and Exchange Rate Dynamics: An Explanation for the Predictive Success of Technical Analysis, Journal of Finance 58(5) (IDEAS abstract)",
+   "url": "https://ideas.repec.org/a/bla/jfinan/v58y2003i5p1791-1819.html"
+  },
+  {
+   "title": "Osler (2001), Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis, NY Fed Staff Report 125 (only metadata readable)",
+   "url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr125.html"
+  },
+  {
+   "title": "Zhang, limit order clustering and stock price movements (AFA working paper page; search summary)",
+   "url": "https://afajof.org/management/viewp.php?n=131712"
+  },
+  {
+   "title": "OptionMetrics summary of the limit-order-clustering round-number effect",
+   "url": "https://optionmetrics.com/?p=2447"
+  },
+  {
+   "title": "Bourghelle & Cellier (EFMA 2007), limit order clustering on round numbers on Euronext",
+   "url": "https://www.efmaefm.org/0EFMAMEETINGS/EFMA%20ANNUAL%20MEETINGS/2007-Austria/papers/0286.pdf"
+  }
+ ],
+ "data_visible_at_proposal": "research/proxies/context/P-011.md; research/proxies/anatomy.json (move sizes by horizon and hour, all index markets); research/proxies/proposals/P-008.json, P-009.json, P-010.json (P-010 status error, avoided its mechanism); b3/proxy_rules/p009_month_end_rebalancing_last_hour.py (rule style, SessionRules, mark_events, tick_ceil/tick_floor); b3/events.py; b3/markets.py (grep: US500 proxies ES/MES, tick 0.01). Web: IDEAS abstract of Osler 2003 (fetched); NY Fed sr125 page (fetch returned only PDF metadata); search summaries for Zhang's limit-order-clustering paper (afajof, OptionMetrics) and Bourghelle-Cellier (EFMA 2007); searches on intraday periodicity and DAX/US-open reversals gave nothing usable and are not cited. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-14T22:52:36+00:00"
+}
