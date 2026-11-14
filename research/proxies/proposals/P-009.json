@@ -1,0 +1,56 @@
+{
+ "rule_id": "P-009",
+ "title": "Month-end pension rebalancing: last-hour trade against the month-to-date move, last 3 sessions of each month, US500",
+ "class_name": "MonthEndRebalancingLastHour",
+ "file_stem": "p009_month_end_rebalancing_last_hour",
+ "markets": [
+  "US500"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (New York regular session 09:30-16:00). TRADING DAYS: only the last 3 sessions of each calendar month. A session d qualifies if the number of trading days after d up to the end of d's calendar month (weekdays the calendar's is_trading_day accepts) is 0, 1 or 2. Holidays are announced in advance, so this is known ex ante. REFERENCE: ref = close of the last session bar of the last session of the previous calendar month (month-end close; same idea as _prev_session_close in b3/strategies/proxies.py, but taken at the previous month's last session). No trade until a ref exists. SIGNAL BAR: the bar that opens at 14:55 New York and closes at 15:00 (minute_of_day 895 in local minutes, 65 minutes before the close). C = its close. Month-to-date move R = C / ref - 1. FILTER: skip the day if FOMC_today (mark_events with kinds [FOMC]): an FOMC statement at 14:00 drives the last hour with news, not with rebalancing flow. ENTRY: decided only on the signal bar, so at most 1 entry per day. Market order at the open of the next bar (15:00 New York). If R >= +0.005: ENTER_SHORT (equities are overweight in balanced portfolios, so rebalancers sell). If R <= -0.005: ENTER_LONG (equities are underweight, so rebalancers buy). If |R| < 0.005: no trade. The two sides are symmetric. STOP on every entry: 0.4% of the entry price (long stop = entry x 0.996, short stop = entry x 1.004), tick-rounded away from the price. EXIT: time exit at the open of the 15:55 bar (the engine's flatten 5 minutes before the close), so the longest hold is 55 minutes; or the stop. No target, no re-entry after a stop, max_entries_per_day = 1. On a half-day session the rule only trades if the 14:55 bar exists inside the session; otherwise there is no trade that day. Lookbacks: the previous month's last close only; there are no rolling windows.",
+ "parameters": {
+  "last_sessions_of_month": 3,
+  "signal_bar_open_minute_of_day": 895,
+  "entry_minutes_before_close": 60,
+  "mtd_threshold_frac": 0.005,
+  "stop_frac": 0.004,
+  "flatten_before_close_min": 5,
+  "max_hold_minutes": 55,
+  "max_entries_per_day": 1,
+  "skip_fomc_days": 1
+ },
+ "mechanism": "Defined-benefit pensions, balanced funds and target-date funds hold fixed stock/bond weights and rebalance on a calendar, mostly at month-end and quarter-end. They also sell assets at month-end to pay benefits. When equities have outperformed during the month they must sell equities into the month-end close; when equities have lagged they must buy. These are price-insensitive, predictable orders, and sell-side desks publish estimates of them before every month-end (e.g. Goldman's ~$14bn equity sell estimate after a +3.8% S&P month). The other side is liquidity providers and front-runners. They demand a price concession for absorbing a known one-way flow, so prices are pushed in the rebalancing direction around month-end and the pressure is temporary. Harvey, Mazzoleni and Melone (2025) estimate about 16-17 bp lower equity returns over the next day when rebalancing pressure says sell, and say the pressures reverse within about two weeks. Their calendar signal is strongest at month-end. Pensions give this money away because their mandate is to track weights, not to time execution; the paper puts the cost at ~8 bp a year (~$16bn). Most of that flow goes through the close (MOC orders, futures overlays priced at the close), and the S&P futures follow the cash basket. So the last hour of the last sessions is where the concession should show up intraday. No bond data are available, so the sign of the equity month-to-date return stands in for the stock-bond drift. The 0.5% threshold drops months where that sign is unreliable.",
+ "why_gross_beats_3x_cost": "The trade lives 55 minutes in the last hour. On US500 that hour's 30-minute median move is 9.6x the cost, and the 60-minute median move is 0.128% (mean 0.208%) (anatomy.json). The paper's next-day pressure is about 16-17 bp, concentrated around the month-end close. If a quarter to a third of it falls in the final hour before 15:55, the mean gross is about 0.04-0.06% per trade, 4-6x the 0.01% round trip. Quarter-ends (larger flows) should add to the average. Expected hit rate about 53-56%, average win/average loss about 1.1-1.2. The 0.4% stop is about 3x the median 60-minute move, so it fires only on outlier afternoons (expected under 5% of trades), and the 0.005% stop slippage is about 1% of the risk. This rule does not depend on the market's upward drift: after up-months it is short, and up-months are the majority. Known counter-force: the unconditional turn-of-month strength on the last session works against the short side, and that is a reason it could fail.",
+ "expected_trades_per_year": 26,
+ "expected_median_hold_min": 55,
+ "novelty_vs_tried": "Every rule in the table triggers on an intraday price pattern of the same day. P-001/P-006 are opening-range breakouts, P-002/P-004/P-007 are first-half-hour or rest-of-day momentum, P-003 is a noise-area breakout, P-005 is VWAP trend, and P-008 fades the opening move. The event rules traded the FOMC/CPI/NFP releases. This rule's signal is a calendar date (the last 3 sessions of the month) combined with a MONTH-TO-DATE return (about 20 sessions of drift), traded AGAINST its sign. The same-day path plays no part, and the side does not depend on how today has gone. Its mechanism is a predictable portfolio-rebalancing flow, not information diffusion or intraday trend-following. It trades about 26 days a year instead of every day, and it skips the FOMC days the event rules used.",
+ "sources": [
+  {
+   "title": "Harvey, Mazzoleni & Melone, The Unintended Consequences of Rebalancing (working paper, SSRN 5122748, EDHEC-hosted PDF)",
+   "url": "https://www.edhec.edu/sites/default/files/2026-03/Scientific%20paper.%20ssrn-5122748.pdf"
+  },
+  {
+   "title": "Duke Fuqua Insights: What Do Pension Funds Lose from 'Rebalancing'?",
+   "url": "https://www.fuqua.duke.edu/duke-fuqua-insights/what-do-pensions-lose-from-rebalancing"
+  },
+  {
+   "title": "CFA Institute Enterprising Investor (2025): Rebalancing's hidden cost: how predictable trades cost pension funds billions",
+   "url": "https://rpc.cfainstitute.org/blogs/enterprising-investor/2025/rebalancings-hidden-cost-how-predictable-trades-cost-pension-funds-billions"
+  },
+  {
+   "title": "Tickmill: Institutional Insights - Goldman Sachs Month End Rebalancing Flows To Know",
+   "url": "https://www.tickmill.com/blog/institutional-insights-goldman-sachs-month-end-rebalancing-flows-to-know"
+  },
+  {
+   "title": "Time Series Reversal: An End-of-the-Month Perspective (working paper; month-end reversal in the S&P 500 linked to pension payments)",
+   "url": "https://csef.it/wp-content/uploads/JMP_GG_02Nov2024.pdf"
+  },
+  {
+   "title": "Legal & General (2025): A rebuttal of rebalancing downsides (counter-view)",
+   "url": "https://am.landg.us.com/insights/insights-blog/a-rebuttal-of-rebalancing-downsides"
+  }
+ ],
+ "data_visible_at_proposal": "research/proxies/context/P-009.md; research/proxies/anatomy.json (move sizes by horizon and hour); research/proxies/failure_anatomy.json (first part, P-001 US500: years 2017-2023, by side/hour); research/proxies/proposals/P-008.json; b3/markets.py; b3/events.py (mark_events API); function list of b3/strategies/proxies.py. Web: search result summaries for the Harvey-Mazzoleni-Melone paper, the Duke Fuqua and CFA Institute articles (read), the Tickmill/Goldman month-end flow note (read), and search snippets for the csef.it month-end reversal paper and the L&G rebuttal. The paper PDFs came back as unreadable binary, so their numbers come from the search summaries and the articles. An AFA paper on pension month-end selling (afajof.org n=133448) was unreadable and is not cited. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-14T16:53:55+00:00"
+}
