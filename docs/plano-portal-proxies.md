@@ -1,5 +1,30 @@
 # Plano: day trade em índices no portal (15/11/2026)
 
+## Entregue em 15/11/2026
+
+O dono aprovou tudo ("pode fazer tudo"), com as recomendações D1 a D4.
+
+| Fase | Commit | O que entrou |
+|---|---|---|
+| 0 (D1) | 62cf430 | Trabalho pendente do portal commitado como estava, depois de 85 testes passarem |
+| D2 | 8112d62 | Cada leitura grava a lista de operações; recálculo da exploração das leituras antigas (`research/tools/backfill_proxy_trades.py`) |
+| 1 a 6 | 70dac63 | `lab/indices_portal.py`, `/api/indices`, `/api/indices/trades`, `lab/dashboard_assets/indices.js` (5 páginas), cartão no Início, alertas no topo, busca, testes |
+
+**Verificado:**
+- 272 testes passam (portal, b3, agentes);
+- o teste no navegador (`node research/tools/portal_indices_e2e.mjs`) passa em todos os itens, inclusive em largura de celular;
+- o placar bate com `research/proxies/scoreboard.json` nas 67 células;
+- `/api/indices` responde em 0,04 s com o servidor aquecido e tem 330 KB.
+
+### Como usar
+
+- **Abrir:** no menu do portal, grupo **Índices (WIN/WDO)**: Visão geral, Placar, Ciclos dos agentes, Mercados e medições. Cada regra tem um relatório em `#/indices-regra/P-NNN`, e o placar abre cada uma com um clique.
+- **Curva de capital e horários:** no relatório da regra, abra "Operações: curva de capital e horários" e clique em "Carregar as operações".
+  - As leituras feitas antes de 15/11 mostram a exploração recalculada com o motor atual, com aviso.
+  - Validação e teste final antigos não têm curva, porque essas etapas não podem ser lidas de novo.
+- **O portal precisa ser reiniciado uma vez** para carregar o código novo. Feche a janela do `python -m lab.dashboard serve` e rode de novo.
+- **Testar no navegador:** `node research/tools/portal_indices_e2e.mjs http://127.0.0.1:8765`.
+
 ## Objetivo
 
 Ver no portal (`python -m lab.dashboard serve`, http://127.0.0.1:8765) tudo o que hoje só aparece em arquivos e no terminal:
