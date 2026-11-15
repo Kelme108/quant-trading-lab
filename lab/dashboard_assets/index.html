@@ -1474,6 +1474,10 @@ const ICONS = {
   theme: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18'],
   sun: ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'],
   moon: ['M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'],
+  indices: ['M3 17l5-6 4 4 8-9', 'M15 6h5v5'],
+  'indices-placar': ['M4 4h16v16H4z', 'M4 10h16M10 4v16'],
+  'indices-ciclos': ['M20 12a8 8 0 1 1-2.3-5.7', 'M20 4v5h-5'],
+  'indices-mercados': ['M3 21h18', 'M5 21V10M10 21V6M15 21v-8M20 21V3'],
 };
 const icon = (name, size = 18) => sv('svg', { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false', class: 'icon' }, ICONS[name].map((d) => sv('path', { d })));
 
@@ -1581,6 +1585,7 @@ function glossary() {
     roi: ['ROI', 'Lucro líquido do cenário base em % da carteira inicial de cada par. Na linha agregada, é a média dos pares. Depende da exposição calibrada de cada hipótese.'],
     evidencia: ['Evidência (0 a 100)', 'Nota transparente, não é o win rate: rentabilidade (30, profit factor e robustez a custos), risco (25, queda máxima e retorno/queda), amostra (20, trades por par) e consistência (25, pares e anos lucrativos, lucro sem o melhor trade). Limitada a 40 com amostra pequena e a 60 se os gates rejeitaram.'],
     ...(typeof rxTerms === 'function' ? rxTerms() : {}),
+    ...(typeof ixTerms === 'function' ? ixTerms() : {}),
   };
 }
 let qn = 0, defOpen = null;
@@ -1911,7 +1916,7 @@ function overview() {
 }
 const openItems = () => (state.attention || []).filter((a) => !a.resolved);
 const criticalItems = () => (state.attention || []).filter((a) => a.level === 'critical' && !a.resolved);
-const ROUTE_OF = { 'sec-seguranca': '#/overview', 'sec-hipoteses': '#/experiments', 'sec-agentes': '#/research', 'sec-ciclos': '#/data?at=sec-ciclos', 'sec-dados': '#/data?at=sec-dados' };
+const ROUTE_OF = { 'sec-seguranca': '#/overview', 'sec-hipoteses': '#/experiments', 'sec-agentes': '#/research', 'sec-ciclos': '#/data?at=sec-ciclos', 'sec-dados': '#/data?at=sec-dados', ix: '#/indices' };
 const routeOfAttention = (a) => (linkOf(a).match(/^#\/(\w+)/) || [0, 'overview'])[1];
 const hl = (v) => '&hl=' + encodeURIComponent(v);
 const linkOf = (a) => a.kind === 'failed_experiments' ? '#/experiments?exec=failed'
@@ -1940,6 +1945,7 @@ function describe(a) {
     case 'data_error': return { title: `Erro ao ler os dados de ${short(a.pair)} ${a.timeframe}`, impact: 'Não foi possível ler a série; os testes dessa série podem usar dados desatualizados.', lines: [], raw: a.raw };
     case 'database_missing': return { title: 'Registro de experimentos não encontrado', impact: 'Sem research/lab.sqlite não há hipóteses nem resultados para mostrar.', lines: [] };
     case 'safety': return { title: a.text, impact: 'Uma regra de segurança do projeto não está como esperado.', lines: [] };
+    case 'indices': return { title: 'Índices (WIN/WDO): ' + a.text, impact: 'Pesquisa de day trade nos mercados substitutos.', lines: a.action ? ['Como resolver: ' + a.action] : [] };
     default: return { title: a.text, impact: '', lines: [] };
   }
 }
@@ -2648,6 +2654,8 @@ costChartFor = guard(costChartFor, 'Retorno por cenário de custo'); drawdownCha
 
 /*__DRYRUN_LIVE__*/
 
+/*__INDICES__*/
+
 /* ==================== shell, router and render loop ==================== */
 const ROUTES = [
   { id: 'overview', group: 'Resultados', title: 'Início', ctx: 'O projeto em uma frase, números-chave, funil e onde cada estratégia funciona', page: () => pageInicio() },
@@ -2660,6 +2668,11 @@ const ROUTES = [
   { id: 'data', group: 'Acompanhamento', title: 'Sistema', ctx: 'Saúde do ambiente: bot, dados, banco, ciclos e alertas', page: () => pageSystem() },
   { id: 'research', group: 'Laboratório', title: 'Pesquisa com IA', ctx: 'Agentes, pipeline e relatórios dos revisores', page: () => pageResearch() },
   { id: 'risk', group: 'Laboratório', title: 'Validação e risco', ctx: 'Gates, estágios, custos e motivos, para quem quer o detalhe técnico', page: () => pageRisk() },
+  { id: 'indices', group: 'Índices (WIN/WDO)', title: 'Visão geral', ctx: 'Day trade em índices: conclusão, funil, programa de agentes e avisos', page: () => pageIndices() },
+  { id: 'indices-placar', group: 'Índices (WIN/WDO)', title: 'Placar', ctx: 'Todas as combinações regra × mercado, por etapa, com filtros', page: () => pageIndicesPlacar() },
+  { id: 'indices-ciclos', group: 'Índices (WIN/WDO)', title: 'Ciclos dos agentes', ctx: 'O que cada ciclo de agentes fez, quanto custou e os erros', page: () => pageIndicesCiclos() },
+  { id: 'indices-mercados', group: 'Índices (WIN/WDO)', title: 'Mercados e medições', ctx: 'Custos, escopo, qualidade dos dados, tamanho do movimento e eventos', page: () => pageIndicesMercados() },
+  { id: 'indices-regra', hidden: true, title: 'Regra (índices)', ctx: 'Relatório de uma regra dos índices: ideia, registro, leituras e operações', page: (r) => pageIndicesRegra(r.arg) },
   // reachable by link, not in the menu (absorbed by the Resultados pages)
   { id: 'chart', hidden: true, title: 'Gráfico do backtest', ctx: 'Candles e operações de um backtest', page: (r) => pageTrades(r) },
   { id: 'experiments', hidden: true, title: 'Experimentos', ctx: 'Cada execução de backtest e a decisão dos gates', page: (r) => r.arg ? pageExperiment(r.arg) : pageExperiments() },

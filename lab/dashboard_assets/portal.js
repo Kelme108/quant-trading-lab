@@ -554,7 +554,9 @@ const palette = { el: null, input: null, list: null, items: [], idx: 0 };
 function paletteItems(q) {
   const pages = ROUTES.filter((r) => !r.hidden).map((r) => ({ label: r.title, hint: r.ctx, hash: '#/' + r.id }));
   const ids = sIds().map((id) => ({ label: id, hint: `Estratégia · ${(hypById(id) || {}).family || ''}`, hash: `#/strategy/${id}` }));
-  const all = [...pages, ...ids], s = q.trim().toLowerCase();
+  const ixd = typeof ixData === 'function' ? (state.indices || (typeof IX !== 'undefined' ? IX.data : null)) : null;
+  const ixRules = ixd ? (ixd.rules || []).map((r) => ({ label: r.id, hint: `Índices · ${r.title || r.name || ''}`, hash: `#/indices-regra/${r.id}` })) : [];
+  const all = [...pages, ...ids, ...ixRules], s = q.trim().toLowerCase();
   return (s ? all.filter((x) => (x.label + ' ' + x.hint).toLowerCase().includes(s)) : all).slice(0, 12);
 }
 function paletteRender() {

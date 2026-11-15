@@ -42,6 +42,8 @@ TRADES_VIEW_PATH = ASSET_DIR / "trades_view.js"
 PORTAL_PATH = ASSET_DIR / "portal.js"
 RESULTS_PATH = ASSET_DIR / "results.js"
 DRYRUN_LIVE_PATH = ASSET_DIR / "dryrun_live.js"
+INDICES_JS_PATH = ASSET_DIR / "indices.js"
+INDICES_TRADE_FILE = re.compile(r"[A-Za-z0-9/._-]{1,160}")
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
 DEFAULT_PORT = 8765
 STALE_AFTER_HOURS = 48
@@ -614,7 +616,7 @@ def build_state(
     conn = open_readonly(db_path)
     if conn is None:
         state["activity"] = _activity([], state["cycles"])
-        state["attention"] = _attention(state, now)
+        state["attention"] = _attention(state, now) + _indices_attention(root, now)
         return state
     try:
         state["database"] = {"found": True, "path": _relative(db_path, root)}
@@ -622,8 +624,21 @@ def build_state(
     finally:
         conn.close()
     state["activity"] = _activity(events, state["cycles"])
-    state["attention"] = _attention(state, now)
+    state["attention"] = _attention(state, now) + _indices_attention(root, now)
     return state
+
+
+def _indices_attention(root: Path, now: datetime) -> list[dict]:
+    """Alerts of the index-proxy research (lab/indices_portal.py) for the page header; they link to #/indices.
+    Never breaks the main state: a failure here only drops these alerts."""
+    try:
+        from lab import indices_portal
+        alerts = indices_portal.build_indices(root, now)["alerts"]
+    except Exception as error:  # noqa: BLE001
+        return [{"level": "warning", "text": f"Índices: não foi possível ler os dados ({type(error).__name__})",
+                 "kind": "indices", "anchor": "ix", "resolved": False}]
+    return [{"level": "warning", "text": a["text"], "kind": "indices", "anchor": "ix", "resolved": False,
+             "ix_kind": a.get("kind"), "action": a.get("action")} for a in alerts]
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -1138,6 +1153,7 @@ def render_page(state: dict, *, nonce: str | None, live: bool) -> str:
         .replace("/*__PORTAL__*/", PORTAL_PATH.read_text(encoding="utf-8"))
         .replace("/*__RESULTS__*/", RESULTS_PATH.read_text(encoding="utf-8"))
         .replace("/*__DRYRUN_LIVE__*/", DRYRUN_LIVE_PATH.read_text(encoding="utf-8"))
+        .replace("/*__INDICES__*/", INDICES_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__VENDOR_CHARTS__*/", VENDOR_CHARTS_PATH.read_text(encoding="utf-8"))
         .replace("__NONCE_ATTR__", nonce_attr)
         .replace("__LIVE__", "true" if live else "false")
@@ -1227,6 +1243,19 @@ class _Handler(BaseHTTPRequestHandler):
                     self._send(400, json.dumps({"error": str(error)}).encode("utf-8"), "application/json; charset=utf-8")
                     return
                 self._send(200, json.dumps(livedata.clean(payload), allow_nan=False).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/indices":
+                from lab import indices_portal
+
+                self._send(200, _embed(indices_portal.cached_indices(ROOT)).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/indices/trades":
+                from lab import indices_portal
+
+                raw = parse_qs(query).get("file", [""])[0]
+                if not INDICES_TRADE_FILE.fullmatch(raw):
+                    self._send(400, b'{"error": "bad file name"}', "application/json; charset=utf-8")
+                    return
+                status, body = indices_portal.trades_file(raw, ROOT)
+                self._send(status, _embed(indices_portal.clean(body)).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/trade-index":
                 index = self.server.provider().get("trade_index") or {}
                 self._send(200, _embed(index).encode("utf-8"), "application/json; charset=utf-8")
@@ -1286,7 +1315,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "export":
-        print(export_html(args.out, build_state()))
+        from lab import indices_portal
+
+        state = build_state()
+        state["indices"] = indices_portal.build_indices()      # the static file has no /api/indices to fetch
+        print(export_html(args.out, state))
         return 0
 
     try:

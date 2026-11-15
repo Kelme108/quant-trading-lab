@@ -456,6 +456,7 @@ function pageInicio() {
             pairs.map((p) => { const c = r.per_pair.find((x) => x.pair === p); return c ? h('td', { class: 'num', style: `background:${heatBg(c.roi_pct, heatScale)}` }, sp(c.roi_pct, 0)) : h('td', { class: 'num sub' }, '—'); }),
             h('td', { class: 'num', style: `background:${heatBg(r.roi_pct, heatScale)};font-weight:600` }, sp(r.roi_pct, 0))))))), { cls: 'b-7' }),
       dryrunSummary('b-5'),
+      typeof ixHomeCard === 'function' ? ixHomeCard('b-12') : null,
       attentionSummary('b-12')));
 }
 function rxKpi(label, value, note) { return h('div', { class: 'rx-kpi' }, h('span', { class: 'l' }, label), h('span', { class: 'v' }, value), note ? h('span', { class: 's' }, note) : null); }
