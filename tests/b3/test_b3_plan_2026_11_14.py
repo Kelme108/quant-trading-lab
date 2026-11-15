@@ -99,6 +99,24 @@ def test_runner_refuses_out_of_scope_and_reports_the_quality_rule(lab, monkeypat
     assert out["stop_slippage_base_pct"] == pytest.approx(0.005)
 
 
+def test_each_read_saves_its_trade_list_and_reruns_are_exploration_only(lab):  # noqa: F811
+    out = pr.evaluate("P-001", "US500", "exploration", data_dir=lab)
+    files = list((pr.OUT_DIR / "trades").glob("P-001-US500-exploration-*.json"))
+    assert len(files) == 1
+    saved = json.loads(files[0].read_text(encoding="utf-8"))
+    assert saved["columns"] == list(pr.TRADE_COLUMNS) and len(saved["rows"]) == out["scenarios"]["base"]["trades"]
+    gross = [r[5] for r in saved["rows"]]
+    assert sum(gross) / len(gross) == pytest.approx(out["scenarios"]["base"]["mean_gross_pct"], abs=1e-4)
+    assert "trades_base" not in json.loads(next((pr.OUT_DIR / "results").glob("P-001-*.json")).read_text(encoding="utf-8"))
+    rows_before = len(pr.ledger_rows(pr.LEDGER))
+    pr.evaluate("P-001", "US500", "exploration", data_dir=lab, record=False)
+    assert len(pr.ledger_rows(pr.LEDGER)) == rows_before                   # a re-run leaves no trace
+    with pytest.raises(pr.AlreadyRead):
+        pr.evaluate("P-001", "US500", "validation", data_dir=lab, record=False)
+    with pytest.raises(ValueError):
+        pr.evaluate("P-001", "US500", "exploration", data_dir=lab, enforce_scope=False)
+
+
 # ---- events --------------------------------------------------------------------------------
 
 def test_event_calendar_times_in_utc():

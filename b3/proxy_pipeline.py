@@ -241,6 +241,7 @@ def cycle() -> str:
         log("validation", rule=rid, out=v.stdout[-2000:], err=v.stderr[-800:])
     py("-m", "b3.proxy_report")
     new = sorted(set((ROOT / "research/proxies/results").glob("*.json")) - before_results)
+    new += [ROOT / "research/proxies/trades" / f.name for f in new if (ROOT / "research/proxies/trades" / f.name).exists()]
     commit([rel(f) for f in new] + ["research/proxies/ledger.jsonl", "research/proxies/SCOREBOARD.md",
                                     "research/proxies/scoreboard.json", rel(LOG)],
            f"exp(proxies): {rid} exploration on {', '.join(p['markets'])}" + (f"; validation on {', '.join(passed)}" if passed else ""))

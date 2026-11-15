@@ -156,7 +156,29 @@ def gate_report(by_scenario: dict, gates: dict, variants: int) -> dict:
 # Runner
 # ---------------------------------------------------------------------------------------------
 
-def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = None, record: bool = True) -> dict:
+TRADE_COLUMNS = ("entry_time", "exit_time", "side", "entry_price", "exit_price", "gross_pct", "net_pct",
+                 "entry_reason", "exit_reason")
+
+
+def trade_rows(trades: pd.DataFrame) -> list[list]:
+    """The base-scenario trade list in a compact form for the portal (one row per trade, TRADE_COLUMNS order)."""
+    if trades.empty:
+        return []
+    t = trades.sort_values("exit_time")
+    return [[pd.Timestamp(r.entry_time).isoformat(), pd.Timestamp(r.exit_time).isoformat(), r.side,
+             float(r.entry_price), float(r.exit_price), round(100 * r.gross_brl / r.entry_price, 5),
+             round(100 * r.net_brl / r.entry_price, 5), str(r.entry_reason), str(r.exit_reason)]
+            for r in t.itertuples(index=False)]
+
+
+def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = None, record: bool = True,
+             enforce_scope: bool = True) -> dict:
+    """`record=False` is a diagnostic re-run: no ledger row, no result file, and (with enforce_scope=False)
+    it may re-run an out-of-scope pair. Validation and the final test are never re-run unrecorded."""
+    if not record and split != "exploration":
+        raise AlreadyRead("only the exploration split may be re-run without recording")
+    if not enforce_scope and record:
+        raise ValueError("a recorded read always enforces the scope")
     splits, gates, scope = _approved(SPLITS_PATH), _approved(GATES_PATH), _approved(SCOPE_PATH)
     ledger = ledger_rows()
     if split in ("validation", "final_test") and any(
@@ -164,7 +186,8 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
         raise AlreadyRead(f"{rule_id} on {symbol}: {split} was already read; it is read once")
     mkt = market(symbol)
     rule = RULES[rule_id].on(symbol)
-    check_scope(mkt.symbol, rule.timeframe_min, scope)
+    if enforce_scope:
+        check_scope(mkt.symbol, rule.timeframe_min, scope)
     start, end = split_window(symbol, split, splits, rule_id)
     bars = load_bars(symbol, f"{rule.timeframe_min}m", **({"data_dir": data_dir} if data_dir else {}))
     bars = session_only(bars, mkt)
@@ -191,10 +214,13 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
         out["scenarios"][scen] = metrics(tr, start, end, mkt.zone)
         out["scenarios"][scen]["vetoes"] = dict(res.vetoes)
         out["scenarios"][scen]["positions_held_overnight"] = res.positions_held_overnight
+        if scen == "base":
+            base_trades = trade_rows(tr)
     variants = prior_variants(rule_id, symbol, ledger)
     out["prior_variants"] = variants
     out["gates"] = gate_report(out["scenarios"], gates, variants)
     out["read_at_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    out["trades_base"] = {"columns": list(TRADE_COLUMNS), "rows": base_trades}
     if record:
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         with LEDGER.open("a", encoding="utf-8") as fh:
@@ -202,7 +228,11 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
                                 | {"decision": out["gates"]["decision"]}) + "\n")
         name = f"{rule_id}-{symbol}-{split}-{out['read_at_utc'][:19].replace(':', '')}.json"
         (OUT_DIR / "results").mkdir(parents=True, exist_ok=True)
+        (OUT_DIR / "trades").mkdir(parents=True, exist_ok=True)
+        trades = out.pop("trades_base")
+        (OUT_DIR / "trades" / name).write_text(json.dumps(trades, separators=(",", ":")), encoding="utf-8")
         (OUT_DIR / "results" / name).write_text(json.dumps(out, indent=1, default=str), encoding="utf-8")
+        out["trades_base"] = trades
     return out
 
 
