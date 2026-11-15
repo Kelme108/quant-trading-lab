@@ -92,6 +92,19 @@ class PageTests(unittest.TestCase):
         self.assertIn("function pageLeaderboard", page)
         self.assertIn("function pageStrategy", page)
         self.assertIn("function pageCompare", page)
+        for name in ("function pageInicio", "function pageRanking", "function pageOperacoes", "function pageComparar", "function pageEstrategia"):
+            self.assertIn(name, page)
+        self.assertNotIn("/*__RESULTS__*/", page)
+
+    @unittest.skipUnless(shutil.which("node"), "needs Node")
+    def test_results_script_is_valid_javascript(self):
+        result = subprocess.run(["node", "--check", str(ROOT / "lab" / "dashboard_assets" / "results.js")], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_results_script_inserts_text_only_and_loads_nothing_remote(self):
+        text = (ROOT / "lab" / "dashboard_assets" / "results.js").read_text(encoding="utf-8")
+        for needle in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "http://", "https://", "<script", "@import"):
+            self.assertNotIn(needle, text)
 
     @unittest.skipUnless(shutil.which("node"), "needs Node")
     def test_portal_script_is_valid_javascript(self):

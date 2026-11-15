@@ -40,6 +40,8 @@ ASSET_PATH = ASSET_DIR / "index.html"
 VENDOR_CHARTS_PATH = ASSET_DIR / "vendor" / "lightweight-charts.standalone.production.js"
 TRADES_VIEW_PATH = ASSET_DIR / "trades_view.js"
 PORTAL_PATH = ASSET_DIR / "portal.js"
+RESULTS_PATH = ASSET_DIR / "results.js"
+DRYRUN_LIVE_PATH = ASSET_DIR / "dryrun_live.js"
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
 DEFAULT_PORT = 8765
 STALE_AFTER_HOURS = 48
@@ -429,6 +431,14 @@ def _forward_test(root: Path) -> dict:
     path = root / "user_data" / "tradesv3.dryrun.sqlite"
     info: dict = {"db_found": path.is_file(), "open": 0, "closed": 0, "profit_abs": 0.0,
                   "hypotheses": _dryrun(root), "intake": _intake(root)}
+    try:  # the dry-run rule the pages show (lab/config/dryrun.json): trades and days to decide, days without a trade to discard
+        from lab import dryrun
+        cfg = dryrun.load_config()
+        rule = cfg.get("inactivity") or {}
+        info["rule"] = {"need_trades": cfg["min_closed_trades"], "need_days": cfg["min_days"],
+                        "discard_after_days": rule.get("discard_after_days"), "max_days_without_trade": rule.get("max_days_without_trade")}
+    except (OSError, ValueError, KeyError):
+        info["rule"] = None
     conn = None
     try:
         conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
@@ -588,6 +598,7 @@ def build_state(
         },
         "hypotheses": [],
         "strategies": [],
+        "trade_index": {"fields": list(TRADE_INDEX_FIELDS), "cells": [], "exit_reasons": [], "trades": []},
         "families": [],
         "funnel": [],
         "gate_failures": [],
@@ -694,6 +705,7 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
             row = {
                 "key": f"{hy['id']}:{split}", "id": hy["id"], "family": hy["family"], "status": hy["status"], "stage": split,
                 "candidate": is_candidate(hy["status"], hy["in_portfolio"]),
+                "archived": bool(hy.get("archived")), "in_dryrun": bool(hy.get("in_dryrun")),
                 "in_portfolio": hy["in_portfolio"], "n_pairs": len(cells), "pairs": [p["pair"] for p in per_pair],
                 "trades": pooled["trades"], "min_trades_pair": min(p["trades"] for p in per_pair),
                 "winrate": pooled.get("winrate"), "winrate_ci": pooled.get("winrate_ci"),
@@ -728,6 +740,42 @@ def _strategies(hypotheses: list[dict], run_trades: dict[str, list[dict]], walle
         row["flags"] = analytics.flags(row, other_stage=other if row["stage"] == "exploration" else None)
         row["score"], row["score_parts"] = analytics.evidence_score(row)
     return rows
+
+
+TRADE_INDEX_FIELDS = ("cell", "open_min", "duration_min", "profit_pct", "profit_abs", "exit_reason")
+
+
+def _trade_index(hypotheses: list[dict], run_trades: dict[str, list[dict]]) -> dict:
+    """Every trade of every current backtest cell (base cost) as one compact table, for the Operations page.
+
+    One row per trade: [cell index, open time in epoch minutes (UTC), duration in minutes, profit in % of the stake,
+    profit in quote currency, exit reason index]. Cells carry the hypothesis, pair, stage and starting wallet, so the
+    page can express a profit as % of the backtest's own capital (wallets were 100 USDT before 2026-11-08, 1000 after).
+    It is large (tens of thousands of rows), so the live page fetches it once from /api/trade-index instead of
+    receiving it with every state poll; only the static export embeds it."""
+    cells: list[dict] = []
+    reasons: dict[str, int] = {}
+    rows: list[list] = []
+    for hy in hypotheses:
+        for cell in hy["cells"]:
+            trades = run_trades.get(cell["experiment_id"])
+            if not trades:
+                continue
+            index = len(cells)
+            cells.append({"id": hy["id"], "pair": cell["pair"], "split": cell["split"],
+                          "experiment_id": cell["experiment_id"], "wallet": cell["wallet"]})
+            for trade in trades:
+                try:
+                    opened = datetime.fromisoformat(str(trade["open_date"]))
+                except (KeyError, ValueError):
+                    continue
+                if opened.tzinfo is None:
+                    opened = opened.replace(tzinfo=timezone.utc)
+                reason = str(trade.get("exit_reason") or "?")
+                rows.append([index, int(opened.timestamp() // 60), int(trade.get("trade_duration") or 0),
+                             round(float(trade.get("profit_ratio") or 0.0) * 100, 3),
+                             round(float(trade.get("profit_abs") or 0.0), 4), reasons.setdefault(reason, len(reasons))])
+    return {"fields": list(TRADE_INDEX_FIELDS), "cells": cells, "exit_reasons": list(reasons), "trades": rows}
 
 
 def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfolio: set[str]) -> list[dict]:
@@ -851,9 +899,10 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
             }
         )
 
-    # Only LIVE strategies reach the page: candidates, the portfolio and those running in dry-run. Rejected, dropped,
-    # failed and archived hypotheses stay in the registry and the archive for the agents (and in the funnel and
-    # family counts above), but never in the lists, rankings, curves or comparisons.
+    # `archived` marks what is no longer alive (not a candidate, not in the portfolio, not in dry-run). Since the
+    # portal v4 (2026-11-08, owner's request: "quero ver todas as estratégias") every valid hypothesis with results
+    # reaches the rankings and comparisons, each row carrying its status and `archived` flag so the page labels it;
+    # invalid hypotheses stay out, because the lab discards their numbers.
     in_dryrun = {path.name.split("-freeze.json")[0] for path in (root / "research" / "forward").glob("H-*-freeze.json")}
     for hy in hypotheses:
         hy["in_dryrun"] = hy["id"] in in_dryrun
@@ -861,8 +910,10 @@ def _fill_from_registry(conn, state: dict, root: Path, wallet: float, in_portfol
         hy["archived"] = not (hy["candidate"] and not hy["invalid"])
     live = [hy for hy in hypotheses if not hy["archived"]]
     state["archived_count"] = len(hypotheses) - len(live)
-    state["hypotheses"] = hypotheses  # every one, flagged: the portal never lists an archived one
-    state["strategies"] = _strategies(live, run_trades, wallet)
+    state["hypotheses"] = hypotheses  # every one, flagged
+    valid = [hy for hy in hypotheses if not hy["invalid"]]
+    state["strategies"] = _strategies(valid, run_trades, wallet)
+    state["trade_index"] = _trade_index(valid, run_trades)
     cap = state["budget"]["max_variants_per_family"]
     gate_config = {"net_profit": {"base_threshold_quote": state["gate_bar"]["base_threshold_quote"],
                                   "multiple_testing_penalty": {"per_variant_increase": state["gate_bar"]["per_variant_increase"]}}}
@@ -1071,13 +1122,22 @@ def _embed(state: dict) -> str:
     return text
 
 
+def _without_trade_index(state: dict) -> dict:
+    """The state the live page polls: the trade index is served on its own (GET /api/trade-index)."""
+    return {k: v for k, v in state.items() if k != "trade_index"}
+
+
 def render_page(state: dict, *, nonce: str | None, live: bool) -> str:
     template = ASSET_PATH.read_text(encoding="utf-8")
+    if live:
+        state = _without_trade_index(state)
     nonce_attr = f' nonce="{nonce}"' if nonce else ""
     # bundled, trusted files first; the state (agent and web text) goes in last so nothing in it is re-scanned
     return (
         template.replace("/*__TRADES_VIEW__*/", TRADES_VIEW_PATH.read_text(encoding="utf-8"))
         .replace("/*__PORTAL__*/", PORTAL_PATH.read_text(encoding="utf-8"))
+        .replace("/*__RESULTS__*/", RESULTS_PATH.read_text(encoding="utf-8"))
+        .replace("/*__DRYRUN_LIVE__*/", DRYRUN_LIVE_PATH.read_text(encoding="utf-8"))
         .replace("/*__VENDOR_CHARTS__*/", VENDOR_CHARTS_PATH.read_text(encoding="utf-8"))
         .replace("__NONCE_ATTR__", nonce_attr)
         .replace("__LIVE__", "true" if live else "false")
@@ -1136,7 +1196,7 @@ class _Handler(BaseHTTPRequestHandler):
         """The state plus the instant THIS response was made. `generated_at` can be
         a few seconds older (the provider caches), and neither says whether the
         lab itself is idle; this one only says the server is alive."""
-        return {**state, "served_at": _iso(datetime.now(timezone.utc))}
+        return {**_without_trade_index(state), "served_at": _iso(datetime.now(timezone.utc))}
 
     def _handle(self) -> None:
         # A page on another site can make the browser send requests to
@@ -1153,6 +1213,23 @@ class _Handler(BaseHTTPRequestHandler):
                     return
                 status, body = self.server.trades(raw)
                 self._send(status, json.dumps(body, allow_nan=False).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/dryrun":
+                from lab import livedata  # local import: the dashboard stays importable without the live feeds
+
+                self._send(200, json.dumps(livedata.clean(livedata.bots_state(ROOT, livedata.last_prices(ROOT))), allow_nan=False).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/live":
+                from lab import livedata
+
+                query_args = parse_qs(query)
+                try:
+                    payload = livedata.live_chart(query_args.get("pair", [""])[0], query_args.get("tf", [""])[0], ROOT)
+                except ValueError as error:
+                    self._send(400, json.dumps({"error": str(error)}).encode("utf-8"), "application/json; charset=utf-8")
+                    return
+                self._send(200, json.dumps(livedata.clean(payload), allow_nan=False).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/trade-index":
+                index = self.server.provider().get("trade_index") or {}
+                self._send(200, _embed(index).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/state":
                 body = _embed(self._served(self.server.provider())).encode("utf-8")
                 self._send(200, body, "application/json; charset=utf-8")

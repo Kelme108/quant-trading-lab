@@ -294,7 +294,7 @@ function pageStrategy(idArg) {
     : card('Exploração × validação', null, emptyState(other ? '' : `Só existe a etapa de ${STAGE[stage]}.`, 'A validação só roda depois que a exploração passa nos gates em todos os pares, e é lida uma única vez.'));
   const perPair = card('Por par', 'Cada linha é um backtest; abra o gráfico de preço e as operações', h('div', { class: 'tablewrap' }, simpleTable(['Par', 'Gates', 'Trades', 'ROI', 'Win rate', 'Profit factor', 'Queda máx.', 'Expectancy', 'Sharpe', ''],
     row.per_pair.map((p) => [pairTag(p.pair), badge(DECISION[p.decision] || ST.info), nf0.format(p.trades), pct(p.roi_pct), winPct(p.winrate), ok(p.profit_factor) ? nf2.format(p.profit_factor) : dash, plain(p.max_dd_pct), signed(p.expectancy_pct) + '%', r2(p.sharpe),
-      h('span', { class: 'row' }, h('a', { href: `#/trades/${encodeURIComponent(p.experiment_id)}`, 'data-fkey': 'sx-tr:' + p.experiment_id }, 'Operações'), h('a', { href: `#/experiments/${encodeURIComponent(p.experiment_id)}`, 'data-fkey': 'sx-ex:' + p.experiment_id }, 'Gates'))]), [2, 3, 4, 5, 6, 7, 8])));
+      h('span', { class: 'row' }, h('a', { href: `#/chart/${encodeURIComponent(p.experiment_id)}`, 'data-fkey': 'sx-tr:' + p.experiment_id }, 'Operações'), h('a', { href: `#/experiments/${encodeURIComponent(p.experiment_id)}`, 'data-fkey': 'sx-ex:' + p.experiment_id }, 'Gates'))]), [2, 3, 4, 5, 6, 7, 8])));
   const runs = experiments().filter((e) => e.hypothesis_id === id).sort((a, b) => String(b.created_at_utc).localeCompare(String(a.created_at_utc)));
   const hist2 = card('Histórico de backtests', `${runs.length} execuções desta hipótese (inclui as substituídas por reexecução)`, runs.length ? h('div', { class: 'tablewrap' }, simpleTable(['Quando', 'Experimento', 'Par', 'Etapa', 'Execução', 'Decisão'], runs.slice(0, 30).map((e) => [whenShort(e.created_at_utc),
     h('a', { href: `#/experiments/${encodeURIComponent(e.id)}`, class: 'mono' }, e.id), short(e.pair), STAGE_CAP[e.split] || e.split, badge(execMeta(e.status)), e.decision ? badge(DECISION[e.decision] || ST.info) : 'sem decisão']))) : emptyState('Nenhuma execução registrada.'));
@@ -385,7 +385,7 @@ function pageBacktests() {
     { key: 'tr', label: 'Trades', num: true, val: (r) => r.a.trades, cell: (r) => nf0.format(r.a.trades) },
     { key: 'fee', label: 'Taxas (estim.)', num: true, val: (r) => r.a.fees_paid_abs, cell: (r) => ok(r.a.fees_paid_abs) ? nf2.format(r.a.fees_paid_abs) : dash },
     { key: 'dec', label: 'Gates', val: (r) => r.c.decision, cell: (r) => badge(DECISION[r.c.decision] || ST.info) },
-    { key: 'go', label: '', val: null, cell: (r) => h('a', { href: `#/trades/${encodeURIComponent(r.c.experiment_id)}`, 'data-fkey': 'bt-tr:' + r.c.experiment_id }, 'Operações') },
+    { key: 'go', label: '', val: null, cell: (r) => h('a', { href: `#/chart/${encodeURIComponent(r.c.experiment_id)}`, 'data-fkey': 'bt-tr:' + r.c.experiment_id }, 'Operações') },
   ];
   const table = runs.length ? dataTable({ id: 'bt-runs', cols: cols.map((c) => ({ ...c, nw: true })), rows: runs.map((r) => ({ ...r, key: r.c.experiment_id, label: r.c.experiment_id })), sort0: { key: 'start', dir: -1 }, label: 'Execuções de backtest' }) : emptyState('Nenhum backtest com esses filtros.');
   // versions of the same family, side by side
@@ -517,7 +517,7 @@ function yearsBento(rows) {
       const v = (r.years || {})[y];
       if (!ok(v)) return h('span', { class: 'cell na', role: 'cell', title: `${r.id} · ${y}: sem trades` });
       const k = Math.min(1, Math.abs(v) / cap);
-      return h('span', { class: 'cell', role: 'cell', title: `${r.id} · ${y}: ${plain(v)} do capital`, style: `background:color-mix(in srgb, var(${v >= 0 ? '--good' : '--bad'}) ${Math.round(12 + k * 68)}%, var(--track))` }, sgn((v >= 0 ? '+' : '') + nf0.format(v)));
+      return h('span', { class: 'cell', role: 'cell', title: `${r.id} · ${y}: ${plain(v)} do capital`, style: `background:color-mix(in srgb, var(${v >= 0 ? '--good-fill' : '--bad-fill'}, var(${v >= 0 ? '--good' : '--bad'})) ${Math.round(12 + k * 68)}%, var(--track))` }, sgn((v >= 0 ? '+' : '') + nf0.format(v)));
     })]));
   return h('section', { class: 'card b-5', id: 'sec-anos' }, h('header', null, h('div', null, h('h2', null, 'Resultado por ano'), h('div', { class: 'sub' }, '% do capital somado dos pares · backtest'))),
     grid, h('div', { class: 'yh-scale', 'aria-hidden': 'true' }, h('span', null, sgn('-' + nf0.format(cap)) + '%'), h('i'), h('span', null, '+' + nf0.format(cap) + '%')));
@@ -583,21 +583,24 @@ function pageDryrun() {
   const mins = (v) => (v == null ? dash : v.toFixed(1) + ' min');
   const states = [['new', 'Coletadas'], ['triaged', 'Triadas'], ['queued', 'Na fila'], ['registered', 'Registradas'], ['dropped', 'Descartadas']];
   const intakeTotal = states.reduce((a, [k]) => a + (intake[k] || 0), 0);
-  const intakeCard = card('Esteira de ideias', 'Coleta (scout) e triagem; nada aqui é resultado de backtest', intakeTotal
-    ? h('div', { class: 'tablewrap' }, simpleTable(['Estado', 'Ideias'], states.map(([k, t]) => [t, nf0.format(intake[k] || 0)]), [1]))
-    : emptyState('Nenhuma ideia coletada ainda.', 'O scout roda no ciclo semanal.'));
+  const intakeCard = card('Esteira de ideias', 'Coleta (scout) e triagem; nada aqui é resultado de backtest.', intakeTotal
+    ? h('div', { class: 'rx-stack' }, h('ol', { class: 'dl-flow' }, states.map(([k, t], i) => h('li', { style: `--i:${i}` }, h('b', null, nf0.format(intake[k] || 0)), h('span', null, t)))),
+      h('p', { class: 'sub' }, 'O scout coleta ideias descritas em texto; a triagem tira repetidas e inviáveis; as da fila viram hipóteses registradas, com a regra escrita antes de qualquer backtest.'))
+    : emptyState('Nenhuma ideia coletada ainda.', 'O scout roda no ciclo semanal.'), { cls: 'b-5' });
   const label = hy.length ? hy[0].label : 'Dry-run como coleta de evidência: NÃO validada; não é aprovação, não é holdout.';
-  const banner = h('p', { class: 'sub' }, h('b', null, 'Aviso: '), label);
-  if (!hy.length) return h('div', null, banner, emptyState('Nenhuma estratégia congelada para dry-run.', 'Aprove com approve.py --stage dryrun e congele com forward_freeze.py.'), h('div', { style: 'height:12px' }), intakeCard);
-  const blocks = hy.map((x) => {
-    const rows = Object.entries(x.pairs).map(([pair, q]) => q.error ? [pair, q.error, '', '', '', '', ''] : [pair, `${nf0.format(q.open)} / ${nf0.format(q.closed)}`, `${nf0.format(q.entry_orders_not_filled)} de ${nf0.format(q.entry_orders)}`,
-      p3(q.entry_slippage_mean), p3(q.exit_slippage_mean), mins(q.fill_latency_minutes_mean), `${p3(q.observed_entry_cost_per_side_mean)} (assumido ${p3(q.assumed_cost_per_side)})`]);
-    const total = Object.values(x.pairs).reduce((a, q) => a + (q.trades || 0), 0);
-    return card(`${x.id}: bots em dry-run`, `congelada em ${x.frozen_at ? x.frozen_at.slice(0, 16).replace('T', ' ') : dash} UTC · commit ${x.commit}`, h('div', null,
-      h('div', { class: 'row', style: 'margin-bottom:8px' }, badge(x.freeze_ok ? ST.good : ST.bad, x.freeze_ok ? 'Congelamento íntegro' : 'ARQUIVO ALTERADO'), h('span', { class: 'sub' }, `${nf0.format(total)} trades até agora`)),
-      x.problems.length ? h('pre', null, x.problems.join(String.fromCharCode(10))) : null,
-      total ? null : h('p', { class: 'sub' }, 'Sem trades ainda: a H-009 faz poucos trades por ano por par; as tabelas enchem com o tempo.'),
-      h('div', { class: 'tablewrap' }, simpleTable(['Par', 'Abertos / fechados', 'Entradas não preenchidas', 'Slippage entrada', 'Slippage saída', 'Latência', 'Custo observado'], rows, [1, 2, 3, 4, 5, 6]))));
-  });
-  return h('div', null, banner, h('p', { class: 'sub' }, 'Só qualidade de execução. O retorno do dry-run não é mostrado: a avaliação formal é o holdout (a partir de 2027-04-21).'), ...blocks, h('div', { style: 'height:12px' }), intakeCard);
+  const banner = h('div', { class: 'notice info', role: 'note' }, h('span', { class: 'ic info', 'aria-hidden': 'true' }, 'i'), h('div', null, h('b', null, 'Aviso: '), label, ' Esta seção mostra só a qualidade de execução; a avaliação formal é o holdout (a partir de 2027-04-21).'));
+  if (!hy.length) return h('div', { class: 'rx-stack' }, banner, emptyState('Nenhuma estratégia congelada para dry-run.', 'Aprove com approve.py --stage dryrun e congele com forward_freeze.py.'), h('div', { class: 'bento' }, intakeCard));
+  const tag = (id) => (typeof dlBotTag === 'function' ? dlBotTag(id) : h('b', null, id));
+  const freeze = card('Congelamento', 'O arquivo da estratégia não pode mudar durante a coleta; se mudar, a evidência deixa de valer.',
+    h('ul', { class: 'dl-freeze' }, hy.map((x) => { const total = Object.values(x.pairs).reduce((a, q) => a + (q.trades || 0), 0);
+      return h('li', null, tag(x.id), badge(x.freeze_ok ? ST.good : ST.bad, x.freeze_ok ? 'Íntegro' : 'ARQUIVO ALTERADO'),
+        h('small', null, `desde ${x.frozen_at ? x.frozen_at.slice(0, 16).replace('T', ' ') : dash} UTC · commit `, h('code', null, String(x.commit || dash).slice(0, 10)), ` · ${nf0.format(total)} trades`),
+        x.problems.length ? h('pre', null, x.problems.join(String.fromCharCode(10))) : null); })), { cls: 'b-7' });
+  const rows = hy.flatMap((x) => Object.entries(x.pairs).map(([pair, q]) => q.error ? [tag(x.id), pair, h('span', { class: 'neg' }, q.error), '', '', '', '', '']
+    : [tag(x.id), pair, `${nf0.format(q.open)} / ${nf0.format(q.closed)}`, `${nf0.format(q.entry_orders_not_filled)} de ${nf0.format(q.entry_orders)}`,
+      p3(q.entry_slippage_mean), p3(q.exit_slippage_mean), mins(q.fill_latency_minutes_mean), h('span', null, p3(q.observed_entry_cost_per_side_mean), h('small', { class: 'muted' }, ` assumido ${p3(q.assumed_cost_per_side)}`))]));
+  const anyTrade = hy.some((x) => Object.values(x.pairs).some((q) => q.trades));
+  const exec = card('Execução por robô e ativo', anyTrade ? 'Slippage é a diferença entre o preço pedido e o preço obtido; latência é o tempo até a ordem ser preenchida.' : 'Sem trades ainda: as colunas enchem conforme os robôs operam. Estratégias lentas levam dias entre um trade e outro.',
+    h('div', { class: 'tablewrap' }, simpleTable(['Estratégia', 'Par', 'Abertos / fechados', 'Entradas não preenchidas', 'Slippage entrada', 'Slippage saída', 'Latência', 'Custo observado'], rows, [2, 3, 4, 5, 6, 7])), { cls: 'b-12' });
+  return h('div', { class: 'rx-stack' }, banner, h('div', { class: 'bento' }, freeze, intakeCard, exec));
 }

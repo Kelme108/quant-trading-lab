@@ -127,7 +127,8 @@ class StateTests(DashboardTestCase):
              "validation_passed": 1, "in_portfolio": 1},
         )
 
-    def test_archived_hypotheses_are_flagged_and_never_reach_the_strategy_lists(self) -> None:
+    def test_archived_hypotheses_are_flagged_and_reach_the_lists_labelled(self) -> None:
+        # Portal v4 (owner's request, 2026-11-08): every valid strategy is listed, each row says whether it is archived.
         alive = self.hypothesis(1, status="exploration: candidate")
         dead = self.hypothesis(2, status="rejected at exploration")
         frozen = self.hypothesis(3, status="not approved at validation")
@@ -137,7 +138,9 @@ class StateTests(DashboardTestCase):
         flags = {h["id"]: h["archived"] for h in state["hypotheses"]}
         self.assertEqual(flags, {alive: False, dead: True, frozen: False})  # a bot in dry-run stays visible
         self.assertEqual(state["archived_count"], 1)
-        self.assertNotIn(dead, {row["id"] for row in state["strategies"]})
+        rows = {row["id"]: row for row in state["strategies"]}
+        self.assertTrue(all(row["archived"] == (row["id"] == dead) for row in rows.values()))
+        self.assertTrue(rows[frozen]["in_dryrun"] if frozen in rows else True)
 
     def test_a_hypothesis_passing_on_only_some_pairs_does_not_pass_the_stage(self) -> None:
         hid = self.hypothesis(1)
@@ -806,3 +809,76 @@ class ServerTests(DashboardTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TradeIndexTests(DashboardTestCase):
+    """The compact table of every trade the Operations page reads (GET /api/trade-index, embedded only in an export)."""
+
+    def export(self, pair: str = "BTC/USDT", n: int = 2) -> str:
+        base = datetime(2023, 11, 14, 22, 0, tzinfo=timezone.utc)
+        trades = [
+            {"pair": pair, "open_date": (base + timedelta(hours=2 * i)).isoformat(), "close_date": (base + timedelta(hours=2 * i + 1)).isoformat(),
+             "open_timestamp": int((base + timedelta(hours=2 * i)).timestamp() * 1000), "close_timestamp": int((base + timedelta(hours=2 * i + 1)).timestamp() * 1000),
+             "profit_ratio": 0.03 if i % 2 == 0 else -0.02, "profit_abs": 3.0 if i % 2 == 0 else -2.0, "stake_amount": 100.0,
+             "fee_open": 0.001, "fee_close": 0.001, "exit_reason": "roi" if i % 2 == 0 else "stop_loss", "trade_duration": 60}
+            for i in range(n)
+        ]
+        stats = {"trades": trades, "timeframe": "1h", "total_trades": n, "starting_balance": 100.0}
+        with zipfile.ZipFile(self.root / "export.zip", "w") as z:
+            z.writestr("r.json", json.dumps({"strategy": {"S": stats}}))
+        return "export.zip"
+
+    def test_every_trade_of_every_valid_cell_is_indexed(self) -> None:
+        hid = self.hypothesis(1, status="rejected at exploration")
+        eid = self.experiment(hid, "BTC/USDT", "exploration", "rejected", artifact=self.export())
+        index = self.state()["trade_index"]
+        self.assertEqual(index["fields"], ["cell", "open_min", "duration_min", "profit_pct", "profit_abs", "exit_reason"])
+        self.assertEqual(index["cells"], [{"id": hid, "pair": "BTC/USDT", "split": "exploration", "experiment_id": eid, "wallet": 100.0}])
+        opened = int(datetime(2023, 11, 14, 22, 0, tzinfo=timezone.utc).timestamp() // 60)
+        self.assertEqual(index["trades"], [[0, opened, 60, 3.0, 3.0, 0], [0, opened + 120, 60, -2.0, -2.0, 1]])
+        self.assertEqual(index["exit_reasons"], ["roi", "stop_loss"])
+        json.dumps(index, allow_nan=False)
+
+    def test_invalid_hypotheses_are_not_indexed(self) -> None:
+        hid = self.hypothesis(1, status="invalid: implementation deviated from rule")
+        self.experiment(hid, "BTC/USDT", "exploration", "rejected", artifact=self.export())
+        state = self.state()
+        self.assertEqual(state["trade_index"]["trades"], [])
+        self.assertNotIn(hid, {row["id"] for row in state["strategies"]})
+
+    def test_the_live_page_and_the_poll_leave_the_index_out_but_the_export_keeps_it(self) -> None:
+        hid = self.hypothesis(1)
+        self.experiment(hid, "BTC/USDT", "exploration", "rejected", artifact=self.export())
+        state = self.state()
+        live = dashboard.render_page(state, nonce="n", live=True)
+        self.assertNotIn('"trade_index"', live)
+        out = dashboard.export_html(self.root / "out" / "d.html", state)
+        embedded = json.loads(out.read_text(encoding="utf-8").split('id="state">', 1)[1].split("</script>", 1)[0])
+        self.assertEqual(len(embedded["trade_index"]["trades"]), 2)
+
+    def test_the_index_endpoint_serves_it_and_the_state_endpoint_does_not(self) -> None:
+        hid = self.hypothesis(1)
+        self.experiment(hid, "BTC/USDT", "exploration", "rejected", artifact=self.export())
+        state = self.state()
+        server = dashboard.create_server(lambda: state, 0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+
+            def get(path: str) -> tuple[int, dict]:
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                connection.request("GET", path, headers={"Host": f"127.0.0.1:{port}"})
+                response = connection.getresponse()
+                body = json.loads(response.read())
+                connection.close()
+                return response.status, body
+
+            status, index = get("/api/trade-index")
+            self.assertEqual((status, len(index["trades"])), (200, 2))
+            status, polled = get("/api/state")
+            self.assertEqual(status, 200)
+            self.assertNotIn("trade_index", polled)
+        finally:
+            server.shutdown()
+            server.server_close()
