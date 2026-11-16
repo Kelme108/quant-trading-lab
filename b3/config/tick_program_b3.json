@@ -1,0 +1,52 @@
+{
+  "approved_by_owner": true,
+  "_approved": "Owner 2026-11-16 night, decision 2: 'Aprovo' to the proposal 'exploracao de 17/08 a 31/12/2026, validacao em jan-fev/2027 e teste a partir de mar/2027' for research on the recorded ticks (b3/data/tick_recorder.py), plus decision 3 'queremos estrategias rapidas'. Written BEFORE any tick strategy code or read; edits after the first read need the owner and are logged as a rule change.",
+  "program": "order-flow (aggressor side) search on WIN and WDO ticks of the Clear demo",
+  "_relation_to_the_bar_program": "These ticks lie inside the bar program's locked final test (splits_b3.json, from 2025-10-01). This program has its OWN splits below, on tick data only; nothing it reads is used to judge a bar rule, and the bar final test stays locked for bar rules.",
+  "markets": ["WIN", "WDO"],
+  "data": {
+    "source": "user_data/data/b3/clear/ticks/<CONTRACT>/<day>.csv.gz (time_msc = B3 wall clock counted as UTC)",
+    "contract": "per day the ACTIVE contract of b3/contracts.py active_contract (roll 2 trading days before expiry); a day without that contract's file is skipped",
+    "bars": "1-minute bars from the trades (flag LAST): OHLC of the trade prices, volume = sum of volume_real, buy_vol / sell_vol = volume of buy- / sell-aggressor trades, n_trades; 5-minute bars aggregate them; regular session only (b3_data.session_only_b3 with the calendar inferred from these bars); a day with less than 90% of its session's minutes is skipped",
+    "warmup_sessions": 5,
+    "_warmup": "statistics 'over the sessions before' use the 5 sessions before the bar's session (the tick history is short); a signal needs 5 earlier sessions of the same market"
+  },
+  "splits": {
+    "exploration": {"start_b3": "2026-08-17", "end_b3": "2026-12-31", "_note": "in practice from the first day with the active contract's ticks (WIN about 2026-10-09, WDO about 2026-10-29)"},
+    "validation": {"start_b3": "2027-01-01", "end_b3": "2027-02-28"},
+    "final_test": {"start_b3": "2027-03-01", "end_b3": null, "locked": true}
+  },
+  "reads": "exploration may be read before 2026-12-31 (interim reads, logged, every variant counted once); the gate decision uses only the read made after the exploration ends (data through 2026-12-31). Validation is read ONCE per finalist after 2027-02-28. The final test stays locked until the owner unlocks it.",
+  "execution": {
+    "rule": "the fill rules of b3/backtest.py as in pattern_search_b3.json (signal at the bar's close, market order at the next bar's open, stop on the server, time exit, flat 10 minutes before the close, entries from 15 minutes after the open to 30 minutes before the close, 8 entries per session, long and short)",
+    "costs": "measured and measured_p90 of each market (pattern_search_b3.json cost_reevaluation / wdo_extension.costs)",
+    "timeframes_min": [1, 5],
+    "exit_grid": {"hold_min": [5, 15, 30], "stop_frac": [0.002, 0.004]},
+    "_exits": "fast trades (owner): 5-30 minutes"
+  },
+  "families": {
+    "_common": "imb_M = (sum buy_vol - sum sell_vol) / (sum buy_vol + sum sell_vol) over the last M minutes of the session (M in minutes, bars = M / timeframe, at least 1); z = imb_M / sd(imb_M over every bar of the 5 sessions before); ret_M = close / close M minutes before - 1; cross = true now and false on the bar before",
+    "T01_imbalance_follow": {"rule": "cross z >= k -> long; cross z <= -k -> short", "grid": {"M": [1, 5, 15], "k": [1.5, 2.0, 2.5]}},
+    "T02_imbalance_fade": {"rule": "T01, opposite side", "grid": {"M": [1, 5, 15], "k": [1.5, 2.0, 2.5]}},
+    "T03_absorption_fade": {"rule": "aggressive buying that does not lift the price is absorbed: cross of (z >= k and ret_M <= 0) -> short; cross of (z <= -k and ret_M >= 0) -> long", "grid": {"M": [5, 15], "k": [1.5, 2.0]}},
+    "T04_big_print_follow": {"rule": "big = trades with volume_real >= the 99th percentile of trade size over the 5 sessions before; nb_M = big buy-aggressor volume - big sell-aggressor volume over the last M minutes; zb = nb_M / sd(nb_M over the 5 sessions before); cross zb >= k -> long, cross zb <= -k -> short", "grid": {"M": [1, 5], "k": [2.0, 3.0]}},
+    "T05_big_print_fade": {"rule": "T04, opposite side", "grid": {"M": [1, 5], "k": [2.0, 3.0]}},
+    "T06_intensity_burst_follow": {"rule": "n_trades of the bar >= k x median n_trades at the same minute of day over the 5 sessions before: trade in the direction of the bar's imbalance sign (buy_vol - sell_vol), none if 0", "grid": {"k": [3.0, 5.0]}}
+  },
+  "variants": "32 signal settings x 2 timeframes x 6 exits = 384 per market",
+  "gate": {
+    "min_trades_per_year": 500,
+    "_min": "the owner's frequency requirement (fast, many trades), annualized over the sessions read",
+    "net_measured_gt": 0.0,
+    "net_measured_p90_gt": 0.0,
+    "net_without_best_trade_gt": 0.0,
+    "max_drawdown_pct": 25.0,
+    "positive_months_share": 0.6,
+    "deflated_sharpe_min": 0.95,
+    "_dsr": "lab/stats.py deflated_sharpe on daily net returns at the measured cost, n_trials = every variant of that market's tick program read so far, variance of their Sharpe ratios",
+    "pbo_max": 0.3,
+    "_pbo": "pbo_cscv with 8 slices (short history) over the 384 variants of the market"
+  },
+  "validation": "finalists = variants passing the gate on the end-of-exploration read, at most 5 per market by deflated Sharpe; each read ONCE on validation: net > 0 at measured and measured_p90, >= 500 trades a year annualized, probabilistic Sharpe vs 0 >= 0.9. A validation pass becomes a candidate for the Clear demo; real money needs the final test.",
+  "outputs": "research/b3/ticks/<MARKET>-exploration-<read date>.json, trials in research/b3/ticks/ledger.jsonl"
+}
