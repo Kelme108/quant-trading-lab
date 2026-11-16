@@ -127,7 +127,7 @@ function pageDryrunLive() {
   dlLoadBots(false);
   const lede = h('p', { class: 'rx-lede' }, 'Carteira virtual com preços reais da Binance: nenhuma ordem é enviada e não há chaves de corretora. O veredito usa o número de trades e todas as métricas juntas (regra em lab/config/dryrun.json); "aprovada para análise" só quer dizer que vale uma olhada humana. ',
     h('a', { href: '#/aovivo', 'data-fkey': 'dl-to-live' }, 'Ver o gráfico ao vivo →'));
-  const head = h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, 'Acompanhamento · dry-run'), h('h1', { class: 'rx-h1' }, 'Estratégias rodando com dinheiro simulado'), lede);
+  const head = h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, 'Cripto · dry-run'), h('h1', { class: 'rx-h1' }, 'Estratégias rodando com dinheiro simulado'), lede);
   if (dl.botsErr && !dl.bots) return h('div', { class: 'rx rx-stack' }, head, card('Estratégias em dry-run', null, notAvailable('Leitura dos bots', dl.botsErr)));
   if (!dl.bots) return h('div', { class: 'rx rx-stack' }, head, card('Estratégias em dry-run', null, loadingState('Lendo os bots…')));
   dlKnow(dl.bots.map((b) => b.id));
@@ -270,7 +270,7 @@ function pageAoVivo(r) {
   if (r.q.pair && r.q.pair !== dl.pair) { dl.pair = r.q.pair; dl.live = null; dl.range = null; }
   if (r.q.tf && TFS_LIVE.includes(r.q.tf) && r.q.tf !== dl.tf) { dl.tf = r.q.tf; dl.live = null; dl.range = null; }
   dlLoadBots(false);
-  const head = h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, 'Acompanhamento · ao vivo'), h('h1', { class: 'rx-h1' }, 'O mercado agora e o que cada robô fez nele'),
+  const head = h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, 'Cripto · ao vivo'), h('h1', { class: 'rx-h1' }, 'O mercado agora e o que cada robô fez nele'),
     h('p', { class: 'rx-lede' }, 'Preço real da Binance (dados públicos, sem chave) com as entradas (▲) e saídas (▼) de cada robô em dry-run neste ativo. A cor identifica o robô; a linha tracejada é uma posição aberta agora. ',
       h('a', { href: '#/dryrun', 'data-fkey': 'dl-to-dry' }, '← Resultado por estratégia')));
   if (!dl.live && !dl.liveErr) { dlLoadLive(false); return h('div', { class: 'rx rx-stack' }, head, card(`${dl.pair} · ao vivo`, null, loadingState('Buscando candles e operações…'))); }

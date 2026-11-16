@@ -1363,6 +1363,48 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent
 .dl-legend i.dash { display: inline-block; width: 22px; border-top: 2px dashed var(--muted); vertical-align: middle; }
 .dl-legend > :last-child { margin-left: auto; }
 @media (prefers-reduced-motion: reduce) { .dl-live { animation: none; } .rx-anim .dl-bar i { animation: none; } }
+/* ==== menu v5 (2026-11-16): labelled sidebar with four collapsible groups; replaces the icon rail ==== */
+.shell.sbx { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.shell.sbx > .side.sb { position: sticky; top: 0; height: 100vh; width: 240px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 16px 12px 12px;
+  overflow-y: auto; overflow-x: hidden; border-right: 1px solid var(--line); border-bottom: 0; z-index: 20; }
+.side.sb .brand { display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 0 6px 14px; }
+.side.sb .brand .t { position: static; left: auto; font-weight: 650; font-size: 14px; line-height: 1.15; }
+.side.sb .brand .t small { display: block; font-weight: 450; font-size: 11.5px; color: var(--muted); }
+.side.sb .menubtn { display: none; }
+.sb .navlist { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; }
+.sbg { display: flex; flex-direction: column; }
+.sbh { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink2);
+  font: 600 13.5px/1.2 inherit; text-align: left; cursor: pointer; box-shadow: none; }
+.sbh:hover { background: var(--hover); color: var(--ink); border: 0; }
+.sbh.cur, .sbh.cur svg.icon { color: var(--ink); } .sbh.cur svg.icon { color: var(--accent); }
+.sbh svg.icon { color: var(--muted); flex: none; }
+.sbh .lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbh .chev { flex: none; color: var(--muted); transition: transform var(--p-dur-fast) var(--p-ease); }
+.sbg.open > .sbh .chev { transform: rotate(90deg); }
+.sbnote { font-size: 11.5px; line-height: 1.35; color: var(--muted); padding: 4px 10px 6px; }
+.sbcnt:empty { display: none; }
+.sbcnt, .sbi .cnt { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font: 600 10.5px/18px var(--mono); text-align: center; background: var(--bad-bg); color: var(--bad);
+  border: 0; position: static; margin: 0 0 0 auto; }
+.sbl { display: none; flex-direction: column; gap: 1px; margin: 2px 0 8px 18px; padding-left: 10px; border-left: 1px solid var(--line); }
+.sbg.open > .sbl { display: flex; }
+.sbi { position: relative; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 13px; }
+.sbi:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
+.sbi[aria-current="page"] { background: var(--grad-soft); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.sbi[aria-current="page"]::before { content: ""; position: absolute; left: -11px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--grad); }
+.sbi .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbdot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 18%, transparent); }
+.sb .sidefoot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 8px 2px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); }
+.sb .sidefoot .t { position: static; left: auto; }
+@media (max-width: 900px) {
+  .shell.sbx { display: block; }
+  .shell.sbx > .side.sb { width: auto; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 8px 14px; border-right: 0; border-bottom: 1px solid var(--line); overflow: visible; z-index: 30; }
+  .side.sb .brand { padding: 0; flex: 1; }
+  .side.sb .menubtn { display: inline-flex; gap: 6px; align-items: center; }
+  .sb .navlist { display: none; width: 100%; max-height: 75vh; overflow-y: auto; padding-top: 8px; }
+  .shell.sbx.menu-open .sb .navlist { display: flex; }
+  .sb .sidefoot { display: none; }
+  .sbh, .sbi { min-height: 44px; }
+}
 </style>
 </head>
 <body>
@@ -2672,9 +2714,9 @@ const ROUTES = [
   { id: 'indices-ciclos', group: 'B3: WIN e WDO', title: 'Ciclos dos agentes', ctx: 'O que cada ciclo de agentes fez, quanto custou e os erros', page: () => pageIndicesCiclos() },
   { id: 'indices-placar', group: 'Substitutos', title: 'Placar das regras', ctx: 'Todas as combinações regra × mercado, por etapa, com filtros', page: () => pageIndicesPlacar() },
   { id: 'indices-mercados', group: 'Substitutos', title: 'Mercados e medições', ctx: 'Custos, escopo, qualidade dos dados, tamanho do movimento e eventos', page: () => pageIndicesMercados() },
-  { id: 'dryrun', group: 'Acompanhamento', title: 'Dry-run', ctx: 'O que cada estratégia em dry-run já fez: trades, lucro, veredito, posições abertas e qualidade de execução', page: () => pageDryrunLive() },
-  { id: 'aovivo', group: 'Acompanhamento', title: 'Ao vivo', ctx: 'Gráfico em tempo real de cada ativo com as entradas e saídas dos robôs em dry-run', page: (r) => pageAoVivo(r) },
-  { id: 'data', group: 'Acompanhamento', title: 'Sistema', ctx: 'Saúde do ambiente: bot, dados, banco, ciclos e alertas', page: () => pageSystem() },
+  { id: 'dryrun', group: 'Cripto', title: 'Dry-run', ctx: 'O que cada estratégia em dry-run já fez: trades, lucro, veredito, posições abertas e qualidade de execução', page: () => pageDryrunLive() },
+  { id: 'aovivo', group: 'Cripto', title: 'Ao vivo', ctx: 'Gráfico em tempo real de cada ativo com as entradas e saídas dos robôs em dry-run', page: (r) => pageAoVivo(r) },
+  { id: 'data', group: 'Laboratório', title: 'Sistema', ctx: 'Saúde do ambiente: bot, dados, banco, ciclos e alertas', page: () => pageSystem() },
   { id: 'research', group: 'Laboratório', title: 'Pesquisa com IA', ctx: 'Agentes, pipeline e relatórios dos revisores', page: () => pageResearch() },
   { id: 'risk', group: 'Laboratório', title: 'Validação e risco', ctx: 'Gates, estágios, custos e motivos, para quem quer o detalhe técnico', page: () => pageRisk() },
   { id: 'indices-regra', hidden: true, title: 'Regra (índices)', ctx: 'Relatório de uma regra dos índices: ideia, registro, leituras e operações', page: (r) => pageIndicesRegra(r.arg) },
@@ -2699,17 +2741,51 @@ let route = parseHash(), shownKey = null;
 const els = {};
 const statusText = h('span', null), statusIcon = h('span', { class: 'ic', 'aria-hidden': 'true' });
 function currentTheme() { return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
+/* The menu (owner 2026-11-16: "revise todo esse menu de navegação... está muito poluído"): four labelled groups
+   that open and close; only the group of the page on screen opens by itself. Each universe page also has the
+   Cripto / B3 / Substitutos tabs at its top, so the menu does not need every page of every universe expanded. */
+const NAV = [
+  { id: 'b3', label: 'B3: WIN e WDO', icon: 'indices', items: [['b3-demo', 'Ao vivo (demo Clear)', true], ['b3', 'Início'], ['b3-leaderboard', 'Ranking'], ['b3-trades', 'Operações'], ['b3-compare', 'Comparar'], ['indices', 'Agentes'], ['indices-ciclos', 'Ciclos dos agentes']] },
+  { id: 'crypto', label: 'Cripto', icon: 'overview', items: [['overview', 'Início'], ['leaderboard', 'Ranking'], ['trades', 'Operações'], ['compare', 'Comparar'], ['dryrun', 'Dry-run', true], ['aovivo', 'Ao vivo', true]] },
+  { id: 'proxies', label: 'Substitutos', icon: 'indices-mercados', note: 'Programa encerrado em 16/11/2026; fica como arquivo.', items: [['proxies', 'Início'], ['proxies-leaderboard', 'Ranking'], ['proxies-trades', 'Operações'], ['proxies-compare', 'Comparar'], ['indices-placar', 'Placar das regras'], ['indices-mercados', 'Mercados e medições']] },
+  { id: 'lab', label: 'Laboratório', icon: 'research', items: [['data', 'Sistema'], ['research', 'Pesquisa com IA'], ['risk', 'Validação e risco']] },
+];
+/* accordion: opening a page opens its group and closes the others; a click on a group header opens or closes it */
+const navOpen = new Set();
+const navGroupOf = (id) => (NAV.find((g) => g.items.some(([r]) => r === id)) || {}).id;
+const chevron = () => sv('svg', { class: 'chev', width: 14, height: 14, viewBox: '0 0 24 24', 'aria-hidden': 'true' }, sv('path', { d: 'M9 6l6 6-6 6', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+function navSetOpen(gid, open) {
+  if (open) navOpen.add(gid); else navOpen.delete(gid);
+  const g = els.navGroups && els.navGroups[gid];
+  if (g) { g.box.classList.toggle('open', open); g.head.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  refreshChrome();
+}
 function buildShell() {
   const app = document.getElementById('app');
-  els.nav = ROUTES.filter((r) => !r.hidden).map((r) => h('a', { class: 'nav', href: '#/' + r.id, 'data-route': r.id, 'data-fkey': 'nav:' + r.id, onclick: () => { ui.menu = false; els.shell.classList.remove('menu-open'); } }, icon(r.icon || r.id), h('span', { class: 't' }, r.title)));
+  const known = new Set(ROUTES.map((r) => r.id));
+  els.nav = []; els.navGroups = {};
+  const groups = NAV.map((g) => {
+    const items = g.items.filter(([id]) => known.has(id)).map(([id, label, live]) => {
+      const a = h('a', { class: 'sbi', href: '#/' + id, 'data-route': id, 'data-fkey': 'nav:' + id, onclick: () => { ui.menu = false; els.shell.classList.remove('menu-open'); els.menuBtn.setAttribute('aria-expanded', 'false'); } },
+        live ? h('span', { class: 'sbdot', 'aria-hidden': 'true' }) : null, h('span', { class: 'lbl' }, label));
+      els.nav.push(a);
+      return a;
+    });
+    const list = h('div', { class: 'sbl', id: 'sbl-' + g.id }, g.note ? h('div', { class: 'sbnote' }, g.note) : null, items);
+    const head = h('button', { type: 'button', class: 'sbh', 'aria-expanded': navOpen.has(g.id) ? 'true' : 'false', 'aria-controls': 'sbl-' + g.id, 'data-fkey': 'navg:' + g.id,
+      onclick: () => navSetOpen(g.id, !navOpen.has(g.id)) }, icon(g.icon, 16), h('span', { class: 'lbl' }, g.label), h('span', { class: 'sbcnt' }), chevron());
+    const box = h('div', { class: 'sbg' + (navOpen.has(g.id) ? ' open' : '') }, head, list);
+    els.navGroups[g.id] = { box, head, items };
+    return box;
+  });
   els.menuBtn = h('button', { type: 'button', class: 'menubtn', 'aria-expanded': 'false', 'aria-controls': 'navlist', onclick: () => { ui.menu = !ui.menu; els.shell.classList.toggle('menu-open', ui.menu); els.menuBtn.setAttribute('aria-expanded', ui.menu ? 'true' : 'false'); } }, icon('menu', 16), 'Menu');
-  els.side = h('aside', { class: 'side', 'aria-label': 'Navegação' },
+  els.side = h('aside', { class: 'side sb', 'aria-label': 'Navegação' },
     h('div', { class: 'brand' }, sv('svg', { width: 34, height: 34, viewBox: '0 0 34 34', 'aria-hidden': 'true' },
       sv('defs', null, sv('linearGradient', { id: 'ob-logo', x1: 0, y1: 0, x2: 1, y2: 1 }, sv('stop', { offset: '0', 'stop-color': 'var(--accent)' }), sv('stop', { offset: '.6', 'stop-color': 'var(--accent2)' }), sv('stop', { offset: '1', 'stop-color': 'var(--teal)' }))),
       sv('rect', { width: 34, height: 34, rx: 10 }), sv('path', { d: 'M8 23l6-7 5 4 8-10', fill: 'none', stroke: '#fff', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })),
       h('div', { class: 't' }, 'Trading Lab', h('small', null, 'pesquisa quantitativa'))), els.menuBtn,
-    h('nav', { class: 'navlist', id: 'navlist', 'aria-label': 'Módulos' }, [...new Set(ROUTES.filter((r) => !r.hidden).map((r) => r.group))].map((g) => h('div', { class: 'navgroup' }, h('div', { class: 'navlabel t' }, g), els.nav.filter((a) => (ROUTES.find((r) => r.id === a.dataset.route) || {}).group === g)))),
-    h('div', { class: 'sidefoot' }, h('span', { class: 'sim', title: 'Nenhuma ordem real é enviada' }, 'dry-run'), h('span', { class: 't' }, 'Somente leitura · spot · long only')));
+    h('nav', { class: 'navlist', id: 'navlist', 'aria-label': 'Módulos' }, groups),
+    h('div', { class: 'sidefoot' }, h('span', { class: 'sim', title: 'Nenhuma ordem com dinheiro real é enviada' }, 'simulado'), h('span', { class: 't' }, 'Somente leitura · contas demo e backtests')));
   els.title = h('h1', null), els.ctx = h('div', { class: 'ctx' });
   els.theme = h('button', { type: 'button', class: 'themebtn', 'data-fkey': 'theme', 'aria-label': 'Alternar tema claro e escuro', onclick: (ev) => {
     const t = currentTheme() === 'dark' ? 'light' : 'dark';
@@ -2729,7 +2805,7 @@ function buildShell() {
   els.banner = h('div', { id: 'banner' }); els.stale = h('div', { id: 'stale-banner' });
   els.page = h('main', { id: 'page', tabindex: '-1' });
   els.foot = h('div', { class: 'foot' });
-  els.shell = h('div', { class: 'shell' }, els.side, h('div', { class: 'main' }, els.top, els.stale, els.banner, els.page, els.foot));
+  els.shell = h('div', { class: 'shell sbx' }, els.side, h('div', { class: 'main' }, els.top, els.stale, els.banner, els.page, els.foot));
   app.replaceChildren(h('div', { class: 'fx fx-aurora', 'aria-hidden': 'true' }), h('div', { class: 'fx fx-dots', 'aria-hidden': 'true' }), h('div', { class: 'fx fx-grain', 'aria-hidden': 'true' }), els.shell);
 }
 function refreshChrome() {
@@ -2742,6 +2818,18 @@ function refreshChrome() {
     const old = a.querySelector('.cnt'); if (old) old.remove();
     if (counts[id]) a.append(h('span', { class: 'cnt', title: `${counts[id]} ${plural(counts[id], 'item', 'itens')} de atenção neste módulo` }, String(counts[id])));
   });
+  const cur = navGroupOf(nav.id);
+  if (els.navShownFor !== nav.id) { navOpen.clear(); if (cur) navOpen.add(cur); }
+  els.navShownFor = nav.id;
+  for (const g of NAV) {
+    const ref = els.navGroups && els.navGroups[g.id];
+    if (!ref) continue;
+    const open = navOpen.has(g.id), n = g.items.reduce((t, [id]) => t + (counts[id] || 0), 0);
+    ref.box.classList.toggle('open', open); ref.head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    ref.head.classList.toggle('cur', g.id === cur);
+    const c = ref.head.querySelector('.sbcnt');
+    c.textContent = !open && n ? String(n) : ''; c.title = !open && n ? `${n} ${plural(n, 'item', 'itens')} de atenção neste grupo` : '';
+  }
   els.title.textContent = route.arg && nav.id === 'experiments' ? 'Experimento' : route.arg && nav.id === 'strategy' ? `Estratégia ${route.arg}` : nav.title;
   els.ctx.replaceChildren(`${nav.ctx} · `, h('span', { class: 'sim' }, 'backtest e dry-run: valores simulados'));
   const crit = criticalItems();

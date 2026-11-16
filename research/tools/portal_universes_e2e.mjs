@@ -48,7 +48,8 @@ const ti = await (await fetch(`${BASE}/api/trade-index?universe=b3`)).json();
 check('api: b3 trade index', (ti.trades || []).length > 1000, `${(ti.trades || []).length} trades`);
 
 await open('#/overview'); await loaded();
-check('nav: Cripto, B3 and Substitutos groups', await js(`[...document.querySelectorAll('.navlabel')].map(x=>x.textContent).join('|')`).then((t) => /Cripto/.test(t) && /B3: WIN e WDO/.test(t) && /Substitutos/.test(t)));
+check('nav: Cripto, B3 and Substitutos groups', await js(`[...document.querySelectorAll('.sbh .lbl')].map(x=>x.textContent).join('|')`).then((t) => /Cripto/.test(t) && /B3: WIN e WDO/.test(t) && /Substitutos/.test(t)));
+check('nav: only the current page group is open, labels visible', await js(`(() => { const open = [...document.querySelectorAll('.sbg.open .sbh .lbl')].map((x) => x.textContent); const lbl = document.querySelector('.sbi[aria-current=page] .lbl'); return open.includes('Cripto') && !open.includes('Substitutos') && !!lbl && lbl.getBoundingClientRect().width > 20; })()`));
 check('crypto home still renders with tabs', await waitFor(`!!document.querySelector('.ux-tabs') && /ideias/.test(document.querySelector('#page').textContent)`));
 
 for (const u of ['b3', 'proxies']) {
@@ -105,6 +106,10 @@ if (hasSnap) {
 }
 await setWidth(390);
 check('demo page: no horizontal scroll on a phone', await noHScroll());
+check('nav on a phone: list hidden until Menu is pressed', await js(`getComputedStyle(document.getElementById('navlist')).display === 'none'`));
+await js(`document.querySelector('.menubtn').click()`); await sleep(300);
+check('nav on a phone: Menu opens the groups', await js(`getComputedStyle(document.getElementById('navlist')).display !== 'none' && document.querySelector('.sbi[aria-current=page]').getBoundingClientRect().height > 0`));
+await js(`document.querySelector('.menubtn').click()`); await sleep(200);
 await setWidth(1600);
 check('demo page: no script errors', !errors.length, errors.slice(0, 3).join(' | '));
 if (process.env.SHOT) { const sh = await send('Page.captureScreenshot', { format: 'png' }); (await import('node:fs')).writeFileSync(process.env.SHOT, Buffer.from(sh.result.data, 'base64')); }
