@@ -33,7 +33,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -41,9 +41,9 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from b3.calendar import SessionDay, SessionRules
-from b3.costs import REQUIRED_SCENARIOS, B3Cost
-from b3.instruments import Instrument
+from b3.calendar import B3SessionCalendar, SessionDay, SessionRules
+from b3.costs import REQUIRED_SCENARIOS, B3Cost, get_cost
+from b3.instruments import INSTRUMENTS, Instrument
 from b3.strategy import B3Strategy
 from live.core.clock import B3Calendar, SessionConfig
 
@@ -112,11 +112,49 @@ MARKETS: dict[str, ProxyMarket] = {m.symbol: m for m in (
 )}
 
 
+@dataclass(frozen=True)
+class B3Market(ProxyMarket):
+    """WIN or WDO itself (real B3 data from the Clear demo, b3/b3_data.py). Same rule interface as a proxy, but the
+    instrument and the costs are the B3 ones in BRL per contract (b3/instruments.py, b3/costs.py) and the session
+    comes from b3/calendar.py (official holidays and hours by date). A stop fill pays `stop_extra_ticks_base`
+    ticks more in the base scenario, scaled 0 / 1 / 2 / 4 (plan docs/plano-b3-reuso.md F1, written 2026-11-16
+    before any WIN/WDO backtest)."""
+
+    root: str = ""
+    data_symbol: str = ""
+    stop_extra_ticks_base: float = 1.0
+
+    def instrument(self) -> Instrument:
+        return INSTRUMENTS[self.root]
+
+    def cost(self, scenario: str) -> B3Cost:
+        factor = {"optimistic": 0.0, "base": 1.0, "conservative": 2.0, "stress": 4.0}
+        if scenario not in factor:
+            raise ValueError(f"unknown scenario {scenario!r}; expected {REQUIRED_SCENARIOS}")
+        return replace(get_cost(self.root, scenario), stop_extra_ticks=self.stop_extra_ticks_base * factor[scenario])
+
+
+_B3 = dict(tz="America/Sao_Paulo", open=time(9, 0), currency="BRL", base_round_trip=0.0)
+B3_MARKETS: dict[str, B3Market] = {m.symbol: m for m in (
+    B3Market("WIN", "WIN (mini Ibovespa), Clear demo WIN$N", close=time(18, 25), tick_size=5.0, root="WIN",
+             data_symbol="WIN$N", source="b3/costs.py WIN: BRL 0.25/0.50 fees + 0-4 ticks per side", **_B3),
+    B3Market("WDO", "WDO (mini dólar), Clear demo WDO$N", close=time(18, 30), tick_size=0.5, root="WDO",
+             data_symbol="WDO$N", source="b3/costs.py WDO: BRL 1.00/1.50 fees + 0-4 ticks per side", **_B3),
+)}
+
+
 def market(symbol: str) -> ProxyMarket:
+    key = symbol.upper()
+    if key in B3_MARKETS:
+        return B3_MARKETS[key]
     try:
-        return MARKETS[symbol.upper()]
+        return MARKETS[key]
     except KeyError as exc:
-        raise ValueError(f"{symbol}: not a proxy market; expected one of {sorted(MARKETS)}") from exc
+        raise ValueError(f"{symbol}: not a market; expected one of {sorted(MARKETS) + sorted(B3_MARKETS)}") from exc
+
+
+def is_b3(symbol: str) -> bool:
+    return symbol.upper() in B3_MARKETS
 
 
 # ---------------------------------------------------------------------------------------------
@@ -248,12 +286,16 @@ class ProxyStrategy(B3Strategy):
 
     symbol: str = ""
 
-    def __init__(self, calendar: ProxySessionCalendar | None = None) -> None:
-        if not self.name or self.symbol not in MARKETS:
-            raise ValueError(f"{type(self).__name__}: set `name` and `symbol` (one of {sorted(MARKETS)})")
+    def __init__(self, calendar: B3Calendar | None = None) -> None:
+        if not self.name or (self.symbol not in MARKETS and self.symbol not in B3_MARKETS):
+            raise ValueError(f"{type(self).__name__}: set `name` and `symbol` "
+                             f"(one of {sorted(MARKETS) + sorted(B3_MARKETS)})")
         self.root = self.symbol
-        self.market = MARKETS[self.symbol]
-        self.calendar = calendar or ProxySessionCalendar(self.market, self.rules)
+        self.market = market(self.symbol)
+        if calendar is None:
+            calendar = (B3SessionCalendar(self.market.root, rules=self.rules) if isinstance(self.market, B3Market)
+                        else ProxySessionCalendar(self.market, self.rules))
+        self.calendar = calendar
         if self.calendar.rules != self.rules:
             raise ValueError("the calendar's session rules differ from the strategy's own rules")
 

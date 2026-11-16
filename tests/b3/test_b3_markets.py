@@ -55,7 +55,7 @@ def test_every_market_has_the_four_scenarios_scaled_from_base():
         assert m.cost("conservative").notional_frac_per_side == pytest.approx(base * 2)
         assert m.cost("stress").notional_frac_per_side == pytest.approx(base * 4)
     with pytest.raises(ValueError):
-        market("WIN")
+        market("IBOV")
 
 
 def test_cash_cost_is_a_share_of_the_fill_notional():
@@ -136,6 +136,6 @@ def test_infer_closed_days_finds_weekdays_without_session_bars():
 
 def test_proxy_strategy_requires_a_known_symbol():
     class Bad(ProxyStrategy):
-        name, symbol = "bad", "WIN"
+        name, symbol = "bad", "IBOV"
     with pytest.raises(ValueError):
         Bad()

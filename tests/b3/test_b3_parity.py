@@ -26,7 +26,8 @@ def engine_fills(tmp_path, frame, strategy, cost, risk: RiskConfig):
     bars = to_bars(frame)
     clock = FakeClock(bars[0].time)
     broker = PaperBroker(clock, {SYMBOL: SPEC}, PaperConfig(cost.cash_per_side_brl, cost.slippage_ticks_per_side,
-                                                            stop_slippage_frac=cost.stop_slippage_frac))
+                                                            stop_slippage_frac=cost.stop_slippage_frac,
+                                                            stop_extra_ticks=cost.stop_extra_ticks))
     broker.load_bars(SYMBOL, bars, TF)
     journal = Journal(":memory:", clock, strategy.name)
     engine = Engine(broker, strategy, clock, strategy.calendar, journal, RiskManager(risk),
@@ -86,6 +87,24 @@ def test_backtest_equals_live_engine_with_stop_slippage(tmp_path, seed):
                 BacktestConfig(allow_short=False, max_contracts=1))
     first_plain = next(t for t in plain.trades if t.exit_reason == "stop_loss")
     assert stops[0].exit_price < first_plain.exit_price          # the stop now fills worse
+    assert_same(live, bt)
+
+
+@pytest.mark.parametrize("seed", [3, 7])
+def test_backtest_equals_live_engine_with_stop_extra_ticks(tmp_path, seed):
+    """WIN/WDO lane (plan 2026-11-16 F1): a stop pays extra ticks on top of the normal slippage, in both paths."""
+    frame = random_walk_frame(seed=seed)
+    strategy = ChannelBreakout()
+    cost = replace(get_cost("WIN", "base"), stop_extra_ticks=2.0)
+    risk = RiskConfig(max_contracts_per_symbol=1, max_entries_per_day=10_000, max_daily_loss=1e12,
+                      max_weekly_loss=1e12, require_stop=True, long_only=True, max_data_age_bars=2.0)
+    live = engine_fills(tmp_path, frame, strategy, cost, risk)
+    res, bt = backtest_fills(frame, strategy, cost, BacktestConfig(allow_short=False, max_contracts=1))
+    plain = run(frame.assign(contract=SYMBOL), strategy, get_cost("WIN", "base"),
+                BacktestConfig(allow_short=False, max_contracts=1))
+    a = next(t for t in res.trades if t.exit_reason == "stop_loss")
+    b = next(t for t in plain.trades if t.exit_reason == "stop_loss")
+    assert a.exit_price == pytest.approx(b.exit_price - 2 * 5.0)  # 2 ticks of 5 points worse
     assert_same(live, bt)
 
 

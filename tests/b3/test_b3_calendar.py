@@ -53,7 +53,9 @@ def test_session_table_from_file_and_unknown_periods():
     assert (p.open, p.close, p.expiry_close) == (time(9, 0), time(18, 25), time(17, 0))
     assert s.period("WDO", date(2026, 11, 12)).close == time(18, 30)
     with pytest.raises(UnknownSession):
-        s.period("WIN", date(2026, 1, 5))
+        s.period("WIN", date(2021, 11, 12))                   # before the first inferred period (2021-11-16)
+    assert s.period("WIN", date(2022, 6, 1)).close == time(17, 55)   # inferred: US summer 2022
+    assert "INFERRED" in s.period("WIN", date(2026, 1, 5)).source
     with pytest.raises(ValueError):
         s.with_periods([SessionPeriod("WIN", date(2026, 6, 1), date(2026, 6, 30), time(9), time(18))])
 
@@ -73,9 +75,7 @@ def test_phases_of_a_win_session():
 
 
 def test_ash_wednesday_opens_late():
-    sessions = SessionTable.from_file().with_periods(
-        [SessionPeriod("WIN", date(2026, 1, 2), date(2026, 3, 8), time(9), time(18, 25))])
-    cal = B3SessionCalendar("WIN", sessions=sessions)
+    cal = B3SessionCalendar("WIN")                            # 2026-01..03 hours come from the inferred period
     assert cal.phase(datetime(2026, 2, 18, 10, tzinfo=SP_TZ)) == "closed"
     assert cal.session(date(2026, 2, 18)).open.time() == time(13, 0)
 

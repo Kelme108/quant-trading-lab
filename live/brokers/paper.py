@@ -29,6 +29,7 @@ class PaperConfig:
     slippage_ticks: float = 1.0
     balance: float = 10_000.0
     stop_slippage_frac: float = 0.0   # extra adverse share of the price on stop fills (b3.costs.B3Cost)
+    stop_extra_ticks: float = 0.0     # extra ticks on stop fills, on top of slippage_ticks (b3.costs.B3Cost)
 
 
 @dataclass
@@ -154,7 +155,7 @@ class PaperBroker:
                 self._scanned[symbol] = b.time
                 if b.low <= p.stop:
                     price = min(b.open, p.stop)
-                    slip = (self.cfg.slippage_ticks * self.specs[symbol].tick_size
+                    slip = ((self.cfg.slippage_ticks + self.cfg.stop_extra_ticks) * self.specs[symbol].tick_size
                             + self.cfg.stop_slippage_frac * price)
                     fill = self._close_part(
                         symbol, p.volume, price - slip,

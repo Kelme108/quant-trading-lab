@@ -38,11 +38,16 @@ class B3Cost:
     # 2026-11-14 (review 2026-11-14-veredito-1m-5m, option a). Zero for WIN/WDO, whose stops already pay
     # `slippage_ticks_per_side`.
     stop_slippage_frac: float = 0.0
+    # Extra ticks paid on a STOP fill on top of `slippage_ticks_per_side` (WIN/WDO research lane, b3/markets.py
+    # B3Market: 0 / 1 / 2 / 4 by scenario; plan docs/plano-b3-reuso.md F1, owner 2026-11-16).
+    stop_extra_ticks: float = 0.0
 
     def stop_fill(self, touched: float, side: str, tick_size: float) -> float:
         """Price of a stop fill: the touched price (stop, or the open when the bar gapped through it) moved against
-        the position by the slippage ticks and by `stop_slippage_frac`. `side` is the position's side."""
-        extra = self.slippage_ticks_per_side * tick_size + self.stop_slippage_frac * touched
+        the position by the slippage ticks (plus `stop_extra_ticks`) and by `stop_slippage_frac`. `side` is the
+        position's side."""
+        extra = ((self.slippage_ticks_per_side + self.stop_extra_ticks) * tick_size
+                 + self.stop_slippage_frac * touched)
         return touched - extra if side == "long" else touched + extra
 
     def cash_cost(self, inst: Instrument, price: float, contracts: float = 1.0) -> float:
