@@ -137,3 +137,11 @@ Você aprovou todas as recomendações (D1 a D6) depois de liberar o "Máx. barr
 **Primeiras leituras na B3 (exploração):** as 11 regras dos substitutos (P-001 a P-011) foram lidas no WIN e no WDO, 20 leituras. Só o P-004 passou, no WIN, e reprovou na leitura única da validação: −1,13% contra uma régua de 2,9%. O WDO perdeu em quase todas: o tick de meio ponto custa caro, e a ida e volta sai a 0,0235% contra 0,011% no WIN.
 
 **Para ver no portal:** pare e rode de novo `python -m lab.dashboard serve`, e abra a seção "B3: WIN e WDO" no menu.
+
+### Ajuste do dono (16/11, à tarde): só 1, 5 e 15 min, foco em 1 e 5 min
+
+- O escopo da B3 (`scope_b3.json`) e o programa de agentes aceitam só regras com sinal em 1, 5 ou 15 min.
+- As leituras já feitas de estratégias de cripto de 1 h e 4 h ficam no registro como tentativas, mas saem das páginas. A DailyKeltnerBreakout_H107, que passou na exploração do WIN em 1 h, não segue.
+- **Triagem das estratégias de cripto em 15 min:** 47 estratégias × WIN e WDO dão 94 leituras. 56 não fizeram nenhuma operação, porque supõem mercado 24 h. 5 passam na triagem e nenhuma passa nos critérios da exploração, então nada vai para a validação. O Sharpe deflacionado ficou perto de zero e o PBO em 0,52 (`research/b3/screen_followup.json`).
+- **Gráfico:** nas seções B3 e Substitutos, um pregão por vez em 1, 5 ou 15 min. Abre no tempo gráfico da regra (1 ou 5 min), com botões de pregão anterior e próximo; "Ver" leva ao pregão da operação.
+- **Agentes:** retomados às 16/11 na faixa B3, propondo primeiro regras de 1 ou 5 min.
