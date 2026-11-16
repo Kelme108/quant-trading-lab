@@ -7,4 +7,7 @@ cd /d D:\Trade-Initial
 if not exist live\logs mkdir live\logs
 echo ==== %DATE% %TIME% start >> live\logs\tick-recorder.log
 live\.venv\Scripts\python.exe -m b3.data.tick_recorder >> live\logs\tick-recorder.log 2>&1
+rem rebuild the 1-minute order-flow bars of the tick program (b3/tick_search.py; no strategy read)
+C:\Python314\python.exe -m b3.tick_search bars --market WIN >> live\logs\tick-recorder.log 2>&1
+C:\Python314\python.exe -m b3.tick_search bars --market WDO >> live\logs\tick-recorder.log 2>&1
 echo ==== %DATE% %TIME% exit %ERRORLEVEL% >> live\logs\tick-recorder.log

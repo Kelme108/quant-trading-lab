@@ -86,4 +86,5 @@ def test_final_and_partial_days(tmp_path, monkeypatch):
 def test_symbols_active_and_next():
     from b3.calendar import Holidays
     h = Holidays.from_file()
-    assert tr.symbols_for(date(2026, 11, 16), h) == ["WINZ26", "WING27", "WDOZ26", "WDOF27"]
+    assert tr.symbols_for(date(2026, 11, 16), h) == ["WINZ26", "WING27", "WINJ27", "WDOX26", "WDOZ26", "WDOF27"]
+    assert tr.symbols_for(date(2026, 12, 20), h) == ["WINZ26", "WING27", "WINJ27", "WDOZ26", "WDOF27", "WDOG27"]   # no 2027 calendar needed

@@ -44,7 +44,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from b3.calendar import Holidays, UnknownCalendarYear  # noqa: E402
-from b3.contracts import CONTRACT_MONTHS, active_contract, contract_code  # noqa: E402
+from b3.contracts import CONTRACT_MONTHS, contract_code  # noqa: E402
 
 SP = ZoneInfo("America/Sao_Paulo")
 OUT = ROOT / "user_data" / "data" / "b3" / "clear" / "ticks"
@@ -144,17 +144,21 @@ def is_final(sym: str, day: date, out: Path = OUT) -> bool:
 
 
 def symbols_for(day: date, holidays: Holidays) -> list[str]:
+    """The 3 nearest contracts of each root by contract month only (no expiry, so no holiday list is needed: the
+    official B3 calendar of a year is often published only in December). They always include the active contract
+    and the next one: WDO in month M trades M (until its expiry on day 1-2), M+1 and M+2; WIN the first even month
+    >= M and the two after."""
     out = []
     for root in ROOTS:
-        c = active_contract(root, day, holidays)
-        y, m = c.year, c.month               # the next contract by month only: its expiry may be in an unknown year
-        while True:
+        y, m = day.year, day.month
+        codes = []
+        while len(codes) < 3:
+            if m in CONTRACT_MONTHS[root]:
+                codes.append(contract_code(root, y, m))
             m += 1
             if m > 12:
                 y, m = y + 1, 1
-            if m in CONTRACT_MONTHS[root]:
-                break
-        out += [c.code, contract_code(root, y, m)]
+        out += codes
     return out
 
 
