@@ -222,7 +222,7 @@ def test_the_agent_program_runs_on_the_b3_lane():
     assert prog.active_lane() == "b3"
     cfg = prog.load_program(prog.LANES["b3"]["program"])
     assert cfg["approved_by_owner"] is True and cfg["scope"]["markets"] == ["WIN", "WDO"]
-    assert cfg["max_new_rules_per_week"] == 3 and cfg["stop_after_rules_without_validation_pass"] == 15
+    assert cfg["max_new_rules_per_week"] == 168 and cfg["stop_after_rules_without_validation_pass"] == 15
     st = prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[])
     assert st.can_register and not st.notices                   # exchange data deadline is met, no proxy notice
     assert prog.next_rule_id() >= "P-013"                      # P-012 (interrupted) is in the proxy folder
