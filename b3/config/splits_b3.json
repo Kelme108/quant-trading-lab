@@ -1,0 +1,26 @@
+{
+  "approved_by_owner": false,
+  "_status": "PROPOSED 2026-11-16 for WIN$N and WDO$N on the Clear demo (b3/config/broker_mt5.json). Dates come from the export's COVERAGE only (bar counts and bar times; no price, return or statistic of prices was looked at). Nothing is read before the owner approves; then edits need the owner.",
+  "_coverage_2026_11_16": "Server clock = Sao Paulo (first bar of the day 09:00 on ~99% of sessions). 15m and daily bars go back to 2021-11-16 (5 years: the server's depth). 5m (from 2023-04) and 1m (from 2026-03) stop at the terminal's 'Max bars in chart' = 100,000; with that setting on 'Unlimited' they are expected to reach 2021-11 too (to be re-measured).",
+  "chosen_scenario": null,
+  "_choose": "The owner picks A (after raising 'Max bars in chart' and re-measuring 5m/1m back to 2021-11) or B (keep the current depth). Both keep the most recent 12+ months as the locked final test.",
+  "scenarios": {
+    "A_five_years": {
+      "_rule": "5m/1m/15m from 2021-11-16: exploration ~2.6 years, validation 15 months read ONCE per rule and contract, final test the last ~13 months, locked.",
+      "symbols": {
+        "WIN$N": {"exploration": {"start": "2021-11-16", "end": "2024-07-01"}, "validation": {"start": "2024-07-01", "end": "2025-10-01"}, "final_test": {"start": "2025-10-01", "end": null}},
+        "WDO$N": {"exploration": {"start": "2021-11-16", "end": "2024-07-01"}, "validation": {"start": "2024-07-01", "end": "2025-10-01"}, "final_test": {"start": "2025-10-01", "end": null}}
+      }
+    },
+    "B_current_depth": {
+      "_rule": "5m from 2023-04 (what the terminal serves today): exploration ~20 months, validation calendar 2025, final test 2026, locked. 1m (from 2026-03) would fall entirely in the final test: no 1m research in this scenario.",
+      "symbols": {
+        "WIN$N": {"exploration": {"start": "2023-04-17", "end": "2025-01-01"}, "validation": {"start": "2025-01-01", "end": "2026-01-01"}, "final_test": {"start": "2026-01-01", "end": null}},
+        "WDO$N": {"exploration": {"start": "2023-05-02", "end": "2025-01-01"}, "validation": {"start": "2025-01-01", "end": "2026-01-01"}, "final_test": {"start": "2026-01-01", "end": null}}
+      }
+    }
+  },
+  "final_test_unlocked": false,
+  "contract_rule": "Continuous by liquidity without adjustment ($N). Every rule is flat before the close, so the roll gap only falls between sessions; rules whose indicators span sessions must state it (the roll day is flagged by b3/contracts.py).",
+  "time_zone": "America/Sao_Paulo"
+}
