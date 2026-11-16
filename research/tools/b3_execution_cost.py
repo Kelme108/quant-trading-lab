@@ -16,6 +16,8 @@ directional statistic of any rule:
 Read-only: attaches to the logged-in terminal, refuses a non-demo account, sends nothing.
 
     live/.venv/Scripts/python.exe research/tools/b3_execution_cost.py [--sessions 30]
+    live/.venv/Scripts/python.exe research/tools/b3_execution_cost.py --symbol WDOZ26 --since 2026-10-30
+    (WDO: owner 2026-11-16 "rode o projeto no maximo"; output research/b3/execution_cost_wdo.json)
 """
 
 from __future__ import annotations
@@ -31,9 +33,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 OUT = ROOT / "research" / "b3" / "execution_cost.json"
-SYM = "WINZ26"                 # the tradable contract: the continuous WIN$N ticks carry no bid/ask
+SYM = "WINZ26"                 # the tradable contract: the continuous WIN$N ticks carry no bid/ask; --symbol
 SP = __import__("zoneinfo").ZoneInfo("America/Sao_Paulo")
-TICK = 5.0
+TICK = 5.0                     # WIN 5 points; WDO 0.5 (set by --symbol)
 WINDOW = (time(9, 15), time(17, 55))      # inside every session's regular hours (17:55 closes in US summer)
 STOP_TICKS = (10, 20, 40)
 LIMIT_WAIT_S = (15, 60)
@@ -208,7 +210,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sessions", type=int, default=30)
     ap.add_argument("--since", default="2026-10-15", help="first session as the front contract")
+    ap.add_argument("--symbol", default="WINZ26")
     a = ap.parse_args(argv)
+    global SYM, TICK, OUT
+    SYM = a.symbol.upper()
+    TICK = {"WIN": 5.0, "WDO": 0.5}[SYM[:3]]
+    if SYM[:3] == "WDO":
+        OUT = ROOT / "research" / "b3" / "execution_cost_wdo.json"
     import MetaTrader5 as mt5
     from b3.data.mt5_history import attach
     attach(mt5, ROOT / "b3" / "config" / "broker_mt5.json")

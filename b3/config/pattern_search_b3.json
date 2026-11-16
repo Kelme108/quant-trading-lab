@@ -293,5 +293,29 @@
     },
     "gate": "gate_search with base -> measured and conservative -> measured_p90; same 552 variants of stage A (no new signal or exit), so n_trials for the deflated Sharpe stays 561; the program PBO is recomputed on the measured returns.",
     "limit_orders": "not used: at the touch they filled 86-92% within 15-60 s but did 0.1-0.25 tick WORSE than a market order 15-30 minutes later (adverse selection)."
+  },
+  "wdo_extension": {
+    "_owner": "Owner 2026-11-16 after lever 1: 'ROde o projeto no maximo para alcançarmos resultados'. Read as: extend path A to WDO (D3 had chosen WIN only 'por enquanto'). Written AFTER the WDO execution cost was measured (research/b3/execution_cost_wdo.json, WDOZ26 ticks 2026-10-30..11-13, execution only) and BEFORE any WDO strategy result was read.",
+    "market": "WDO",
+    "program": "separate trial count: WDO variants are logged in research/b3/search/wdo/ledger.jsonl, results in research/b3/search/wdo/; the deflated Sharpe counts the 552 WDO variants only (WIN's 561 are another market's program), PBO over the 552 WDO variants.",
+    "data": "WDO$N back-adjusted, same session rules, coverage, warmup and splits (splits_b3.json symbols.WDO: exploration 2021-11-16 .. 2024-07-01).",
+    "families": "the same 16 families and grids; F14 becomes 'WIN lead': R of WIN$N over M minutes, index up hard -> WDO short, index down hard -> WDO long (same sign rule: the other market's shock up -> short).",
+    "execution": "the same fill rules, exit grid (hold 15/30/60 min, stop 0.3%/0.6%) and 8 entries per session; WDO tick 0.5 point = BRL 5.",
+    "costs": {
+      "measured": {
+        "fees_per_side_brl": 1.0,
+        "slippage_ticks_per_side": 0.4,
+        "stop_extra_ticks": 0.0,
+        "_why": "market orders paid 0.40 tick per side against the bar open (aggressor trades); stops filled at the level (mean -0.3 to -0.5 tick, p95 0); fees = b3/costs.py WDO base (BRL 1.00, not measured)"
+      },
+      "measured_p90": {
+        "fees_per_side_brl": 1.5,
+        "slippage_ticks_per_side": 1.0,
+        "stop_extra_ticks": 0.0,
+        "_why": "p90 of the market-order slippage (1 tick) and the conservative fees"
+      }
+    },
+    "gate": "gate_search unchanged, base -> measured and conservative -> measured_p90; finalists (at most 5) read ONCE on WDO validation by the same rule as WIN.",
+    "limit_orders": "not used here: on WDO a limit at the touch did better than a market order WHEN filled through (-0.16 to -0.26 vs -0.50 tick, mid 15-30 min later) but was filled through only 42-67% of the time; whether the missed fills are the winners cannot be tested with bars."
   }
 }
