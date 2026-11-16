@@ -1479,7 +1479,7 @@ const ICONS = {
   'indices-ciclos': ['M20 12a8 8 0 1 1-2.3-5.7', 'M20 4v5h-5'],
   'indices-mercados': ['M3 21h18', 'M5 21V10M10 21V6M15 21v-8M20 21V3'],
 };
-const icon = (name, size = 18) => sv('svg', { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false', class: 'icon' }, ICONS[name].map((d) => sv('path', { d })));
+const icon = (name, size = 18) => sv('svg', { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false', class: 'icon' }, (ICONS[name] || ICONS.overview).map((d) => sv('path', { d })));
 
 /* ==================== vocabulary ==================== */
 const STAGE = { exploration: 'exploração', validation: 'validação', final_test: 'teste final' };
@@ -2651,6 +2651,7 @@ costChartFor = guard(costChartFor, 'Retorno por cenário de custo'); drawdownCha
 /*__PORTAL__*/
 
 /*__RESULTS__*/
+/*__UNIVERSES__*/
 
 /*__DRYRUN_LIVE__*/
 
@@ -2658,23 +2659,24 @@ costChartFor = guard(costChartFor, 'Retorno por cenário de custo'); drawdownCha
 
 /* ==================== shell, router and render loop ==================== */
 const ROUTES = [
-  { id: 'overview', group: 'Resultados', title: 'Início', ctx: 'O projeto em uma frase, números-chave, funil e onde cada estratégia funciona', page: () => pageInicio() },
-  { id: 'leaderboard', group: 'Resultados', title: 'Ranking', ctx: 'Todas as estratégias testadas, aprovadas ou não, com filtros e visões prontas', page: () => pageRanking() },
-  { id: 'trades', group: 'Resultados', title: 'Operações', ctx: 'Todas as operações dos backtests: filtre, agrupe e veja quando funcionam', page: () => pageOperacoes() },
-  { id: 'compare', group: 'Resultados', title: 'Comparar', ctx: 'Até quatro estratégias lado a lado', page: () => pageComparar() },
-  { id: 'strategy', hidden: true, title: 'Estratégia', ctx: 'Relatório de uma estratégia: provas, curva, queda, mês a mês, horários e regra', page: (r) => pageEstrategia(r.arg) },
+  { id: 'overview', group: 'Cripto', title: 'Início', ctx: 'Cripto: o projeto em uma frase, números-chave, funil e onde cada estratégia funciona', page: uxCrypto('overview', () => pageInicio()) },
+  { id: 'leaderboard', group: 'Cripto', title: 'Ranking', ctx: 'Cripto: todas as estratégias testadas, aprovadas ou não, com filtros e visões prontas', page: uxCrypto('leaderboard', () => pageRanking()) },
+  { id: 'trades', group: 'Cripto', title: 'Operações', ctx: 'Cripto: todas as operações dos backtests, filtre, agrupe e veja quando funcionam', page: uxCrypto('trades', () => pageOperacoes()) },
+  { id: 'compare', group: 'Cripto', title: 'Comparar', ctx: 'Cripto: até quatro estratégias lado a lado', page: uxCrypto('compare', () => pageComparar()) },
+  { id: 'strategy', hidden: true, title: 'Estratégia', ctx: 'Relatório de uma estratégia: provas, curva, queda, mês a mês, horários e regra', page: uxCrypto('strategy', (r) => pageEstrategia(r.arg)) },
+  ...uxRoutes(),
+  { id: 'indices', group: 'B3: WIN e WDO', title: 'Programa de agentes', ctx: 'Day trade em índices: conclusão, funil, programa de agentes e avisos', page: () => pageIndices() },
+  { id: 'indices-ciclos', group: 'B3: WIN e WDO', title: 'Ciclos dos agentes', ctx: 'O que cada ciclo de agentes fez, quanto custou e os erros', page: () => pageIndicesCiclos() },
+  { id: 'indices-placar', group: 'Substitutos', title: 'Placar das regras', ctx: 'Todas as combinações regra × mercado, por etapa, com filtros', page: () => pageIndicesPlacar() },
+  { id: 'indices-mercados', group: 'Substitutos', title: 'Mercados e medições', ctx: 'Custos, escopo, qualidade dos dados, tamanho do movimento e eventos', page: () => pageIndicesMercados() },
   { id: 'dryrun', group: 'Acompanhamento', title: 'Dry-run', ctx: 'O que cada estratégia em dry-run já fez: trades, lucro, veredito, posições abertas e qualidade de execução', page: () => pageDryrunLive() },
   { id: 'aovivo', group: 'Acompanhamento', title: 'Ao vivo', ctx: 'Gráfico em tempo real de cada ativo com as entradas e saídas dos robôs em dry-run', page: (r) => pageAoVivo(r) },
   { id: 'data', group: 'Acompanhamento', title: 'Sistema', ctx: 'Saúde do ambiente: bot, dados, banco, ciclos e alertas', page: () => pageSystem() },
   { id: 'research', group: 'Laboratório', title: 'Pesquisa com IA', ctx: 'Agentes, pipeline e relatórios dos revisores', page: () => pageResearch() },
   { id: 'risk', group: 'Laboratório', title: 'Validação e risco', ctx: 'Gates, estágios, custos e motivos, para quem quer o detalhe técnico', page: () => pageRisk() },
-  { id: 'indices', group: 'Índices (WIN/WDO)', title: 'Visão geral', ctx: 'Day trade em índices: conclusão, funil, programa de agentes e avisos', page: () => pageIndices() },
-  { id: 'indices-placar', group: 'Índices (WIN/WDO)', title: 'Placar', ctx: 'Todas as combinações regra × mercado, por etapa, com filtros', page: () => pageIndicesPlacar() },
-  { id: 'indices-ciclos', group: 'Índices (WIN/WDO)', title: 'Ciclos dos agentes', ctx: 'O que cada ciclo de agentes fez, quanto custou e os erros', page: () => pageIndicesCiclos() },
-  { id: 'indices-mercados', group: 'Índices (WIN/WDO)', title: 'Mercados e medições', ctx: 'Custos, escopo, qualidade dos dados, tamanho do movimento e eventos', page: () => pageIndicesMercados() },
   { id: 'indices-regra', hidden: true, title: 'Regra (índices)', ctx: 'Relatório de uma regra dos índices: ideia, registro, leituras e operações', page: (r) => pageIndicesRegra(r.arg) },
   // reachable by link, not in the menu (absorbed by the Resultados pages)
-  { id: 'chart', hidden: true, title: 'Gráfico do backtest', ctx: 'Candles e operações de um backtest', page: (r) => pageTrades(r) },
+  { id: 'chart', hidden: true, title: 'Gráfico do backtest', ctx: 'Candles e operações de um backtest', page: uxCrypto(null, (r) => pageTrades(r)) },
   { id: 'experiments', hidden: true, title: 'Experimentos', ctx: 'Cada execução de backtest e a decisão dos gates', page: (r) => r.arg ? pageExperiment(r.arg) : pageExperiments() },
   { id: 'backtests', hidden: true, title: 'Backtests', ctx: 'Execuções, capital, custos e as três origens de resultado', page: () => pageBacktests() },
   { id: 'strategies', hidden: true, title: 'Hipóteses', ctx: 'Hipóteses, famílias e comparação lado a lado', page: () => pageStrategies() },
@@ -2696,7 +2698,7 @@ const statusText = h('span', null), statusIcon = h('span', { class: 'ic', 'aria-
 function currentTheme() { return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
 function buildShell() {
   const app = document.getElementById('app');
-  els.nav = ROUTES.filter((r) => !r.hidden).map((r) => h('a', { class: 'nav', href: '#/' + r.id, 'data-route': r.id, 'data-fkey': 'nav:' + r.id, onclick: () => { ui.menu = false; els.shell.classList.remove('menu-open'); } }, icon(r.id), h('span', { class: 't' }, r.title)));
+  els.nav = ROUTES.filter((r) => !r.hidden).map((r) => h('a', { class: 'nav', href: '#/' + r.id, 'data-route': r.id, 'data-fkey': 'nav:' + r.id, onclick: () => { ui.menu = false; els.shell.classList.remove('menu-open'); } }, icon(r.icon || r.id), h('span', { class: 't' }, r.title)));
   els.menuBtn = h('button', { type: 'button', class: 'menubtn', 'aria-expanded': 'false', 'aria-controls': 'navlist', onclick: () => { ui.menu = !ui.menu; els.shell.classList.toggle('menu-open', ui.menu); els.menuBtn.setAttribute('aria-expanded', ui.menu ? 'true' : 'false'); } }, icon('menu', 16), 'Menu');
   els.side = h('aside', { class: 'side', 'aria-label': 'Navegação' },
     h('div', { class: 'brand' }, sv('svg', { width: 34, height: 34, viewBox: '0 0 34 34', 'aria-hidden': 'true' },

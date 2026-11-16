@@ -19,7 +19,7 @@ function trLoad(id) {
     .then(async (r) => { const body = await r.json().catch(() => ({})); if (!r.ok) throw new Error(body.error || 'HTTP ' + r.status); return body; })
     .then((body) => { tr.data[id] = body; tr.order = [id, ...tr.order.filter((x) => x !== id)]; for (const old of tr.order.slice(3)) delete tr.data[old]; tr.order = tr.order.slice(0, 3); })
     .catch((e) => { tr.error[id] = String(e && e.message ? e.message : e); })
-    .finally(() => { tr.loading[id] = false; if (route.id === 'chart') render(); });
+    .finally(() => { tr.loading[id] = false; if (/(^|-)chart$/.test(route.id)) render(); });
 }
 
 /* ---------- trade facts: only what the export holds, plus ratios computed from it ---------- */
@@ -130,13 +130,13 @@ function pageTrades(r) {
   if (r.q.sel && tr.selUrl !== r.key + r.q.sel) { tr.selUrl = r.key + r.q.sel; tr.sel = Number(r.q.sel) || null; }
   const runs = trRuns();
   const head = h('div', { class: 'notice info', role: 'note' }, h('span', { class: 'ic info', 'aria-hidden': 'true' }, 'i'),
-    h('div', null, 'Operações de backtest exportadas pelo Freqtrade, sobre os candles reais da Binance em ', h('code', null, 'user_data/data'), '. É histórico simulado: nenhuma ordem foi enviada a uma corretora. Resultados de dry-run ao vivo aparecem quando um forward test estiver rodando (hoje: ', String(state.forward_test.closed + state.forward_test.open), ' operações).'));
+    UNI !== 'crypto' ? h('div', null, uxChartNote()) : h('div', null, 'Operações de backtest exportadas pelo Freqtrade, sobre os candles reais da Binance em ', h('code', null, 'user_data/data'), '. É histórico simulado: nenhuma ordem foi enviada a uma corretora. Resultados de dry-run ao vivo aparecem quando um forward test estiver rodando (hoje: ', String(state.forward_test.closed + state.forward_test.open), ' operações).'));
   if (!LIVE) return h('div', null, head, card('Gráfico e operações', null, notAvailable('Gráfico de preço e operações', 'o snapshot estático não carrega candles. Abra o painel com python -m lab.dashboard serve.')));
   if (!runs.length) return h('div', null, head, card('Gráfico e operações', null, emptyState('Nenhum backtest com resultado salvo.', 'Rode um ciclo para gerar experimentos.')));
   if (!tr.exp || !runs.some((e) => e.id === tr.exp)) { const first = runs.find((e) => e.current) || runs[0]; tr.exp = first.id; tr.sel = null; tr.range = null; }
   const run = runs.find((e) => e.id === tr.exp);
-  const picker = selectBox('Experimento', 'tr-exp', tr.exp, runs.map((e) => [e.id, `${e.hypothesis_id} · ${short(e.pair)} · ${STAGE[e.split] || e.split}${e.current ? '' : ' (substituída)'} · ${whenShort(e.created_at_utc)}`]), (v) => { location.hash = '#/chart/' + encodeURIComponent(v); });
-  const filters = h('div', { class: 'filters' }, picker, h('a', { href: `#/experiments/${encodeURIComponent(tr.exp)}`, 'data-fkey': 'tr-detail' }, 'Ver decisão dos gates'));
+  const picker = selectBox('Experimento', 'tr-exp', tr.exp, runs.map((e) => [e.id, `${e.hypothesis_id} · ${short(e.pair)} · ${STAGE[e.split] || e.split}${e.current ? '' : ' (substituída)'} · ${whenShort(e.created_at_utc)}`]), (v) => { location.hash = rxR('chart') + '/' + encodeURIComponent(v); });
+  const filters = h('div', { class: 'filters' }, picker, UNI !== 'crypto' ? null : h('a', { href: `#/experiments/${encodeURIComponent(tr.exp)}`, 'data-fkey': 'tr-detail' }, 'Ver decisão dos gates'));
   trLoad(tr.exp);
   const data = tr.data[tr.exp];
   if (tr.error[tr.exp]) return h('div', null, head, card('Gráfico e operações', null, h('div', null, filters, notAvailable('Gráfico e operações', tr.error[tr.exp]), h('div', { class: 'btnrow', style: 'margin-top:8px' }, h('button', { type: 'button', 'data-fkey': 'tr-retry', onclick: () => { delete tr.error[tr.exp]; render(); } }, 'Tentar de novo')))));

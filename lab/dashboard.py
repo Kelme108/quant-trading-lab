@@ -43,6 +43,7 @@ PORTAL_PATH = ASSET_DIR / "portal.js"
 RESULTS_PATH = ASSET_DIR / "results.js"
 DRYRUN_LIVE_PATH = ASSET_DIR / "dryrun_live.js"
 INDICES_JS_PATH = ASSET_DIR / "indices.js"
+UNIVERSES_JS_PATH = ASSET_DIR / "universes.js"
 INDICES_TRADE_FILE = re.compile(r"[A-Za-z0-9/._-]{1,160}")
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
 DEFAULT_PORT = 8765
@@ -53,6 +54,14 @@ GATE_DETAIL_LINE = re.compile(r"^([a-z_]+)(?:\[([^\]]*)\])?:\s*(FAIL|inconclusiv
 EXPAND_DATA_COMMAND = "python -m lab.orchestrator expand-data"
 INCIDENT_WINDOW = timedelta(days=7)
 EXPERIMENT_ID = re.compile(r"[A-Za-z0-9._-]{1,120}")
+UNIVERSE_IDS = ("b3", "proxies")     # lab/universes.py UNIVERSES: the Resultados pages for B3 and the proxy markets
+
+
+def universes_clean(obj):
+    """NaN / inf -> None, so the JSON is valid (the B3 reads carry them where a metric is undefined)."""
+    from lab import indices_portal
+
+    return indices_portal.clean(obj)
 CANDLE_MARGIN = timedelta(days=5)
 MAX_CANDLES = 80000
 TRADE_FIELDS = (
@@ -1152,6 +1161,7 @@ def render_page(state: dict, *, nonce: str | None, live: bool) -> str:
         template.replace("/*__TRADES_VIEW__*/", TRADES_VIEW_PATH.read_text(encoding="utf-8"))
         .replace("/*__PORTAL__*/", PORTAL_PATH.read_text(encoding="utf-8"))
         .replace("/*__RESULTS__*/", RESULTS_PATH.read_text(encoding="utf-8"))
+        .replace("/*__UNIVERSES__*/", UNIVERSES_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__DRYRUN_LIVE__*/", DRYRUN_LIVE_PATH.read_text(encoding="utf-8"))
         .replace("/*__INDICES__*/", INDICES_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__VENDOR_CHARTS__*/", VENDOR_CHARTS_PATH.read_text(encoding="utf-8"))
@@ -1227,6 +1237,12 @@ class _Handler(BaseHTTPRequestHandler):
                 if not EXPERIMENT_ID.fullmatch(raw):
                     self._send(400, b'{"error": "bad experiment id"}', "application/json; charset=utf-8")
                     return
+                if raw.split(".", 1)[0] in UNIVERSE_IDS and "." in raw:      # b3.<read> / proxies.<read>
+                    from lab import universes
+
+                    status, body = universes.trades_payload(raw, ROOT)
+                    self._send(status, _embed(universes_clean(body)).encode("utf-8"), "application/json; charset=utf-8")
+                    return
                 status, body = self.server.trades(raw)
                 self._send(status, json.dumps(body, allow_nan=False).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/dryrun":
@@ -1256,7 +1272,26 @@ class _Handler(BaseHTTPRequestHandler):
                     return
                 status, body = indices_portal.trades_file(raw, ROOT)
                 self._send(status, _embed(indices_portal.clean(body)).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/universe":
+                from lab import universes
+
+                uid = parse_qs(query).get("id", [""])[0]
+                if uid not in UNIVERSE_IDS:
+                    self._send(400, b'{"error": "unknown universe"}', "application/json; charset=utf-8")
+                    return
+                data = {k: v for k, v in universes.cached(uid, ROOT).items() if k != "trade_index"}
+                self._send(200, _embed(universes_clean(data)).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/trade-index":
+                uid = parse_qs(query).get("universe", [""])[0]
+                if uid:
+                    from lab import universes
+
+                    if uid not in UNIVERSE_IDS:
+                        self._send(400, b'{"error": "unknown universe"}', "application/json; charset=utf-8")
+                        return
+                    index = universes.cached(uid, ROOT).get("trade_index") or {}
+                    self._send(200, _embed(universes_clean(index)).encode("utf-8"), "application/json; charset=utf-8")
+                    return
                 index = self.server.provider().get("trade_index") or {}
                 self._send(200, _embed(index).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/state":
@@ -1317,8 +1352,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "export":
         from lab import indices_portal
 
+        from lab import universes
+
         state = build_state()
         state["indices"] = indices_portal.build_indices()      # the static file has no /api/indices to fetch
+        state["universes"] = {u: universes_clean(universes.build_universe(u)) for u in UNIVERSE_IDS}
         print(export_html(args.out, state))
         return 0
 

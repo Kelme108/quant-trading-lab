@@ -30,8 +30,8 @@ function rxTerms() {
     rx_pairs: ['Ativos positivos', 'Em quantas das criptomoedas testadas a estratégia terminou no lucro. Funcionar em vários ativos é sinal de regra robusta, não de sorte.'],
     rx_avg: ['Média por operação', 'Resultado médio de cada operação, em % do valor aplicado nela, já descontadas as taxas.'],
     rx_sum: ['Resultado somado', 'Soma dos resultados das operações, em % do capital do backtest de cada ativo. Como cada backtest começa com o mesmo capital, dá para comparar estratégias e grupos.'],
-    rx_explo: ['Exploração', 'Primeira prova: dados de 2017 a jul/2024. É onde a ideia é testada pela primeira vez.'],
-    rx_valid: ['Validação', 'Segunda prova, com dados recentes (jul/2024 a out/2026) que a ideia nunca viu. É lida uma única vez, para ninguém ajustar a regra olhando o resultado.'],
+    rx_explo: ['Exploração', 'Primeira prova, com os dados mais antigos (cripto: 2017 a jul/2024; WIN e WDO: nov/2021 a jun/2024). É onde a ideia é testada pela primeira vez.'],
+    rx_valid: ['Validação', 'Segunda prova, com dados recentes que a ideia nunca viu (cripto: jul/2024 a out/2026; WIN e WDO: jul/2024 a set/2025). É lida uma única vez, para ninguém ajustar a regra olhando o resultado.'],
     rx_drop: ['Da exploração para a validação', 'Quanto o retorno mudou dos dados antigos para os dados novos. Uma queda grande é o sinal clássico de que a regra foi ajustada demais ao passado (overfitting).'],
     rx_bh: ['Comprar e segurar', 'Quanto teria rendido só comprar o ativo no início do período e não fazer nada. Serve de régua: em alta forte, quase toda estratégia perde para isso.'],
     rx_underwater: ['Queda desde o pico', 'Quanto o capital estava abaixo do seu ponto mais alto em cada momento. Zero quer dizer que estava no topo; quanto mais fundo, maior o susto.'],
@@ -63,8 +63,8 @@ const rxSeries = (i) => ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'va
 /* status in plain words (the registry text stays in the tooltip) */
 const RXS = {
   validada: { icon: '✓', cls: 'good', label: 'Aprovada na validação', why: 'Passou nas duas provas: dados antigos e dados recentes.' },
-  val_reprovada: { icon: '!', cls: 'warn', label: 'Reprovada na validação', why: 'Foi bem nos dados de 2017 a 2024, mas não repetiu o resultado nos dados recentes.' },
-  exp_aprovada: { icon: '✓', cls: 'info', label: 'Aprovada na exploração', why: 'Passou nos dados de 2017 a 2024; falta a prova nos dados recentes.' },
+  val_reprovada: { icon: '!', cls: 'warn', label: 'Reprovada na validação', why: 'Foi bem na exploração (dados antigos), mas não repetiu o resultado nos dados recentes.' },
+  exp_aprovada: { icon: '✓', cls: 'info', label: 'Aprovada na exploração', why: 'Passou na exploração (dados antigos); falta a prova nos dados recentes.' },
   exp_reprovada: { icon: '✕', cls: 'bad', label: 'Reprovada na exploração', why: 'Não atingiu os critérios mínimos já na primeira prova.' },
   inconclusiva: { icon: '?', cls: 'na', label: 'Inconclusiva', why: 'Sem evidência suficiente para aprovar nem para reprovar.' },
   descartada: { icon: '–', cls: 'na', label: 'Descartada antes do teste', why: 'Barrada antes do backtest completo: poucas operações, risco alto demais ou erro na regra.' },
@@ -107,7 +107,7 @@ const signedSpan = (v, d = 1, bold = false) => h(bold ? 'b' : 'span', { class: t
 const ddText = (v) => ok(v) ? sgn('-' + nf1.format(v)) + '%' : dash;
 const n2 = (v) => ok(v) ? sgn(nf2.format(v)) : dash;
 const durText = (m) => !ok(m) ? dash : m < 60 ? `${nf0.format(m)} min` : m < 2880 ? `${nf1.format(m / 60)} h` : `${nf1.format(m / 1440)} d`;
-const nameCell = (r, hy) => h('div', { class: 'rx-name' }, h('a', { href: '#/strategy/' + encodeURIComponent(r.id), 'data-fkey': 'rxn:' + r.id + ':' + r.stage }, r.id), h('span', null, humanName(r.family)),
+const nameCell = (r, hy) => h('div', { class: 'rx-name' }, h('a', { href: (rxR('strategy') + '/') + encodeURIComponent(r.id), 'data-fkey': 'rxn:' + r.id + ':' + r.stage }, r.id), h('span', null, humanName(r.family)),
   h('small', null, [tfOf(hy) || '?', `${r.n_pairs} ${plural(r.n_pairs, 'ativo', 'ativos')}`].join(' · ')));
 
 /* ---------- small charts (drawn to scale, colors from the theme tokens) ---------- */
@@ -282,7 +282,7 @@ function stratCard(r, { i = 0, sel = false } = {}) {
   const hy = rxHy(r.id), low = (r.min_trades_pair || 0) < rxMin(), none = !r.trades;
   return h('article', { class: 'rx-sc' + (r.in_dryrun ? ' dry' : '') + (none ? ' none' : ''), style: `--i:${Math.min(i, 24)}` },
     h('header', null,
-      h('div', { class: 'rx-name' }, h('a', { class: 'stretch', href: '#/strategy/' + encodeURIComponent(r.id), 'data-fkey': 'rxc:' + r.id + ':' + r.stage }, r.id), h('span', null, humanName(r.family)),
+      h('div', { class: 'rx-name' }, h('a', { class: 'stretch', href: (rxR('strategy') + '/') + encodeURIComponent(r.id), 'data-fkey': 'rxc:' + r.id + ':' + r.stage }, r.id), h('span', null, humanName(r.family)),
         h('small', null, [tfOf(hy) || '?', `${r.n_pairs} ${plural(r.n_pairs, 'ativo', 'ativos')}`, RX_STAGE[r.stage].toLowerCase()].join(' · '))),
       h('div', { title: PARTS.map(([k, l]) => `${l}: ${nf0.format(((r.score_parts || {})[k] || 0) * 100)}/100`).join(' · ') },
         ring(ok(r.score) ? r.score / 100 : 0, { size: 50, stroke: 5, text: ok(r.score) ? nf0.format(r.score) : dash, sub: 'nota', label: `Nota ${ok(r.score) ? nf0.format(r.score) : 'sem nota'} de 100` }))),
@@ -308,7 +308,7 @@ function labMap(rows) {
     const g = rows.filter((r) => statusKey(r.status) === k).sort((a, b) => (b.roi_pct ?? -1e9) - (a.roi_pct ?? -1e9));
     if (!g.length) return null;
     return h('section', { class: 'rx-mapgrp' }, h('h3', null, title, h('small', null, ` · ${g.length}`)),
-      h('div', { class: 'rx-tilewrap' }, g.map((r) => h('a', { class: 'rx-tile', href: '#/strategy/' + encodeURIComponent(r.id), 'data-fkey': 'rxt:' + r.id, style: `background:${heatSolid(r.roi_pct, scale)};--i:${Math.min(n++, 40)}`,
+      h('div', { class: 'rx-tilewrap' }, g.map((r) => h('a', { class: 'rx-tile', href: (rxR('strategy') + '/') + encodeURIComponent(r.id), 'data-fkey': 'rxt:' + r.id, style: `background:${heatSolid(r.roi_pct, scale)};--i:${Math.min(n++, 40)}`,
         onmousemove: (e) => showTip(e, `${r.id} · ${humanName(r.family)}`, [{ value: sp(r.roi_pct), label: ' retorno médio' }, { value: wr(r.winrate), label: ' win rate' }, { value: n2(r.payoff), label: ' payoff' }, { value: nf0.format(r.trades || 0), label: ' operações' }, { value: RXS[k].label, label: '' }]), onmouseleave: hideTip },
         r.in_dryrun ? h('span', { class: 'dot', title: 'Em dry-run' }) : null, h('b', null, r.id), h('span', { class: 'v' }, sp(r.roi_pct, 0)), h('small', null, humanName(r.family))))));
   }));
@@ -368,7 +368,9 @@ function calendarHeat(I, list, st) {
 }
 
 /* ---------- the trade index (all operations), loaded once ---------- */
-const TI = { data: null, ref: null, loading: false, error: null };
+/* one cache per universe (Cripto, B3, Substitutos): each has its own /api/trade-index */
+const TI_ALL = {};
+const TIu = () => TI_ALL[UNI] || (TI_ALL[UNI] = { data: null, ref: null, loading: false, error: null });
 function prepIndex(raw) {
   const cells = raw.cells || [], reasons = raw.exit_reasons || [], rows = raw.trades || [];
   const hyOfCell = cells.map((c) => rxHy(c.id)), tfOfCell = hyOfCell.map(tfOf);
@@ -377,17 +379,18 @@ function prepIndex(raw) {
   return { cells, reasons, rows, dow, hour, tfOfCell };
 }
 function tradeIndex() {
+  const TI = TIu(), uni = UNI;
   if (state.trade_index && (state.trade_index.trades || []).length) { if (TI.ref !== state) { TI.data = prepIndex(state.trade_index); TI.ref = state; } return TI.data; }
   if (!LIVE) return TI.data;
   if (TI.ref !== state && !TI.loading) {
     TI.loading = true; TI.error = null; const want = state;
-    fetch('/api/trade-index', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then((d) => { TI.data = prepIndex(d); TI.ref = want; }).catch((e) => { TI.error = String(e.message || e); TI.ref = want; })
+    fetch('/api/trade-index' + (uni === 'crypto' ? '' : '?universe=' + encodeURIComponent(uni)), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then((d) => { inUniverse(uni, () => { TI.data = prepIndex(d); }); TI.ref = want; }).catch((e) => { TI.error = String(e.message || e); TI.ref = want; })
       .finally(() => { TI.loading = false; render(); });
   }
   return TI.data;
 }
-const indexPending = () => TI.error ? emptyState('Não foi possível carregar as operações.', TI.error) : loadingState('Carregando as operações dos backtests…');
+const indexPending = () => TIu().error ? emptyState('Não foi possível carregar as operações.', TIu().error) : loadingState('Carregando as operações dos backtests…');
 const wOf = (I, i) => (I.cells[I.rows[i][0]].wallet || 100);
 function tradeStats(I, list) {
   let n = 0, wins = 0, gp = 0, gl = 0, sw = 0, nw = 0, sl = 0, nl = 0, sp_ = 0, sum = 0, sd = 0, best = -Infinity, worst = Infinity;
@@ -412,7 +415,7 @@ function rxFunnel() {
   const expRows = rxRows('exploration'), valRows = rxRows('validation');
   const expPass = expRows.filter((r) => r.gates_all_pass).length, valPass = valRows.filter((r) => r.gates_all_pass).length;
   const dry = hy.filter((x) => x.in_dryrun).length;
-  return [['Ideias registradas', hy.length, 'regra escrita antes do teste'], ['Chegaram ao backtest', expRows.length, 'rodaram nos dados de 2017 a 2024'],
+  return [['Ideias registradas', hy.length, 'regra escrita antes do teste'], ['Chegaram ao backtest', expRows.length, 'rodaram nos dados de ' + rxPeriod('exploration')],
     ['Passaram na exploração', expPass, 'em todos os ativos em que foram testadas'], ['Fizeram a validação', valRows.length, 'prova com dados recentes'],
     ['Passaram na validação', valPass, 'em todos os ativos testados'], ['Em dry-run', dry, 'ao vivo, dinheiro simulado'], ['Operando dinheiro real', 0, 'bloqueado até haver evidência']];
 }
@@ -436,8 +439,8 @@ function pageInicio() {
         h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, 'Visão geral do projeto'), hero,
           h('p', { class: 'rx-lede' }, 'Cada ideia é uma regra de compra e venda escrita antes do teste. Ela passa por duas provas com dados históricos (', term('rx_explo', 'exploração'), ' e ', term('rx_valid', 'validação'), ') e só depois roda ao vivo em ', term('dryrun', 'dry-run'), '. Nenhuma estratégia opera dinheiro real hoje.')),
         h('div', { class: 'rx-kpis' },
-          rxKpi('Operações simuladas', cnt(nTrades, fmtInt), `em ${(state.pairs || []).length} criptomoedas`),
-          rxKpi(term('rx_ret', 'Melhor retorno médio'), best[0] ? h('span', { class: 'pos rx-glow' }, cnt(best[0].roi_pct, (v) => sp(v, 0))) : dash, best[0] ? h('a', { href: '#/strategy/' + best[0].id }, best[0].id + ', exploração') : null),
+          rxKpi('Operações simuladas', cnt(nTrades, fmtInt), `em ${(state.pairs || []).length} ${rxMarkets()}`),
+          rxKpi(term('rx_ret', 'Melhor retorno médio'), best[0] ? h('span', { class: 'pos rx-glow' }, cnt(best[0].roi_pct, (v) => sp(v, 0))) : dash, best[0] ? h('a', { href: (rxR('strategy') + '/') + best[0].id }, best[0].id + ', exploração') : null),
           rxKpi(term('dryrun', 'Em dry-run'), nf0.format(dry), listPt(dryHy.map((x) => x.id)) || 'nenhuma'),
           rxKpi('Dinheiro real', '0', 'nenhuma passou nas duas provas'))),
       card('O destino das ideias', `Onde cada uma das ${reg} hipóteses registradas parou. Passe o mouse no anel.`,
@@ -447,12 +450,12 @@ function pageInicio() {
           det('rx-why', 'Motivo detalhado de cada parada', hbars(Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([label, v]) => ({ label, v, color: /Aprovada/.test(label) ? 'var(--good)' : /Referência/.test(label) ? 'var(--accent)' : 'var(--bad)' }))))),
         { cls: 'b-5' }),
       card('O caminho de uma ideia até o dinheiro real', 'Cada etapa filtra a anterior; a barrinha mostra quantas das ideias registradas chegaram ali. O dry-run também recebe estratégias reprovadas na validação, para juntar evidência ao vivo.', pipeline(fun), { cls: 'b-12' }),
-      card('As que mais renderam na primeira prova', 'Exploração (2017 a jul/2024), só estratégias com pelo menos 30 operações em cada ativo (a referência H-001 fica de fora). Rendimento passado não garante o futuro: por isso existem a validação e o dry-run.',
-        h('div', { class: 'rx-gallery rx-gtop' }, best.slice(0, 6).map((r, i) => stratCard(r, { i }))), { cls: 'b-12', actions: h('a', { href: '#/leaderboard', 'data-fkey': 'rx-all' }, `Ver as ${exp.length} no ranking →`) }),
+      card('As que mais renderam na primeira prova', 'Exploração (' + rxPeriod('exploration') + '), só estratégias com pelo menos 30 operações em cada ativo (a referência H-001 fica de fora). Rendimento passado não garante o futuro: por isso existem a validação e o dry-run.',
+        h('div', { class: 'rx-gallery rx-gtop' }, best.slice(0, 6).map((r, i) => stratCard(r, { i }))), { cls: 'b-12', actions: h('a', { href: rxR('leaderboard'), 'data-fkey': 'rx-all' }, `Ver as ${exp.length} no ranking →`) }),
       card('Mapa do laboratório', `Cada bloco é uma das ${exp.length} estratégias que fizeram o backtest, agrupadas pelo resultado. A cor é o retorno médio na exploração: verde mais forte é mais lucro, vermelho é prejuízo. O ponto ciano marca as que estão em dry-run. Clique para abrir.`, labMap(exp), { cls: 'b-12' }),
-      card('Onde cada estratégia funciona', 'Retorno de cada estratégia em cada criptomoeda, na exploração. Verde é lucro, vermelho é prejuízo; quanto mais forte a cor, maior o número. Traço: não testada naquele ativo.',
+      card('Onde cada estratégia funciona', 'Retorno de cada estratégia em cada ativo, na exploração. Verde é lucro, vermelho é prejuízo; quanto mais forte a cor, maior o número. Traço: não testada naquele ativo.',
         h('div', { class: 'tablewrap' }, h('table', { class: 'rx-heat' }, h('thead', null, h('tr', null, h('th', null, 'Estratégia'), pairs.map((p) => h('th', { class: 'num' }, short(p))), h('th', { class: 'num' }, 'Média'))),
-          h('tbody', null, heatRows.map((r) => h('tr', null, h('td', null, h('a', { href: '#/strategy/' + r.id }, r.id), ' ', h('span', { class: 'sub' }, humanName(r.family))),
+          h('tbody', null, heatRows.map((r) => h('tr', null, h('td', null, h('a', { href: (rxR('strategy') + '/') + r.id }, r.id), ' ', h('span', { class: 'sub' }, humanName(r.family))),
             pairs.map((p) => { const c = r.per_pair.find((x) => x.pair === p); return c ? h('td', { class: 'num', style: `background:${heatBg(c.roi_pct, heatScale)}` }, sp(c.roi_pct, 0)) : h('td', { class: 'num sub' }, '—'); }),
             h('td', { class: 'num', style: `background:${heatBg(r.roi_pct, heatScale)};font-weight:600` }, sp(r.roi_pct, 0))))))), { cls: 'b-7' }),
       dryrunSummary('b-5'),
@@ -468,7 +471,7 @@ function dryrunSummary(cls) {
     const pairs = Object.values(d.pairs || {}), closed = pairs.reduce((a, p) => a + (p.closed || 0), 0), open = pairs.reduce((a, p) => a + (p.open || 0), 0);
     const days = d.frozen_at ? Math.max(0, (Date.now() - Date.parse(d.frozen_at)) / 86400000) : 0, hy = rxHy(d.id), target = rule.need_trades;
     const left = !closed && ok(rule.discard_after_days) ? rule.discard_after_days - days : null;
-    return h('div', { class: 'rx-dry' }, h('div', { class: 'row' }, h('a', { href: '#/strategy/' + d.id }, h('b', null, d.id)), h('span', { class: 'sub' }, hy ? humanName(hy.family) : ''), d.freeze_ok ? badge(ST.pass, 'Congelada') : badge(ST.fail, 'Congelamento alterado')),
+    return h('div', { class: 'rx-dry' }, h('div', { class: 'row' }, h('a', { href: (rxR('strategy') + '/') + d.id }, h('b', null, d.id)), h('span', { class: 'sub' }, hy ? humanName(hy.family) : ''), d.freeze_ok ? badge(ST.pass, 'Congelada') : badge(ST.fail, 'Congelamento alterado')),
       h('div', { class: 'rx-dryrings' },
         h('div', { class: 'rx-part' }, ring(closed / target, { size: 62, text: nf0.format(closed), sub: `de ${target}`, label: `${closed} de ${target} operações fechadas` }), h('small', null, 'operações')),
         h('div', { class: 'rx-part' }, ring(days / rule.need_days, { size: 62, color: 'var(--teal)', text: days.toFixed(1).replace('.', ','), sub: 'dias no ar', label: `${days.toFixed(1)} dias no ar` }), h('small', null, 'dias rodando')),
@@ -534,7 +537,7 @@ function pageRanking() {
   const listing = st.mode === 'table' ? dataTable({ id: 'rx-rank', cols: rankCols(true, rows), rows, sort0: { key: 'roi', dir: -1 }, label: 'Ranking de estratégias' })
     : rows.length ? h('div', { class: 'rx-gallery' }, cardRows.map((r, i) => stratCard(r, { i, sel: true }))) : emptyState('Nenhuma estratégia com estes filtros.');
   return h('div', { class: 'rx rx-stack' + rxAnim() },
-    rxHeader('Ranking', 'Todas as estratégias testadas', `As ${all.length} estratégias com resultado na ${RX_STAGE[st.stage].toLowerCase()} (${RX_PERIOD[st.stage]}), aprovadas ou não. Clique no título de uma coluna para ordenar e no nome para abrir a estratégia.`),
+    rxHeader('Ranking', 'Todas as estratégias testadas', `As ${all.length} estratégias com resultado na ${RX_STAGE[st.stage].toLowerCase()} (${rxPeriod(st.stage)}), aprovadas ou não. Clique no título de uma coluna para ordenar e no nome para abrir a estratégia.`),
     h('div', { class: 'rx-toolbar' },
     h('div', { class: 'rx-views', role: 'group', 'aria-label': 'Visões prontas' }, VIEWS.map(([k, l, f]) => h('button', { type: 'button', class: 'rx-view', 'aria-pressed': st.view === k ? 'true' : 'false', 'data-fkey': 'rxv:' + k, onclick: () => setR('view', k) }, l, h('small', null, String(all.filter(f).length))))),
     h('div', { class: 'rx-controls' },
@@ -546,7 +549,7 @@ function pageRanking() {
       selectBox('Ativo', 'rx-pair', st.pair, [['all', 'Todos'], ...(state.pairs || []).map((p) => [p, short(p)])], (v) => setR('pair', v)),
       h('label', null, 'Buscar', h('input', { type: 'search', value: st.q, placeholder: 'H-047, momentum…', 'data-fkey': 'rx-q', oninput: (e) => setR('q', e.target.value) })),
       h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: st.sample, 'data-fkey': 'rx-sample', onchange: (e) => setR('sample', e.target.checked) }), ' Só amostra confiável (30+ operações por ativo)'))),
-    h('div', { class: 'rx-cards' }, hl.filter((x) => x[1]).map(([l, r, v, c]) => h('a', { class: 'rx-hl', href: '#/strategy/' + r.id, 'data-fkey': 'rxhl:' + l }, h('span', { class: 'l' }, l), h('b', null, v(r)), h('span', null, `${r.id} · ${humanName(r.family)}`), h('small', null, c(r))))),
+    h('div', { class: 'rx-cards' }, hl.filter((x) => x[1]).map(([l, r, v, c]) => h('a', { class: 'rx-hl', href: (rxR('strategy') + '/') + r.id, 'data-fkey': 'rxhl:' + l }, h('span', { class: 'l' }, l), h('b', null, v(r)), h('span', null, `${r.id} · ${humanName(r.family)}`), h('small', null, c(r))))),
     h('p', { class: 'sub' }, 'Os destaques consideram só estratégias com 30 ou mais operações em cada ativo e deixam de fora a referência (H-001).'),
     det('rx-how', 'Como ler esta tabela', h('ul', { class: 'rx-list' },
       h('li', null, h('b', null, 'Retorno médio'), ' é o número principal: quanto o capital cresceu, na média dos ativos testados.'),
@@ -555,7 +558,7 @@ function pageRanking() {
       h('li', null, h('b', null, 'Nota'), ' resume quatro notas (passe o mouse sobre as barrinhas). ', h('b', null, 'Risco'), ' vai de 1 (baixo) a 10 (alto), pela pior queda.'),
       h('li', null, 'Marque até quatro estratégias na primeira coluna para compará-las lado a lado.'))),
     rx.sel.length ? h('div', { class: 'rx-selbar' }, h('span', null, `${rx.sel.length} ${plural(rx.sel.length, 'selecionada', 'selecionadas')}: ${rx.sel.join(', ')}`),
-      h('button', { type: 'button', class: 'primary', 'data-fkey': 'rx-cmp-go', onclick: () => { rx.cmp.ids = [...rx.sel]; rx.cmp.stage = st.stage; rxGo('#/compare'); } }, 'Comparar lado a lado'),
+      h('button', { type: 'button', class: 'primary', 'data-fkey': 'rx-cmp-go', onclick: () => { rx.cmp.ids = [...rx.sel]; rx.cmp.stage = st.stage; rxGo(rxR('compare')); } }, 'Comparar lado a lado'),
       h('button', { type: 'button', 'data-fkey': 'rx-cmp-clear', onclick: () => { rx.sel = []; render(); } }, 'Limpar')) : null,
     listing,
     h('p', { class: 'sub' }, `${rows.length} de ${all.length} estratégias.`, st.mode === 'table' ? '' : ' Em "Ver como", escolha Tabela para ordenar por qualquer coluna.'),
@@ -584,7 +587,7 @@ function scatterWrPayoff(rows) {
   for (const r of [...pr].sort((a, b) => b.trades - a.trades)) {
     const rad = Math.max(3.5, Math.min(13, Math.sqrt(r.trades) / 2.2)), cx = X(r.winrate * 100), cy = Y(Math.min(r.payoff, ymax)), c = color(r);
     svg.append(sv('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: rad.toFixed(1), fill: c, 'fill-opacity': 0.5, stroke: c, class: 'rx-dot',
-      onclick: () => rxGo('#/strategy/' + r.id), onmousemove: (e) => showTip(e, `${r.id} · ${humanName(r.family)}`, [{ value: wr(r.winrate), label: ' win rate' }, { value: n2(r.payoff), label: ' payoff' }, { value: sp(r.roi_pct), label: ' retorno médio' }, { value: nf0.format(r.trades), label: ' operações' }]), onmouseleave: hideTip }));
+      onclick: () => rxGo((rxR('strategy') + '/') + r.id), onmousemove: (e) => showTip(e, `${r.id} · ${humanName(r.family)}`, [{ value: wr(r.winrate), label: ' win rate' }, { value: n2(r.payoff), label: ' payoff' }, { value: sp(r.roi_pct), label: ' retorno médio' }, { value: nf0.format(r.trades), label: ' operações' }]), onmouseleave: hideTip }));
     if (labeled.has(r.id)) svg.append(sv('text', { x: cx + rad + 4, y: cy + 4, style: 'fill:var(--ink2)' }, r.id));
   }
   return svg;
@@ -603,8 +606,8 @@ function dumbbell() {
       sv('line', { x1: X(e.roi_pct), x2: X(v.roi_pct), y1: y, y2: y, stroke: worse ? 'var(--bad)' : 'var(--good)', 'stroke-width': 2.5, 'stroke-opacity': 0.6 }),
       sv('circle', { cx: X(e.roi_pct), cy: y, r: 5, fill: 'var(--accent)' }),
       sv('rect', { x: X(v.roi_pct) - 5, y: y - 5, width: 10, height: 10, transform: `rotate(45 ${X(v.roi_pct)} ${y})`, fill: worse ? 'var(--bad)' : 'var(--good)' }),
-      sv('rect', { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: 'transparent', class: 'rx-dot', onclick: () => rxGo('#/strategy/' + e.id),
-        onmousemove: (ev) => showTip(ev, `${e.id} · ${humanName(e.family)}`, [{ value: sp(e.roi_pct), label: ' exploração (2017–2024)' }, { value: sp(v.roi_pct), label: ' validação (2024–2026)' }, { value: `${v.pairs_positive}/${v.n_pairs}`, label: ' ativos positivos na validação' }]), onmouseleave: hideTip }));
+      sv('rect', { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: 'transparent', class: 'rx-dot', onclick: () => rxGo((rxR('strategy') + '/') + e.id),
+        onmousemove: (ev) => showTip(ev, `${e.id} · ${humanName(e.family)}`, [{ value: sp(e.roi_pct), label: ' exploração (' + rxPeriod('exploration') + ')' }, { value: sp(v.roi_pct), label: ' validação (' + rxPeriod('validation') + ')' }, { value: `${v.pairs_positive}/${v.n_pairs}`, label: ' ativos positivos na validação' }]), onmouseleave: hideTip }));
   });
   return svg;
 }
@@ -635,7 +638,7 @@ function groupKey(I, g, i) {
   const d = new Date(t[1] * 60000).toISOString(); return g === 'year' ? d.slice(0, 4) : d.slice(0, 7);
 }
 function groupLabel(g, k) {
-  if (g === 'hyp') { const hy = rxHy(k); return h('div', { class: 'rx-name' }, h('span', { class: 'nowrap' }, h('a', { href: '#/strategy/' + encodeURIComponent(k) }, k), ' ', h('span', null, hy ? humanName(hy.family) : '')), hy ? statusDot(hy.status) : null); }
+  if (g === 'hyp') { const hy = rxHy(k); return h('div', { class: 'rx-name' }, h('span', { class: 'nowrap' }, h('a', { href: (rxR('strategy') + '/') + encodeURIComponent(k) }, k), ' ', h('span', null, hy ? humanName(hy.family) : '')), hy ? statusDot(hy.status) : null); }
   if (g === 'pair') return h('b', null, short(k)); if (g === 'reason') return REASON(k); if (g === 'dow') return DOW[k];
   if (g === 'hour') return `${String(k).padStart(2, '0')}h`; if (g === 'dur') return DUR[k] ? DUR[k][2] : '?'; return String(k);
 }
@@ -685,7 +688,7 @@ function pageOperacoes() {
   return h('div', { class: 'rx rx-stack' + rxAnim() }, head, controls, cellChip, kpis,
     card('Calendário de resultados', 'Cada quadradinho é um dia (data de fechamento, horário de Brasília), com os filtros acima. Verde: o dia somou lucro; vermelho: prejuízo; cinza: nenhuma operação fechou. Embaixo, o total de cada mês.', calendarHeat(I, list, st)),
     table,
-    h('p', { class: 'sub' }, '"Resultado somado" usa % do capital de cada backtest (100 USDT antes de 08/11/2026, 1.000 depois), então estratégias com capitais diferentes ficam comparáveis. Tudo é backtest simulado, cenário de custo base.'),
+    h('p', { class: 'sub' }, rxCapNote() + ', então estratégias com capitais diferentes ficam comparáveis. Tudo é backtest simulado, cenário de custo base.'),
     h('div', { class: 'rx-grid g2' },
       card(term('rx_hour', 'Quando as operações funcionam'), 'Entradas por dia da semana e hora (horário de Brasília), com os outros filtros acima. Clique numa célula para filtrar a página.', weekHour(I, opsFilter(I, st, 'cell'), st, true)),
       card('Como os resultados se distribuem', 'Quantas operações caíram em cada faixa de resultado. Estratégias de tendência costumam ter muitas perdas pequenas e poucos ganhos grandes (cauda à direita).', histogramOf(I, list))));
@@ -698,11 +701,11 @@ function tradeList(I, list, st) {
   const th = (k, label, num) => h('th', { class: num ? 'num' : '', 'aria-sort': sorters[k] ? (key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none') : null },
     sorters[k] ? h('button', { type: 'button', class: 'sortbtn', 'data-fkey': 'rxts:' + k, onclick: () => { st.sort = { key: k, dir: key === k ? -dir : -1 }; st.page = 0; render(); } }, label + (key === k ? (dir > 0 ? ' ▴' : ' ▾') : '')) : label);
   return h('div', { class: 'rx-stack' }, h('div', { class: 'tablewrap' }, h('table', { 'aria-label': 'Operações' },
-    h('thead', null, h('tr', null, th('date', 'Entrada'), th('', 'Estratégia'), th('', 'Ativo'), th('', 'Prova'), th('d', 'Duração', true), th('p', 'Resultado', true), th('a', 'Em USDT', true), th('', 'Saída'))),
+    h('thead', null, h('tr', null, th('date', 'Entrada'), th('', 'Estratégia'), th('', 'Ativo'), th('', 'Prova'), th('d', 'Duração', true), th('p', 'Resultado', true), th('a', rxUnitLabel(), true), th('', 'Saída'))),
     h('tbody', null, sorted.slice(st.page * per, (st.page + 1) * per).map((i) => { const t = I.rows[i], c = I.cells[t[0]];
-      return h('tr', null, h('td', { class: 'nw' }, dayUtc(new Date(t[1] * 60000).toISOString())), h('td', null, h('a', { href: '#/strategy/' + c.id }, c.id)), h('td', null, short(c.pair)), h('td', null, RX_STAGE[c.split]),
+      return h('tr', null, h('td', { class: 'nw' }, dayUtc(new Date(t[1] * 60000).toISOString())), h('td', null, h('a', { href: (rxR('strategy') + '/') + c.id }, c.id)), h('td', null, short(c.pair)), h('td', null, RX_STAGE[c.split]),
         h('td', { class: 'num' }, durText(t[2])), h('td', { class: 'num' }, signedSpan(t[3], 2, true)), h('td', { class: 'num' }, h('span', { class: toneOf(t[4]) }, n2(t[4]))), h('td', null, REASON(I.reasons[t[5]]),
-        ' ', h('a', { href: '#/chart/' + encodeURIComponent(c.experiment_id), class: 'sub', title: 'Ver os candles deste backtest' }, 'gráfico'))); })))),
+        ' ', h('a', { href: (rxR('chart') + '/') + encodeURIComponent(c.experiment_id), class: 'sub', title: 'Ver os candles deste backtest' }, 'gráfico'))); })))),
     h('div', { class: 'rx-pager' }, h('span', { class: 'sub' }, `${nf0.format(sorted.length)} operações · página ${st.page + 1} de ${pages}`),
       h('button', { type: 'button', disabled: st.page === 0, 'data-fkey': 'rx-prev', onclick: () => { st.page--; render(); } }, 'Anterior'),
       h('button', { type: 'button', disabled: st.page + 1 >= pages, 'data-fkey': 'rx-next', onclick: () => { st.page++; render(); } }, 'Próxima')));
@@ -757,15 +760,15 @@ function pageComparar() {
   return h('div', { class: 'rx rx-stack' + rxAnim() },
     rxHeader('Comparar', 'Estratégias lado a lado', 'Escolha até quatro estratégias (ou marque no Ranking). As curvas mostram o resultado acumulado na média dos ativos; na tabela, o melhor valor de cada linha fica destacado.'),
     h('div', { class: 'rx-controls' }, segmented('Prova', 'rx-cs', st.stage, [['exploration', 'Exploração'], ['validation', 'Validação']], (v) => { st.stage = v; render(); }),
-      h('div', { class: 'rx-pick' }, st.ids.map((id, i) => h('span', { class: 'p' }, h('i', { style: `background:${color(i)}` }), id, h('button', { type: 'button', 'aria-label': 'Remover ' + id, 'data-fkey': 'rxrm:' + id, onclick: () => { st.ids = st.ids.filter((x) => x !== id); if (route.q.ids) rxGo('#/compare'); else render(); } }, '×'))),
-        st.ids.length < 4 ? selectBox('Adicionar', 'rx-cadd', '', [['', '+ estratégia'], ...options.map((r) => [r.id, `${r.id} · ${humanName(r.family)}`])], (v) => { if (v) { st.ids = [...st.ids, v]; if (route.q.ids) rxGo('#/compare'); else render(); } }) : null)),
+      h('div', { class: 'rx-pick' }, st.ids.map((id, i) => h('span', { class: 'p' }, h('i', { style: `background:${color(i)}` }), id, h('button', { type: 'button', 'aria-label': 'Remover ' + id, 'data-fkey': 'rxrm:' + id, onclick: () => { st.ids = st.ids.filter((x) => x !== id); if (route.q.ids) rxGo(rxR('compare')); else render(); } }, '×'))),
+        st.ids.length < 4 ? selectBox('Adicionar', 'rx-cadd', '', [['', '+ estratégia'], ...options.map((r) => [r.id, `${r.id} · ${humanName(r.family)}`])], (v) => { if (v) { st.ids = [...st.ids, v]; if (route.q.ids) rxGo(rxR('compare')); else render(); } }) : null)),
     st.ids.length > rows.length ? h('p', { class: 'sub' }, `${st.ids.length - rows.length} das escolhidas não têm resultado na ${RX_STAGE[st.stage].toLowerCase()}.`) : null,
     rows.length ? [
       h('div', { class: 'rx-gallery' }, rows.map((r, i) => h('div', { class: 'rx-cmpcard', style: `--c:${color(i)}` }, stratCard(r, { i })))),
-      card('Resultado acumulado', `${RX_STAGE[st.stage]} (${RX_PERIOD[st.stage]}): soma dos resultados em % do capital, na média dos ativos de cada estratégia.`, rxLine(rows.map((r, i) => ({ label: r.id, color: color(i), pts: r.curve })), { label: 'Resultado acumulado comparado' }),
+      card('Resultado acumulado', `${RX_STAGE[st.stage]} (${rxPeriod(st.stage)}): soma dos resultados em % do capital, na média dos ativos de cada estratégia.`, rxLine(rows.map((r, i) => ({ label: r.id, color: color(i), pts: r.curve })), { label: 'Resultado acumulado comparado' }),
         { actions: h('div', { class: 'legend' }, rows.map((r, i) => h('span', null, h('span', { class: 'key', style: `border-top-color:${color(i)}` }), r.id))) }),
       card(term('rx_underwater', 'Queda desde o pico'), 'Quanto cada estratégia ficou abaixo do seu melhor momento. Mais fundo e mais longo é mais difícil de aguentar.', rxLine(rows.map((r, i) => ({ label: r.id, color: color(i), pts: underwater(r.curve) })), { height: 200, label: 'Queda desde o pico comparada' })),
-      h('div', { class: 'tablewrap' }, h('table', { class: 'rx-cmp' }, h('thead', null, h('tr', null, h('th', null, 'Métrica'), rows.map((r, i) => h('th', null, h('span', { style: `color:${color(i)}` }, '● '), h('a', { href: '#/strategy/' + r.id }, r.id), h('div', { class: 'sub' }, humanName(r.family)))))),
+      h('div', { class: 'tablewrap' }, h('table', { class: 'rx-cmp' }, h('thead', null, h('tr', null, h('th', null, 'Métrica'), rows.map((r, i) => h('th', null, h('span', { style: `color:${color(i)}` }, '● '), h('a', { href: (rxR('strategy') + '/') + r.id }, r.id), h('div', { class: 'sub' }, humanName(r.family)))))),
         h('tbody', null, M.map(([label, val, cell]) => { const vs = val ? rows.map(val) : [], best = val ? Math.max(...vs.filter(ok)) : null, tie = vs.filter((x) => x === best).length === rows.length;
           return h('tr', null, h('td', null, label), rows.map((r, i) => h('td', { class: 'num' + (val && rows.length > 1 && !tie && vs[i] === best ? ' rx-best' : '') }, cell(r)))); }))))] : emptyState('Escolha ao menos uma estratégia.'));
 }
@@ -776,18 +779,18 @@ const CRISES = [['Bear de 2018', '2018-01-07', '2018-12-15'], ['Crash da covid',
 function pageEstrategia(idArg) {
   const id = idArg || ((state.strategies || [])[0] || {}).id;
   const hy = id && rxHy(id);
-  if (!hy) return h('div', { class: 'rx rx-stack' }, rxHeader('Estratégia', 'Não encontrada', `Não existe ${id || 'estratégia'} no registro.`), h('a', { href: '#/leaderboard' }, '← Ranking'));
+  if (!hy) return h('div', { class: 'rx rx-stack' }, rxHeader('Estratégia', 'Não encontrada', `Não existe ${id || 'estratégia'} no registro.`), h('a', { href: rxR('leaderboard') }, '← Ranking'));
   const stages = ['exploration', 'validation'].filter((s) => rxRow(id, s));
   const sentence = String(hy.notes || '').split(/ Calibrated| \[/)[0];
   const exp = rxRow(id, 'exploration'), val = rxRow(id, 'validation'), parts = (exp && exp.score_parts) || {};
   return h('div', { class: 'rx rx-stack' + rxAnim() },
-    h('div', { class: 'sub' }, h('a', { href: '#/leaderboard', 'data-fkey': 'rx-back' }, '← Ranking'), ' / ', id),
+    h('div', { class: 'sub' }, h('a', { href: rxR('leaderboard'), 'data-fkey': 'rx-back' }, '← Ranking'), ' / ', id),
     h('section', { class: 'card rx-shero' + (hy.in_dryrun ? ' beam' : '') },
       h('div', { class: 'rx-head' }, h('span', { class: 'rx-eyebrow' }, [id, tfOf(hy) || '?', 'registrada em ' + dayUtc(hy.proposed_at_utc)].join(' · ')), h('h1', { class: 'rx-h1' }, humanName(hy.family)),
         h('div', { class: 'row' }, statusBadge(hy.status), hy.in_dryrun ? dryBadge() : null),
         h('p', { class: 'rx-lede' }, RXS[statusKey(hy.status)].why, sentence ? ' A ideia: ' + sentence + '.' : '', ' ', h('span', { class: 'sub' }, '(descrição registrada em inglês)')),
         exp ? h('div', { class: 'rx-shero-nums' },
-          h('div', null, h('span', { class: 'l' }, term('rx_explo', 'Exploração'), ' · 2017–2024'), h('b', { class: toneOf(exp.roi_pct) + ' rx-glow' }, cnt(exp.roi_pct, (v) => sp(v, 1)))),
+          h('div', null, h('span', { class: 'l' }, term('rx_explo', 'Exploração'), ' · ' + rxPeriod('exploration')), h('b', { class: toneOf(exp.roi_pct) + ' rx-glow' }, cnt(exp.roi_pct, (v) => sp(v, 1)))),
           val ? h('span', { class: 'rx-arrow', 'aria-hidden': 'true' }, '→') : null,
           val ? h('div', null, h('span', { class: 'l' }, term('rx_valid', 'Validação'), ' · 2024–2026'), h('b', { class: toneOf(val.roi_pct) + ' rx-glow' }, cnt(val.roi_pct, (v) => sp(v, 1)))) : null,
           val && ok(perYear(exp)) && ok(perYear(val)) ? h('div', { class: 'rx-delta ' + (perYear(val) >= perYear(exp) ? 'up' : 'down') }, h('span', { class: 'l' }, term('rx_annual', 'Por ano')),
@@ -802,8 +805,8 @@ function pageEstrategia(idArg) {
         h('div', { class: 'rx-part' }, ring(ok(exp.score) ? exp.score / 100 : 0, { size: 112, stroke: 10, text: ok(exp.score) ? nf0.format(exp.score) : dash, sub: 'de 100', label: `Nota de evidência ${ok(exp.score) ? nf0.format(exp.score) : 'sem nota'} de 100` }), h('small', null, term('rx_score', 'Nota de evidência'))),
         h('div', { class: 'rx-parts' }, PARTS.map(([k, l]) => h('div', { class: 'rx-part' }, ring(parts[k] || 0, { size: 54, stroke: 5, color: 'var(--teal)', text: nf0.format((parts[k] || 0) * 100), label: `${l}: ${nf0.format((parts[k] || 0) * 100)} de 100` }), h('small', null, l))))) : null),
     stages.length ? h('div', { class: 'rx-stack' }, h('div', { class: 'rx-stagebar' }, h('h2', null, 'Relatório da prova'),
-        stages.length > 1 ? segmented('Prova', 'rx-ss', rx.st.stage && stages.includes(rx.st.stage) ? rx.st.stage : stages[0], stages.map((s) => [s, `${RX_STAGE[s]} · ${RX_PERIOD[s]}`]), (v) => { rx.st.stage = v; render(); })
-          : h('span', { class: 'sub' }, `${RX_STAGE[stages[0]]} · ${RX_PERIOD[stages[0]]}`)),
+        stages.length > 1 ? segmented('Prova', 'rx-ss', rx.st.stage && stages.includes(rx.st.stage) ? rx.st.stage : stages[0], stages.map((s) => [s, `${RX_STAGE[s]} · ${rxPeriod(s)}`]), (v) => { rx.st.stage = v; render(); })
+          : h('span', { class: 'sub' }, `${RX_STAGE[stages[0]]} · ${rxPeriod(stages[0])}`)),
       stageReport(hy, rxRow(id, rx.st.stage && stages.includes(rx.st.stage) ? rx.st.stage : stages[0])))
       : card('Sem backtest completo', null, emptyState(hy.invalid ? 'Código não seguia a regra registrada.' : dropReason(hy.status) + '.')),
     det('rx-rule', 'Regra exata registrada antes do teste', h('p', { class: 'rx-rule' }, hy.rule || '—')));
@@ -821,11 +824,11 @@ function stageReport(hy, r) {
     { key: 'stress', label: 'Com custo alto', term: 'rx_stress', num: true, val: (p) => p.roi_stress_pct, cell: (p) => signedSpan(p.roi_stress_pct) },
     { key: 'dd', label: 'Pior queda', term: 'rx_dd', num: true, val: (p) => ok(p.max_dd_pct) ? -p.max_dd_pct : null, cell: (p) => ddText(p.max_dd_pct) },
     { key: 'bh', label: 'Comprar e segurar', term: 'rx_bh', num: true, val: (p) => (hy.cells.find((c) => c.experiment_id === p.experiment_id) || {}).buy_and_hold_pct, cell: (p) => sp((hy.cells.find((c) => c.experiment_id === p.experiment_id) || {}).buy_and_hold_pct, 0) },
-    { key: 'go', label: '', cell: (p) => h('span', { class: 'row' }, h('a', { href: '#/chart/' + encodeURIComponent(p.experiment_id) }, 'Gráfico'), h('a', { href: '#/experiments/' + encodeURIComponent(p.experiment_id) }, 'Critérios')) },
+    { key: 'go', label: '', cell: (p) => h('span', { class: 'row' }, h('a', { href: (rxR('chart') + '/') + encodeURIComponent(p.experiment_id) }, 'Gráfico'), h('a', { href: (rxR('experiments') + '/') + encodeURIComponent(p.experiment_id) }, 'Critérios')) },
   ];
   const failing = [...new Set(hy.cells.filter((c) => c.split === r.stage).flatMap((c) => (c.failing_gates || []).map((g) => GATE[g.gate] || g.gate)))];
   return h('div', { class: 'rx-stack' },
-    h('p', { class: 'sub' }, `${RX_STAGE[r.stage]}, ${RX_PERIOD[r.stage]}. `, r.gates_all_pass ? 'Aprovada em todos os ativos.' : `Aprovada em ${Object.values(r.decisions).filter((d) => d === 'candidate_for_portfolio').length} de ${r.n_pairs} ativos.`, failing.length ? ` Critérios que barraram: ${listPt(failing)}.` : ''),
+    h('p', { class: 'sub' }, `${RX_STAGE[r.stage]}, ${rxPeriod(r.stage)}. `, r.gates_all_pass ? 'Aprovada em todos os ativos.' : `Aprovada em ${Object.values(r.decisions).filter((d) => d === 'candidate_for_portfolio').length} de ${r.n_pairs} ativos.`, failing.length ? ` Critérios que barraram: ${listPt(failing)}.` : ''),
     h('div', { class: 'rx-kpis' },
       rxKpi(term('rx_ret', 'Retorno médio'), signedSpan(r.roi_pct, 1), h('span', null, term('rx_bh', 'comprar e segurar'), ': ', sp(bh, 0))),
       rxKpi(term('rx_wr', 'Win rate'), wr(r.winrate), `${nf0.format(r.wins ?? Math.round((r.winrate || 0) * r.trades))} de ${nf0.format(r.trades)} operações`),
@@ -835,9 +838,9 @@ function stageReport(hy, r) {
       rxKpi(term('rx_stress', 'Com custo alto'), signedSpan(r.roi_stress_pct, 1))),
     card('Resultado acumulado e queda desde o pico', 'Em cima: soma dos resultados em % do capital, na média dos ativos. Embaixo: quanto o capital estava abaixo do seu melhor momento.',
       h('div', { class: 'rx-stack' }, rxLine([{ label: r.id, color: 'var(--accent)', pts: r.curve }], { fill: true, label: 'Resultado acumulado' }), rxLine([{ label: 'queda', color: 'var(--bad)', pts: underwater(r.curve) }], { height: 150, area: true, label: 'Queda desde o pico' })),
-      { actions: h('a', { href: '#/trades', 'data-fkey': 'rx-goops', onclick: () => { Object.assign(rx.ops, { stage: r.stage, hyp: r.id, pair: 'all', tf: 'all', res: 'all', reason: 'all', dow: 'all', hour: 'all', dur: 'all', group: 'pair', page: 0 }); } }, `Ver as ${nf0.format(r.trades)} operações →`) }),
+      { actions: h('a', { href: rxR('trades'), 'data-fkey': 'rx-goops', onclick: () => { Object.assign(rx.ops, { stage: r.stage, hyp: r.id, pair: 'all', tf: 'all', res: 'all', reason: 'all', dow: 'all', hour: 'all', dur: 'all', group: 'pair', page: 0 }); } }, `Ver as ${nf0.format(r.trades)} operações →`) }),
     h('div', { class: 'rx-stack' },
-      card('Capital por ativo', 'Saldo de cada criptomoeda, em % do capital inicial do backtest.', rxLine(hy.cells.filter((c) => c.split === r.stage && c.equity).map((c) => ({ label: short(c.pair), color: rxPairColor(c.pair), pts: c.equity.map(([t, v]) => [t, v / (c.wallet || 100) * 100 - 100]) })), { height: 240, label: 'Capital por ativo' }),
+      card('Capital por ativo', 'Saldo de cada ativo, em % do capital inicial do backtest.', rxLine(hy.cells.filter((c) => c.split === r.stage && c.equity).map((c) => ({ label: short(c.pair), color: rxPairColor(c.pair), pts: c.equity.map(([t, v]) => [t, v / (c.wallet || 100) * 100 - 100]) })), { height: 240, label: 'Capital por ativo' }),
         { actions: h('div', { class: 'legend' }, hy.cells.filter((c) => c.split === r.stage).map((c) => h('span', null, h('span', { class: 'key', style: `border-top-color:${rxPairColor(c.pair)}` }), short(c.pair)))) }),
       card('Mês a mês', 'Resultado de cada mês em % do capital (média dos ativos). Verde é lucro, vermelho é prejuízo.', monthGrid(r.monthly))),
     h('div', { class: 'rx-grid g2' },
@@ -847,7 +850,7 @@ function stageReport(hy, r) {
           h('p', { class: 'sub' }, `Quando ganha, ganha em média ${sp(r.avg_win_pct, 2)}; quando perde, perde ${sp(r.avg_loss_pct, 2)}. `,
             ok(r.payoff) ? (r.payoff >= 1 ? `Cada ganho vale ${nfv.format(r.payoff)} vezes uma perda: é isso que decide o resultado, não só o acerto.` : `Cada ganho vale menos que uma perda (payoff ${nfv.format(r.payoff)}): precisa acertar muito para lucrar.`) : '')))),
       card('Quanto as taxas pesam', 'Retorno médio refeito com quatro níveis de custo, do mais barato ao pior caso.', hbars(costs.map((c) => ({ label: c.label, v: c.v, color: (c.v || 0) >= 0 ? 'var(--good)' : 'var(--bad)', tone: toneOf(c.v) })), (v) => sp(v)))),
-    card('Nos grandes movimentos do cripto', 'Resultado médio por ativo nas fases marcantes do mercado (datas aproximadas). Mostra como a regra se comporta em pânico e em euforia.', crisisTable(I, list, r)),
+    UNI !== 'crypto' ? null : card('Nos grandes movimentos do cripto', 'Resultado médio por ativo nas fases marcantes do mercado (datas aproximadas). Mostra como a regra se comporta em pânico e em euforia.', crisisTable(I, list, r)),
     h('div', { class: 'rx-grid g2' },
       card(term('rx_hour', 'Quando funciona'), 'Entradas por dia da semana e hora (horário de Brasília).', I ? weekHour(I, list, rx.ops, false) : indexPending()),
       card('Como as operações terminam', 'Motivo de saída de cada operação.', hbars(Object.entries(r.exit_reasons || {}).slice(0, 7).map(([k, v]) => ({ label: REASON(k), v }))))),
