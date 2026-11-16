@@ -81,6 +81,21 @@ for (const u of ['b3', 'proxies']) {
 await go('#/leaderboard'); await loaded();
 check('back on crypto: crypto rules and periods, not B3 ones', await waitFor(`document.querySelector('#page').textContent.includes('2017 a jul/2024') && !document.querySelector('#page').textContent.includes('C-SessionHighBreakRetest')`));
 check('no JavaScript errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+// --- B3 demonstration on the Clear demo (lab/demo_b3.py, demo_b3.js) ---
+await setWidth(1600);
+await go('#/b3-demo');
+await waitFor(`document.querySelector('#page').textContent.includes('Demonstração na conta demo da Clear') && !document.querySelector('#page .loading')`, 30000);
+const dt = await text();
+check('demo page: rule card, status and research verdict', /P-004 no WIN/.test(dt) && /Robô/.test(dt) && /Validação/.test(dt), dt.slice(0, 160));
+check('demo page: menu entry under B3', await js(`[...document.querySelectorAll('a')].some((a) => a.getAttribute('href') === '#/b3-demo')`));
+const hasSnap = await js(`fetch('/api/demo-b3').then((r) => r.json()).then((d) => d.items.some((i) => i.snapshot && i.snapshot.bars.length))`);
+if (hasSnap) check('demo page: candle chart drawn', await waitFor(`!!document.querySelector('#page .trchart canvas')`, 15000));
+await setWidth(390);
+check('demo page: no horizontal scroll on a phone', await noHScroll());
+await setWidth(1600);
+check('demo page: no script errors', !errors.length, errors.slice(0, 3).join(' | '));
+if (process.env.SHOT) { const sh = await send('Page.captureScreenshot', { format: 'png' }); (await import('node:fs')).writeFileSync(process.env.SHOT, Buffer.from(sh.result.data, 'base64')); }
+
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED');
 proc.kill(); ws.close();
 process.exit(failed ? 1 : 0);

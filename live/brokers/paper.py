@@ -43,8 +43,9 @@ class _Pos:
 
 class PaperBroker:
     def __init__(self, clock: Clock, specs: dict[str, SymbolSpec],
-                 cfg: PaperConfig | None = None) -> None:
+                 cfg: PaperConfig | None = None, allow_short: bool = False) -> None:
         self.clock, self.specs, self.cfg = clock, specs, cfg or PaperConfig()
+        self.allow_short = allow_short     # a non-reduce "sell" opens a short; a reduce "buy" covers it
         self._bars: dict[str, list[Bar]] = {}
         self._tf: dict[str, int] = {}
         self._pos: dict[str, _Pos] = {}
@@ -86,21 +87,22 @@ class PaperBroker:
 
     def _gross(self, symbol: str, entry: float, exit_: float, volume: float) -> float:
         s = self.specs[symbol]
-        return (exit_ - entry) / s.tick_size * s.tick_value * volume
+        return (exit_ - entry) / s.tick_size * s.tick_value * volume     # volume < 0 for a short
 
     def _close_part(self, symbol: str, volume: float, price: float, client_id: str,
                     reason: str) -> Fill:
         p = self._pos[symbol]
-        frac = volume / p.volume
+        sign = 1.0 if p.volume > 0 else -1.0
+        frac = volume / abs(p.volume)
         entry_cost = p.entry_cost * frac
         exit_cost = self.cfg.cost_per_contract_per_side * volume
-        pnl = self._gross(symbol, p.entry_price, price, volume) - entry_cost - exit_cost
+        pnl = self._gross(symbol, p.entry_price, price, sign * volume) - entry_cost - exit_cost
         self._realized += pnl
         p.entry_cost -= entry_cost
-        p.volume = round(p.volume - volume, 8)
-        if p.volume <= 1e-9:
+        p.volume = round(p.volume - sign * volume, 8)
+        if abs(p.volume) <= 1e-9:
             del self._pos[symbol]
-        return Fill(client_id, symbol, "sell", volume, price, self.clock.now(),
+        return Fill(client_id, symbol, "sell" if sign > 0 else "buy", volume, price, self.clock.now(),
                     cost=exit_cost, pnl=pnl, reason=reason)
 
     def send(self, req: OrderRequest) -> OrderResult:
@@ -121,6 +123,22 @@ class PaperBroker:
             return OrderResult(False, req.client_id, retcode="INVALID_VOLUME")
         pos = self._pos.get(req.symbol)
         price = self._exec_price(req.symbol, req.side)
+        if self.allow_short:
+            if req.reduce_only:
+                want = "sell" if pos is not None and pos.volume > 0 else "buy"
+                if pos is None or req.side != want or req.volume > abs(pos.volume) + 1e-9:
+                    return OrderResult(False, req.client_id, retcode="NO_POSITION")
+                return OrderResult(True, req.client_id,
+                                   self._close_part(req.symbol, req.volume, price, req.client_id, req.reason))
+            if pos is not None:
+                return OrderResult(False, req.client_id, retcode="ALREADY_OPEN")
+            cost = self.cfg.cost_per_contract_per_side * req.volume
+            sign = 1.0 if req.side == "buy" else -1.0
+            self._pos[req.symbol] = _Pos(sign * req.volume, price, cost, req.stop_loss, self.clock.now())
+            self._scanned.pop(req.symbol, None)
+            return OrderResult(True, req.client_id, Fill(
+                req.client_id, req.symbol, req.side, req.volume, price, self.clock.now(),
+                cost=cost, reason=req.reason))
         if req.side == "buy":
             if pos is not None:
                 return OrderResult(False, req.client_id, retcode="ALREADY_OPEN")
@@ -153,12 +171,13 @@ class PaperBroker:
                 if b.time <= last or b.time < p.entered_at:
                     continue
                 self._scanned[symbol] = b.time
-                if b.low <= p.stop:
-                    price = min(b.open, p.stop)
+                long = p.volume > 0
+                if (long and b.low <= p.stop) or (not long and b.high >= p.stop):
+                    price = min(b.open, p.stop) if long else max(b.open, p.stop)
                     slip = ((self.cfg.slippage_ticks + self.cfg.stop_extra_ticks) * self.specs[symbol].tick_size
                             + self.cfg.stop_slippage_frac * price)
                     fill = self._close_part(
-                        symbol, p.volume, price - slip,
+                        symbol, abs(p.volume), price - slip if long else price + slip,
                         f"stop-{symbol}-{int(b.time.timestamp())}", "stop_loss")
                     self._queue.append(replace(fill, time=b.time + tf))
                     break
@@ -172,9 +191,9 @@ class PaperBroker:
 
     def close_all(self, reason: str = "") -> None:
         for symbol, p in list(self._pos.items()):
-            price = self._exec_price(symbol, "sell")
+            price = self._exec_price(symbol, "sell" if p.volume > 0 else "buy")
             cid = f"closeall-{symbol}-{int(self.clock.now().timestamp())}"
-            self._queue.append(self._close_part(symbol, p.volume, price, cid,
+            self._queue.append(self._close_part(symbol, abs(p.volume), price, cid,
                                                 reason or "close_all"))
 
     # ---- account ----

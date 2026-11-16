@@ -1,7 +1,9 @@
 """Immutable value objects shared by the engine and every broker adapter.
 
-Long-only by design (decision recorded in live/DECISIONS.md): a Position
-volume is always > 0, and a "sell" order only ever reduces a position.
+Long-only by default (decision recorded in live/DECISIONS.md): with
+RiskConfig.long_only a Position volume is always > 0 and a "sell" only reduces
+it. Shorts (volume < 0) exist only on a DEMO account with long_only=false
+(owner 2026-11-16: demonstration of the B3 rules on the Clear demo).
 All datetimes are timezone-aware UTC. A Bar's `time` is its OPEN time.
 """
 

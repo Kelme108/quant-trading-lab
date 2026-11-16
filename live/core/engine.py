@@ -155,7 +155,7 @@ class Engine:
     def _process_symbol(self, symbol: str, now, phase: str, acts: list[str]) -> None:
         st = self.strategy
         tf = timedelta(minutes=st.timeframe_min)
-        raw = self.broker.bars(symbol, st.timeframe_min, st.warmup + 5)
+        raw = self.broker.bars(symbol, st.timeframe_min, getattr(st, "fetch_bars", st.warmup + 5))
         closed = [b for b in raw if b.time + tf <= now]      # drop the forming candle
         if len(closed) < st.warmup:
             return
@@ -177,12 +177,15 @@ class Engine:
                          strategy_hash=st.hash)
 
         if sig.action == "exit" and pos:
-            self._send(OrderRequest(self._cid(symbol, last, "X"), symbol, "sell",
-                                    pos.volume, reduce_only=True, reason=sig.reason),
+            side = "sell" if pos.volume > 0 else "buy"          # a short (demo only) is bought back
+            self._send(OrderRequest(self._cid(symbol, last, "X"), symbol, side,
+                                    abs(pos.volume), reduce_only=True, reason=sig.reason),
                        self._ctx(symbol, now, phase, last, age, pos))
             acts.append("exit")
-        elif sig.action == "enter" and not pos:
-            res = self._send(OrderRequest(self._cid(symbol, last, "E"), symbol, "buy",
+        elif sig.action in ("enter", "enter_short") and not pos:
+            # "enter_short" opens a short; RiskConfig.long_only (the default) vetoes it
+            side = "buy" if sig.action == "enter" else "sell"
+            res = self._send(OrderRequest(self._cid(symbol, last, "E"), symbol, side,
                                           self.volume, stop_loss=sig.stop_price,
                                           reason=sig.reason),
                              self._ctx(symbol, now, phase, last, age, pos))

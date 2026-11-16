@@ -20,7 +20,7 @@ class RiskConfig:
     max_daily_loss: float = 300.0
     max_weekly_loss: float = 900.0
     require_stop: bool = True
-    long_only: bool = True
+    long_only: bool = True      # False only on a demo account (live/run.py refuses it elsewhere)
     max_data_age_bars: float = 2.0  # last closed bar older than N x timeframe
 
 
@@ -65,8 +65,10 @@ class RiskManager:
             why.append("volume_step")
 
         if req.reduce_only:
-            if req.volume > ctx.position_volume + 1e-9:
+            if req.volume > abs(ctx.position_volume) + 1e-9:
                 why.append("exit_larger_than_position")
+            if (ctx.position_volume > 0 and req.side != "sell") or (ctx.position_volume < 0 and req.side != "buy"):
+                why.append("exit_wrong_side")
             return RiskDecision(not why, tuple(why))
 
         # ---- entries only ----
@@ -82,7 +84,7 @@ class RiskManager:
             why.append("daily_loss_limit")
         if ctx.lockout_week:
             why.append("weekly_loss_limit")
-        if ctx.position_volume + req.volume > c.max_contracts_per_symbol + 1e-9:
+        if abs(ctx.position_volume) + req.volume > c.max_contracts_per_symbol + 1e-9:
             why.append("max_contracts")
         if ctx.entries_today >= c.max_entries_per_day:
             why.append("max_entries_per_day")
@@ -93,6 +95,7 @@ class RiskManager:
         if req.stop_loss is not None:
             if not _on_grid(req.stop_loss, 0.0, s.tick_size):
                 why.append("stop_not_on_tick")
-            if req.stop_loss >= ctx.ref_price:
+            if (req.side == "buy" and req.stop_loss >= ctx.ref_price) or \
+                    (req.side == "sell" and req.stop_loss <= ctx.ref_price):
                 why.append("stop_wrong_side")
         return RiskDecision(not why, tuple(why))
