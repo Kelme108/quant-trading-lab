@@ -198,6 +198,7 @@ def run(cfg: dict, config_path: str | Path, broker: MT5Broker, clock: Clock | No
                     volume=float(cfg.get("volume", 1)), alert=lambda m: log.warning("ALERT %s", m))
     engine.start()
     poll, steps, errors = float(cfg.get("poll_seconds", 5)), 0, 0
+    feed_file, feed_every, feed_at = cfg.get("feed_file"), float(cfg.get("feed_every_s", 5)), 0.0
     try:
         while max_steps is None or steps < max_steps:
             steps += 1
@@ -209,6 +210,13 @@ def run(cfg: dict, config_path: str | Path, broker: MT5Broker, clock: Clock | No
                 errors = 0
                 if acts:
                     log.info("step: %s", acts)
+                if feed_file and time.monotonic() - feed_at >= feed_every:
+                    feed_at = time.monotonic()
+                    try:                       # the portal's live picture never stops the engine
+                        from live.feed import build_feed, write_feed
+                        write_feed(feed_file, build_feed(broker, strategy, cfg["symbols"][0], clock.now()))
+                    except Exception as exc:
+                        log.warning("live feed not written: %r", exc)
             except MT5Unavailable as exc:
                 errors += 1
                 log.error("MT5 unavailable (%d): %s", errors, exc)

@@ -155,3 +155,36 @@ def test_mt5_adapter_opens_and_covers_a_short_only_with_allow_short():
     assert b.send(OrderRequest("s3", sym, "sell", 1.0, stop_loss=float(tick.ask) + 10)).retcode == "ALREADY_OPEN"
     cov = b.send(OrderRequest("c1", sym, "buy", 1.0, reduce_only=True))
     assert cov.accepted and cov.fill.side == "buy" and cov.fill.pnl is not None and b.positions() == []
+
+
+def test_live_feed_keeps_today_session_bars_with_the_forming_one_and_the_open_result():
+    from types import SimpleNamespace
+    from live.core.models import Position
+    from live.feed import build_feed
+    st = B3RuleStrategy("P-004", "WIN")
+    t0 = datetime(2026, 11, 13, 12, 0, tzinfo=UTC)                 # 09:00 Sao Paulo
+    bars = [Bar(t0 - timedelta(minutes=2), 1, 1, 1, 1)] + [Bar(t0 + timedelta(minutes=k), 130000 + 5 * k, 130010 + 5 * k, 129995 + 5 * k, 130005 + 5 * k, 10) for k in range(30)]
+
+    class B:
+        mt5 = SimpleNamespace(symbol_info_tick=lambda s: SimpleNamespace(bid=130200.0, ask=130205.0, last=130200.0))
+        def bars(self, symbol, tf, n): assert tf == 1; return bars
+        def positions(self): return [Position(SYM, -1.0, 130100.0, 131400.0)]
+        def symbol_spec(self, symbol): return SPEC
+
+    f = build_feed(B(), st, SYM, t0 + timedelta(minutes=29, seconds=30))
+    assert f["day"] == "2026-11-13" and len(f["bars_1m"]) == 30          # the 08:58 bar is not in the session
+    assert f["position"]["open_result_brl"] == -21.0                      # short 1 at 130100, marked at the ask 130205
+
+
+def test_demo_state_pairs_fills_into_trades(tmp_path):
+    from lab import demo_b3
+    from live.core.clock import FakeClock
+    clock = FakeClock(datetime(2026, 11, 13, 20, 55, tzinfo=UTC))
+    j = Journal(tmp_path / "j.sqlite", clock, "demo")
+    j.log("fill", SYM, key="e1", side="sell", volume=1.0, price=170000.0, cost=0.5, pnl=None, reason="day_down_so_far", fill_time="2026-11-13T20:55:01+00:00")
+    j.log("fill", SYM, key="x1", side="buy", volume=1.0, price=169800.0, cost=0.5, pnl=39.5, reason="end_of_day_flatten", fill_time="2026-11-13T21:20:02+00:00")
+    j.close()
+    t = demo_b3.round_trips([e for e in demo_b3._journal(tmp_path / "j.sqlite") if e["kind"] == "fill"])
+    assert len(t) == 1 and t[0]["side"] == "venda" and t[0]["points"] == 200.0 and t[0]["pnl_brl"] == 39.5
+    state = demo_b3.demo_state()
+    assert {i["market"] for i in state["items"] if "error" not in i} >= {"WIN", "WDO"}

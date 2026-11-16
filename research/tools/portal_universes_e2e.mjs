@@ -86,10 +86,23 @@ await setWidth(1600);
 await go('#/b3-demo');
 await waitFor(`document.querySelector('#page').textContent.includes('Demonstração na conta demo da Clear') && !document.querySelector('#page .loading')`, 30000);
 const dt = await text();
-check('demo page: rule card, status and research verdict', /P-004 no WIN/.test(dt) && /Robô/.test(dt) && /Validação/.test(dt), dt.slice(0, 160));
+check('demo page: WIN card, status and research verdict', /P-004 no WIN/.test(dt) && /Robô/.test(dt) && /Validação/.test(dt), dt.slice(0, 160));
+check('demo page: both contracts in the strip', /WIN · WIN/.test(dt) && /WDO · WDO/.test(dt));
+await js(`document.querySelector('[data-fkey="db-sel:demo-b3-p004-wdo"]').click()`); await sleep(600);
+check('demo page: WDO card opens', /P-004 no WDO/.test(await text()));
+await js(`document.querySelector('[data-fkey="db-sel:demo-b3-p004-win"]').click()`); await sleep(600);
 check('demo page: menu entry under B3', await js(`[...document.querySelectorAll('a')].some((a) => a.getAttribute('href') === '#/b3-demo')`));
 const hasSnap = await js(`fetch('/api/demo-b3').then((r) => r.json()).then((d) => d.items.some((i) => i.snapshot && i.snapshot.bars.length))`);
 if (hasSnap) check('demo page: candle chart drawn', await waitFor(`!!document.querySelector('#page .trchart canvas')`, 15000));
+if (hasSnap) {
+  const n1 = await js(`__demoB3().n`);
+  await js(`[...document.querySelectorAll('#page button, #page [role=radio], #page label')].find((b) => b.textContent.trim() === '5 min').click()`); await sleep(800);
+  const n5 = await js(`__demoB3().n`);
+  check('demo page: 1 min opens first and 5 min has about a fifth of the candles', n1 > 0 && n5 > 0 && n5 < n1 && n5 >= Math.floor(n1 / 5), `${n1} vs ${n5}`);
+  const before = await js(`__demoB3().chart ? 1 : 0`);
+  await sleep(6500);
+  check('demo page: live poll keeps the chart in place', before === 1 && await js(`__demoB3().chart`));
+}
 await setWidth(390);
 check('demo page: no horizontal scroll on a phone', await noHScroll());
 await setWidth(1600);

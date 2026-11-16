@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 UTC = timezone.utc
 STALE_MIN = 12          # no snapshot for this long while the session is open -> the robot is not running
+FEED_STALE_S = 60       # no live feed (written every 5 s) for this long while the session is open -> not running
 
 
 def _read_json(path: Path) -> dict | None:
@@ -105,6 +106,7 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
     name = cfg_path.stem
     st = cfg.get("strategy", {})
     snap = _read_json(root / cfg["snapshot_file"]) if cfg.get("snapshot_file") else None
+    feed = _read_json(root / cfg["feed_file"]) if cfg.get("feed_file") else None
     events = _journal(root / cfg.get("journal_db", f"live/journal.{name}.sqlite"))
     fills = [e for e in events if e["kind"] == "fill"]
     trades = round_trips(fills)
@@ -112,10 +114,16 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
     last_ts = events[-1]["ts"] if events else None
     updated = datetime.fromisoformat(snap["updated_at"]) if snap and snap.get("updated_at") else None
     phase = _phase(snap, now)
-    if updated is None:
+    fed = datetime.fromisoformat(feed["updated_at"]) if feed and feed.get("updated_at") else None
+    open_now = phase in ("entry", "no_entry", "flatten")
+    if updated is None and fed is None:
         running = "sem dados" if not events else "aguardando o próximo candle"
-    elif phase in ("entry", "no_entry", "flatten") and now - updated > timedelta(minutes=STALE_MIN):
+    elif open_now and fed is not None and now - fed > timedelta(seconds=FEED_STALE_S):
         running = "parado"
+    elif open_now and fed is None and now - updated > timedelta(minutes=STALE_MIN):
+        running = "parado"
+    elif not open_now:
+        running = "fora do pregão"
     else:
         running = "rodando"
     today = now.astimezone(timezone(timedelta(hours=-3))).date().isoformat()
@@ -124,7 +132,7 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
     return {
         "id": name, "rule": st.get("rule"), "market": st.get("market"), "symbol": (cfg.get("symbols") or [""])[0],
         "timeframe_min": cfg.get("timeframe_min"), "volume": cfg.get("volume"), "risk": cfg.get("risk", {}),
-        "note": cfg.get("_note", ""), "status": running, "phase": phase, "snapshot": snap, "last_event": last_ts,
+        "note": cfg.get("_note", ""), "status": running, "phase": phase, "snapshot": snap, "feed": feed, "last_event": last_ts,
         "started": [e["ts"] for e in starts][-5:], "trades": trades,
         "trades_today": [t for t in trades if local_day(t["entry_time"]) == today],
         "open_entry": next((f for f in reversed(fills) if f.get("pnl") is None), None) if snap and snap.get("position") else None,

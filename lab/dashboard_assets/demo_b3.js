@@ -1,12 +1,16 @@
-/* ==================== B3: demonstração na conta DEMO da Clear ====================
+/* ==================== B3: demonstração ao vivo na conta DEMO da Clear (WIN e WDO) ====================
    Inlined into the page's script by lab.dashboard.render_page. Strings only become text nodes.
-   Owner, 2026-11-16: "quero apenas demonstração de como está se portando no demo". The data comes from GET /api/demo-b3
-   (lab/demo_b3.py): the engine's snapshot (today's 5-minute bars, position, last decision), its journal (fills, vetoes,
-   alerts) and what the research already decided about the same rule. A demonstration is NOT evidence. */
+   Owner, 2026-11-16: "quero apenas demonstração de como está se portando no demo" and "precisa de uma visualização
+   destes trades ao vivo para win e wdo". GET /api/demo-b3 (lab/demo_b3.py) gives, per contract: the engine's live
+   feed (today's 1-minute bars including the forming one, bid/ask, position and its open result; written every 5 s),
+   its snapshot (last decision and the rule's indicator), its journal (fills, vetoes, alerts) and the research verdict.
+   The page polls every 5 s and moves the candles in place; it is drawn again only when something structural changes
+   (a trade, the position, the robot's status). A demonstration is NOT evidence. */
 
-const DB = { data: null, at: 0, loading: false, error: null, sig: '', refs: [] };
+const DB = { data: null, at: 0, loading: false, error: null, sig: '', sel: null, tf: '1m', view: null, els: {} };
+const DB_TF = { '1m': 60, '5m': 300, '15m': 900 };
 function dbLoad(force) {
-  if (!LIVE || DB.loading || (!force && DB.data && Date.now() - DB.at < 15000)) return;
+  if (!LIVE || DB.loading || (!force && DB.data && Date.now() - DB.at < 5000)) return;
   DB.loading = true;
   fetch('/api/demo-b3', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then((d) => { DB.data = d; DB.error = null; DB.at = Date.now(); })
@@ -14,83 +18,175 @@ function dbLoad(force) {
     .finally(() => {
       DB.loading = false;
       if (route.id !== 'b3-demo') return;
-      const sig = JSON.stringify((DB.data && DB.data.items || []).map((i) => [i.last_event, i.snapshot && i.snapshot.updated_at, i.status])) + DB.error;
-      if (sig !== DB.sig) { DB.sig = sig; render(); }
+      const sig = dbSig();
+      if (sig !== DB.sig || !DB.view) { DB.sig = sig; render(); } else dbLive();
     });
 }
-if (LIVE) setInterval(() => { if (route.id === 'b3-demo') dbLoad(true); }, 15000);
+if (LIVE) setInterval(() => { if (route.id === 'b3-demo') dbLoad(true); }, 5000);
+window.__demoB3 = () => ({ n: DB.view && DB.view.n || 0, chart: !!(DB.view && DB.view.chart), tf: DB.tf, sel: DB.sel });   /* read by the e2e check */
+const dbSig = () => JSON.stringify((DB.data && DB.data.items || []).map((i) => [i.id, i.status, i.phase, i.killswitch, i.trades && i.trades.length,
+  i.feed && i.feed.position ? i.feed.position.volume : 0, i.snapshot && i.snapshot.last_signal && i.snapshot.last_signal.bar, i.alerts && i.alerts.length, i.vetoes && i.vetoes.length,
+  i.feed && i.feed.day])) + (DB.error || '');
 
+/* ---------- formatting ---------- */
+const dbIso = (iso) => new Date(String(iso).replace(/(\.\d{3})\d+/, '$1'));
 const dbBrl = (v) => ok(v) ? (v < 0 ? MINUS : v > 0 ? '+' : '') + 'R$ ' + nf2.format(Math.abs(v)) : dash;
-const dbPts = (v) => ok(v) ? (v < 0 ? MINUS : v > 0 ? '+' : '') + nf0.format(Math.abs(v)) + ' pts' : dash;
-const dbTime = (iso) => iso ? new Date(String(iso).replace(/(\.\d{3})\d+/, '$1')).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : dash;
-const dbDayTime = (iso) => iso ? new Date(String(iso).replace(/(\.\d{3})\d+/, '$1')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : dash;
-const DB_STATUS = { rodando: { icon: '●', cls: 'good', label: 'rodando' }, parado: { icon: '!', cls: 'bad', label: 'parado' },
+const dbPts = (v) => ok(v) ? (v < 0 ? MINUS : v > 0 ? '+' : '') + nfv.format(Math.abs(v)) + ' pts' : dash;
+const dbPx = (it, v) => ok(v) ? (it.market === 'WDO' ? nf1.format(v) : nf0.format(v)) : dash;
+const dbTime = (iso) => iso ? dbIso(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : dash;
+const dbSecs = (iso) => iso ? dbIso(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/Sao_Paulo' }) : dash;
+const dbDayTime = (iso) => iso ? dbIso(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : dash;
+const dbSigned = (v) => ok(v) ? h('span', { class: tone(v) }, (v < 0 ? MINUS : v > 0 ? '+' : '') + nf2.format(Math.abs(v)) + '%') : dash;
+const DB_STATUS = { rodando: { icon: '●', cls: 'good', label: 'rodando' }, parado: { icon: '!', cls: 'bad', label: 'parado' }, 'fora do pregão': { icon: '○', cls: 'info', label: 'fora do pregão' },
   'aguardando o próximo candle': { icon: '…', cls: 'info', label: 'aguardando o próximo candle' }, 'sem dados': { icon: '?', cls: 'warn', label: 'sem dados' } };
 const DB_PHASE = { closed: 'mercado fechado', no_entry: 'pregão aberto, fora da janela de entrada', entry: 'janela de entrada aberta', flatten: 'zerando antes do fechamento', unknown: 'sem pregão hoje' };
 const DB_REASON = { end_of_day_flatten: 'zeragem do fim do dia', killswitch: 'kill switch', loss_limit: 'limite de perda', stop_loss: 'stop', day_up_so_far: 'dia em alta até aqui', day_down_so_far: 'dia em baixa até aqui' };
 const dbReason = (r) => { const s = String(r || ''); if (s.startsWith('server:')) return 'stop ou saída no servidor'; return DB_REASON[s] || s || dash; };
+const dbName = (it) => it.market === 'WDO' ? 'mini dólar' : 'mini índice';
 
-function dbRuleText(it) {
-  if (it.rule === 'P-004') return 'P-004 (momento do resto do dia): 30 minutos antes do fechamento, compra se o WIN está acima do fechamento de ontem e vende se está abaixo; stop a 1% e zera 5 minutos antes do fechamento. Uma operação por dia, no máximo.';
-  return `${it.rule} em ${it.market}.`;
+/* ---------- data for the chart ---------- */
+function dbDay(it) { return (it.feed && it.feed.day) || (it.snapshot && it.snapshot.day) || null; }
+function dbPrevClose(it) { const s = it.snapshot; return s && s.day === dbDay(it) ? s.prev_close : null; }
+function dbPosition(it) { return (it.feed && it.feed.position) || (it.snapshot && it.snapshot.position) || null; }
+function dbLast(it) { const f = it.feed; if (f && ok(f.last)) return f.last; const b = f && f.bars_1m.length ? f.bars_1m : it.snapshot ? it.snapshot.bars : []; return b.length ? b[b.length - 1][4] : null; }
+function dbCandles(it, tf) {
+  const step = DB_TF[tf] || 60, f = it.feed, s = it.snapshot;
+  const base = f && f.bars_1m.length ? f.bars_1m : s && s.bars ? s.bars : [];
+  const out = [];
+  for (const [t, o, hi, lo, c, v] of base) {
+    const k = Math.floor(t / step) * step, last = out[out.length - 1];
+    if (last && last[0] === k) { last[2] = Math.max(last[2], hi); last[3] = Math.min(last[3], lo); last[4] = c; last[5] += v; }
+    else out.push([k, o, hi, lo, c, v]);
+  }
+  return out;
+}
+const dbSp = (t) => t - 3 * 3600;          /* the axis shows Sao Paulo time (UTC-3, no DST since 2019) */
+function dbMarks(it, step) {
+  const day = dbDay(it), snap = (iso) => dbSp(Math.floor(dbIso(iso).getTime() / 1000 / step) * step), marks = [];
+  const onDay = (iso) => iso && dbIso(iso).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) === day;
+  for (const t of it.trades) {
+    const buy = t.side === 'compra';
+    if (onDay(t.entry_time)) marks.push({ time: snap(t.entry_time), position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown', color: cssVar('--info'), text: (buy ? 'compra ' : 'venda ') + dbPx(it, t.entry_price) });
+    if (onDay(t.exit_time)) marks.push({ time: snap(t.exit_time), position: buy ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl_brl > 0 ? cssVar('--good') : cssVar('--bad'), text: 'saída ' + dbBrl(t.pnl_brl) });
+  }
+  const oe = it.open_entry;
+  if (oe && onDay(oe.fill_time || oe.ts)) { const buy = oe.side === 'buy'; marks.push({ time: snap(oe.fill_time || oe.ts), position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown', color: cssVar('--info'), text: (buy ? 'compra ' : 'venda ') + dbPx(it, oe.price) + ' (aberta)' }); }
+  return marks.sort((a, b) => a.time - b.time);
 }
 
-function dbDraw(el, it) {
-  const LW = window.LightweightCharts, s = it.snapshot;
+/* ---------- chart ---------- */
+function dbDraw(el, it, tf) {
+  const LW = window.LightweightCharts;
   if (!LW) { el.replaceChildren(notAvailable('Gráfico', 'a biblioteca de gráficos não carregou.')); return; }
+  const key = `${it.id}|${tf}|${dbDay(it)}`, keep = DB.view && DB.view.key === key ? DB.view.range : null;
+  dbDrop();
+  const wdo = it.market === 'WDO';
   const chart = LW.createChart(el, {
     autoSize: true,
     layout: { background: { type: 'solid', color: cssVar('--panel') }, textColor: cssVar('--ink2'), fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', attributionLogo: true },
     grid: { vertLines: { color: cssVar('--line') }, horzLines: { color: cssVar('--line') } },
-    rightPriceScale: { borderColor: cssVar('--line2') }, timeScale: { borderColor: cssVar('--line2'), timeVisible: true, secondsVisible: false },
-    localization: { locale: 'pt-BR', priceFormatter: (p) => nf0.format(p), timeFormatter: (t) => new Date(t * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) },
+    rightPriceScale: { borderColor: cssVar('--line2') }, timeScale: { borderColor: cssVar('--line2'), timeVisible: true, secondsVisible: false, rightOffset: 4 },
+    localization: { locale: 'pt-BR', priceFormatter: (p) => wdo ? nf1.format(p) : nf0.format(p) },
     crosshair: { mode: LW.CrosshairMode.Normal },
   });
-  const sp = (t) => t - 3 * 3600;      /* the chart's axis shows Sao Paulo time (UTC-3, no DST since 2019) */
-  const candle = chart.addSeries(LW.CandlestickSeries, { upColor: cssVar('--good'), downColor: cssVar('--bad'), wickUpColor: cssVar('--good'), wickDownColor: cssVar('--bad'), borderVisible: false });
-  candle.setData(s.bars.map(([t, o, hi, lo, c]) => ({ time: sp(t), open: o, high: hi, low: lo, close: c })));
-  if (ok(s.prev_close)) candle.createPriceLine({ price: s.prev_close, color: cssVar('--warn'), lineStyle: 2, lineWidth: 1, axisLabelVisible: true, title: 'fechamento de ontem' });
-  if (s.position && ok(s.position.stop)) candle.createPriceLine({ price: s.position.stop, color: cssVar('--bad'), lineStyle: 0, lineWidth: 1, axisLabelVisible: true, title: 'stop' });
-  if (s.position && ok(s.position.entry_price)) candle.createPriceLine({ price: s.position.entry_price, color: cssVar('--info'), lineStyle: 0, lineWidth: 1, axisLabelVisible: true, title: 'entrada' });
-  const step = (s.timeframe_min || 5) * 60, snap = (iso) => sp(Math.floor(new Date(String(iso).replace(/(\.\d{3})\d+/, '$1')).getTime() / 1000 / step) * step);
-  const day = s.day, marks = [];
-  for (const t of it.trades) {
-    if (!String(t.entry_time).startsWith(day) && !String(t.exit_time).startsWith(day)) continue;
-    const buy = t.side === 'compra';
-    marks.push({ time: snap(t.entry_time), position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown', color: cssVar('--info'), text: buy ? 'compra' : 'venda' });
-    marks.push({ time: snap(t.exit_time), position: buy ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl_brl > 0 ? cssVar('--good') : cssVar('--bad'), text: 'saída ' + dbBrl(t.pnl_brl) });
+  const candle = chart.addSeries(LW.CandlestickSeries, { upColor: cssVar('--good'), downColor: cssVar('--bad'), wickUpColor: cssVar('--good'), wickDownColor: cssVar('--bad'), borderVisible: false,
+    priceFormat: { type: 'price', precision: wdo ? 1 : 0, minMove: wdo ? 0.5 : 5 } });
+  const bars = dbCandles(it, tf);
+  candle.setData(bars.map(([t, o, hi, lo, c]) => ({ time: dbSp(t), open: o, high: hi, low: lo, close: c })));
+  const markers = LW.createSeriesMarkers(candle, dbMarks(it, DB_TF[tf]));
+  const pc = dbPrevClose(it), pos = dbPosition(it);
+  if (ok(pc)) candle.createPriceLine({ price: pc, color: cssVar('--warn'), lineStyle: 2, lineWidth: 1, axisLabelVisible: true, title: 'fechamento de ontem' });
+  if (pos && ok(pos.entry_price)) candle.createPriceLine({ price: pos.entry_price, color: cssVar('--info'), lineStyle: 0, lineWidth: 1, axisLabelVisible: true, title: 'entrada' });
+  if (pos && ok(pos.stop)) candle.createPriceLine({ price: pos.stop, color: cssVar('--bad'), lineStyle: 0, lineWidth: 1, axisLabelVisible: true, title: 'stop' });
+  DB.view = { key, chart, candle, markers, n: bars.length, last: bars.length ? bars[bars.length - 1][0] : null, range: null, tf, id: it.id };
+  if (keep) { try { chart.timeScale().setVisibleLogicalRange(keep); } catch (e) { chart.timeScale().fitContent(); } } else chart.timeScale().fitContent();
+}
+function dbDrop() {
+  if (!DB.view) return;
+  try { DB.view.range = DB.view.chart.timeScale().getVisibleLogicalRange(); } catch (e) { DB.view.range = null; }
+  const range = DB.view.range, key = DB.view.key;
+  try { DB.view.chart.remove(); } catch (e) { /* já removido */ }
+  DB.view = { key, range };
+}
+/* move the forming candle and the live numbers without drawing the page again */
+function dbLive() {
+  const items = DB.data ? DB.data.items || [] : [];
+  for (const it of items) {
+    const e = DB.els[it.id];
+    if (!e) continue;
+    const pos = dbPosition(it), last = dbLast(it), pc = dbPrevClose(it);
+    if (e.last) e.last.textContent = dbPx(it, last);
+    if (e.move) e.move.replaceChildren(ok(last) && ok(pc) ? dbSigned((last / pc - 1) * 100) : dash);
+    if (e.open) e.open.replaceChildren(pos && ok(pos.open_result_brl) ? h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)) : dash);
+    if (e.upd) e.upd.textContent = it.feed ? 'atualizado às ' + dbSecs(it.feed.updated_at) : '';
+    const c = DB.els[it.id + ':card'];
+    if (c) {
+      c.last.textContent = dbPx(it, last);
+      c.open.replaceChildren(pos && ok(pos.open_result_brl) ? h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)) : dash);
+      if (c.read) c.read.textContent = it.feed ? 'preço lido às ' + dbSecs(it.feed.updated_at) : '';
+      if (c.book) c.book.textContent = it.feed && ok(it.feed.bid) ? `compra ${dbPx(it, it.feed.bid)} · venda ${dbPx(it, it.feed.ask)}` : it.symbol;
+    }
   }
-  if (it.open_entry) { const buy = it.open_entry.side === 'buy'; marks.push({ time: snap(it.open_entry.fill_time || it.open_entry.ts), position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown', color: cssVar('--info'), text: (buy ? 'compra' : 'venda') + ' (aberta)' }); }
-  LW.createSeriesMarkers(candle, marks.sort((a, b) => a.time - b.time));
-  chart.timeScale().fitContent();
-  DB.refs.push(chart);
+  const v = DB.view, it = v && v.candle && items.find((x) => x.id === v.id);
+  if (!it || `${it.id}|${v.tf}|${dbDay(it)}` !== v.key) { if (v && v.candle) render(); return; }
+  const bars = dbCandles(it, v.tf);
+  if (!bars.length) return;
+  const startAt = bars.findIndex((b) => b[0] >= (v.last ?? -Infinity));
+  if (startAt < 0 || bars.length < v.n) { render(); return; }
+  for (const [t, o, hi, lo, c] of bars.slice(startAt)) v.candle.update({ time: dbSp(t), open: o, high: hi, low: lo, close: c });
+  v.n = bars.length; v.last = bars[bars.length - 1][0];
 }
 
+/* ---------- page pieces ---------- */
+function dbRuleText(it) {
+  if (it.rule === 'P-004') return `P-004 (momento do resto do dia) no ${dbName(it)}: 30 minutos antes do fechamento, compra se o preço está acima do fechamento de ontem e vende se está abaixo; stop a 1% e zera 5 minutos antes do fechamento. No máximo uma operação por dia.`;
+  return `${it.rule} no ${it.market}.`;
+}
+function dbStrip(items) {
+  return h('div', { class: 'db-strip' }, items.filter((it) => !it.error).map((it) => {
+    const pos = dbPosition(it), last = dbLast(it), pc = dbPrevClose(it), st = DB_STATUS[it.status] || DB_STATUS['sem dados'];
+    const e = DB.els[it.id] = { last: h('span', null, dbPx(it, last)), move: h('span', null, ok(last) && ok(pc) ? dbSigned((last / pc - 1) * 100) : dash),
+      open: h('span', null, pos && ok(pos.open_result_brl) ? h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)) : dash), upd: h('span', { class: 'sub' }, it.feed ? 'atualizado às ' + dbSecs(it.feed.updated_at) : '') };
+    return h('button', { type: 'button', class: 'db-tile', 'aria-pressed': String(DB.sel === it.id), 'data-fkey': 'db-sel:' + it.id, onclick: () => { DB.sel = it.id; render(); } },
+      h('div', { class: 'db-tile-h' }, h('b', null, `${it.market} · ${it.symbol}`), badge(st)),
+      h('div', { class: 'db-tile-p' }, e.last, ' ', e.move),
+      h('div', { class: 'sub' }, pos ? `${pos.volume > 0 ? 'Comprado' : 'Vendido'} ${nf0.format(Math.abs(pos.volume))} · aberto ` : 'Zerado · ', pos ? e.open : `${nf0.format(it.trades.length)} ${plural(it.trades.length, 'operação', 'operações')}, ${dbBrl(it.pnl_total_brl)}`),
+      e.upd);
+  }));
+}
 function dbItem(it) {
   if (it.error) return card(it.id, null, notAvailable('Demonstração', it.error));
-  const s = it.snapshot, st = DB_STATUS[it.status] || DB_STATUS['sem dados'], pos = s && s.position;
-  const ind = s && s.indicators ? s.indicators : {}, ls = s && s.last_signal;
-  const dayMove = s && ok(s.prev_close) && s.bars.length ? (s.bars[s.bars.length - 1][4] / s.prev_close - 1) * 100 : null;
+  const s = it.snapshot, pos = dbPosition(it), ls = s && s.last_signal, ind = s && s.indicators ? s.indicators : {};
+  const st = DB_STATUS[it.status] || DB_STATUS['sem dados'];
   const val = it.research.find((r) => r.split === 'validation'), exp = it.research.find((r) => r.split === 'exploration');
   const decPt = { passed: 'passou', rejected: 'reprovou', inconclusive: 'inconclusiva' };
+  const e = DB.els[it.id] || {};
+  const live = { last: h('span', null, e.last ? e.last.textContent : dbPx(it, dbLast(it))), open: h('span', null, dash),
+    read: h('span', null, it.feed ? 'preço lido às ' + dbSecs(it.feed.updated_at) : ''),
+    book: h('span', null, it.feed && ok(it.feed.bid) ? `compra ${dbPx(it, it.feed.bid)} · venda ${dbPx(it, it.feed.ask)}` : it.symbol) };
+  if (pos && ok(pos.open_result_brl)) live.open.replaceChildren(h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)));
+  DB.els[it.id + ':card'] = live;
   const kpis = h('div', { class: 'kpis' },
-    kpi('Robô', badge(st), DB_PHASE[it.phase] || '', s ? 'último candle às ' + dbTime(new Date(s.last_signal.bar * 1000 + (s.timeframe_min || 5) * 60000).toISOString()) : ''),
-    kpi('Posição agora', pos ? (pos.volume > 0 ? 'Comprado ' : 'Vendido ') + nf0.format(Math.abs(pos.volume)) : 'Zerado', pos ? `entrada ${nf0.format(pos.entry_price)}, stop ${ok(pos.stop) ? nf0.format(pos.stop) : dash}` : it.symbol),
-    kpi('Hoje no WIN', ok(dayMove) ? signedSpan(dayMove, 2) : dash, s && ok(s.prev_close) ? `contra o fechamento de ontem (${nf0.format(s.prev_close)})` : ''),
+    kpi('Robô', badge(st), DB_PHASE[it.phase] || '', live.read),
+    kpi('Último preço', live.last, live.book),
+    kpi('Posição agora', pos ? (pos.volume > 0 ? 'Comprado ' : 'Vendido ') + nf0.format(Math.abs(pos.volume)) : 'Zerado', pos ? h('span', null, `entrada ${dbPx(it, pos.entry_price)}, stop ${dbPx(it, pos.stop)} · resultado aberto `, live.open) : 'sem posição aberta'),
     kpi('Operações da demonstração', nf0.format(it.trades.length), `${nf0.format(it.wins)} com ganho; hoje ${nf0.format(it.trades_today.length)}`),
-    kpi('Resultado somado', h('span', { class: tone(it.pnl_total_brl) }, dbBrl(it.pnl_total_brl)), `${dbPts(it.points_total)}, ${nf0.format(it.volume || 1)} contrato, conta demo`));
-  const chartEl = h('div', { class: 'trchart', role: 'img', 'aria-label': `Candles de 5 minutos do ${it.symbol} hoje, com as entradas e saídas da demonstração` });
-  if (s && s.bars.length) queueMicrotask(() => { if (chartEl.isConnected) dbDraw(chartEl, it); });
-  const decision = ls ? h('p', { class: 'sub' }, `Última decisão (candle das ${dbTime(new Date(ls.bar * 1000).toISOString())}): `,
+    kpi('Resultado fechado', h('span', { class: tone(it.pnl_total_brl) }, dbBrl(it.pnl_total_brl)), `${dbPts(it.points_total)}, ${nf0.format(it.volume || 1)} contrato, conta demo`));
+  const tfs = segmented('Tempo gráfico', 'db-tf', DB.tf, [['1m', '1 min'], ['5m', '5 min'], ['15m', '15 min']], (v) => { DB.tf = v; render(); });
+  const chartEl = h('div', { class: 'trchart', role: 'img', 'aria-label': `Candles de ${DB.tf.replace('m', ' minutos')} do ${it.symbol} hoje, ao vivo, com as entradas e saídas da demonstração` });
+  const hasBars = dbCandles(it, DB.tf).length > 0;
+  if (hasBars) queueMicrotask(() => { if (chartEl.isConnected) dbDraw(chartEl, it, DB.tf); });
+  const closeAt = s && s.session ? dbTime(new Date(dbIso(s.session.close).getTime() - 30 * 60000).toISOString()) : null;
+  const decision = ls ? h('p', { class: 'sub' }, `Última decisão (candle de 5 min das ${dbTime(new Date(ls.bar * 1000).toISOString())}): `,
     h('b', null, ls.action === 'hold' ? 'aguardar' : ls.action === 'enter' ? 'comprar' : ls.action === 'enter_short' ? 'vender' : 'sair'),
-    ok(ind.rod_ret) ? `; variação desde o fechamento de ontem ${nf2.format(ind.rod_ret * 100).replace('-', MINUS)}%` : '',
-    it.rule === 'P-004' && s.session ? `. A regra decide no candle que fecha às ${dbTime(new Date(new Date(s.session.close).getTime() - 30 * 60000).toISOString())} e zera às ${dbTime(s.session.flatten_at)}.` : '.') : null;
-  const table = it.trades.length ? dataTable({ id: 'db-trades-' + it.id, label: 'Operações da demonstração', rows: it.trades.map((t, i) => ({ ...t, key: String(i) })).reverse(), sort0: { key: 'in', dir: -1 },
+    ok(ind.rod_ret) ? `; variação desde o fechamento de ontem ${(ind.rod_ret * 100 < 0 ? MINUS : '+') + nf2.format(Math.abs(ind.rod_ret * 100))}%` : '',
+    it.rule === 'P-004' && closeAt ? `. A regra decide no candle que fecha às ${closeAt} (hoje ${ok(ind.rod_ret) ? (ind.rod_ret > 0 ? 'seria compra' : 'seria venda') : 'sem sinal'}, se nada mudar) e zera às ${dbTime(s.session.flatten_at)}.` : '.') : null;
+  const table = it.trades.length ? dataTable({ id: 'db-trades-' + it.id, label: 'Operações da demonstração', rows: it.trades.map((t, i) => ({ ...t, key: String(i) })), sort0: { key: 'in', dir: -1 },
     cols: [{ key: 'in', label: 'Entrada', val: (t) => t.entry_time, cell: (t) => dbDayTime(t.entry_time) },
       { key: 'side', label: 'Lado', val: (t) => t.side, cell: (t) => t.side },
-      { key: 'pin', label: 'Preço de entrada', num: true, val: (t) => t.entry_price, cell: (t) => nf0.format(t.entry_price) },
+      { key: 'pin', label: 'Preço de entrada', num: true, val: (t) => t.entry_price, cell: (t) => dbPx(it, t.entry_price) },
       { key: 'out', label: 'Saída', val: (t) => t.exit_time, cell: (t) => dbTime(t.exit_time) },
-      { key: 'pout', label: 'Preço de saída', num: true, val: (t) => t.exit_price, cell: (t) => nf0.format(t.exit_price) },
+      { key: 'pout', label: 'Preço de saída', num: true, val: (t) => t.exit_price, cell: (t) => dbPx(it, t.exit_price) },
       { key: 'why', label: 'Motivo da saída', val: (t) => t.exit_reason, cell: (t) => dbReason(t.exit_reason) },
       { key: 'pts', label: 'Pontos', num: true, val: (t) => t.points, cell: (t) => h('span', { class: tone(t.points) }, dbPts(t.points)) },
       { key: 'brl', label: 'Resultado', num: true, val: (t) => t.pnl_brl, cell: (t) => h('span', { class: tone(t.pnl_brl) }, dbBrl(t.pnl_brl)) }] })
@@ -99,26 +195,34 @@ function dbItem(it) {
     it.alerts.map((a) => h('li', null, dbDayTime(a.ts) + ': ' + a.message)),
     it.vetoes.map((v) => h('li', null, dbDayTime(v.ts) + ': ordem barrada pelo controle de risco (' + (v.reasons || []).join(', ') + ')'))) : null;
   return h('div', { class: 'rx-stack' },
-    card(`${it.rule} no ${it.symbol} (${it.timeframe_min} min)`, dbRuleText(it), h('div', { class: 'rx-stack' }, kpis, decision,
-      s && s.bars.length ? h('div', null, chartEl, h('div', { class: 'sub', style: 'margin-top:6px' }, 'Candles de 5 minutos do pregão de hoje, horário de Brasília. Linha amarela: fechamento de ontem. Setas: entradas; círculos: saídas. ', h('a', { href: 'https://www.tradingview.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Gráficos por TradingView Lightweight Charts™')))
-        : loadingState('O gráfico aparece depois do primeiro candle fechado com o robô ligado.'),
+    card(`${it.rule} no ${it.symbol} (${dbName(it)}), ao vivo`, dbRuleText(it), h('div', { class: 'rx-stack' }, kpis, decision,
+      h('div', { class: 'filters' }, tfs),
+      hasBars ? h('div', null, chartEl, h('div', { class: 'sub', style: 'margin-top:6px' }, 'Candles do pregão de hoje, horário de Brasília, atualizados a cada 5 segundos (o último está em formação). Linha amarela: fechamento de ontem. Setas: entradas; círculos: saídas com o resultado. ', h('a', { href: 'https://www.tradingview.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Gráficos por TradingView Lightweight Charts™')))
+        : loadingState('O gráfico aparece quando o robô gravar os primeiros candles.'),
       it.killswitch ? h('div', { class: 'notice warn', role: 'note' }, h('b', null, 'Kill switch ligado: '), 'o arquivo live/STOP existe; o robô zera e não abre nada até ele ser apagado.') : null)),
-    card('Operações', 'Preços e resultados da conta demo da Clear, em reais, já com as taxas que ela cobrar.', table),
-    card('O que a pesquisa já disse desta regra', 'A demonstração não muda nada disto: ela não entra nos critérios nem conta como teste.',
+    card('Operações', 'Todas as operações desta demonstração, com preços e resultados da conta demo da Clear, em reais.', table),
+    card('O que a pesquisa já disse desta regra neste contrato', 'A demonstração não muda nada disto: ela não entra nos critérios nem conta como teste.',
       h('div', { class: 'rx-stack' }, h('ul', null,
-        h('li', null, 'Exploração (2021-11 a 2024-06): ', h('b', null, exp ? decPt[exp.decision] || exp.decision : 'não lida'), '.'),
-        h('li', null, 'Validação (2024-07 a 2025-09): ', h('b', null, val ? decPt[val.decision] || val.decision : 'não lida'), val && val.decision !== 'passed' ? ', por isso ela não é candidata a dinheiro real.' : '.'),
+        h('li', null, 'Exploração (2021-11 a 2024-06): ', h('b', null, exp ? decPt[exp.decision] || exp.decision : 'não lida'), exp && exp.decision !== 'passed' ? ', então nem chegou à validação.' : '.'),
+        exp && exp.decision === 'passed' ? h('li', null, 'Validação (2024-07 a 2025-09): ', h('b', null, val ? decPt[val.decision] || val.decision : 'não lida'), val && val.decision !== 'passed' ? ', por isso ela não é candidata a dinheiro real.' : '.') : null,
         h('li', null, `Mesmo código da pesquisa (hash ${s ? s.strategy_hash : dash}). Limites desta demo: ${nf0.format(it.risk.max_contracts_per_symbol || 1)} contrato, perda máxima de R$ ${nf0.format(it.risk.max_daily_loss || 0)} no dia e R$ ${nf0.format(it.risk.max_weekly_loss || 0)} na semana.`)),
         alerts ? h('div', null, h('b', null, 'Avisos do robô'), alerts) : null)));
 }
 
 function pageDemoB3() {
-  for (const c of DB.refs) { try { c.remove(); } catch (e) { /* já removido */ } }
-  DB.refs = [];
-  const head = rxHeader('B3: WIN e WDO', 'Demonstração na conta demo da Clear', 'O robô roda a regra da pesquisa, sem mudar nada, com preço real e dinheiro fictício. Serve para ver como ela se comporta ao vivo. Não é evidência de lucro: a pesquisa continua validando regras à parte, e só uma aprovada na validação e no teste final pode ir para dinheiro real.');
-  if (!LIVE) return h('div', { class: 'rx rx-stack' }, head, card('Demonstração', null, notAvailable('Demonstração ao vivo', 'o snapshot estático não lê o robô. Abra o painel com python -m lab.dashboard serve.')));
+  dbDrop();
+  DB.els = {};
+  const head = rxHeader('B3: WIN e WDO', 'Demonstração ao vivo na conta demo da Clear', 'Os robôs rodam a regra da pesquisa, sem mudar nada, com preço real e dinheiro fictício, no mini índice e no mini dólar. Serve para ver ao vivo como ela se comporta. Não é evidência de lucro: a pesquisa continua validando regras à parte, e só uma aprovada na validação e no teste final pode ir para dinheiro real.');
+  if (!LIVE) return h('div', { class: 'rx rx-stack' }, head, card('Demonstração', null, notAvailable('Demonstração ao vivo', 'o snapshot estático não lê os robôs. Abra o painel com python -m lab.dashboard serve.')));
   dbLoad(false);
-  if (!DB.data) return h('div', { class: 'rx rx-stack' }, head, DB.error ? emptyState('Não foi possível ler a demonstração.', DB.error) : loadingState('Lendo o robô da demonstração…'));
-  const items = DB.data.items || [];
-  return h('div', { class: 'rx rx-stack' }, head, items.length ? items.map(dbItem) : emptyState('Nenhuma demonstração configurada.', 'Os arquivos ficam em live/config/demo-b3-*.json.'));
+  if (!DB.data) return h('div', { class: 'rx rx-stack' }, head, DB.error ? emptyState('Não foi possível ler a demonstração.', DB.error) : loadingState('Lendo os robôs da demonstração…'));
+  const items = (DB.data.items || []).slice().sort((a, b) => String(b.market).localeCompare(String(a.market)));   /* WIN first */
+  if (!items.length) return h('div', { class: 'rx rx-stack' }, head, emptyState('Nenhuma demonstração configurada.', 'Os arquivos ficam em live/config/demo-b3-*.json.'));
+  if (!DB.sel || !items.some((i) => i.id === DB.sel)) DB.sel = items[0].id;
+  return h('div', { class: 'rx rx-stack' }, head, dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
 }
+const DB_STYLE = `.db-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.db-tile{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);cursor:pointer;font:inherit}
+.db-tile[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}.db-tile-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.db-tile-p{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}`;
+(() => { const st = document.createElement('style'); st.textContent = DB_STYLE; document.head.append(st); })();
