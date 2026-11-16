@@ -36,16 +36,18 @@ OUT = ROOT / "research" / "b3" / "execution_cost.json"
 SYM = "WINZ26"                 # the tradable contract: the continuous WIN$N ticks carry no bid/ask; --symbol
 SP = __import__("zoneinfo").ZoneInfo("America/Sao_Paulo")
 TICK = 5.0                     # WIN 5 points; WDO 0.5 (set by --symbol)
-WINDOW = (time(9, 15), time(17, 55))      # inside every session's regular hours (17:55 closes in US summer)
+WINDOW = (time(9, 15), time(17, 55))      # B3 time; inside every session's regular hours (17:55 closes in US summer)
 STOP_TICKS = (10, 20, 40)
 LIMIT_WAIT_S = (15, 60)
 HORIZONS_MIN = (15, 30)
 
 
 def _ticks(mt5, day: date):
-    # the MetaTrader5 package reads a naive datetime as this machine's local time (Sao Paulo here); time_msc is UTC
+    # time_msc is the SERVER wall clock (B3 time) counted as UTC, and requests use that clock: pass B3 wall time as an
+    # aware UTC datetime. (Fixed 2026-11-16: the first version passed naive local times, which the package shifts by
+    # +3 h, so it read 12:00-18:30 B3 time labelled 09:00-15:30; see docs/plano-busca-padroes-b3.md section 9.)
     # one request per 20 minutes: a single request is cut at the terminal's tick limit (~100k ticks per half hour)
-    start = datetime.combine(day, time(9, 0))
+    start = datetime.combine(day, time(9, 0), timezone.utc)
     parts = []
     for k in range(29):                                  # 09:00 .. 18:40
         a0 = start + timedelta(minutes=20 * k)
@@ -86,8 +88,8 @@ def measure_day(mt5, day: date, rng) -> dict | None:
         np.maximum.accumulate(idx, out=idx)
         a[:] = a[idx]
     ok = ~np.isnan(bid) & ~np.isnan(ask) & (ask > bid)
-    t0 = int(datetime.combine(day, WINDOW[0], SP).timestamp() * 1000)
-    t1 = int(datetime.combine(day, WINDOW[1], SP).timestamp() * 1000)
+    t0 = int(datetime.combine(day, WINDOW[0], timezone.utc).timestamp() * 1000)
+    t1 = int(datetime.combine(day, WINDOW[1], timezone.utc).timestamp() * 1000)
     tr_ms, tr_px = ms[trade], last[trade]
     buy_aggr = ((flags & mt5.TICK_FLAG_BUY) != 0) & ((flags & mt5.TICK_FLAG_SELL) == 0)
     sell_aggr = ((flags & mt5.TICK_FLAG_SELL) != 0) & ((flags & mt5.TICK_FLAG_BUY) == 0)
@@ -118,7 +120,7 @@ def measure_day(mt5, day: date, rng) -> dict | None:
             continue
         open_px = tr_px[j]                       # the 1-minute bar's open: first trade of the minute
         rows["spread"].append((a - b) / TICK)
-        rows["hour"].append(datetime.fromtimestamp(m / 1000, SP).hour)
+        rows["hour"].append(datetime.fromtimestamp(m / 1000, timezone.utc).hour)     # B3 wall-clock hour
         rows["buy_vs_model"].append((open_px + TICK - a) / TICK)     # > 0: the model (open + 1 tick) pays more than the ask
         rows["sell_vs_model"].append((b - (open_px - TICK)) / TICK)  # > 0: the model receives less than the bid
         fb, fs = next_fill(+1, m), next_fill(-1, m)
