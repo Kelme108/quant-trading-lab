@@ -8,6 +8,7 @@ engine before any result is looked at), ranked by the deflated Sharpe over every
     python -m b3.pattern_search fidelity            # engineering check: trades only, no returns printed
     python -m b3.pattern_search stage-a             # path A on exploration
     python -m b3.pattern_search stage-b             # path B on exploration (after A)
+    python -m b3.pattern_search --market WDO stage-a-measured   # path A on WDO, measured costs (wdo_extension)
 
 Results: research/b3/search/. Trials: research/b3/search/ledger.jsonl (NOT research/b3/ledger.jsonl: owner D2 a).
 """
@@ -37,6 +38,18 @@ CONFIG = ROOT / "b3" / "config" / "pattern_search_b3.json"
 SPLITS = ROOT / "b3" / "config" / "splits_b3.json"
 OUT = ROOT / "research" / "b3" / "search"
 LEDGER = OUT / "ledger.jsonl"
+MARKET = "WIN"                 # --market WDO: pattern_search_b3.json wdo_extension (own folder, ledger and trial count)
+
+
+def set_market(m: str) -> None:
+    global MARKET, OUT, LEDGER
+    MARKET = m.upper()
+    OUT = ROOT / "research" / "b3" / "search" / ("" if MARKET == "WIN" else MARKET.lower())
+    LEDGER = OUT / "ledger.jsonl"
+
+
+def other_market() -> str:
+    return "WDO" if MARKET == "WIN" else "WIN"
 
 
 def load_config() -> dict:
@@ -50,7 +63,7 @@ def split_bounds(split: str) -> tuple[pd.Timestamp, pd.Timestamp]:
     s = json.loads(SPLITS.read_text(encoding="utf-8"))
     if split == "final_test" and not s.get("final_test_unlocked"):
         raise PermissionError("the final test is locked (splits_b3.json)")
-    w = s["symbols"]["WIN"][split]
+    w = s["symbols"][MARKET][split]
     end = w["end_utc"] or "2100-01-01T00:00:00Z"
     return pd.Timestamp(w["start_utc"]), pd.Timestamp(end)
 
@@ -94,10 +107,11 @@ def _session_bars(root: str, tf: int, rules: SessionRules, min_cov: float, end: 
 def load_frame(tf: int, end: pd.Timestamp, cfg: dict | None = None) -> Frame:
     cfg = cfg or load_config()
     rules = _session_rules(cfg)
-    bars, cal = _session_bars("WIN", tf, rules, cfg["data"]["min_session_coverage"], end)
+    bars, cal = _session_bars(MARKET, tf, rules, cfg["data"]["min_session_coverage"], end)
     df = session_features(bars, cal, tf)
-    wdo, _ = _session_bars("WDO", tf, rules, cfg["data"]["min_session_coverage"], end)
-    df = df.merge(wdo[["time", "close"]].rename(columns={"close": "wdo_close"}), on="time", how="left")
+    oth, _ = _session_bars(other_market(), tf, rules, cfg["data"]["min_session_coverage"], end)
+    # "wdo_close" = the OTHER market's close (WDO for the WIN program, WIN for the WDO program: F14 and B's features)
+    df = df.merge(oth[["time", "close"]].rename(columns={"close": "wdo_close"}), on="time", how="left")
     days = list(dict.fromkeys(df["local_date"]))
     di = {d: i for i, d in enumerate(days)}
     day = df["local_date"].map(di).to_numpy()
@@ -360,14 +374,15 @@ class Signals:
 def measured_cost(name: str, cfg: dict | None = None):
     """A B3Cost from pattern_search_b3.json cost_reevaluation (measured from the Clear ticks)."""
     from dataclasses import replace
-    c = (cfg or load_config())["cost_reevaluation"][name]
-    return replace(market("WIN").cost("base"), name=name, fees_per_side_brl=c["fees_per_side_brl"],
+    cfg = cfg or load_config()
+    c = (cfg["cost_reevaluation"] if MARKET == "WIN" else cfg["wdo_extension"]["costs"])[name]
+    return replace(market(MARKET).cost("base"), name=name, fees_per_side_brl=c["fees_per_side_brl"],
                    slippage_ticks_per_side=c["slippage_ticks_per_side"], stop_extra_ticks=c["stop_extra_ticks"])
 
 
 def simulate(fr: Frame, d: np.ndarray, hold_min: int, stop_frac: float, scenario,
              max_per_day: int = 8, start: pd.Timestamp | None = None) -> pd.DataFrame:
-    m = market("WIN")
+    m = market(MARKET)
     cost = scenario if not isinstance(scenario, str) else m.cost(scenario)
     inst = m.instrument()
     tick, tv, pv = inst.tick_size, inst.tick_value_brl, inst.point_value_brl
@@ -555,6 +570,8 @@ def stage_a_measured() -> Path:
                 _log({"variant": vid, "stage": "A-measured", "split": "exploration",
                       "read_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "trades": rows[-1]["base"].get("trades", 0)})
         print(f"tf {tf}m done", flush=True)
+    if MARKET != "WIN":                     # wdo_extension: its own program, one read per variant
+        return _finish("A-measured", "exploration", cfg, rows, daily, start)
     b = json.loads((OUT / "B-exploration.json").read_text(encoding="utf-8"))
     return _finish("A-measured", "exploration", cfg, rows, daily, start, prior_trials=b["n_variants"])
 
@@ -741,6 +758,7 @@ def fidelity(n_variants: int = 3, scenario: str = "base") -> dict:
     picks = [("F01_breakout_follow", {"N": 30}, 5, 30, 0.003), ("F05_shock_fade", {"M": 15, "k": 2.0}, 1, 15, 0.006),
              ("F11_rsi_fade", {"lo_hi": [25, 75]}, 5, 60, 0.003)][:n_variants]
     report = []
+    TICK = market(MARKET).instrument().tick_size
     for fam, p, tf, hold, stop in picks:
         fr = load_frame(tf, end, cfg)
         d = Signals(fr).direction(fam, p)
@@ -752,7 +770,7 @@ def fidelity(n_variants: int = 3, scenario: str = "base") -> dict:
 
         class Rule(ProxyStrategy):
             name = "search-fidelity"
-            symbol = "WIN"
+            symbol = MARKET
             timeframe_min = tf
             warmup = 1
             rules = fr.rules
@@ -775,12 +793,12 @@ def fidelity(n_variants: int = 3, scenario: str = "base") -> dict:
                 if not row.ok_start or row.sig == 0:
                     return Signal("hold")
                 if row.sig > 0:
-                    return Signal("enter", stop_price=tick_floor(row.close * (1 - stop), 5.0))
-                return Signal("enter_short", stop_price=tick_ceil(row.close * (1 + stop), 5.0))
+                    return Signal("enter", stop_price=tick_floor(row.close * (1 - stop), TICK))
+                return Signal("enter_short", stop_price=tick_ceil(row.close * (1 + stop), TICK))
 
         cols = ["time", "open", "high", "low", "close", "volume"]
-        res = run(fr.df[cols].reset_index(drop=True), Rule(), market("WIN").cost(scenario),
-                  BacktestConfig(max_entries_per_day=cfg["execution"]["max_entries_per_session"]), market("WIN").instrument())
+        res = run(fr.df[cols].reset_index(drop=True), Rule(), market(MARKET).cost(scenario),
+                  BacktestConfig(max_entries_per_day=cfg["execution"]["max_entries_per_session"]), market(MARKET).instrument())
         off = pd.DataFrame([(t.entry_time.value, t.entry_price, t.exit_time.value, round(t.exit_price, 6)) for t in res.trades],
                            columns=["e", "ep", "x", "xp"])
         mine = pd.DataFrame({"e": sim["entry_ns"], "ep": sim["entry_price"], "x": sim["exit_ns"], "xp": sim["exit_price"].round(6)})
@@ -798,12 +816,16 @@ def fidelity(n_variants: int = 3, scenario: str = "base") -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="b3.pattern_search")
+    ap.add_argument("--market", default="WIN", choices=("WIN", "WDO"))
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("fidelity")
     sub.add_parser("stage-a")
     sub.add_parser("stage-b")
     sub.add_parser("stage-a-measured")
     a = ap.parse_args(argv)
+    set_market(a.market)
+    if a.market != "WIN" and a.cmd not in ("fidelity", "stage-a-measured"):
+        raise SystemExit("WDO: only fidelity and stage-a-measured are pre-registered (wdo_extension)")
     if a.cmd == "fidelity":
         r = fidelity()
         return 0 if all(v["identical_share"] >= 0.99 for v in r["variants"]) else 1
