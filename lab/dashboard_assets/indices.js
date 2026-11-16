@@ -124,10 +124,11 @@ function ixProgramCard(d) {
     ['Regras dos agentes que contam', `${counted} de ${ixNum(stopAfter)} (para se nenhuma passar a validação)`],
     ['Passaram a validação', (st.validation_passes || []).length ? st.validation_passes.map((x) => x.join(' em ')).join(', ') : 'nenhuma'],
     ['Parada do projeto', `${st.project_deadline || dash} (${ixDaysTo(st.project_deadline) ?? dash} dias) ou ${ps.new_rules || 15} regras novas sem passar o teste final`],
-    ['Prazo dos dados de bolsa', `${st.exchange_data_deadline || dash} (${ixDaysTo(st.exchange_data_deadline) ?? dash} dias): demo de corretora brasileira ou histórico comprado`],
+    ['Mercados', `${d.program.lane_label || 'Substitutos'}${(d.program.ended || []).length ? `; o programa dos ${d.program.ended[0].label.toLowerCase()} terminou em ${ixDay(d.program.ended[0].ended_on + 'T12:00:00Z')} (${d.program.ended[0].rules})` : ''}`],
+    ['Dados de bolsa', ((d.program.config || {}).exchange_data || {}).met ? 'cumprido em 16/11/2026: 5 anos de barras de 1 e 5 minutos da conta demo da Clear' : `${st.exchange_data_deadline || dash} (${ixDaysTo(st.exchange_data_deadline) ?? dash} dias): demo de corretora brasileira ou histórico comprado`],
     ['Ciclos', `tentativa a cada ${d.cycles.every_hours} h pelo Agendador de Tarefas; último registro ${ixWhen(d.cycles.last_event_at)}`],
   ];
-  return card(term('ix_program', 'Programa de agentes'), 'Propõe, programa e testa regras novas sozinho, dentro dos limites que você aprovou.',
+  return card([term('ix_program', 'Programa de agentes'), d.program.lane === 'b3' ? ' · WIN e WDO' : ''], 'Propõe, programa e testa regras novas sozinho, dentro dos limites que você aprovou.',
     ixKv(rows), { actions: h('a', { href: '#/indices-ciclos', 'data-fkey': 'ix-gocyc' }, 'Ver os ciclos →') });
 }
 

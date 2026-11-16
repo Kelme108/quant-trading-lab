@@ -144,11 +144,14 @@ def _read(d: dict, root: Path) -> dict:
 # ---------------------------------------------------------------------------------------------
 
 def _program(root: Path, now: datetime) -> dict:
-    cfg = _json(root / "b3" / "config" / "proxy_program.json") or {}
+    """The ACTIVE agent program (WIN/WDO since 2026-11-16, b3/config/b3_program.json; the proxy one before)."""
+    lane = "b3" if (_json(root / "b3" / "config" / "b3_program.json") or {}).get("approved_by_owner") is True else "proxies"
+    cfg = _json(root / "b3" / "config" / ("b3_program.json" if lane == "b3" else "proxy_program.json")) or {}
+    lane_dir = root / "research" / ("b3" if lane == "b3" else "proxies")
     try:
         from b3 import proxy_program as prog
-        st = prog.status(now.date(), program=cfg, props=prog.proposals(root / "research" / "proxies" / "proposals"),
-                         ledger=prog.ledger_rows(root / "research" / "proxies" / "ledger.jsonl"))
+        st = prog.status(now.date(), program=cfg, props=prog.proposals(lane_dir / "proposals"),
+                         ledger=prog.ledger_rows(lane_dir / "ledger.jsonl"))
         status = {k: getattr(st, k) for k in ("counted_rules", "registered_this_week", "validation_passes",
                                                "final_test_passes", "project_deadline", "exchange_data_deadline",
                                                "can_register", "reasons", "notices")}
@@ -166,6 +169,8 @@ def _program(root: Path, now: datetime) -> dict:
         "config": {k: cfg.get(k) for k in ("started", "first_counted_rule", "max_new_rules_per_week",
                                            "stop_after_rules_without_validation_pass", "project_stop", "exchange_data",
                                            "scope", "agents")},
+        "lane": lane, "lane_label": "WIN e WDO (B3, conta demo da Clear)" if lane == "b3" else "Substitutos (índices dos EUA e DAX)",
+        "ended": [{"lane": "proxies", "label": "Substitutos", "ended_on": "2026-11-16", "rules": "P-008, P-009, P-011"}] if lane == "b3" else [],
         "status": status, "paused": paused, "stop_file": "ops/state/STOP_PROXY_CYCLES",
         "days_since_start": (now.date() - date.fromisoformat(started)).days if started else None,
         "today": now.date().isoformat(),
