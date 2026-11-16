@@ -317,5 +317,127 @@
     },
     "gate": "gate_search unchanged, base -> measured and conservative -> measured_p90; finalists (at most 5) read ONCE on WDO validation by the same rule as WIN.",
     "limit_orders": "not used here: on WDO a limit at the touch did better than a market order WHEN filled through (-0.16 to -0.26 vs -0.50 tick, mid 15-30 min later) but was filled through only 42-67% of the time; whether the missed fills are the winners cannot be tested with bars."
+  },
+  "path_c": {
+    "_owner": "Owner 2026-11-16 night, decision 3: 'Sim, queremos estrategias rapidas' to 'abrir uma busca separada para regras mais raras' (rarer trades, fast holds). Written BEFORE any path C code or read. Path A results (WIN and WDO) were already seen: the families below that extend A's (C03, C08, C09) are counted as new trials on top of A's, never as a fresh start.",
+    "markets": [
+      "WIN",
+      "WDO"
+    ],
+    "timeframes_min": [
+      1,
+      5
+    ],
+    "exit_grid": "same as path A: hold 15/30/60 minutes x stop 0.3%/0.6%; same fill rules, 8 entries per session, long and short",
+    "costs": "measured and measured_p90 of each market (cost_reevaluation for WIN, wdo_extension.costs for WDO)",
+    "families": {
+      "_common": "same conventions as path A (N/M in minutes, sigma terms over the 20 sessions before, cross = true now and false on the bar before)",
+      "C01_gap_fade": {
+        "rule": "gap = session open / previous session close - 1; s = mean |gap| over the 20 sessions before; on the FIRST bar of the session whose close is inside the entry window: gap >= k s -> short, gap <= -k s -> long",
+        "grid": {
+          "k": [
+            1.0,
+            1.5,
+            2.0
+          ]
+        }
+      },
+      "C02_gap_follow": {
+        "rule": "C01, opposite side",
+        "grid": {
+          "k": [
+            1.0,
+            1.5,
+            2.0
+          ]
+        }
+      },
+      "C03_vwap_extreme_fade": {
+        "rule": "F03 with larger k (extends A's F03, which was seen)",
+        "grid": {
+          "k": [
+            3.0,
+            3.5,
+            4.0
+          ]
+        }
+      },
+      "C04_range_shock_fade": {
+        "rule": "bar range (high - low) >= k x median range at the same minute of day over the 20 sessions before, and close != open: trade against the bar",
+        "grid": {
+          "k": [
+            4.0,
+            6.0
+          ]
+        }
+      },
+      "C05_range_shock_follow": {
+        "rule": "C04, in the bar's direction",
+        "grid": {
+          "k": [
+            4.0,
+            6.0
+          ]
+        }
+      },
+      "C06_run_fade": {
+        "rule": "n consecutive bars of the session closing above their open -> short; n closing below -> long; one signal per run (cross)",
+        "grid": {
+          "n": [
+            6,
+            8
+          ]
+        }
+      },
+      "C07_comove_fade": {
+        "rule": "R = return over the last 15 minutes of this market and of the other one (WIN<->WDO); s = mean |R| over the 20 sessions before, per market; both R >= k s -> short this market, both <= -k s -> long; cross",
+        "grid": {
+          "k": [
+            2.0,
+            3.0
+          ]
+        }
+      },
+      "C08_volume_extreme_follow": {
+        "rule": "F07 with larger k (extends A's F07, which was seen)",
+        "grid": {
+          "k": [
+            7.0,
+            10.0
+          ]
+        }
+      },
+      "C09_volume_extreme_fade": {
+        "rule": "F08 with larger k (extends A's F08, which was seen)",
+        "grid": {
+          "k": [
+            7.0,
+            10.0
+          ]
+        }
+      },
+      "C10_late_extreme_fade": {
+        "rule": "bar opening at or after 16:00 B3 time closes above every earlier high of the session and r = close / session open - 1 >= k x mean |r| at the same minute over the 20 sessions before -> short; symmetric at a new low -> long; cross",
+        "grid": {
+          "k": [
+            1.5,
+            2.0
+          ]
+        }
+      },
+      "C11_midday_range_break": {
+        "rule": "range = high/low of the bars opening 09:00-11:59 B3 time; from 12:00 on, cross of close above the range high -> long, below the range low -> short",
+        "grid": {}
+      }
+    },
+    "variants": "24 signal settings x 2 timeframes x 6 exits = 288 per market, 576 in all",
+    "gate": {
+      "min_trades_per_year": 50,
+      "_min": "rarer trades by the owner's decision; every other threshold is gate_search's (net > 0 at measured and measured_p90, without the best trade > 0, drawdown <= 25%, >= 60% positive years, deflated Sharpe >= 0.95, PBO <= 0.3)",
+      "dsr_trials": "per market, every variant of that market read so far: WIN 561 (A + B; A-measured re-read the same 552) + 288 = 849; WDO 552 + 288 = 840; the variance of trial Sharpe ratios is taken over all of them (daily net returns at the measured cost)",
+      "pbo": "pbo_cscv(16) over the 288 path C variants of the market"
+    },
+    "validation": "every path C variant that passes, at most 5 per market ranked by deflated Sharpe, read ONCE on validation: net > 0 at measured and measured_p90, >= 50 trades a year, probabilistic Sharpe vs 0 >= 0.9. Final test stays locked.",
+    "outputs": "research/b3/search/C-exploration.json (WIN) and research/b3/search/wdo/C-exploration.json; ledgers as path A"
   }
 }
