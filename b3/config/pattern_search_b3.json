@@ -5,8 +5,15 @@
   "market": "WIN",
   "data": {
     "series": "WIN$N back-adjusted at the rolls (b3/b3_data.py back_adjusted): features that span sessions do not see the roll gap; returns are a share of the notional of 1 contract at the RAW entry price.",
-    "timeframes_min": [1, 5],
-    "session_rules": {"entry_start_after_open_min": 15, "entry_end_before_close_min": 30, "flatten_before_close_min": 10},
+    "timeframes_min": [
+      1,
+      5
+    ],
+    "session_rules": {
+      "entry_start_after_open_min": 15,
+      "entry_end_before_close_min": 30,
+      "flatten_before_close_min": 10
+    },
     "min_session_coverage": 0.9,
     "warmup_sessions": 20,
     "_warmup": "Every lookback across sessions uses the 20 sessions BEFORE the signal's session; a signal needs 20 earlier sessions."
@@ -15,29 +22,199 @@
   "execution": {
     "_rule": "Same fill rules as b3/backtest.py: signal on the close of bar t, market order at the open of bar t+1 with the scenario's slippage; stop on the server from bar t+1 on (fills at the stop or the gap open, plus the scenario's slippage and stop extra ticks); time exit at the open of the bar after `hold_min` minutes; flat at the session's flatten time; entries only when the signal bar closes inside the entry window; one position at a time, new entries allowed after an exit; at most 8 entries per session; long and short.",
     "stop_from": "signal close: long stop = tick_floor(close x (1 - stop_frac)), short = tick_ceil(close x (1 + stop_frac))",
-    "exit_grid": {"hold_min": [15, 30, 60], "stop_frac": [0.003, 0.006]},
+    "exit_grid": {
+      "hold_min": [
+        15,
+        30,
+        60
+      ],
+      "stop_frac": [
+        0.003,
+        0.006
+      ]
+    },
     "max_entries_per_session": 8,
-    "cost_scenarios": ["base", "conservative"],
+    "cost_scenarios": [
+      "base",
+      "conservative"
+    ],
     "_costs": "b3/markets.py market('WIN').cost(): base BRL 0.25/side + 1 tick slippage per side, stop +1 tick; conservative BRL 0.50/side + 2 ticks, stop +2 ticks."
   },
   "families": {
     "_common": "N, M, R are in MINUTES and become bars by dividing by the timeframe. 'cross' = the condition is true on bar t and false on bar t-1 (one signal per crossing). sigma terms are means over the 20 sessions before today, so they are causal. Every family trades both sides.",
-    "F01_breakout_follow": {"rule": "long when close_t > max(high of the N minutes before t, same session); short when close_t < min(low of those bars); cross", "grid": {"N": [15, 30, 60]}},
-    "F02_breakout_fade": {"rule": "F01's condition, opposite side", "grid": {"N": [15, 30, 60]}},
-    "F03_vwap_z_fade": {"rule": "dev = close/vwap_session - 1; z = dev / sd(dev over all bars of the previous 20 sessions); short on cross z >= k, long on cross z <= -k", "grid": {"k": [1.5, 2.0, 2.5]}},
-    "F04_vwap_z_follow": {"rule": "F03's crossings, opposite side (follow)", "grid": {"k": [1.5, 2.0, 2.5]}},
-    "F05_shock_fade": {"rule": "R = close_t / close_(t - M) - 1 inside the session; s = mean |R| over the previous 20 sessions; long on cross R <= -k s, short on cross R >= k s", "grid": {"M": [5, 15, 30], "k": [2.0, 3.0]}},
-    "F06_shock_follow": {"rule": "F05's crossings, opposite side (follow)", "grid": {"M": [5, 15, 30], "k": [2.0, 3.0]}},
-    "F07_volume_spike_follow": {"rule": "volume_t >= k x median volume of the same minute of day over the previous 20 sessions and close_t != open_t: trade in the bar's direction", "grid": {"k": [3.0, 5.0]}},
-    "F08_volume_spike_fade": {"rule": "F07's condition, against the bar's direction", "grid": {"k": [3.0, 5.0]}},
-    "F09_opening_range_multi": {"rule": "opening range = high/low of the first R minutes; long on every cross of close above the range high, short on every cross below the range low, after the range is complete", "grid": {"R": [15, 30]}},
-    "F10_day_extreme_reject": {"rule": "bar t-1 set a new session high (high_(t-1) above every earlier high of the session) and close_t < open_t and close_t < close_(t-1): short; symmetric at a new session low: long", "grid": {}},
-    "F11_rsi_fade": {"rule": "Wilder RSI over 14 bars of the session series (restarts each session); long on cross below lo, short on cross above hi", "grid": {"lo_hi": [[20, 80], [25, 75], [30, 70]]}},
-    "F12_bollinger_fade": {"rule": "mid = mean of the last 20 closes (same session), band = mid +/- k x sd; short on cross of close above the upper band, long on cross below the lower band", "grid": {"k": [2.0, 2.5]}},
-    "F13_bollinger_follow": {"rule": "F12's crossings, opposite side (follow)", "grid": {"k": [2.0, 2.5]}},
-    "F14_wdo_lead": {"rule": "WDO$N on the same bar times: R_wdo = WDO close_t / close_(t - M) - 1; s = mean |R_wdo| over the previous 20 sessions; dollar up hard -> WIN short on cross R_wdo >= k s; dollar down hard -> WIN long on cross R_wdo <= -k s", "grid": {"M": [5, 15], "k": [2.0, 3.0]}},
-    "F15_day_trend_follow": {"rule": "at bars closing on :00 or :30, r = close / session open - 1; s = mean |r| at the same minute of day over the previous 20 sessions; long if r >= k s, short if r <= -k s", "grid": {"k": [1.0, 1.5]}},
-    "F16_ema_cross_follow": {"rule": "EMAs of the session closes (restart each session) with spans fast/slow in bars; long on cross fast above slow, short on cross below", "grid": {"fast_slow": [[9, 21], [20, 50]]}}
+    "F01_breakout_follow": {
+      "rule": "long when close_t > max(high of the N minutes before t, same session); short when close_t < min(low of those bars); cross",
+      "grid": {
+        "N": [
+          15,
+          30,
+          60
+        ]
+      }
+    },
+    "F02_breakout_fade": {
+      "rule": "F01's condition, opposite side",
+      "grid": {
+        "N": [
+          15,
+          30,
+          60
+        ]
+      }
+    },
+    "F03_vwap_z_fade": {
+      "rule": "dev = close/vwap_session - 1; z = dev / sd(dev over all bars of the previous 20 sessions); short on cross z >= k, long on cross z <= -k",
+      "grid": {
+        "k": [
+          1.5,
+          2.0,
+          2.5
+        ]
+      }
+    },
+    "F04_vwap_z_follow": {
+      "rule": "F03's crossings, opposite side (follow)",
+      "grid": {
+        "k": [
+          1.5,
+          2.0,
+          2.5
+        ]
+      }
+    },
+    "F05_shock_fade": {
+      "rule": "R = close_t / close_(t - M) - 1 inside the session; s = mean |R| over the previous 20 sessions; long on cross R <= -k s, short on cross R >= k s",
+      "grid": {
+        "M": [
+          5,
+          15,
+          30
+        ],
+        "k": [
+          2.0,
+          3.0
+        ]
+      }
+    },
+    "F06_shock_follow": {
+      "rule": "F05's crossings, opposite side (follow)",
+      "grid": {
+        "M": [
+          5,
+          15,
+          30
+        ],
+        "k": [
+          2.0,
+          3.0
+        ]
+      }
+    },
+    "F07_volume_spike_follow": {
+      "rule": "volume_t >= k x median volume of the same minute of day over the previous 20 sessions and close_t != open_t: trade in the bar's direction",
+      "grid": {
+        "k": [
+          3.0,
+          5.0
+        ]
+      }
+    },
+    "F08_volume_spike_fade": {
+      "rule": "F07's condition, against the bar's direction",
+      "grid": {
+        "k": [
+          3.0,
+          5.0
+        ]
+      }
+    },
+    "F09_opening_range_multi": {
+      "rule": "opening range = high/low of the first R minutes; long on every cross of close above the range high, short on every cross below the range low, after the range is complete",
+      "grid": {
+        "R": [
+          15,
+          30
+        ]
+      }
+    },
+    "F10_day_extreme_reject": {
+      "rule": "bar t-1 set a new session high (high_(t-1) above every earlier high of the session) and close_t < open_t and close_t < close_(t-1): short; symmetric at a new session low: long",
+      "grid": {}
+    },
+    "F11_rsi_fade": {
+      "rule": "Wilder RSI over 14 bars of the session series (restarts each session); long on cross below lo, short on cross above hi",
+      "grid": {
+        "lo_hi": [
+          [
+            20,
+            80
+          ],
+          [
+            25,
+            75
+          ],
+          [
+            30,
+            70
+          ]
+        ]
+      }
+    },
+    "F12_bollinger_fade": {
+      "rule": "mid = mean of the last 20 closes (same session), band = mid +/- k x sd; short on cross of close above the upper band, long on cross below the lower band",
+      "grid": {
+        "k": [
+          2.0,
+          2.5
+        ]
+      }
+    },
+    "F13_bollinger_follow": {
+      "rule": "F12's crossings, opposite side (follow)",
+      "grid": {
+        "k": [
+          2.0,
+          2.5
+        ]
+      }
+    },
+    "F14_wdo_lead": {
+      "rule": "WDO$N on the same bar times: R_wdo = WDO close_t / close_(t - M) - 1; s = mean |R_wdo| over the previous 20 sessions; dollar up hard -> WIN short on cross R_wdo >= k s; dollar down hard -> WIN long on cross R_wdo <= -k s",
+      "grid": {
+        "M": [
+          5,
+          15
+        ],
+        "k": [
+          2.0,
+          3.0
+        ]
+      }
+    },
+    "F15_day_trend_follow": {
+      "rule": "at bars closing on :00 or :30, r = close / session open - 1; s = mean |r| at the same minute of day over the previous 20 sessions; long if r >= k s, short if r <= -k s",
+      "grid": {
+        "k": [
+          1.0,
+          1.5
+        ]
+      }
+    },
+    "F16_ema_cross_follow": {
+      "rule": "EMAs of the session closes (restart each session) with spans fast/slow in bars; long on cross fast above slow, short on cross below",
+      "grid": {
+        "fast_slow": [
+          [
+            9,
+            21
+          ],
+          [
+            20,
+            50
+          ]
+        ]
+      }
+    }
   },
   "variants": "46 signal settings x 2 timeframes x 6 exits = 552 variants on exploration (all counted as trials)",
   "gate_search": {
@@ -56,10 +233,40 @@
   "path_b": {
     "base_selection": "from path A: variants with >= 1000 trades a year on exploration, ranked by mean gross return per trade (base); the top 3 from distinct families become the base signals (fixed rule, applied once after A).",
     "label": "the trade's net return in the CONSERVATIVE scenario > 0",
-    "features": ["minute_of_day", "weekday", "signal side (+1/-1)", "return of the signal bar", "return since the session open", "return over the last 15 and 60 minutes", "realized volatility of the last 30 minutes", "volume / median volume at the same minute over 20 sessions", "distance to the session VWAP", "distance to the session high and low", "previous session return", "opening gap", "WDO return over the last 15 minutes and since its open", "FOMC/CPI/NFP day flags (b3/events.py)"],
-    "model": {"library": "lightgbm 4.7.0", "objective": "binary", "num_leaves": 15, "n_estimators": 200, "learning_rate": 0.05, "min_child_samples": 100, "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8, "random_state": 1},
+    "features": [
+      "minute_of_day",
+      "weekday",
+      "signal side (+1/-1)",
+      "return of the signal bar",
+      "return since the session open",
+      "return over the last 15 and 60 minutes",
+      "realized volatility of the last 30 minutes",
+      "volume / median volume at the same minute over 20 sessions",
+      "distance to the session VWAP",
+      "distance to the session high and low",
+      "previous session return",
+      "opening gap",
+      "WDO return over the last 15 minutes and since its open",
+      "FOMC/CPI/NFP day flags (b3/events.py)"
+    ],
+    "model": {
+      "library": "lightgbm 4.7.0",
+      "objective": "binary",
+      "num_leaves": 15,
+      "n_estimators": 200,
+      "learning_rate": 0.05,
+      "min_child_samples": 100,
+      "subsample": 0.8,
+      "subsample_freq": 1,
+      "colsample_bytree": 0.8,
+      "random_state": 1
+    },
     "walk_forward": "folds = calendar quarters of exploration; each quarter is predicted by a model trained on every base trade that EXITED before the quarter starts; the first 12 months are training only (predictions from 2022-11 on).",
-    "thresholds": [0.5, 0.55, 0.6],
+    "thresholds": [
+      0.5,
+      0.55,
+      0.6
+    ],
     "_thresholds": "trade only base signals with predicted probability >= threshold; 3 thresholds x 3 bases = 9 variants, counted as trials with A's.",
     "gate": "gate_search on the predicted period only (>= 500 trades a year annualized over it)."
   },
@@ -69,5 +276,22 @@
     "pass": "net base > 0 and net conservative > 0, >= 500 trades a year, probabilistic Sharpe vs 0 (lab/stats.py) >= 0.9",
     "then": "a validation pass becomes a candidate for the Clear demo; nothing goes to real money without the final test, which stays locked."
   },
-  "fidelity": "before reading any result, 3 variants run through the official engine (b3/backtest.py) must give the same trades as the fast simulator (>= 99% identical entries and exits) on exploration; trades only, compared by time and price, before any return is looked at."
+  "fidelity": "before reading any result, 3 variants run through the official engine (b3/backtest.py) must give the same trades as the fast simulator (>= 99% identical entries and exits) on exploration; trades only, compared by time and price, before any return is looked at.",
+  "cost_reevaluation": {
+    "_owner": "Owner 2026-11-16, lever 1 of docs/plano-busca-padroes-b3.md section 7: 'comece pela 1' (measure the real execution cost). Added AFTER stages A and B were read and BEFORE this re-evaluation; the costs come from research/b3/execution_cost.json (WINZ26 ticks 2026-10-15..11-13, execution only, no strategy signal), not from any strategy result.",
+    "measured": {
+      "fees_per_side_brl": 0.25,
+      "slippage_ticks_per_side": 0.4,
+      "stop_extra_ticks": 0.0,
+      "_why": "market orders paid 0.39 tick per side against the bar open on average; stops filled at the level (mean -0.7 tick, p95 0), so they pay only the side's slippage"
+    },
+    "measured_p90": {
+      "fees_per_side_brl": 0.5,
+      "slippage_ticks_per_side": 1.0,
+      "stop_extra_ticks": 0.0,
+      "_why": "the 90th percentile of the market-order slippage (1 tick) and the conservative fees"
+    },
+    "gate": "gate_search with base -> measured and conservative -> measured_p90; same 552 variants of stage A (no new signal or exit), so n_trials for the deflated Sharpe stays 561; the program PBO is recomputed on the measured returns.",
+    "limit_orders": "not used: at the touch they filled 86-92% within 15-60 s but did 0.1-0.25 tick WORSE than a market order 15-30 minutes later (adverse selection)."
+  }
 }
