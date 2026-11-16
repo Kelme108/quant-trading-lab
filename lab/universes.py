@@ -23,7 +23,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zoneinfo import ZoneInfo
+
 ROOT = Path(__file__).resolve().parents[1]
+SP = ZoneInfo("America/Sao_Paulo")
 WALLET = 100.0
 DECISION = {"passed": "candidate_for_portfolio", "rejected": "rejected", "inconclusive": "inconclusive"}
 RESULT_NAME = re.compile(r"^(?P<rule>[PC]-[A-Za-z0-9_]+?)-(?P<symbol>[A-Z0-9]+)-(?P<split>exploration|validation|final_test)-(?P<at>\d{4}-\d{2}-\d{2}T\d{6})$")
@@ -174,6 +177,8 @@ def build_universe(uid: str, root: Path = ROOT, with_index: bool = True) -> dict
     u = UNIVERSES[uid]
     lane_dir = root / u.lane_dir
     reads = _latest_reads(lane_dir)
+    scope = _read(root / "b3" / "config" / ("scope_b3.json" if uid == "b3" else "scope_proxies.json")) or {}
+    allowed_tf = {f"{m}m" for m in scope.get("timeframes_min", [])}
     hyps: dict[str, dict] = {}
     run_trades: dict[str, list[dict]] = {}
     experiments = []
@@ -181,6 +186,8 @@ def build_universe(uid: str, root: Path = ROOT, with_index: bool = True) -> dict
     for (rule, symbol, split), (res, f) in sorted(reads.items()):
         if split == "final_test":
             continue          # the locked split never reaches the Resultados pages (P-003 proxies: Índices section)
+        if allowed_tf and _describe(rule, res.get("strategy", ""), root)[1] not in allowed_tf:
+            continue          # owner 2026-11-16: only 1/5/15-minute rules on the pages (1h/4h reads stay in the ledger)
         tl = _trades_for(lane_dir, f.stem)
         if tl is None:
             continue
@@ -270,9 +277,22 @@ def summaries(root: Path = ROOT) -> dict:
     return out
 
 
-def trades_payload(experiment_id: str, root: Path = ROOT) -> tuple[int, dict]:
-    """GET /api/trades?experiment=<uid>.<result stem>: the same shape as the crypto chart page reads, with the Clear
-    (B3) or MetaQuotes (proxies) candles around the trades."""
+CHART_TIMEFRAMES = ("1m", "5m", "15m")      # owner 2026-11-16: charts on 1, 5 and 15 minutes, 1 and 5 first
+
+
+def default_timeframe(rule_tf: str | None) -> str:
+    """The chart opens on the rule's own clock when it is 1 or 5 minutes, else on 5 minutes."""
+    return rule_tf if rule_tf in ("1m", "5m") else "5m"
+
+
+def _session_day(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).astimezone(SP).date().isoformat()
+
+
+def trades_payload(experiment_id: str, root: Path = ROOT, tf: str | None = None, day: str | None = None) -> tuple[int, dict]:
+    """GET /api/trades?experiment=<uid>.<result stem>[&tf=1m|5m|15m][&day=YYYY-MM-DD]: the same shape as the crypto
+    chart page reads. Candles are ONE session (Sao Paulo day) on the chosen timeframe: by default the day of the last
+    trade; `days` lists every session with a trade so the page can move between them."""
     uid, _, stem = experiment_id.partition(".")
     if uid not in UNIVERSES or not RESULT_NAME.match(stem):
         return 404, {"error": "unknown experiment"}
@@ -285,13 +305,17 @@ def trades_payload(experiment_id: str, root: Path = ROOT) -> tuple[int, dict]:
     symbol = res["symbol"]
     trades = []
     for i, t in enumerate(_trade_dicts(tl.get("rows", []), tl.get("columns", []), symbol)):
-        trades.append({"open_ts": t["open_timestamp"], "close_ts": t["close_timestamp"], "n": i + 1,
+        trades.append({"open_ts": t["open_timestamp"], "close_ts": t["close_timestamp"], "n": i + 1, "unit": u.unit,
                        **{k: t.get(k) for k in ("pair", "open_rate", "close_rate", "profit_ratio", "profit_abs",
                                                 "stake_amount", "exit_reason", "enter_tag", "trade_duration")}})
+    rule_tf = _rule_timeframe(res)
+    timeframe = tf if tf in CHART_TIMEFRAMES else default_timeframe(rule_tf)
+    days = sorted({_session_day(t["open_ts"]) for t in trades})
+    if day not in days:
+        day = days[-1] if days else None
     candles: list | str = []
-    timeframe = "15m"
-    if trades:
-        candles = _candles(uid, symbol, trades[0]["open_ts"], trades[-1]["close_ts"], root)
+    if day:
+        candles = _candles(uid, symbol, timeframe, day, root)
     stats = {"total_trades": len(trades), "timeframe": timeframe, "starting_balance": WALLET,
              "backtest_start": res.get("start_utc"), "backtest_end": res.get("end_utc"),
              "profit_total_abs": sum(t["profit_abs"] for t in trades)}
@@ -299,25 +323,47 @@ def trades_payload(experiment_id: str, root: Path = ROOT) -> tuple[int, dict]:
                  "origin": "simulated", "stats": stats, "trades": trades,
                  "candles": candles if isinstance(candles, list) else [],
                  "candles_error": candles if isinstance(candles, str) else None,
+                 "timeframe": timeframe, "timeframes": list(CHART_TIMEFRAMES), "rule_timeframe": rule_tf,
+                 "day": day, "days": days,
                  "unit_note": f"Resultados em % do valor de {u.unit}; preços em pontos do {symbol}."}
 
 
-MAX_CANDLES = 20000
+def _rule_timeframe(res: dict) -> str | None:
+    m = re.search(r"(\d+)m\b", str(res.get("strategy", "")))
+    if res.get("rule", "").startswith("C-"):
+        return None                      # a crypto strategy: its signal clock is in its own file (15m and up)
+    return f"{m.group(1)}m" if m and m.group(1) in ("1", "5", "15") else "5m"
 
 
-def _candles(uid: str, symbol: str, start_ms: int, end_ms: int, root: Path) -> list | str:
-    try:
-        import pandas as pd
+_BARS: dict = {}
+
+
+def _bars(uid: str, symbol: str, tf: str, root: Path):
+    """Whole history of one symbol and timeframe, cached (a 1-minute file is ~700k bars)."""
+    key = (uid, symbol, tf, str(root))
+    if key not in _BARS:
         if uid == "b3":
             from b3 import b3_data
-            df = b3_data.load_b3_bars(symbol, "15m", root / "user_data" / "data" / "b3" / "clear")
+            _BARS[key] = b3_data.load_b3_bars(symbol, tf, root / "user_data" / "data" / "b3" / "clear")
         else:
             from b3.markets import load_bars
-            df = load_bars(symbol, "15m" if (root / "user_data" / "data" / "mt5" / "MetaQuotes-Demo" / f"{symbol}-15m.npy").is_file() else "5m")
+            if tf == "15m":            # the MetaQuotes export has 1m and 5m: 15m is built from 5m
+                b = load_bars(symbol, "5m").set_index("time")
+                df = b.resample("15min", label="left", closed="left").agg(
+                    {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna().reset_index()
+                _BARS[key] = df
+            else:
+                _BARS[key] = load_bars(symbol, tf)
+    return _BARS[key]
+
+
+def _candles(uid: str, symbol: str, tf: str, day: str, root: Path) -> list | str:
+    try:
+        import pandas as pd
+        df = _bars(uid, symbol, tf, root)
         t = pd.to_datetime(df["time"], utc=True)
-        lo, hi = pd.Timestamp(start_ms, unit="ms", tz="UTC") - pd.Timedelta(days=1), pd.Timestamp(end_ms, unit="ms", tz="UTC") + pd.Timedelta(days=1)
-        keep = (t >= lo) & (t <= hi)
-        df, t = df[keep].tail(MAX_CANDLES), t[keep].tail(MAX_CANDLES)
+        keep = (t.dt.tz_convert(SP).dt.date.astype(str) == day).to_numpy()
+        df, t = df[keep], t[keep]
         secs = (t - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)
         return [[int(s), float(o), float(h), float(lw), float(c), float(v)]
                 for s, o, h, lw, c, v in zip(secs, df["open"], df["high"], df["low"], df["close"], df["volume"])]

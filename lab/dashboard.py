@@ -1240,7 +1240,13 @@ class _Handler(BaseHTTPRequestHandler):
                 if raw.split(".", 1)[0] in UNIVERSE_IDS and "." in raw:      # b3.<read> / proxies.<read>
                     from lab import universes
 
-                    status, body = universes.trades_payload(raw, ROOT)
+                    q = parse_qs(query)
+                    tf = q.get("tf", [""])[0]
+                    day = q.get("day", [""])[0]
+                    if (tf and tf not in universes.CHART_TIMEFRAMES) or (day and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)):
+                        self._send(400, b'{"error": "bad tf or day"}', "application/json; charset=utf-8")
+                        return
+                    status, body = universes.trades_payload(raw, ROOT, tf or None, day or None)
                     self._send(status, _embed(universes_clean(body)).encode("utf-8"), "application/json; charset=utf-8")
                     return
                 status, body = self.server.trades(raw)

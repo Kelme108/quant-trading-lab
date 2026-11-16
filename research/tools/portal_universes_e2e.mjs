@@ -68,6 +68,12 @@ for (const u of ['b3', 'proxies']) {
   const exp = (U[u].experiments.items || [])[0];
   await go(`#/${u}-chart/${encodeURIComponent(exp.id)}`);
   check(`${u}: candle chart with trades`, await waitFor(`!!document.querySelector('#page svg') && /Opera/.test(document.querySelector('#page').textContent) && !document.querySelector('#page .loading')`, 90000), exp.id);
+  check(`${u}: chart offers 1, 5 and 15 minutes`, await waitFor(`['1m','5m','15m'].every((t) => !!document.querySelector('[data-fkey="seg:tr-tf:' + t + '"]'))`, 60000));
+  await js(`document.querySelector('[data-fkey="seg:tr-tf:1m"]').click()`);
+  check(`${u}: 1-minute session chart`, await waitFor(`document.querySelector('[data-fkey="seg:tr-tf:1m"]') && document.querySelector('[data-fkey="seg:tr-tf:1m"]').getAttribute('aria-pressed') === 'true' && !!document.querySelector('#page .trchart canvas')`, 60000));
+  const day0 = await js(`(document.querySelector('[data-fkey="sel:tr-day"]') || {}).value || ''`);
+  await js(`(document.querySelector('[data-fkey="tr-prev"]') || {click(){}}).click()`);
+  check(`${u}: previous session loads`, await waitFor(`((document.querySelector('[data-fkey="sel:tr-day"]') || {}).value || '') !== ${JSON.stringify(day0)} && !!document.querySelector('#page .trchart canvas')`, 60000), day0);
   await setWidth(390); await go(`#/${u}-leaderboard`); await loaded(); await sleep(600);
   check(`${u}: no horizontal scroll at 390 px`, await noHScroll());
   await setWidth(1600);

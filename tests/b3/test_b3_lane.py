@@ -247,3 +247,14 @@ def test_synthetic_sessions_sit_on_the_contract_grid():
     assert ((f["close"] / 5.0).round() * 5.0 == f["close"]).all() and f["close"].iloc[0] > 100_000
     g = pipe.synthetic_sessions("WDO", days=3)
     assert ((g["close"] / 0.5).round() * 0.5 == g["close"]).all()
+
+
+def test_the_b3_scope_allows_only_1_5_and_15_minute_signals():
+    scope = json.loads(pr.B3_SCOPE_PATH.read_text(encoding="utf-8"))
+    assert scope["timeframes_min"] == [1, 5, 15] and scope["focus_timeframes_min"] == [1, 5]
+    for tf in (1, 5, 15):
+        pr.check_scope("WIN", tf, scope)
+    with pytest.raises(pr.OutOfScope):
+        pr.check_scope("WIN", 60, scope)
+    hourly = type("H", (), {"params": {"strategy_timeframe": "1h"}, "timeframe_min": 5})
+    assert pr.signal_timeframe_min(hourly) == 60          # a ported crypto strategy is judged by its own candles

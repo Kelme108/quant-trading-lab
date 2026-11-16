@@ -30,6 +30,7 @@ Write exactly one file, the output path from the prompt (`research/b3/proposals/
 - `data_visible_at_proposal`: what you looked at (files and pages).
 
 ## Rules
+- Owner (2026-11-16): only 1, 5 and 15-minute rules; the FOCUS is 1 and 5 minutes. Propose a 1- or 5-minute entry clock unless the signal truly needs 15 minutes, and say why.
 - The contract: WIN tick 5 points (BRL 1 per contract), WDO tick 0.5 point (BRL 5). The continuous series is by liquidity without adjustment; rolls happen between sessions (WIN every two months, WDO monthly), so a rule whose indicators span sessions must say so.
 - Never repeat a mechanism of the context table under a new name: P-001..P-011 were opening-range breakouts, first/last half-hour momentum, noise-area momentum, VWAP trend, rest-of-day momentum, large-open fades, month-end flows and round-number fades, conditioned or not. Variations of public intraday momentum are on the "do not" list.
 - Fix every number before any test, from the source or a round value with a stated reason. Never choose a parameter for its results; you cannot see validation or final-test results and must not look for them.

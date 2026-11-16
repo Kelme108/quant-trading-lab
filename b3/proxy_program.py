@@ -227,8 +227,9 @@ Exploration facts for WIN and WDO (research/b3/anatomy.json, data_quality.json; 
 - The 11 proxy rules P-001..P-011, re-read on WIN and WDO (table below), made at most ~0.03% gross per trade; P-004
   (rest-of-day momentum, last half hour) passed WIN exploration and did not repeat on validation. WDO lost on
   almost every rule.
-- 126 crypto strategies (Freqtrade, long only, built for 24-hour markets) were screened on both contracts
-  (research/b3/crypto_screen.json, exploration only).
+- The 47 crypto strategies on 15-minute candles (Freqtrade, long only, built for 24-hour markets) were screened on
+  both contracts (research/b3/crypto_screen.json, exploration only): 56 of 94 reads made no trade at all, none passed
+  the gates. Owner 2026-11-16: only 1, 5 and 15-minute rules, focus on 1 and 5 minutes.
 - 1-minute bars exist for the whole period (scope allows a 1-minute entry clock).
 """
 

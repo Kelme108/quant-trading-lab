@@ -75,6 +75,17 @@ def check_scope(symbol: str, timeframe_min: int, scope: dict) -> None:
         raise OutOfScope(f"{symbol}: {why} (b3/config/scope_*.json)")
     if timeframe_min < scope["min_timeframe_min"]:
         raise OutOfScope(f"{timeframe_min}-minute bars: below the scope's minimum of {scope['min_timeframe_min']} minutes")
+    allowed = scope.get("timeframes_min")
+    if allowed and timeframe_min not in allowed:
+        raise OutOfScope(f"{timeframe_min}-minute signals: the scope allows only {allowed} minutes")
+
+
+def signal_timeframe_min(rule) -> int:
+    """The timeframe the rule's SIGNAL is computed on: its own bars, or a ported crypto strategy's candles."""
+    tf = (getattr(rule, "params", None) or {}).get("strategy_timeframe")
+    if tf:
+        return int(tf[:-1]) * {"m": 1, "h": 60, "d": 1440}[tf[-1]]
+    return rule.timeframe_min
 
 
 def _approved(path: Path) -> dict:
@@ -230,7 +241,7 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
     mkt = market(symbol)
     rule = rule_class(rule_id).on(mkt.symbol)
     if enforce_scope:
-        check_scope(mkt.symbol, rule.timeframe_min, scope)
+        check_scope(mkt.symbol, signal_timeframe_min(rule), scope)
     start, end = split_window(mkt.symbol, split, splits, rule_id)
     if isinstance(mkt, B3Market):
         bars, cal, skipped, extra = _prepare_b3(mkt, rule, start, end, scope, data_dir)

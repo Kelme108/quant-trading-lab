@@ -119,3 +119,21 @@ F0 (você: Máx. barras + escolha da divisão)
 ```
 
 Nenhum retorno de WIN ou WDO é olhado antes da sua aprovação da divisão (D1).
+
+## Entregue em 16/11/2026
+
+Você aprovou todas as recomendações (D1 a D6) depois de liberar o "Máx. barras" no MT5 da Clear.
+
+| Fase | O que ficou pronto | Onde |
+|---|---|---|
+| F0 | 1 e 5 min re-medidos: agora vão até 16/11/2021. Cenário A aprovado e trancado | `b3/config/splits_b3.json`, `research/b3/data_quality.json` |
+| F1 | WIN e WDO no executor, com registro, régua e critérios próprios. Calendário histórico (horários inferidos das barras, feriados inferidos até 2025) e dias de rolagem achados pela série ajustada (30 no WIN, 60 no WDO). O stop paga 1 tick a mais | `b3/b3_data.py`, `b3/markets.py`, `b3/proxy_research.py`, `b3/config/gates_b3.json`, `scope_b3.json` |
+| F2 | Adaptador que roda o código das estratégias do Freqtrade no motor da B3: 126 portáveis, 12 de fora. Fidelidade em BTC contra os backtests do próprio Freqtrade: 4 estratégias com 100% das operações iguais e 2 com 96% a 99,9% | `b3/freqtrade_adapter.py`, `b3/ftshim/`, `research/b3/adapter_fidelity.json` |
+| F3 | Triagem registrada antes de qualquer leitura; depois, Sharpe deflacionado e PBO para as 10 melhores e uma única leitura da validação para quem passar | `b3/config/crypto_screen_b3.json`, `research/b3/crypto_screen.json`, `screen_followup.json` |
+| F4 | Menu com **Cripto**, **B3: WIN e WDO** e **Substitutos**, cada um com Início, Ranking, Operações, Comparar, relatório da estratégia e gráfico de candles com as operações. Abas no topo trocam de universo | `lab/universes.py`, `lab/dashboard_assets/universes.js` |
+| F5 | Agentes apontados para WIN e WDO, com os mesmos limites (3 regras por semana; parada após 15 sem validação ou em 16/12). Programa dos substitutos encerrado | `b3/config/b3_program.json`, `b3/proxy_pipeline.py` |
+| F6 | Ainda não: nenhuma regra passou na validação, e o robô ao vivo ainda não faz venda a descoberto nem stop móvel | — |
+
+**Primeiras leituras na B3 (exploração):** as 11 regras dos substitutos (P-001 a P-011) foram lidas no WIN e no WDO, 20 leituras. Só o P-004 passou, no WIN, e reprovou na leitura única da validação: −1,13% contra uma régua de 2,9%. O WDO perdeu em quase todas: o tick de meio ponto custa caro, e a ida e volta sai a 0,0235% contra 0,011% no WIN.
+
+**Para ver no portal:** pare e rode de novo `python -m lab.dashboard serve`, e abra a seção "B3: WIN e WDO" no menu.
