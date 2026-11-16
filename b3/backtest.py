@@ -11,7 +11,11 @@ Replay model (one step at the close of every bar k, time `now = open_k + timefra
    otherwise -> optional account loss limits (day / week, realised + unrealised at the last close,
    as in Engine._check_lockouts), then the strategy's decision on bar k:
      exit with a position -> close at the execution price;
-     enter / enter_short while flat -> risk checks as live/core/risk.py, then open.
+     enter / enter_short while flat -> risk checks as live/core/risk.py, then open;
+     hold WITH a stop_price while in a position -> move the stop there (on the grid and on the right side of the
+     last close, else vetoed "stop_move_rejected"). RESEARCH ONLY (the crypto-strategy adapter's custom_stoploss,
+     b3/freqtrade_adapter.py): the live engine does not move stops yet, so no rule that moves stops reaches a demo
+     before that is implemented and parity-tested.
    Execution price = open of the bar that starts exactly at `now` (or the last close if none does),
    moved against the order by `slippage_ticks_per_side` ticks.
 Costs: cash cost per contract per side (fees + brokerage, plus `notional_frac_per_side` of the fill's
@@ -34,7 +38,7 @@ import pandas as pd
 
 from b3.costs import B3Cost
 from b3.instruments import Instrument
-from b3.strategy import ENTER_LONG, ENTER_SHORT, EXIT, B3Strategy
+from b3.strategy import ENTER_LONG, ENTER_SHORT, EXIT, HOLD, B3Strategy
 from live.core.models import Position
 
 
@@ -77,6 +81,7 @@ class BacktestResult:
     fills: list[dict] = field(default_factory=list)      # journal-like, for the parity test
     vetoes: Counter = field(default_factory=Counter)
     positions_held_overnight: int = 0
+    stop_moves: int = 0
 
     def trades_frame(self) -> pd.DataFrame:
         return pd.DataFrame([asdict(t) for t in self.trades])
@@ -198,6 +203,13 @@ def run(frame: pd.DataFrame, strategy: B3Strategy, cost: B3Cost,
 
         if sig.action == EXIT and pos is not None:
             close(now, exec_price(now, k, "sell" if pos.side == "long" else "buy"), sig.reason)
+        elif sig.action == HOLD and pos is not None and sig.stop_price is not None and sig.stop_price != pos.stop:
+            right_side = (sig.stop_price < row.close) if pos.side == "long" else (sig.stop_price > row.close)
+            if _on_grid(sig.stop_price, tick) and right_side:
+                pos.stop = sig.stop_price
+                res.stop_moves += 1
+            else:
+                res.vetoes["stop_move_rejected"] += 1
         elif sig.action in (ENTER_LONG, ENTER_SHORT) and pos is None:
             side = "long" if sig.action == ENTER_LONG else "short"
             why = []

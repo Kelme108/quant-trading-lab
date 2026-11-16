@@ -96,6 +96,14 @@ class B3HistoryCalendar(B3SessionCalendar):
     def is_trading_day(self, d: date) -> bool:
         return d not in self.skip and super().is_trading_day(d)
 
+    def session(self, d: date):
+        """A late-open day (Ash Wednesday 13:00) where the rule's windows do not fit takes no session."""
+        try:
+            return super().session(d)
+        except ValueError:
+            self._cache[d] = None
+            return None
+
 
 def holidays_for(bars: pd.DataFrame) -> Holidays:
     """Official years from holidays.json; every other year of the bars inferred (weekdays with no bar)."""

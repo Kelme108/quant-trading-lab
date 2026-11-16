@@ -201,6 +201,17 @@ def trade_rows(trades: pd.DataFrame) -> list[list]:
     return out
 
 
+def rule_class(rule_id: str):
+    """A registered rule (P-NNN), or a crypto strategy run by the adapter (C-<Freqtrade class name>)."""
+    if rule_id in RULES:
+        return RULES[rule_id]
+    if rule_id.startswith("C-"):
+        from b3 import freqtrade_adapter
+        RULES[rule_id] = freqtrade_adapter.make_rule(rule_id[2:])
+        return RULES[rule_id]
+    raise KeyError(f"unknown rule {rule_id!r}")
+
+
 def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = None, record: bool = True,
              enforce_scope: bool = True, family: str | None = None) -> dict:
     """`record=False` is a diagnostic re-run: no ledger row, no result file, and (with enforce_scope=False)
@@ -217,7 +228,7 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
             r["rule"] == rule_id and r["symbol"] == symbol and r["split"] == split for r in ledger):
         raise AlreadyRead(f"{rule_id} on {symbol}: {split} was already read; it is read once")
     mkt = market(symbol)
-    rule = RULES[rule_id].on(mkt.symbol)
+    rule = rule_class(rule_id).on(mkt.symbol)
     if enforce_scope:
         check_scope(mkt.symbol, rule.timeframe_min, scope)
     start, end = split_window(mkt.symbol, split, splits, rule_id)
@@ -327,7 +338,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
-    r.add_argument("rule", choices=sorted(RULES))
+    r.add_argument("rule", help="P-NNN (b3/proxy_rules) or C-<FreqtradeStrategy> (b3/freqtrade_adapter.py)")
     r.add_argument("--symbols", required=True)
     r.add_argument("--split", default="exploration", choices=["exploration", "validation", "final_test"])
     a = ap.parse_args(argv)
