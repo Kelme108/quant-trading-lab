@@ -1,4 +1,7 @@
-"""Agent pipeline for the proxy markets (plan item 4 of research/reviews/2026-11-14-veredito-1m-5m.md).
+"""Agent pipeline (plan item 4 of research/reviews/2026-11-14-veredito-1m-5m.md), on the ACTIVE lane of
+b3/proxy_program.py: WIN/WDO ("b3", b3/config/b3_program.json) since 2026-11-16 (owner decision D5 a of
+docs/plano-b3-reuso.md); the proxy markets before. Every path below is the lane's own (proposals, context, results,
+ledger, scope); the log, the pause file and the rule registry b3/proxy_rules/ are shared.
 
 One cycle = one new rule:
  1. b3/proxy_program.py status: the weekly cap (3), the 15-rules-without-validation stop and the project stop;
@@ -95,7 +98,8 @@ def synthetic_sessions(symbol: str, days: int = 45, seed: int = 3, tf: int = 5):
     from b3.markets import market
     m = market(symbol)
     rng = random.Random(seed)
-    d, rows, prev, step = date(2026, 1, 5), [], 5000.0, 0.5
+    start, step = {"WIN": (120_000.0, 5.0), "WDO": (5_500.0, 0.5)}.get(m.symbol, (5000.0, 0.5))
+    d, rows, prev = date(2026, 1, 5), [], start
     n = 0
     while n < days:
         if d.weekday() < 5:
@@ -124,7 +128,11 @@ def check_rule(rule_id: str) -> list[str]:
     problems = check_proxy_rule_source(files[0], rule_id)
     if problems or rule_id not in RULES:
         return problems or [f"{rule_id} is not in the registry"]
-    proposal = json.loads((prog.PROPOSALS / f"{rule_id}.json").read_text(encoding="utf-8"))
+    lane = prog.LANES[prog.active_lane()]
+    path = lane["proposals"] / f"{rule_id}.json"
+    if not path.exists():
+        path = prog.PROPOSALS / f"{rule_id}.json"
+    proposal = json.loads(path.read_text(encoding="utf-8"))
     rule = RULES[rule_id]
     if rule.timeframe_min != proposal["timeframe_min"]:
         problems.append(f"timeframe {rule.timeframe_min} differs from the proposal's {proposal['timeframe_min']}")
@@ -157,7 +165,10 @@ def after_error(error: Exception) -> None:
     """Unattended runs: mark an interrupted proposal (it read no data and does not count) and, after
     MAX_CONSECUTIVE_ERRORS errors in a row, create the pause file so a broken cycle never loops on agent spend."""
     rid = CURRENT.get("rule")
-    path = prog.PROPOSALS / f"{rid}.json" if rid else None
+    path = None
+    if rid:
+        path = next((d / f"{rid}.json" for d in (prog.LANES[prog.active_lane()]["proposals"], prog.PROPOSALS)
+                     if (d / f"{rid}.json").exists()), None)
     if path and path.exists():
         try:
             p = json.loads(path.read_text(encoding="utf-8"))
@@ -177,31 +188,35 @@ def after_error(error: Exception) -> None:
 
 
 def cycle() -> str:
-    cfg = prog.load_program()
+    lane_name = prog.active_lane()
+    lane = prog.LANES[lane_name]
+    cfg = prog.load_program(lane["program"])
+    tag = "b3" if lane_name == "b3" else "proxies"
     st = prog.status(program=cfg)
     if not st.can_register:
-        log("program_stop", reasons=st.reasons, notices=st.notices)
+        log("program_stop", lane=lane_name, reasons=st.reasons, notices=st.notices)
         return "stopped"
     rid = prog.next_rule_id()
     CURRENT["rule"] = rid
     ctx = prog.write_context(rid, st, cfg)
-    out = prog.PROPOSALS / f"{rid}.json"
+    lane["proposals"].mkdir(parents=True, exist_ok=True)
+    out = lane["proposals"] / f"{rid}.json"
     rel = lambda p: p.relative_to(ROOT).as_posix()  # noqa: E731
     before = changed_paths()
     a = cfg["agents"]
     run_agent("proxy-research", (
-        f"Rule id: {rid}\nContext file: {rel(ctx)}\nOutput path: {rel(out)}\n"
+        f"Lane: {lane_name}\nRule id: {rid}\nContext file: {rel(ctx)}\nOutput path: {rel(out)}\n"
         "Read the context file first. Write exactly one JSON file at the output path."), a["research_budget_usd"], a["timeout_s"])
     guard(before, {rel(out)}, "proxy-research")
     if not out.exists():
         raise CycleError(f"proxy-research wrote no {rel(out)}")
     p = json.loads(out.read_text(encoding="utf-8"))
-    scope = json.loads((ROOT / "b3/config/scope_proxies.json").read_text(encoding="utf-8"))
+    scope = json.loads(lane["scope"].read_text(encoding="utf-8"))
     problems = prog.validate_proposal(p, rid, cfg, scope["markets"])
     if problems:
         p |= {"status": "invalid", "problems": problems}
         out.write_text(json.dumps(p, indent=1), encoding="utf-8")
-        commit([rel(out), rel(ctx)], f"exp(proxies): {rid} proposal rejected by the format check")
+        commit([rel(out), rel(ctx)], f"exp({tag}): {rid} proposal rejected by the format check")
         log("proposal_invalid", rule=rid, problems=problems)
         return "invalid"
     p |= {"status": "registered", "registered_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}
@@ -223,28 +238,31 @@ def cycle() -> str:
         for f in (rule_file, test_file):          # never leave a failing rule in the registry
             if f.exists():
                 f.unlink()
-        commit([rel(out), rel(ctx)], f"exp(proxies): {rid} implementation failed the checks (rule not run)")
+        commit([rel(out), rel(ctx)], f"exp({tag}): {rid} implementation failed the checks (rule not run)")
         return "implementation_failed"
     commit([rel(out), rel(ctx), rel(rule_file), rel(test_file)],
-           f"exp(proxies): register {rid} {p['title'][:60]} ({', '.join(p['markets'])}, {p['timeframe_min']}m; agent proposal, ex ante)")
-    log("registered", rule=rid, markets=p["markets"], title=p["title"])
+           f"exp({tag}): register {rid} {p['title'][:60]} ({', '.join(p['markets'])}, {p['timeframe_min']}m; agent proposal, ex ante)")
+    log("registered", lane=lane_name, rule=rid, markets=p["markets"], title=p["title"])
 
-    before_results = set((ROOT / "research/proxies/results").glob("*.json"))
+    results_dir, trades_dir = lane["dir"] / "results", lane["dir"] / "trades"
+    before_results = set(results_dir.glob("*.json"))
     r = py("-m", "b3.proxy_research", "run", rid, "--symbols", ",".join(p["markets"]), "--split", "exploration")
     log("exploration", rule=rid, out=r.stdout[-2000:], err=r.stderr[-800:])
     if r.returncode != 0:
         raise CycleError(f"exploration of {rid} failed: {r.stderr[-500:]}")
-    passed = [row["symbol"] for row in prog.ledger_rows()
+    passed = [row["symbol"] for row in prog.ledger_rows(lane["ledger"])
               if row["rule"] == rid and row["split"] == "exploration" and row["decision"] == "passed"]
     if passed:
         v = py("-m", "b3.proxy_research", "run", rid, "--symbols", ",".join(passed), "--split", "validation")
         log("validation", rule=rid, out=v.stdout[-2000:], err=v.stderr[-800:])
-    py("-m", "b3.proxy_report")
-    new = sorted(set((ROOT / "research/proxies/results").glob("*.json")) - before_results)
-    new += [ROOT / "research/proxies/trades" / f.name for f in new if (ROOT / "research/proxies/trades" / f.name).exists()]
-    commit([rel(f) for f in new] + ["research/proxies/ledger.jsonl", "research/proxies/SCOREBOARD.md",
-                                    "research/proxies/scoreboard.json", rel(LOG)],
-           f"exp(proxies): {rid} exploration on {', '.join(p['markets'])}" + (f"; validation on {', '.join(passed)}" if passed else ""))
+    reports = []
+    if lane_name == "proxies":
+        py("-m", "b3.proxy_report")
+        reports = ["research/proxies/SCOREBOARD.md", "research/proxies/scoreboard.json"]
+    new = sorted(set(results_dir.glob("*.json")) - before_results)
+    new += [trades_dir / f.name for f in new if (trades_dir / f.name).exists()]
+    commit([rel(f) for f in new] + [rel(lane["ledger"]), *reports, rel(LOG)],
+           f"exp({tag}): {rid} exploration on {', '.join(p['markets'])}" + (f"; validation on {', '.join(passed)}" if passed else ""))
     return "done"
 
 
@@ -258,7 +276,8 @@ def main(argv=None) -> int:
     k.add_argument("rule")
     a = ap.parse_args(argv)
     if a.cmd == "status":
-        print(json.dumps(asdict(prog.status()), indent=1))
+        print(json.dumps({"lane": prog.active_lane()} | asdict(prog.status(program=prog.load_program(
+            prog.LANES[prog.active_lane()]["program"]))), indent=1))
         return 0
     if a.cmd == "check":
         problems = check_rule(a.rule)

@@ -1,0 +1,139 @@
+"""P-012 MiddaySellShockRebound - buy after a single 5-minute drop of 4x the trailing midday bar size, hold 60 minutes
+(US500; 5-minute bars, New York regular session only; long only).
+
+Rule, in words:
+- BAR RETURN: r_t = C_t / C_{t-1} - 1, C_{t-1} = close of the previous bar of the SAME session (undefined for
+  bar_in_day 0).
+- WINDOW BARS: bars that open at minute_of_day 630 to 865 inclusive (10:30 to 14:25 New York).
+- SCALE: S = mean of |r| over ALL window bars of the previous 20 sessions (pooled over their bars; today excluded;
+  every session present in the data counts, also the ones the day filter skips). No trade until 20 earlier sessions
+  exist.
+- DAY FILTER: skip the whole day when an FOMC statement, a CPI release or a payrolls (NFP) release is scheduled on it
+  (b3.events.mark_events), and skip half-day sessions (close before 16:00). Half days are not visible in the bars
+  until they have already ended, so the rule uses the announced NYSE/CME early-close calendar, which is known long in
+  advance and uses no price (`early_close_day` below): the day after Thanksgiving (4th Thursday of November + 1), 24
+  December and 3 July when that date is a Monday-Thursday. An unannounced early close is not detectable causally.
+- ENTRY: at the close of a window bar t, if r_t <= -4.0 * S AND r_t <= -0.0015, no position is open and no entry was
+  made earlier today -> ENTER_LONG; the market order fills at the open of bar t+1 (10:35 to 14:30). No short side.
+- STOP on every entry: tick_floor(C_t * (1 - 0.004)) = 0.4% below the signal bar close, on the price grid.
+- EXIT: time exit at the open of the 12th bar after the entry bar (the EXIT is decided at the close of the bar 12 bars
+  after the signal bar; hold 60 minutes, latest exit 15:30), or the stop, whichever comes first. No target; no
+  re-entry after a stop or an exit on the same day.
+- MAX ENTRIES PER DAY = 1, enforced by the rule itself: only the first qualifying bar of a session signals.
+  BacktestConfig(max_entries_per_day=...) is not needed.
+
+Entry window note: the proposal lists `entry_end_before_close_min` = 90 (the last FILL at 14:30, 90 minutes before the
+16:00 close) and, at the same time, decision bars up to the one opening at 14:25 inclusive (fill 14:30). The engine's
+entry phase is half-open, [open + 65 min, close - N min), and is evaluated at the fill time, so N = 90 would veto the
+14:25 bar; `rules` therefore uses N = 89 (phase open until 14:31) so that every stated decision bar (minutes 630..865)
+fills. `params` keeps the proposal's numbers (90 included). The decision-bar minutes are enforced by the rule itself.
+
+Lookbacks: previous bar close (1 bar) and 20 sessions of window bars for S. `warmup` = 1800 five-minute bars = 23
+sessions of 78 bars: 20 earlier sessions plus today's whole session (so the first-entry-of-the-day state is exact in
+the live window) plus margin.
+
+Source: Hendershott & Menkveld (2014), Price Pressures, JFE 114(3); Vlasiuk & Smirnov (2025), arXiv 2511.06177; Fung,
+Mok & Lam (2000), Journal of Banking & Finance; NY Fed Staff Report 917. Proposal: research/proxies/proposals/P-012.json.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+import numpy as np
+import pandas as pd
+
+from b3.calendar import SessionRules
+from b3.events import mark_events
+from b3.markets import ProxyStrategy
+from b3.strategy import ENTER_LONG, EXIT, HOLD, tick_floor
+from live.core.models import Signal
+
+RULE_ID = "P-012"
+
+
+def early_close_day(d: date) -> bool:
+    """True when the US equity-index session of `d` closes before 16:00 by the announced calendar: the day after
+    Thanksgiving, 24 December and 3 July when they fall on a Monday-Thursday. Calendar only, no price."""
+    if d.month == 11:
+        first = date(d.year, 11, 1)
+        thanksgiving = first + timedelta(days=(3 - first.weekday()) % 7 + 21)
+        return d == thanksgiving + timedelta(days=1)
+    if d.month == 12:
+        return d.day == 24 and d.weekday() < 4
+    if d.month == 7:
+        return d.day == 3 and d.weekday() < 4
+    return False
+
+
+class MiddaySellShockRebound(ProxyStrategy):
+    name = "P-012_midday_sell_shock_rebound"
+    timeframe_min = 5
+    warmup = 1800         # 20 earlier sessions of S + today's whole session, at up to 78 five-minute bars each
+    rules = SessionRules(entry_start_after_open_min=65, entry_end_before_close_min=89, flatten_before_close_min=5)
+    params = {
+        "window_first_bar_open_minute": 630,
+        "window_last_bar_open_minute": 865,
+        "scale_lookback_sessions": 20,
+        "shock_mult": 4.0,
+        "min_abs_shock_frac": 0.0015,
+        "stop_frac": 0.004,
+        "hold_bars": 12,
+        "max_hold_minutes": 60,
+        "entry_start_after_open_min": 65,
+        "entry_end_before_close_min": 90,
+        "max_entries_per_day": 1,
+        "skip_fomc_cpi_nfp_days": 1,
+        "flatten_before_close_min": 5,
+    }
+
+    def indicators(self, df):
+        p = self.params
+        df = mark_events(df, ["FOMC", "CPI", "NFP"], self.timeframe_min)
+        day = df["local_date"]
+
+        prev_close = df.groupby("local_date")["close"].shift(1)
+        df["bar_ret"] = df["close"] / prev_close - 1.0
+        in_window = (df["minute_of_day"] >= p["window_first_bar_open_minute"]) & \
+                    (df["minute_of_day"] <= p["window_last_bar_open_minute"])
+        abs_ret = df["bar_ret"].abs().where(in_window)
+
+        # S: pooled mean of |r| over the window bars of the 20 sessions before today (every session in the data counts)
+        order = list(dict.fromkeys(day))
+        sums = abs_ret.groupby(day).sum()
+        counts = abs_ret.groupby(day).count()
+        n = p["scale_lookback_sessions"]
+        scale = {}
+        for i, d in enumerate(order):
+            if i < n:
+                scale[d] = np.nan
+                continue
+            prior = order[i - n:i]
+            total = float(sum(counts[x] for x in prior))
+            scale[d] = float(sum(sums[x] for x in prior)) / total if total > 0 else np.nan
+        df["shock_scale"] = day.map(scale).astype(float)
+
+        half_day = {d: early_close_day(d) for d in order}
+        skip_day = df["FOMC_today"] | df["CPI_today"] | df["NFP_today"] | day.map(half_day).astype(bool)
+        df["day_skipped"] = skip_day.astype(bool)
+
+        shock = (df["bar_ret"] <= -p["shock_mult"] * df["shock_scale"]) & (df["bar_ret"] <= -p["min_abs_shock_frac"])
+        candidate = (in_window & shock & ~df["day_skipped"]).fillna(False).astype(bool)
+        # one entry per session: only the first candidate of the day signals
+        first = candidate & (candidate.astype(int).groupby(day).cumsum() == 1)
+        df["ss_entry"] = first.astype(bool)
+        # time exit: decided at the close of the bar `hold_bars` bars after the signal bar, same session
+        df["ss_exit"] = df["ss_entry"].groupby(day).shift(p["hold_bars"]).fillna(False).astype(bool)
+        return df
+
+    def decide(self, row, position):
+        if position is not None:
+            if row.ss_exit:
+                return Signal(EXIT, reason="time_exit_60min")
+            return Signal(HOLD)
+        if not row.ss_entry:
+            return Signal(HOLD)
+        stop = tick_floor(row.close * (1 - self.params["stop_frac"]), self.market.tick_size)
+        if stop >= row.close:
+            return Signal(HOLD)
+        return Signal(ENTER_LONG, stop_price=stop, reason="midday_sell_shock")

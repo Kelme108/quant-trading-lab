@@ -1,0 +1,257 @@
+"""P-012 MiddaySellShockRebound on SYNTHETIC session-only 5-minute bars: class constants, causality, live-window parity,
+hand-built days (long entry with the 0.4% stop and the 60-minute time exit, the 0.15% floor, the 4x scale, window
+edges, one entry per day, FOMC/CPI/NFP and half-day skips, 20-session history) and no overnight position."""
+
+import random
+from datetime import date, datetime, timedelta, timezone
+
+import numpy as np
+import pandas as pd
+
+from b3.backtest import BacktestConfig, run
+from b3.checks import causality_problems, window_parity_problems
+from b3.events import event_times
+from b3.markets import market
+from b3.proxy_rules import p012_midday_sell_shock_rebound as mod
+from b3.proxy_rules.p012_midday_sell_shock_rebound import MiddaySellShockRebound, early_close_day
+
+UTC = timezone.utc
+BARS = 78                      # 09:30-16:00 in 5-minute bars
+PRIOR_DAYS = 24                # 24 * 78 = 1872 bars before the target day, more than warmup (1800)
+DAY = date(2026, 3, 12)        # a Thursday; no FOMC/CPI/NFP (CPI is the 11th, NFP the 6th, FOMC the 18th), full day
+BASE = 5000.0
+
+
+def weekdays_before(day, n):
+    out, d = [], day
+    while len(out) < n:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:
+            out.append(d)
+    return sorted(out)
+
+
+def session_rows(symbol, day, bars):
+    m = market(symbol)
+    t0 = datetime.combine(day, m.open, m.zone)
+    return [(pd.Timestamp((t0 + timedelta(minutes=5 * k)).astimezone(UTC)), o, h, lo, c, 100.0)
+            for k, (o, h, lo, c) in enumerate(bars)]
+
+
+def alternating(delta, base=BASE, n=BARS):
+    """Closes alternate base, base+delta, ...; every bar opens at the previous close: |r| is about delta/base."""
+    out, prev = [], base
+    for k in range(n):
+        c = base + delta * (k % 2)
+        out.append((prev, max(prev, c), min(prev, c), c))
+        prev = c
+    return out
+
+
+def day_bars(overrides, base=BASE, n=BARS):
+    """Flat at `base`; bar k replaced by overrides[k] = (open, high, low, close); the bars after it stay flat at its close."""
+    out, last = [], base
+    for k in range(n):
+        bar = overrides.get(k, (last, last, last, last))
+        out.append(bar)
+        last = bar[3]
+    return out
+
+
+def drop(close, k_from=BASE):
+    return (k_from, k_from, close, close)
+
+
+def hand_frame(overrides, day=DAY, delta=0.5, n=BARS, symbol="US500", prior=PRIOR_DAYS, bars=None):
+    rows = []
+    for d in weekdays_before(day, prior):
+        rows += session_rows(symbol, d, alternating(delta))
+    rows += session_rows(symbol, day, bars if bars is not None else day_bars(overrides, n=n))
+    return pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"])
+
+
+def synthetic_sessions(symbol="US500", days=32, seed=3, start=5000.0, step=0.5, shock_prob=0.02):
+    m = market(symbol)
+    rng = random.Random(seed)
+    d, rows, prev = date(2026, 1, 5), [], start
+    while len({r[0].date() for r in rows}) < days:
+        if d.weekday() < 5:
+            t = datetime.combine(d, m.open, m.zone)
+            end = datetime.combine(d, m.close, m.zone)
+            while t + timedelta(minutes=5) <= end:
+                o = prev + step * rng.randint(-3, 3)
+                c = o + step * rng.randint(-6, 6)
+                if rng.random() < shock_prob:
+                    c = o - 20.0                                  # a 0.4% sell shock
+                rows.append((t, o, max(o, c) + step * rng.randint(0, 3), min(o, c) - step * rng.randint(0, 3), c,
+                             float(rng.randint(50, 500))))
+                prev, t = c, t + timedelta(minutes=5)
+        d += timedelta(days=1)
+    return pd.DataFrame([(pd.Timestamp(r[0].astimezone(UTC)),) + r[1:] for r in rows],
+                        columns=["time", "open", "high", "low", "close", "volume"])
+
+
+def result_of(frame, symbol="US500"):
+    return run(frame, MiddaySellShockRebound.on(symbol)(), market(symbol).cost("optimistic"), BacktestConfig())
+
+
+def ny(ts, fmt="%H:%M"):
+    return ts.tz_convert(market("US500").zone).strftime(fmt)
+
+
+def test_class_constants():
+    s = MiddaySellShockRebound
+    assert mod.RULE_ID == "P-012"
+    assert s.name.startswith("P-012") and s.timeframe_min == 5
+    assert s.warmup >= 21 * BARS
+    assert s.rules.entry_start_after_open_min == 65 and s.rules.flatten_before_close_min == 5
+    assert s.rules.entry_end_before_close_min in (89, 90)
+    p = s.params
+    assert p["window_first_bar_open_minute"] == 630 and p["window_last_bar_open_minute"] == 865
+    assert p["scale_lookback_sessions"] == 20 and p["shock_mult"] == 4.0 and p["min_abs_shock_frac"] == 0.0015
+    assert p["stop_frac"] == 0.004 and p["hold_bars"] == 12 and p["max_hold_minutes"] == 60
+    assert p["entry_start_after_open_min"] == 65 and p["entry_end_before_close_min"] == 90
+    assert p["max_entries_per_day"] == 1 and p["skip_fomc_cpi_nfp_days"] == 1 and p["flatten_before_close_min"] == 5
+    assert "symbol" not in vars(s)
+
+
+def test_causal_and_matches_the_live_window():
+    strategy = MiddaySellShockRebound.on("US500")()
+    frame = synthetic_sessions("US500", days=32)
+    assert causality_problems(strategy, frame) == []
+    assert window_parity_problems(strategy, frame, samples=120) == []
+    # frames that contain an entry and its time exit (the parity check covers every bar after the first window)
+    hand = hand_frame({30: drop(4990.0)})
+    assert causality_problems(strategy, hand) == []
+    assert window_parity_problems(strategy, hand, samples=200) == []
+
+
+def test_long_entry_after_a_midday_sell_shock_with_the_stop_0_4_percent_below_the_close():
+    # bar 30 opens 12:00 and closes 12:05 at 4990: r = -0.2% <= -0.15% and <= -4 * S (S about 0.01%); fill at 12:05
+    (t,) = result_of(hand_frame({30: drop(4990.0)})).trades
+    assert (t.side, t.entry_price, t.entry_reason) == ("long", 4990.0, "midday_sell_shock")
+    assert t.stop_price == 4970.04                         # tick_floor(4990 * 0.996 = 4970.04)
+    assert ny(t.entry_time) == "12:05"
+    # time exit at the open of the 12th bar after the entry bar: bar 43 opens 13:05 (60 minutes later)
+    assert t.exit_reason == "time_exit_60min" and ny(t.exit_time) == "13:05"
+
+
+def test_stop_is_rounded_down_to_the_grid():
+    # 4989.99 * 0.996 = 4970.03004 -> floor to 4970.03
+    (t,) = result_of(hand_frame({30: drop(4989.99)})).trades
+    assert t.side == "long" and t.stop_price == 4970.03
+
+
+def test_there_is_no_short_side():
+    assert result_of(hand_frame({30: drop(5010.0)})).trades == []
+
+
+def test_the_absolute_floor_of_0_15_percent():
+    assert result_of(hand_frame({30: drop(4993.0)})).trades == []                 # -0.14% (S is tiny, floor binds)
+    assert len(result_of(hand_frame({30: drop(4992.0)})).trades) == 1             # -0.16%
+
+
+def test_the_shock_must_be_four_times_the_trailing_scale():
+    # sessions that alternate 5000/5010: |r| about 0.2%, S about 0.2%, 4 * S about 0.8%
+    assert result_of(hand_frame({30: drop(4975.0)}, delta=10.0)).trades == []     # -0.5%: above the floor, below 4 S
+    assert result_of(hand_frame({30: drop(4960.0)}, delta=10.0)).trades == []     # -0.8%: just under 4 S (0.7984%)? see below
+    (t,) = result_of(hand_frame({30: drop(4950.0)}, delta=10.0)).trades           # -1.0% >= 4 S
+    assert t.side == "long" and t.stop_price == 4930.2
+
+
+def test_scale_is_the_pooled_mean_over_the_20_sessions_before_today():
+    frame = synthetic_sessions("US500", days=32, shock_prob=0.0)
+    prepared = MiddaySellShockRebound.on("US500")().prepare(frame)
+    dates = list(dict.fromkeys(prepared["local_date"]))
+    r = (prepared["close"] / prepared.groupby("local_date")["close"].shift(1) - 1.0).abs()
+    window = (prepared["minute_of_day"] >= 630) & (prepared["minute_of_day"] <= 865)
+    for i in (20, 25, 31):
+        prior = prepared["local_date"].isin(dates[i - 20:i]) & window
+        expected = r[prior].mean()
+        today = prepared[prepared["local_date"] == dates[i]]["shock_scale"]
+        assert np.allclose(today.to_numpy(), expected)
+    # fewer than 20 earlier sessions: no scale, no trade
+    assert prepared[prepared["local_date"].isin(dates[:20])]["shock_scale"].isna().all()
+    assert prepared[prepared["local_date"] == dates[20]]["shock_scale"].notna().all()
+
+
+def test_decision_bars_run_from_630_to_865_inclusive():
+    # bar 19 opens 11:05? no: 09:30 + 95 min = 11:05 is bar 19; bar 20 opens 11:10... see minutes below
+    first = (630 - 570) // 5          # 09:30 = minute 570 -> bar 12 opens 10:30
+    last = (865 - 570) // 5           # bar 59 opens 14:25
+    assert (first, last) == (12, 59)
+    assert result_of(hand_frame({first - 1: drop(4990.0)})).trades == []          # opens 10:25: not a decision bar
+    (t,) = result_of(hand_frame({first: drop(4990.0)})).trades
+    assert ny(t.entry_time) == "10:35"
+    (t,) = result_of(hand_frame({last: drop(4990.0)})).trades
+    assert ny(t.entry_time) == "14:30" and t.exit_reason == "time_exit_60min" and ny(t.exit_time) == "15:30"
+    assert result_of(hand_frame({last + 1: drop(4990.0)})).trades == []           # opens 14:30: too late
+
+
+def test_only_the_first_signal_of_the_day_is_taken_no_re_entry_after_a_stop_or_an_exit():
+    stop_hit = {30: drop(4990.0), 32: (4990.0, 4990.0, 4960.0, 4965.0)}          # stop 4970.04 hit on bar 32
+    overrides = dict(stop_hit)
+    overrides[40] = (4965.0, 4965.0, 4950.0, 4950.0)                              # a second -0.3% shock after the stop
+    frame = hand_frame(overrides)
+    (t,) = result_of(frame).trades
+    assert t.exit_reason == "stop_loss" and t.stop_price == 4970.04
+    prepared = MiddaySellShockRebound.on("US500")().prepare(frame)
+    assert int(prepared["ss_entry"].sum()) == 1
+    # a second shock after the time exit is not traded either
+    overrides = {30: drop(4990.0), 50: (4990.0, 4990.0, 4980.0, 4980.0)}
+    frame = hand_frame(overrides)
+    (t,) = result_of(frame).trades
+    assert t.exit_reason == "time_exit_60min" and ny(t.exit_time) == "13:05"
+    assert int(MiddaySellShockRebound.on("US500")().prepare(frame)["ss_entry"].sum()) == 1
+    # the next day counts again
+    two_days = pd.concat([frame, hand_frame(overrides, day=DAY + timedelta(days=1)).iloc[-BARS:]], ignore_index=True)
+    assert int(MiddaySellShockRebound.on("US500")().prepare(two_days)["ss_entry"].sum()) == 2
+
+
+def test_no_trade_on_fomc_cpi_and_nfp_days():
+    for kind, day in (("FOMC", date(2026, 3, 18)), ("CPI", date(2026, 3, 11)), ("NFP", date(2026, 3, 6))):
+        assert day in {t.tz_convert("America/New_York").date() for t in event_times(kind)}
+        assert result_of(hand_frame({30: drop(4990.0)}, day=day)).trades == [], kind
+    assert len(result_of(hand_frame({30: drop(4990.0)}, day=date(2026, 3, 12))).trades) == 1   # the day after CPI
+
+
+def test_skipped_days_still_count_in_the_scale():
+    prepared = MiddaySellShockRebound.on("US500")().prepare(hand_frame({}, day=date(2026, 3, 12)))
+    # 2026-03-11 (CPI) is one of the 20 sessions; with identical alternating sessions the scale is just that level
+    assert prepared["shock_scale"].iloc[-1] == prepared["shock_scale"].iloc[-1] > 0
+    assert bool(prepared["day_skipped"].iloc[-1]) is False
+
+
+def test_early_close_calendar():
+    assert early_close_day(date(2025, 11, 28)) and early_close_day(date(2026, 11, 27))
+    assert early_close_day(date(2025, 12, 24)) and early_close_day(date(2026, 12, 24))
+    assert early_close_day(date(2025, 7, 3)) and early_close_day(date(2024, 7, 3))
+    assert not early_close_day(date(2025, 11, 27))        # Thanksgiving itself
+    assert not early_close_day(date(2027, 12, 24))        # Friday, holiday observed
+    assert not early_close_day(date(2026, 7, 3))          # Friday, holiday observed
+    assert not early_close_day(date(2026, 3, 12))
+
+
+def test_no_trade_on_half_day_sessions():
+    shock = {30: drop(4990.0)}
+    for day in (date(2025, 11, 28), date(2025, 12, 24), date(2025, 7, 3)):
+        assert result_of(hand_frame(shock, day=day, n=42)).trades == [], day     # closes 13:00
+    # the same shock on a full session of the previous weekday trades
+    assert len(result_of(hand_frame(shock, day=date(2025, 11, 26))).trades) == 1
+
+
+def test_never_holds_overnight_and_trades_on_synthetic_data():
+    frame = synthetic_sessions("US500", days=32)
+    r = run(frame, MiddaySellShockRebound.on("US500")(), market("US500").cost("base"), BacktestConfig())
+    assert r.trades
+    assert r.positions_held_overnight == 0
+    per_day = {}
+    for t in r.trades:
+        assert t.side == "long"
+        per_day[ny(t.entry_time, "%Y-%m-%d")] = per_day.get(ny(t.entry_time, "%Y-%m-%d"), 0) + 1
+    assert max(per_day.values()) == 1
+    late = hand_frame({59: drop(4990.0)})
+    stopped = hand_frame({59: drop(4990.0), 61: (4990.0, 4990.0, 4900.0, 4905.0)})
+    for h in (hand_frame({30: drop(4990.0)}), late, stopped):
+        assert run(h, MiddaySellShockRebound.on("US500")(), market("US500").cost("base"),
+                   BacktestConfig()).positions_held_overnight == 0

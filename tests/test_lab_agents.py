@@ -72,7 +72,9 @@ class BuildArgvTests(unittest.TestCase):
         self.assertNotIn("Bash", allow)
         deny = agents.AGENT_SPECS["proxy-research"]["deny"]
         for path in ("./research/proxies/results/**", "./research/proxies/ledger.jsonl",
-                     "./research/proxies/SCOREBOARD.md", "./b3/config/splits_proxies.json"):
+                     "./research/proxies/SCOREBOARD.md", "./b3/config/splits_proxies.json",
+                     "./research/proxies/trades/**", "./research/b3/results/**", "./research/b3/trades/**",
+                     "./research/b3/ledger.jsonl", "./b3/config/splits_b3.json"):
             self.assertIn(f"Read({path})", deny)
 
     def test_the_scout_is_denied_every_kind_of_result(self) -> None:

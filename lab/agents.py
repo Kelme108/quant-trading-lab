@@ -97,12 +97,21 @@ AGENT_SPECS: dict[str, dict[str, list[str]]] = {
             "Read(./research/command-log.md)",
             "Read(./research/experiments/**)",
             "Read(./research/lab.sqlite)",
+            # trade lists hold validation and final-test reads too (proxies since 2026-11-15)
+            "Read(./research/proxies/trades/**)",
+            # WIN/WDO lane (2026-11-16): the same blindness
+            "Read(./research/b3/results/**)",
+            "Read(./research/b3/trades/**)",
+            "Read(./research/b3/ledger.jsonl)",
+            "Read(./b3/config/splits_b3.json)",
         ],
     },
     "proxy-developer": {
         "tools": ["Read", "Grep", "Glob", "Write", "Edit", "Bash"],
         "allow": ["Write", "Edit", "Bash(python -m pytest *)"],
-        "deny": ["Read(./research/proxies/results/**)", "Read(./research/proxies/ledger.jsonl)"],
+        "deny": ["Read(./research/proxies/results/**)", "Read(./research/proxies/ledger.jsonl)",
+                 "Read(./research/proxies/trades/**)", "Read(./research/b3/results/**)", "Read(./research/b3/trades/**)",
+                 "Read(./research/b3/ledger.jsonl)"],
     },
     "quant": {"tools": ["Read", "Grep", "Glob", "Write"], "allow": ["Write"], "deny": []},
     "risk": {"tools": ["Read", "Grep", "Glob", "Write"], "allow": ["Write"], "deny": []},

@@ -1,6 +1,10 @@
-"""The proxy research program (plan items 4 and the project stop criterion, b3/config/proxy_program.json):
-how many agent-proposed rules may still be registered, when the program stops, the proposal format, and the
-context file the research agent reads (EXPLORATION facts only: validation and final-test numbers never reach it).
+"""The agent research programs (plan item 4 and the project stop criterion): how many agent-proposed rules may still
+be registered, when the program stops, the proposal format, and the context file the research agent reads
+(EXPLORATION facts only: validation and final-test numbers never reach it).
+
+Two lanes (LANES): "proxies" (b3/config/proxy_program.json, 2026-11-14..16, ended) and "b3" (WIN/WDO from the Clear
+demo, b3/config/b3_program.json, from 2026-11-16; owner decision D5 a of docs/plano-b3-reuso.md). active_lane() is the
+one b3/proxy_pipeline.py runs. Rule ids (P-NNN) and the rule registry b3/proxy_rules/ are shared by both lanes.
 
     python -m b3.proxy_program status
 """
@@ -20,6 +24,27 @@ PROPOSALS = ROOT / "research" / "proxies" / "proposals"
 CONTEXT_DIR = ROOT / "research" / "proxies" / "context"
 RESULTS = ROOT / "research" / "proxies" / "results"
 LEDGER = ROOT / "research" / "proxies" / "ledger.jsonl"
+LANES = {
+    "proxies": {"program": PROGRAM_PATH, "proposals": PROPOSALS, "context": CONTEXT_DIR, "results": RESULTS,
+                "ledger": LEDGER, "scope": ROOT / "b3" / "config" / "scope_proxies.json", "dir": ROOT / "research" / "proxies"},
+    "b3": {"program": ROOT / "b3" / "config" / "b3_program.json", "proposals": ROOT / "research" / "b3" / "proposals",
+           "context": ROOT / "research" / "b3" / "context", "results": ROOT / "research" / "b3" / "results",
+           "ledger": ROOT / "research" / "b3" / "ledger.jsonl", "scope": ROOT / "b3" / "config" / "scope_b3.json",
+           "dir": ROOT / "research" / "b3"},
+}
+
+
+def active_lane() -> str:
+    """b3 once its program is approved (2026-11-16); the proxy program ended then."""
+    path = LANES["b3"]["program"]
+    try:
+        return "b3" if json.loads(path.read_text(encoding="utf-8")).get("approved_by_owner") is True else "proxies"
+    except (OSError, ValueError):
+        return "proxies"
+
+
+def lane_of(program: dict) -> str:
+    return program.get("lane", "proxies")
 
 PROPOSAL_KEYS = {
     "rule_id": str, "title": str, "class_name": str, "file_stem": str, "markets": list, "timeframe_min": int,
@@ -73,9 +98,10 @@ class Status:
 def status(today: date | None = None, *, program: dict | None = None, props: list[dict] | None = None,
            ledger: list[dict] | None = None) -> Status:
     cfg = program or load_program()
+    paths = LANES[lane_of(cfg)]
     today = today or datetime.now(timezone.utc).date()
-    props = proposals() if props is None else props
-    ledger = ledger_rows() if ledger is None else ledger
+    props = proposals(paths["proposals"]) if props is None else props
+    ledger = ledger_rows(paths["ledger"]) if ledger is None else ledger
     first = _num(cfg["first_counted_rule"])
     # only rules that were registered and run count; invalid, failed or interrupted proposals never read any data
     counted = [p for p in props if _num(p["rule_id"]) >= first and p.get("status") == "registered"]
@@ -100,7 +126,7 @@ def status(today: date | None = None, *, program: dict | None = None, props: lis
     if val:
         notices.append(f"passed validation, final test locked until the owner unlocks it: {val}")
     xd = date.fromisoformat(cfg["exchange_data"]["deadline"])
-    if today >= xd:
+    if today >= xd and not cfg["exchange_data"].get("met"):
         notices.append(f"exchange-data deadline {xd} reached: without a BR broker demo or bought history, "
                        "research continues on the proxies only (plan item 1)")
     return Status(str(today), sorted(ids), week, val, fin, str(deadline), str(xd), not reasons, reasons, notices)
@@ -109,7 +135,9 @@ def status(today: date | None = None, *, program: dict | None = None, props: lis
 def next_rule_id(props: list[dict] | None = None, builtin: list[str] | None = None) -> str:
     from b3.proxy_rules import RULES
     used = [_num(r) for r in (builtin if builtin is not None else list(RULES))]
-    used += [_num(p["rule_id"]) for p in (proposals() if props is None else props)]
+    if props is None:                          # the registry is shared: count proposals of every lane
+        props = [p for lane in LANES.values() for p in proposals(lane["proposals"])]
+    used += [_num(p["rule_id"]) for p in props]
     return f"P-{max(used) + 1:03d}"
 
 
@@ -170,11 +198,11 @@ all from the EXPLORATION split):
 """
 
 
-def _exploration_table() -> list[str]:
+def _exploration_table(results: Path = RESULTS) -> list[str]:
     from b3.proxy_rules import RULES
     latest: dict = {}
-    if RESULTS.exists():
-        for f in sorted(RESULTS.glob("*-exploration-*.json")):
+    if results.exists():
+        for f in sorted(results.glob("*-exploration-*.json")):
             d = json.loads(f.read_text(encoding="utf-8"))
             if d.get("split") == "exploration":
                 latest[(d["rule"], d["symbol"])] = d
@@ -187,8 +215,28 @@ def _exploration_table() -> list[str]:
     return lines
 
 
+FACTS_B3 = """\
+Exploration facts for WIN and WDO (research/b3/anatomy.json, data_quality.json; EXPLORATION split only,
+2021-11-16 to 2024-06-30, Clear demo continuous $N series, Sao Paulo session 09:00-18:25 WIN / 18:30 WDO, 17:55 /
+18:00 in the US summers of 2022 and 2023):
+- Costs per round trip (b3/costs.py, 1 contract): WIN ~0.011% of the notional in the base scenario (BRL 0.25 fees +
+  1 tick per side), ~0.02% conservative; WDO ~0.0235% base (the 0.5-point tick is ~0.009% of the price), ~0.045%
+  conservative. A stop fill pays 1 more tick (2 conservative).
+- Median move vs the base cost: WIN 5 min 4.7x, 15 min 8x, 30 min 11.4x, 60 min 16.5x, 120 min 23.8x; WDO 5 min
+  1.6x, 15 min 2.8x, 30 min 3.9x, 60 min 5.6x, 120 min 8.2x. WDO needs long holds or rare, large moves.
+- The 11 proxy rules P-001..P-011, re-read on WIN and WDO (table below), made at most ~0.03% gross per trade; P-004
+  (rest-of-day momentum, last half hour) passed WIN exploration and did not repeat on validation. WDO lost on
+  almost every rule.
+- 126 crypto strategies (Freqtrade, long only, built for 24-hour markets) were screened on both contracts
+  (research/b3/crypto_screen.json, exploration only).
+- 1-minute bars exist for the whole period (scope allows a 1-minute entry clock).
+"""
+
+
 def write_context(rule_id: str, st: Status | None = None, program: dict | None = None) -> Path:
     cfg = program or load_program()
+    if lane_of(cfg) == "b3":
+        return _write_context_b3(rule_id, st or status(program=cfg), cfg)
     st = st or status(program=cfg)
     variants = len({(r["rule"], r["symbol"]) for r in ledger_rows() if r["split"] == "exploration"})
     sc = cfg["scope"]
@@ -212,11 +260,48 @@ def write_context(rule_id: str, st: Status | None = None, program: dict | None =
     return path
 
 
+def _write_context_b3(rule_id: str, st: Status, cfg: dict) -> Path:
+    paths = LANES["b3"]
+    variants = len({(r["rule"], r["symbol"]) for r in ledger_rows(paths["ledger"]) if r["split"] == "exploration"})
+    sc = cfg["scope"]
+    screen = []
+    sp = paths["dir"] / "crypto_screen.json"
+    if sp.exists():
+        data = json.loads(sp.read_text(encoding="utf-8"))
+        rows = sorted([r for r in data.get("rows", []) if r.get("mean_gross_pct") is not None and r.get("gross_over_cost") is not None],
+                      key=lambda r: -r["gross_over_cost"])[:12]
+        screen = ["## Crypto strategies on WIN/WDO: highest gross per trade (exploration only)", "",
+                  "| Strategy | Market | Trades | Gross/trade | Gross / base cost |", "|---|---|---|---|---|"]
+        screen += [f"| {r['strategy']} | {r['symbol']} | {r['trades']} | {r['mean_gross_pct']:.4f}% | {r['gross_over_cost']:.1f}x |"
+                   for r in rows]
+    text = "\n".join([
+        f"# Context for {rule_id} ({datetime.now(timezone.utc).isoformat(timespec='seconds')})", "",
+        "WIN (mini Ibovespa) and WDO (mini dollar) futures, real B3 data from the Clear demo (b3/markets.py B3_MARKETS, "
+        "b3/b3_data.py). Engine: b3/backtest.py (the fill rules of the live robot); runner b3/proxy_research.py, b3 lane.",
+        f"Scope: markets {sc['markets']}, timeframe {sc['timeframes_min']} minutes, median hold "
+        f"{sc['hold_min_range'][0]}-{sc['hold_min_range'][1]} minutes, long and short, a stop on every entry, flat "
+        "before the session close (never overnight). Rules are written like b3/strategies/proxies.py and bound to a "
+        "market with .on(\"WIN\"); self.market.tick_size is 5 points (WIN) or 0.5 point (WDO).",
+        f"Gates (b3/config/gates_b3.json): >= 30 trades; compounded net > 1% x (1 + 0.1 x variants) in base AND "
+        f"conservative cost; net without the best trade > 0; drawdown <= 25%; >= 60% positive years. Rule x market "
+        f"pairs already read on WIN/WDO exploration: {variants}, so the bar is now {1 + 0.1 * variants:.1f}% and every "
+        "market you list raises it by 0.1% for all later rules: list only the markets your mechanism is about.",
+        f"Program: {len(st.counted_rules)} agent rules so far ({', '.join(st.counted_rules) or 'none'}); the program "
+        f"stops after {cfg['stop_after_rules_without_validation_pass']} rules with no validation pass.", "",
+        FACTS_B3, "## Rules already explored on WIN/WDO (exploration split only; the crypto strategies are below)", "",
+        *[ln for ln in _exploration_table(paths["results"]) if not ln.startswith("| C-")], "", *screen, "",
+    ])
+    paths["context"].mkdir(parents=True, exist_ok=True)
+    path = paths["context"] / f"{rule_id}.md"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["status"])
     ap.parse_args(argv)
-    print(json.dumps(asdict(status()), indent=1))
+    print(json.dumps(asdict(status(program=load_program(LANES[active_lane()]["program"]))), indent=1))
     return 0
 
 

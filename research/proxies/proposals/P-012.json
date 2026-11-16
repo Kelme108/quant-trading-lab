@@ -1,0 +1,55 @@
+{
+ "rule_id": "P-012",
+ "title": "Midday sell-shock liquidity rebound: buy after a single 5-minute drop of 4x the trailing midday bar size, US500",
+ "class_name": "MiddaySellShockRebound",
+ "file_stem": "p012_midday_sell_shock_rebound",
+ "markets": [
+  "US500"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (New York regular session 09:30-16:00); minute_of_day is local NY minutes after midnight; C_t = close of bar t, C_{t-1} = close of the previous bar of the SAME session. BAR RETURN r_t = C_t / C_{t-1} - 1 (undefined for bar_in_day 0). WINDOW BARS: bars opening at minute_of_day 630 to 865 inclusive (10:30 to 14:25 NY). SCALE: S = mean of |r| over all window bars of the previous 20 sessions (today excluded; sessions skipped by the day filter still count; no trade until 20 sessions exist). DAY FILTER: skip the whole day when FOMC_today, CPI_today or NFP_today (mark_events with kinds [FOMC, CPI, NFP]), since shocks on those days carry scheduled information, not liquidity; also skip half-day sessions (close before 16:00). LONG ENTRY: at the close of a window bar t, if r_t <= -4.0 * S AND r_t <= -0.0015, and no position is open and no entry was made today -> ENTER_LONG, filled by market order at the open of bar t+1 (entries 10:35 to 14:30 NY, i.e. 65 minutes after the open to 90 minutes before the close). NO SHORT SIDE: the mechanism is asymmetric liquidity replenishment after sell-side pressure (forced and hedging sellers hitting a thin midday book); upside shocks are not traded because the evidence for their reversal is weaker and they are more often short covering or news. STOP on every entry: 0.4% below the signal bar close, tick-rounded away from the price: stop = tick_floor(C_t * 0.996). EXIT: time exit at the open of the 12th bar after the entry bar (hold 60 minutes; latest exit 15:30 NY, before the last half hour), or the stop, whichever comes first; no target; no re-entry after a stop or exit on the same day. Max entries per day = 1. Lookbacks: previous bar close (1 bar) and 20 sessions of window bars for S.",
+ "parameters": {
+  "window_first_bar_open_minute": 630,
+  "window_last_bar_open_minute": 865,
+  "scale_lookback_sessions": 20,
+  "shock_mult": 4.0,
+  "min_abs_shock_frac": 0.0015,
+  "stop_frac": 0.004,
+  "hold_bars": 12,
+  "max_hold_minutes": 60,
+  "entry_start_after_open_min": 65,
+  "entry_end_before_close_min": 90,
+  "max_entries_per_day": 1,
+  "skip_fomc_cpi_nfp_days": 1,
+  "flatten_before_close_min": 5
+ },
+ "mechanism": "A single 5-minute drop of four times the normal midday bar size, on a day with no scheduled release, is usually a liquidity event, not news: a large seller (portfolio hedger buying protection via futures, a fund liquidating, a cluster of stop-loss orders, a risk-parity or CTA de-risking order) sweeps a book that is thinnest in the 10:30-14:30 lull. Risk-averse intermediaries (market makers, HFT liquidity providers, index arbitrageurs) absorb the flow only at a price concession and then lay the inventory off. As they do, the price pressure decays and part of the drop comes back (Hendershott and Menkveld 2014: intermediary inventory creates sizeable, mean-reverting price pressure). The other side of the trade is therefore the impatient seller who pays for immediacy. The rule buys after that seller is done and holds while liquidity providers rebuild the book. The rebound is asymmetric. Vlasiuk and Smirnov (2025) find that in high-frequency S&P 500 (SPY) prices, large negative pushes are followed by stronger positive responses than equally large positive pushes, which they tie to liquidity replenishment after sell-side shocks. The NY Fed's overnight-drift work likewise reports that imbalance-driven reversals are stronger after sell-offs. Fung, Mok and Lam (2000) document reversals after large moves in S&P 500 futures, which grow with the size of the move. Their evidence is about opening moves, and P-008 already failed on that opening version. So this rule excludes the first hour (where price discovery and gap information dominate) and all FOMC/CPI/NFP days, and trades only the midday, where large bars are least likely to be information.",
+ "why_gross_beats_3x_cost": "US500 5-minute anatomy: the mean absolute 5-minute move is 0.063% (median 0.038%), and midday hours are about 0.8x the day average (12h-13h 30-minute medians 7.7x cost vs 9.2x overall). So 4 x S is about 0.20%, and the 0.15% floor binds only in very calm regimes. Trigger bars are therefore 0.15-0.5% drops, typically about 0.25%. The 60-minute median absolute move is 0.128% (mean 0.208%). If on average 15-20% of the shock comes back in the next hour, the mean gross is 0.035-0.05%, 3.5-5x the 0.01% round trip. Expected profile: hit rate about 56%, average win about 0.18%, average loss about 0.15% (including the rare 0.4% stop, which is about 3x the 60-minute median move; expected on under 8% of trades), giving 0.56 x 0.18 - 0.44 x 0.15 = about 0.035%. Stop slippage of 0.005% on stopped trades costs under 0.001% per trade on average. The index's upward drift adds only about 0.005% per hour of holding, so it is not what the rule relies on. Main risk: unscheduled headlines (tariff tweets, geopolitical news) also make large midday drops, and those continue. They are the losing tail the 0.4% stop caps.",
+ "expected_trades_per_year": 40,
+ "expected_median_hold_min": 60,
+ "novelty_vs_tried": "P-001/P-006 (opening-range and first-candle breakouts), P-003 (noise-area breakout), P-005 (VWAP trend) and P-002/P-004/P-007 (first half hour or rest of day into the close) all bet on continuation and use the open, VWAP or the day's path as reference. This rule is long-only contrarian and has no reference to the open, VWAP, the previous close, a price level or the day's trend. The event rules traded the releases. This rule excludes release days entirely. P-008 faded the overnight-plus-first-15-minutes move at a fixed clock time and was flat by 10:45. P-009 traded month-end flow in the last hour. P-010 (not evaluated) faded a fixed 11:00-11:30 European-close window at 12:30. P-011 faded first touches of 50-point round numbers. Here the trigger is a single-bar extreme measured against the market's own trailing 20-day midday bar size. It can fire at any time from 10:30 to 14:25, only on the sell side, and only on non-event days. The counterparty is an impatient seller paying intermediaries for immediacy, not opening overreaction, a clock-time flow or resting orders at a level.",
+ "sources": [
+  {
+   "title": "Vlasiuk & Smirnov (2025), Push-response anomalies in high-frequency S&P 500 price series (arXiv 2511.06177): large negative pushes followed by stronger positive responses",
+   "url": "https://arxiv.org/abs/2511.06177v1"
+  },
+  {
+   "title": "Hendershott & Menkveld (2014), Price Pressures, Journal of Financial Economics 114(3) (EconPapers abstract)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:114:y:2014:i:3:p:405-423"
+  },
+  {
+   "title": "Fung, Mok & Lam (2000), Intraday price reversals for index futures in the US and Hong Kong, Journal of Banking & Finance (HKBU record)",
+   "url": "https://scholars.hkbu.edu.hk/en/publications/intraday-price-reversals-for-index-futures-in-the-us-and-hong-kon/"
+  },
+  {
+   "title": "NY Fed Staff Report 917, The Overnight Drift (order-imbalance reversals, stronger after sell-offs; search summary)",
+   "url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr917.pdf"
+  }
+ ],
+ "data_visible_at_proposal": "research/proxies/context/P-012.md; research/proxies/anatomy.json (US500/USTEC/DE40 move sizes by horizon and hour); first 80 lines of research/proxies/failure_anatomy.json (P-001 US500 structure only); research/proxies/proposals/P-010.json (status error, not evaluated; its mechanism avoided) and P-011.json; b3/proxy_rules/p009_month_end_rebalancing_last_hour.py (rule style, SessionRules, mark_events, tick_floor); b3/strategies/proxies.py (grep of class names); b3/markets.py (grep: sessions); b3/events.py (kinds FOMC, CPI, NFP). Web: searches on HKS intraday periodicity (rejected: no index-futures evidence), 0DTE gamma (vendor pages only, not used), Fung-Mok-Lam, Hendershott-Menkveld, E-mini liquidity-shock reversals. Fetched the arXiv 2511.06177 abstract page. The other sources are cited from search summaries. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-16T01:52:04+00:00",
+ "problems": [
+  "2026-11-16 01:54 UTC: the proxy-developer agent stopped at the account weekly usage limit after writing a rule whose own test failed (tests/b3/proxy_rules/test_p012.py::test_the_shock_must_be_four_times_the_trailing_scale); the checks never ran and no data was read. The files are kept in research/proxies/proposals/interrupted/P-012/ (out of the registry). The proxy program ended the same day (docs/plano-b3-reuso.md D5 a)."
+ ]
+}

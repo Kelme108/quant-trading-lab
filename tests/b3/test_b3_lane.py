@@ -211,3 +211,39 @@ def test_real_b3_configs_are_approved_and_lock_the_final_test():
     s = json.loads(pr.B3_SPLITS_PATH.read_text(encoding="utf-8"))
     assert s["final_test_unlocked"] is False and s["chosen_scenario"] == "A_five_years"
     assert s["symbols"]["WIN"]["validation"]["start_utc"] == s["symbols"]["WIN"]["exploration"]["end_utc"]
+
+
+# ---------------------------------------------------------------------------------------------
+# Agent program on the b3 lane (b3/config/b3_program.json, owner D5 a 2026-11-16)
+# ---------------------------------------------------------------------------------------------
+
+def test_the_agent_program_runs_on_the_b3_lane():
+    from b3 import proxy_program as prog
+    assert prog.active_lane() == "b3"
+    cfg = prog.load_program(prog.LANES["b3"]["program"])
+    assert cfg["approved_by_owner"] is True and cfg["scope"]["markets"] == ["WIN", "WDO"]
+    assert cfg["max_new_rules_per_week"] == 3 and cfg["stop_after_rules_without_validation_pass"] == 15
+    st = prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[])
+    assert st.can_register and not st.notices                   # exchange data deadline is met, no proxy notice
+    assert prog.next_rule_id() >= "P-013"                      # P-012 (interrupted) is in the proxy folder
+
+
+def test_the_b3_context_holds_exploration_facts_only(tmp_path, monkeypatch):
+    from b3 import proxy_program as prog
+    lanes = {k: dict(v) for k, v in prog.LANES.items()}
+    lanes["b3"]["context"] = tmp_path
+    monkeypatch.setattr(prog, "LANES", lanes)
+    cfg = prog.load_program(lanes["b3"]["program"])
+    path = prog.write_context("P-099", prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[]), cfg)
+    text = path.read_text(encoding="utf-8")
+    assert "WIN" in text and "WDO" in text and "gates_b3.json" in text
+    assert "| validation" not in text and "final_test" not in text
+    assert "| C-" not in text                                  # crypto reads go in their own short table
+
+
+def test_synthetic_sessions_sit_on_the_contract_grid():
+    from b3 import proxy_pipeline as pipe
+    f = pipe.synthetic_sessions("WIN", days=3)
+    assert ((f["close"] / 5.0).round() * 5.0 == f["close"]).all() and f["close"].iloc[0] > 100_000
+    g = pipe.synthetic_sessions("WDO", days=3)
+    assert ((g["close"] / 0.5).round() * 0.5 == g["close"]).all()
