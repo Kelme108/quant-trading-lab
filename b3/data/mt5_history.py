@@ -62,6 +62,23 @@ def connect(mt5: Any) -> None:
         raise ConnectionError("MT5: no account logged in")
 
 
+def attach(mt5: Any, broker_config: str | Path) -> None:
+    """Attach to the broker terminal named in b3/config/broker_mt5.json AS IT IS ALREADY LOGGED IN: no login, no
+    password, live/.env ignored (it may hold another broker's account). Refuses anything but a demo account."""
+    cfg = json.loads(Path(broker_config).read_text(encoding="utf-8"))
+    if not mt5.initialize(path=cfg["terminal_path"]):
+        raise ConnectionError(f"MT5 initialize failed: {mt5.last_error()}")
+    a = mt5.account_info()
+    if a is None:
+        raise ConnectionError("MT5: no account logged in")
+    if getattr(a, "trade_mode", None) != getattr(mt5, "ACCOUNT_TRADE_MODE_DEMO", 0):
+        mt5.shutdown()
+        raise ConnectionError("MT5: the logged-in account is not a demo account; refusing to continue")
+    if cfg.get("server") and getattr(a, "server", None) != cfg["server"]:
+        mt5.shutdown()
+        raise ConnectionError(f"MT5: logged in to {getattr(a, 'server', None)}, expected {cfg['server']}")
+
+
 def account_meta(mt5: Any) -> dict:
     """Broker identity for the manifest. Never the login or the password."""
     a, t = mt5.account_info(), mt5.terminal_info()
@@ -228,12 +245,17 @@ def main(argv: list[str] | None = None, mt5_module: Any = None) -> int:
     ap.add_argument("--env", default="live/.env")
     ap.add_argument("--out", default="user_data/data/b3")
     ap.add_argument("--report", default=None, help="depth: where to write the JSON report")
+    ap.add_argument("--attach", default=None, metavar="BROKER_JSON",
+                    help="attach to the logged-in terminal of b3/config/broker_mt5.json (demo only; ignores --env)")
     args = ap.parse_args(argv)
-    load_env_file(args.env)
     if mt5_module is None:
         import MetaTrader5 as mt5_module  # noqa: N813  (Windows only)
     mt5 = mt5_module
-    connect(mt5)
+    if args.attach:
+        attach(mt5, args.attach)
+    else:
+        load_env_file(args.env)
+        connect(mt5)
     try:
         if args.command == "symbols":
             print(json.dumps({"account": account_meta(mt5), "symbols": list_symbols(mt5)}, indent=2))

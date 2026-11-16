@@ -157,3 +157,28 @@ def test_back_adjust_removes_the_roll_jump_and_keeps_the_last_contract_raw():
     assert (first["close"].to_numpy() - raw_first["close"].to_numpy() == 1_500.0).all()
     with pytest.raises(KeyError):
         back_adjust({"WINV26": old}, sched)
+
+
+def test_attach_uses_only_the_terminal_path_and_refuses_real_accounts(tmp_path, monkeypatch):
+    """--attach: the logged-in broker terminal (b3/config/broker_mt5.json), no credentials, live/.env ignored."""
+    cfg = tmp_path / "broker.json"
+    cfg.write_text(json.dumps({"terminal_path": "C:/X/terminal64.exe", "server": "TESTE-DEMO"}), encoding="utf-8")
+    env = tmp_path / "x.env"
+    env.write_text("MT5_LOGIN=1\nMT5_PASSWORD=secret\nMT5_SERVER=OTHER\n", encoding="utf-8")
+    for k in ("MT5_LOGIN", "MT5_PASSWORD", "MT5_SERVER", "MT5_PATH"):
+        monkeypatch.delenv(k, raising=False)
+    term = FakeTerminal(random_walk_frame(seed=1))
+    seen = {}
+    real_init = term.initialize
+    term.initialize = lambda **kw: seen.update(kw) or real_init(**kw)
+    assert mt5_history.main(["symbols", "--attach", str(cfg), "--env", str(env)], mt5_module=term) == 0
+    assert seen == {"path": "C:/X/terminal64.exe"}                      # no login, no password, no server
+    assert "MT5_PASSWORD" not in __import__("os").environ               # the .env was not loaded
+    real = FakeTerminal(random_walk_frame(seed=1))
+    real.account_info = lambda: SimpleNamespace(company="C", server="TESTE-DEMO", trade_mode=2, margin_mode=0, currency="BRL")
+    with pytest.raises(ConnectionError, match="not a demo"):
+        mt5_history.main(["symbols", "--attach", str(cfg)], mt5_module=real)
+    other = FakeTerminal(random_walk_frame(seed=1))
+    other.account_info = lambda: SimpleNamespace(company="C", server="OTHER-DEMO", trade_mode=0, margin_mode=0, currency="BRL")
+    with pytest.raises(ConnectionError, match="expected TESTE-DEMO"):
+        mt5_history.main(["symbols", "--attach", str(cfg)], mt5_module=other)
