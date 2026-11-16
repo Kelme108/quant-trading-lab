@@ -1,0 +1,59 @@
+{
+ "rule_id": "P-013",
+ "title": "WIN forced-liquidation cascade fade: trade the first counter bar after a 10-minute shock of 4x the trailing scale",
+ "class_name": "WinLiquidationCascadeFade",
+ "file_stem": "p013_win_liquidation_cascade_fade",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Bars: 1-minute, session-only (B3 regular session, Sao Paulo time). C_t, O_t = close and open of bar t; every price difference uses bars of the SAME session. SHOCK at bar t: R_t = C_{t-1} / C_{t-11} - 1 (the 10-minute move up to the previous bar). WINDOW BARS: minute_of_day >= 615 (10:15), bar_in_day >= 60 and minutes_to_close >= 45. SCALE: S = mean of |C_j / C_{j-10} - 1| over every window bar j of the previous 20 sessions (today excluded; event days count; no trade until 20 sessions exist). S spans sessions, but each term is inside one session, so the between-session roll of the continuous series never enters it. THRESHOLD: thr = max(4.0 * S, 0.0030). DAY FILTER: skip the whole day when FOMC_today, CPI_today or NFP_today (mark_events, kinds [FOMC, CPI, NFP]). LONG: at the close of a window bar t, if R_t <= -thr AND C_t > O_t (the first up-closing bar after the sell cascade) AND no position is open AND no entry yet today -> ENTER_LONG by market order at the open of bar t+1. SHORT (symmetric, because retail stops and broker forced liquidations hit long and short day traders alike): if R_t >= +thr AND C_t < O_t -> ENTER_SHORT at the open of bar t+1. STOP on every entry: 0.5% of C_t, rounded to the tick away from the price: long stop = tick_floor(C_t * 0.995), short stop = tick_ceil(C_t * 1.005). EXIT, whichever comes first: (a) retracement exit: P0 = C_{t-11}, the price before the shock; at the close of any bar after entry where close >= P0 (long) or close <= P0 (short), exit at the next bar open; (b) time exit at the open of the 30th bar after the entry bar (30-minute hold); (c) the stop; (d) the engine flattens before the close. No target order, no re-entry after an exit or a stop. Max entries per day = 1. Entry window: signal bars from 10:15 and at least 60 minutes after the open (this also covers late-opening sessions) up to 45 minutes before the close (16:55 Sao Paulo when the close is 18:25, 16:25 when it is 17:55). Lookbacks: 11 bars for the shock, 1 bar for the counter bar, 20 sessions for S.",
+ "parameters": {
+  "timeframe_min": 1,
+  "shock_lookback_bars": 10,
+  "shock_end_offset_bars": 1,
+  "scale_lookback_sessions": 20,
+  "shock_mult": 4.0,
+  "min_abs_shock_frac": 0.003,
+  "stop_frac": 0.005,
+  "max_hold_bars": 30,
+  "window_start_minute_of_day": 615,
+  "min_bar_in_day": 60,
+  "min_minutes_to_close_at_signal": 45,
+  "skip_fomc_cpi_nfp_days": 1,
+  "max_entries_per_day": 1
+ },
+ "mechanism": "WIN is a retail contract. Chague, De-Losso and Giovannetti document the crowd of Brazilian individuals day trading Ibovespa futures, almost all of whom lose money. They trade with day-trade margins of about BRL 100-155 per contract (B3 raised the WIN minimum to BRL 155 in 2026), against a notional of about BRL 23,000 (1 point = BRL 0.20 at about 114,000 points). So a move of roughly 0.35-0.5% exhausts the margin of a minimally funded account. The broker's risk system then performs a compulsory liquidation (zeragem compulsoria): an automatic market order sent when the loss reaches a set share of the margin, 80% in Toro's example. Retail stop orders cluster at the same levels. A fast 10-minute move of this size therefore sets off a cascade of forced, price-insensitive orders all on one side, triggered by the move itself rather than by information. On the other side are HFT market makers and arbitrageurs. They absorb the inventory only at a price concession and then work it back out, so the pressure decays and part of the move retraces (Hendershott and Menkveld 2014: inventory-driven price pressure is transitory). The rule waits for the first bar closing against the cascade, a sign that the forced flow has stopped, and then takes the liquidity provider's side for at most 30 minutes. Scheduled-news days are skipped, so the large moves that remain are less likely to be information. The first 75 minutes are excluded because of futures-only price discovery and the 10:00 cash opening auction.",
+ "why_gross_beats_3x_cost": "WIN base round trip is about 0.011%, so the target is a mean gross of at least 0.033%. From anatomy.json, the 5-minute median move is 0.052% and the 15-minute median 0.088%, so the 10-minute median is about 0.07% and its mean about 0.09%. Midday is lower: the 5-minute range is 0.11% from 13h to 16h against 0.21% at 10h. So 4 x S is about 0.30-0.40%, and trigger moves are about 0.3-0.6%, i.e. 30-55 times the cost. The 30-minute median move is 0.125% (11x the cost), and larger on shock days. If a quarter to a fifth of the shock retraces on average within 30 minutes, the gross is 0.06-0.09%; even a 10% average retracement gives 0.04%. Expected profile: hit rate about 55-57%, average win about 0.18% (the retracement exit cuts winners at the pre-shock level, at most the full shock), average loss about 0.15%, plus the rare 0.5% stop (4x the 30-minute median; expected on under 10% of trades). That gives about 0.56 x 0.18 - 0.44 x 0.15 = 0.035-0.04% per trade, 3.2-3.6x the base cost. The stop slippage of 1 tick (0.0044%) on stopped trades averages under 0.0005%.",
+ "expected_trades_per_year": 70,
+ "expected_median_hold_min": 25,
+ "novelty_vs_tried": "Every rule in the table either follows the move or fades a fixed reference. P-001/P-006/P-003 are breakouts from the opening range, the first candle or the noise area. P-002/P-004/P-007 carry first-half-hour or rest-of-day momentum into the close. P-005 follows VWAP trend. P-008 fades the opening move at a fixed time and is flat by mid-morning. P-009 trades month-end flow in the last hour. P-011 fades touches of round numbers, a resting-order level. This rule has no reference to the open, VWAP, the day's trend, a price level or the calendar. Its trigger is a fast 10-minute shock, at any time from 10:15 to 45 minutes before the close, measured against WIN's own 20-session scale, plus a counter-bar confirmation on a 1-minute clock. It holds only up to 30 minutes and exits early at the pre-shock price. The counterparty is the forced, margin-driven retail liquidation that is specific to B3 mini contracts. It is not opening overreaction, trend, scheduled news (event days are skipped) or month-end rebalancing. The proxy-lane P-012 (a US500 midday sell-shock rebound, never evaluated) was long-only on a 5-minute single bar; this rule is a different market, clock, trigger and exit.",
+ "sources": [
+  {
+   "title": "Chague, De-Losso, Giovannetti: Day Trading for a Living? (EconPapers record, FEA-USP working paper 2019)",
+   "url": "https://econpapers.repec.org/RePEc:spa:wpaper:2019wpecon47"
+  },
+  {
+   "title": "Toro Investimentos: Zeragem compulsoria (automatic liquidation when the loss reaches a share of the day-trade margin)",
+   "url": "https://blog.toroinvestimentos.com.br/trading/zeragem-compulsoria/"
+  },
+  {
+   "title": "Suno: Zeragem compulsoria, por que ela acontece e como evita-la",
+   "url": "https://www.suno.com.br/?p=187206"
+  },
+  {
+   "title": "Hendershott & Menkveld (2014), Price Pressures, Journal of Financial Economics 114(3) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:114:y:2014:i:3:p:405-423"
+  },
+  {
+   "title": "Hendershott & Menkveld, Price Pressures, CFS working paper 2010/14",
+   "url": "https://gfk-cfs.de/media//10_14.pdf"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-013.md; research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); b3/config/sessions.json (session hours by period); b3/events.py and the head of b3/config/events_us.json (FOMC/CPI/NFP kinds and times); research/proxies/event_anatomy.json (event continuation failed on the US indices, so the event line was dropped); research/proxies/proposals/P-010.json and P-012.json (never evaluated). Web: searches on the PTAX windows, the dollar settlement window and FX-fix reversals (Evans; Marsh-Panagiotou-Payne). These were considered for WDO and dropped: the evidence is small against WDO's cost, and the settlement-price model of currency futures changed in 2024-2025. Also searches on Chague et al., zeragem compulsoria (fetched the Toro page; the 2026 WIN margin of BRL 155 is from the search summary of B3 OC 056-2025) and Hendershott-Menkveld (search summary). No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-16T16:51:33+00:00",
+ "problems": [
+  "interrupted 2026-11-16 13:51 BRT: proxy-developer hit the account's 5-hour usage limit before writing the rule; no rule file, no data read, not counted (same as P-012)"
+ ]
+}

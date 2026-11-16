@@ -266,12 +266,14 @@ def test_new_b3_rules_alternate_1_and_5_minutes(tmp_path, monkeypatch):
     cfg = prog.load_program(prog.LANES["b3"]["program"])
     assert [prog.assigned_timeframe(f"P-{n:03d}", cfg) for n in range(13, 19)] == [1, 5, 1, 5, 1, 5]
     good = json.loads((prog.LANES["b3"]["proposals"] / "P-013.json").read_text(encoding="utf-8"))
-    good = {k: v for k, v in good.items() if k in prog.PROPOSAL_KEYS}
+    good = {k: v for k, v in good.items() if k in prog.PROPOSAL_KEYS} | {"expected_trades_per_year": 600}
     assert prog.validate_proposal(good, "P-013", cfg, ["WIN", "WDO"]) == []
+    rare = dict(good, expected_trades_per_year=246)                 # P-004's once a day is too rare (owner)
+    assert any("at least 500" in x for x in prog.validate_proposal(rare, "P-013", cfg, ["WIN", "WDO"]))
     bad = dict(good, timeframe_min=5)
     assert any("must be 1 for P-013" in x for x in prog.validate_proposal(bad, "P-013", cfg, ["WIN", "WDO"]))
     lanes = {k: dict(v) for k, v in prog.LANES.items()}
     lanes["b3"]["context"] = tmp_path
     monkeypatch.setattr(prog, "LANES", lanes)
     text = prog.write_context("P-014", prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[]), cfg).read_text(encoding="utf-8")
-    assert "Timeframe of P-014: 5 minutes, fixed" in text
+    assert "Timeframe of P-014: 5 minutes, fixed" in text and "at least 500 trades per year" in text

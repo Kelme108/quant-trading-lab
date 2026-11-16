@@ -30,6 +30,7 @@ Write exactly one file, the output path from the prompt (`research/b3/proposals/
 - `data_visible_at_proposal`: what you looked at (files and pages).
 
 ## Rules
+- Owner (2026-11-16): "quero regras com bastante trades". `expected_trades_per_year` must be at least the context's minimum (500 per market, about 2 per session); a rule that trades once a day or less is refused. Make the frequency honest: say which condition fires how often, from the measured data.
 - Owner (2026-11-16): only 1, 5 and 15-minute rules; the FOCUS is 1 and 5 minutes, half of the new rules on each. The context file states this rule's timeframe (1 or 5 minutes, alternating); use exactly that `timeframe_min`, a proposal on another timeframe is refused.
 - The contract: WIN tick 5 points (BRL 1 per contract), WDO tick 0.5 point (BRL 5). The continuous series is by liquidity without adjustment; rolls happen between sessions (WIN every two months, WDO monthly), so a rule whose indicators span sessions must say so.
 - Never repeat a mechanism of the context table under a new name: P-001..P-011 were opening-range breakouts, first/last half-hour momentum, noise-area momentum, VWAP trend, rest-of-day momentum, large-open fades, month-end flows and round-number fades, conditioned or not. Variations of public intraday momentum are on the "do not" list.

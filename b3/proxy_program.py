@@ -178,6 +178,9 @@ def validate_proposal(p: dict, rule_id: str, program: dict | None = None, scope_
         problems.append(f"markets must be a non-empty subset of {sorted(allowed)}")
     if p["timeframe_min"] not in sc["timeframes_min"]:
         problems.append(f"timeframe_min must be one of {sc['timeframes_min']}")
+    least = sc.get("min_expected_trades_per_year")
+    if least and p["expected_trades_per_year"] < least:
+        problems.append(f"expected_trades_per_year must be at least {least} per market (owner: rules with many trades)")
     want = assigned_timeframe(rule_id, cfg)
     if want is not None and p["timeframe_min"] != want:
         problems.append(f"timeframe_min must be {want} for {rule_id} (owner: new rules alternate 1 and 5 minutes)")
@@ -245,6 +248,12 @@ Exploration facts for WIN and WDO (research/b3/anatomy.json, data_quality.json; 
   both contracts (research/b3/crypto_screen.json, exploration only): 56 of 94 reads made no trade at all, none passed
   the gates. Owner 2026-11-16: only 1, 5 and 15-minute rules, focus on 1 and 5 minutes.
 - 1-minute bars exist for the whole period (scope allows a 1-minute entry clock).
+- Frequency vs edge on WIN exploration (base cost): P-005 VWAP trend 1m ~4,480 trades/yr, -0.0135% gross per trade,
+  -85% net; P-003 noise area ~420/yr, +0.003%; P-001 opening range ~247/yr, +0.014%; P-004 rest of day ~246/yr,
+  +0.031% (the only exploration pass). Frequent rules die on the round trip (~0.011% WIN, ~0.0235% WDO): a rule with
+  2+ trades per session needs a mechanism whose AVERAGE trade still moves 3x the cost, e.g. by trading only the
+  sessions' active windows, by holding 10-60 minutes instead of 1-5, or by filtering for conditions where the move
+  is large. Flipping on every small signal (P-005) is what fails.
 """
 
 
@@ -306,6 +315,10 @@ def _write_context_b3(rule_id: str, st: Status, cfg: dict) -> Path:
         *([f"**Timeframe of {rule_id}: {assigned_timeframe(rule_id, cfg)} minutes, fixed.** Owner 2026-11-16: half of the "
            "new rules on a 1-minute clock and half on 5 minutes, alternating; a proposal on any other timeframe is "
            "refused.", ""] if assigned_timeframe(rule_id, cfg) is not None else []),
+        *([f"**Frequency: at least {sc['min_expected_trades_per_year']} trades per year per market (about 2 per session), "
+           "fixed.** Owner 2026-11-16: 'quero regras com bastante trades'. A proposal expecting fewer is refused. The hard "
+           "part (see the frequency facts below): the frequent rules tried so far made LESS per trade than the round trip.", ""]
+          if sc.get("min_expected_trades_per_year") else []),
         FACTS_B3, "## Rules already explored on WIN/WDO (exploration split only; the crypto strategies are below)", "",
         *[ln for ln in _exploration_table(paths["results"]) if not ln.startswith("| C-")], "", *screen, "",
     ])
