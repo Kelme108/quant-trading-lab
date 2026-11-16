@@ -1,0 +1,56 @@
+{
+ "rule_id": "P-015",
+ "title": "WIN same-slot periodicity: trade each half-hour slot in the sign of its own return over the previous 20 sessions",
+ "class_name": "WinHalfHourPeriodicity",
+ "file_stem": "p015_win_half_hour_periodicity",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Bars: 1-minute, session-only (Sao Paulo time); minute_of_day = bar open. SLOTS: 30-minute slots starting at s = 570, 600, ..., 1050 (09:30 to 17:30). A slot is tradable only if it ends at least 20 minutes before today's close (s+30 <= close_min-20), so the last slot is 17:30-18:00 with an 18:25 close and 17:00-17:30 with a 17:55 close. SLOT RETURN on day d: r(d,s) = close of the bar at s+29 / open of the bar at s - 1. It is NaN if either bar is missing, or if a scheduled FOMC, CPI or NFP release (b3/events.py event_times) falls in [s, s+30). Each return lies inside one session, so the between-session rolls of WIN$N never enter. BASELINE for slot s on day D: the previous 20 sessions (today excluded) with the same scheduled close time as D (18:25 vs 17:55) and a valid r(d,s), all within the last 40 sessions. No signal if there are fewer than 15. The baseline spans sessions and rolls. m = mean, sd = sample sd, t = m / (sd / sqrt(n)). DIRECTION dir(s) = sign(m) if |t| >= 1.0 AND |m| >= 0.0005, else 0. It is also 0 if a scheduled FOMC/CPI/NFP release falls in [s, s+30) today. ENTRY: at the close of the bar at s-1, if flat, dir(s) = +1 -> ENTER_LONG and dir(s) = -1 -> ENTER_SHORT, by market order at the open of the bar at s. The short side is symmetric because the scheduled flow sells as often as it buys. CARRY/EXIT: a position from slot s is decided at the close of the bar at s+29. If the next slot s+30 is tradable and dir(s+30) equals the position's side, HOLD into it (same trade, same stop). Otherwise EXIT at the open of the bar at s+30. FLIP: if that EXIT happened and dir(s+30) is the opposite side, enter it at the close of the bar at s+30 (fill at s+31). At most one entry per slot. MISSING BAR: if the bar at s-1 (or s+29) is missing, decide at the close of the first available bar within the next 2 minutes, otherwise skip the slot (exits still happen at the first available bar). STOP on every entry: 0.35% of the decision bar's close C: long stop = tick_floor(C*0.9965), short stop = tick_ceil(C*1.0035) (5-point tick). The stop is fixed for the whole trade, including carried slots. The engine flattens before the close. Max entries per day: 8. Lookbacks: 20 qualifying sessions within 40 sessions per slot. No intraday lookback: today's earlier bars are never used for the signal.",
+ "parameters": {
+  "timeframe_min": 1,
+  "slot_minutes": 30,
+  "first_slot_start_minute_of_day": 570,
+  "last_slot_start_minute_of_day": 1050,
+  "min_minutes_to_close_at_slot_end": 20,
+  "baseline_sessions": 20,
+  "min_baseline_sessions": 15,
+  "baseline_max_span_sessions": 40,
+  "t_stat_min": 1.0,
+  "min_abs_mean_slot_return": 0.0005,
+  "stop_frac": 0.0035,
+  "decision_bar_grace_minutes": 2,
+  "skip_event_slots_fomc_cpi_nfp": 1,
+  "max_entries_per_day": 8
+ },
+ "mechanism": "Heston, Korajczyk and Sadka (JF 2010) find that a stock's return in a given half-hour interval continues at exact multiples of a trading day, i.e. in the same half-hour on following days, for up to 40 sessions. Haendler, Heston, Korajczyk and Sadka (2025) explain all of the open and midday periodicity with institutional-trading proxies: VWAP-like execution, changes in lendable shares and index inclusion. They attribute the close to market-on-close trading. The other side: a large institution works a multi-day metaorder with a schedule algorithm that follows the same intraday volume profile every day. So each day it pushes the price in the same direction in the same clock slots. It accepts this predictable impact because what it is judged on is tracking error against VWAP or the close, not hiding the pattern its own schedule reveals. On B3, foreign and local institutions execute index-heavy baskets and their WIN/IND hedges this way. Fixed clock times anchor these schedules: the 10:00 cash open, the US cash open (10:30 or 11:30 Sao Paulo), the 16:55 closing call and the 17:00-17:15 WIN settlement window. The rule trades ahead of, and alongside, the scheduled flow in each slot, in the direction that flow pushed the same slot on recent sessions. The scheduled executor pays that impact and gives the money away. It uses no reference to today's trend, open, VWAP or price levels. Event slots are dropped from both the baseline and trading, because their returns are news, not schedules.",
+ "why_gross_beats_3x_cost": "WIN base round trip is ~0.011%, so the target mean gross is >= 0.033%. From anatomy.json, the 30-minute median |move| is 0.1245% (p75 0.239%), so the 30-minute sd is about 0.18-0.20% (higher at 10h-11h, with a 5-minute range of 0.18-0.21%, lower at 13h-17h at 0.11%). The standard error of a 20-session mean is about sd/4.5, or 0.04-0.045%. The filter |t| >= 1 AND |m| >= 0.05% therefore admits only slots whose trailing drift is >= 4.5x the base cost, typically 0.05-0.09%. HKS report that the periodicity persists for 40 sessions. If about half of the selected trailing drift repeats (shrinkage for noise), the expected gross is 0.03-0.045% per trade. With sd ~0.19%, a drift of 0.035% gives a hit rate of about Phi(0.035/0.19), i.e. ~56-57%, with a payoff near 1:1 (average win ~0.16%, average loss ~0.15%). The 0.35% stop is about 2.8x the median 30-minute move, so it is hit on roughly 5% of trades, mainly on long carries. Its extra tick (0.0044%) averages ~0.0002%. Carrying same-sign consecutive slots saves a round trip and lengthens the move (60-minute median 0.18%). FREQUENCY: 16-17 tradable slots per session. Even with no true periodicity, about 25% of slots pass the |t|/|m| filter, so ~4 slots/day; merging adjacent same-sign slots leaves ~3.3 entries/day, about 800/yr. The honest risk: the HKS evidence is on single stocks. Index-level persistence of the slot drift on WIN is exactly what this rule tests, and if it is absent the gross is ~0.",
+ "expected_trades_per_year": 800,
+ "expected_median_hold_min": 30,
+ "novelty_vs_tried": "Every rule in the table uses TODAY's path: P-001/P-003/P-006 break ranges (opening range, noise area, first candle), P-002/P-004/P-007 carry the first-half-hour or rest-of-day move, P-005 follows price vs VWAP, P-008 fades the opening move, P-011 fades round-number levels, and P-014 fades abnormal-volume bars. P-009 is the only calendar rule, and it trades the month-end flow once a day. This rule's signal is computed only from the SAME clock slot on the PREVIOUS 20 sessions. Nothing from today's bars enters, so it can go long in a falling session and short in a rising one. It is not momentum or reversal of today's move. It is a cross-day, time-of-day seasonality in signed returns, re-estimated every session, that trades up to 17 slots per day with carry between same-sign slots. No crypto strategy or proxy rule uses slot-return periodicity.",
+ "sources": [
+  {
+   "title": "Heston, Korajczyk & Sadka, Intraday Patterns in the Cross-section of Stock Returns (arXiv 1005.3535, JF 2010)",
+   "url": "https://arxiv.org/pdf/1005.3535.pdf"
+  },
+  {
+   "title": "Heston, Korajczyk & Sadka paper (UH Bauer copy)",
+   "url": "https://www.bauer.uh.edu/departments/finance/documents/Heston_Korajczyk_Sadka_paper_UH.pdf"
+  },
+  {
+   "title": "Haendler, Heston, Korajczyk & Sadka (2025), The Intra-Day Stock Return Periodicity Puzzle (Kellogg research page)",
+   "url": "https://www.kellogg.northwestern.edu/academics-research/research/detail/2025/the-intra-day-stock-return-periodicity-puzzle/"
+  },
+  {
+   "title": "The Intra-Day Stock Return Periodicity Puzzle (SSRN 5749704)",
+   "url": "https://papers.ssrn.com/ab_id=5749704"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-015.md (scope, costs, gates, table of explored rules); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-013.json and P-014.json; b3/config/sessions.json (close times 18:25/17:55 by period, WIN settlement window 17:00-17:15); b3/events.py (event_times, mark_events); b3/strategies/proxies.py (head, the Signal/stop pattern); b3/backtest.py (grep: EXIT and ENTER are separate decisions, so a flip takes one extra bar). Web: search summaries on top-of-the-hour effects, the PTAX fixing windows and HKS periodicity; I fetched the Kellogg page for Haendler et al. 2025. WDO was considered (the PTAX windows, FX-fix patterns) and dropped: fix effects of a few bp cannot clear its 0.0235% cost. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-16T22:52:41+00:00",
+ "problems": [
+  "interrupted 2026-11-16 19:58 BRT: (1) the pipeline's file guard saw b3/pattern_search.py and its test change while the developer ran - edits by the owner's session in the same working tree, not by the agent; (2) b3/strategy_check.py still allowed only 5/15/30/60-minute rule files (proxy-lane leftover), so a 1-minute rule could not pass the screen (fixed in the same commit). No rule file, no data read, not counted (same as P-012, P-013)"
+ ]
+}

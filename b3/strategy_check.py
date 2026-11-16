@@ -64,7 +64,7 @@ def _screen(tree: ast.AST) -> list[str]:
 
 PROXY_FILE_STEM = re.compile(r"^p(\d{3})_[a-z0-9_]+$")
 PROXY_FROM_MODULES = frozenset({"b3.strategy", "b3.calendar", "b3.markets", "b3.events", "live.core.models"})
-PROXY_TIMEFRAMES = (5, 15, 30, 60)
+PROXY_TIMEFRAMES = (1, 5, 15, 30, 60)          # 1 minute: owner 2026-11-16 (WIN/WDO 1 and 5 min), scope_b3 min_timeframe_min = 1
 
 
 def check_proxy_rule_source(path: Path, rule_id: str | None = None) -> list[str]:
