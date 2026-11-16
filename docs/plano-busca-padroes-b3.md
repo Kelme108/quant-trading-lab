@@ -139,3 +139,33 @@ Regras que viram a mão a cada sinal pequeno perdem tudo no custo.
 | Demo da Clear com as aprovadas | 2 a 4 semanas | o mesmo acompanhamento ao vivo de hoje |
 
 Os agentes continuam no ritmo de hoje, com no máximo 3 regras por semana e pelo menos 500 operações por ano, em paralelo.
+
+## 7. Resultado (16/11/2026, só dados de exploração)
+
+Você escolheu D1 (a), D2 (a), D3 (a) e D4 (a). O protocolo foi gravado e datado antes de qualquer leitura: `b3/config/pattern_search_b3.json`, commit `1388af8`.
+
+**Conferência do simulador.** Antes de olhar qualquer resultado, o simulador rápido foi comparado com o motor oficial (`b3/backtest.py`) em 3 variações. As operações saíram **100% idênticas** nas três (4.888, 4.488 e 750 operações), comparando horário e preço de entrada e saída. O registro está em `research/b3/search/fidelity.json`.
+
+**Caminho A: 552 variações** (16 famílias de padrões × 1 e 5 min × 6 saídas).
+
+- Nenhuma passou.
+- 388 variações operam 500 ou mais vezes por ano. Nenhuma ganhou no custo conservador, e só 2 ganharam no custo base.
+- A melhor delas ganhou **+0,004% bruto por operação**. A meta era 0,033% (3 vezes o custo), e o custo sozinho é 0,011%.
+- O maior Sharpe deflacionado foi 0,002, contra o mínimo de 0,95. A probabilidade de sobreajuste do programa foi 0,20.
+- Os poucos padrões com ganho bruto bom (como volume anormal a favor) operam de 4 a 80 vezes por ano, longe das 500 pedidas.
+
+**Caminho B: 3 bases × 3 cortes do filtro = 9 variações.**
+
+- Previsões feitas de jan/2023 a jun/2024. O primeiro trimestre completo depois de 12 meses de treino foi 2023-T1.
+- O filtro levou duas bases de −0,004% e −0,009% para +0,004% e +0,003% bruto por operação. Ainda fica 8 vezes abaixo da meta, e com acerto de 47% a 51%.
+- Na terceira base, com o dólar como sinal, o filtro piorou o resultado.
+- A probabilidade de sobreajuste foi 0,81, ou seja, o corte "bom" é coincidência.
+- Nenhuma variação passou.
+
+**Validação:** nenhuma finalista, então **não houve leitura**. Os dados de validação e de teste final continuam intactos.
+
+**Conclusão.** Com preços de 1 e 5 minutos e operações de 15 a 60 minutos, padrões frequentes no WIN não têm vantagem de direção que pague o custo de entrar e sair. Isso vale até com um filtro de aprendizado de máquina. Os dados apontam três alavancas de outro tipo:
+
+1. **Custo.** No WIN, cerca de 80% do custo é o deslizamento de 1 tick em cada ponta. Com ordens limitadas, ou medindo o deslizamento real na demo da Clear (as ordens da P-004 já mostram isso), a meta cai muito. O risco é que uma ordem limitada só é executada justo quando o preço vai contra você, e isso não dá para testar com candles: precisa de dados de tick ou da demo.
+2. **Dados novos.** O fluxo de agressão, isto é, quem compra e quem vende a mercado, vem do histórico de ticks da B3 no MT5. É o tipo de informação de curtíssimo prazo que a literatura aponta como preditiva, e os candles não mostram.
+3. **Menos operações, maiores.** Os únicos padrões com ganho bruto acima da meta foram os raros: volume anormal a favor (+0,10% por operação, 4 por ano) e afastamento da VWAP (+0,04%, 60 por ano).
