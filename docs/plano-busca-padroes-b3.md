@@ -169,3 +169,36 @@ Você escolheu D1 (a), D2 (a), D3 (a) e D4 (a). O protocolo foi gravado e datado
 1. **Custo.** No WIN, cerca de 80% do custo é o deslizamento de 1 tick em cada ponta. Com ordens limitadas, ou medindo o deslizamento real na demo da Clear (as ordens da P-004 já mostram isso), a meta cai muito. O risco é que uma ordem limitada só é executada justo quando o preço vai contra você, e isso não dá para testar com candles: precisa de dados de tick ou da demo.
 2. **Dados novos.** O fluxo de agressão, isto é, quem compra e quem vende a mercado, vem do histórico de ticks da B3 no MT5. É o tipo de informação de curtíssimo prazo que a literatura aponta como preditiva, e os candles não mostram.
 3. **Menos operações, maiores.** Os únicos padrões com ganho bruto acima da meta foram os raros: volume anormal a favor (+0,10% por operação, 4 por ano) e afastamento da VWAP (+0,04%, 60 por ano).
+
+## 8. Alavanca 1: custo real medido (16/11/2026)
+
+**Medição.** Usei os ticks do WINZ26 na Clear, de 15/10 a 13/11/2026: 21 pregões e 7.751 minutos (`research/b3/execution_cost.json`). Foi medida só a execução, em horários fixos e sem nenhum sinal de estratégia, porque esse período fica dentro do teste final trancado. O histórico de ticks do terminal tem buracos (falta quase sempre o fim da tarde), então valem as horas cobertas, de 9h às 16h.
+
+| | Modelo do backtest | Medido |
+|---|---|---|
+| Spread | — | 1 tick em 95% do tempo |
+| Ordem a mercado (por ponta, contra a abertura do candle) | 1 tick | **0,39 tick** (p90: 1 tick) |
+| Stop | 2 ticks além do nível | **≈ 0** (média 0,7 tick a favor, p95 0) |
+| Ordem limitada no bid/ask | — | executa 86–92% das vezes em 15–60 s, mas 15–30 min depois rende 0,1–0,25 tick **pior** que a mercado (seleção adversa) |
+
+**Conclusões da medição:**
+- A ida e volta real é cerca de **metade** do que o modelo cobrava.
+- Ordem limitada **não** ajuda.
+
+**Reavaliação das 552 variações do caminho A com o custo medido.** A reavaliação foi gravada no protocolo antes de rodar (commit `fe93da7`). Os dois custos usados foram:
+- custo médio medido: 0,4 tick por ponta e R$ 0,25 de taxa;
+- custo do pior caso (p90): 1 tick por ponta e R$ 0,50 de taxa.
+
+Resultado:
+- 36 das 388 variações frequentes lucram no custo médio medido. A melhor é a rejeição da máxima/mínima do dia em 5 min, com cerca de 826 operações por ano e +13% em 2,6 anos (+0,007% por operação).
+- Nenhuma lucra no custo do pior caso.
+- O maior Sharpe deflacionado é 0,009, contra o mínimo de 0,95.
+- A probabilidade de sobreajuste é 0,51: escolher a melhor é praticamente cara ou coroa.
+- **Nenhuma passou**, e a validação continua sem leitura.
+
+**Leitura.** O custo real deixa os padrões frequentes mais perto do empate, mas o lucro que aparece tem o tamanho que se espera do acaso depois de 552 tentativas. Os candles de 1 e 5 minutos não trazem informação de direção suficiente.
+
+**Sobre a alavanca 2 (fluxo de agressão).**
+- **Onde existe o lado do agressor:** só no contrato vigente. A série contínua WIN$N grava todos os negócios com a mesma marca e não diz quem agrediu.
+- **Quanto histórico há:** o terminal guarda poucas semanas, e com buracos.
+- **O que isso exige:** pesquisar fluxo de agressão significa **começar a gravar** os ticks desde agora, com um gravador simples e só de leitura, e esperar alguns meses até ter dados para explorar e validar.

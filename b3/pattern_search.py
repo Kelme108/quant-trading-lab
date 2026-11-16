@@ -357,10 +357,19 @@ class Signals:
 # Simulation with the fill rules of b3/backtest.py
 # ---------------------------------------------------------------------------------------------
 
-def simulate(fr: Frame, d: np.ndarray, hold_min: int, stop_frac: float, scenario: str,
+def measured_cost(name: str, cfg: dict | None = None):
+    """A B3Cost from pattern_search_b3.json cost_reevaluation (measured from the Clear ticks)."""
+    from dataclasses import replace
+    c = (cfg or load_config())["cost_reevaluation"][name]
+    return replace(market("WIN").cost("base"), name=name, fees_per_side_brl=c["fees_per_side_brl"],
+                   slippage_ticks_per_side=c["slippage_ticks_per_side"], stop_extra_ticks=c["stop_extra_ticks"])
+
+
+def simulate(fr: Frame, d: np.ndarray, hold_min: int, stop_frac: float, scenario,
              max_per_day: int = 8, start: pd.Timestamp | None = None) -> pd.DataFrame:
     m = market("WIN")
-    cost, inst = m.cost(scenario), m.instrument()
+    cost = scenario if not isinstance(scenario, str) else m.cost(scenario)
+    inst = m.instrument()
     tick, tv, pv = inst.tick_size, inst.tick_value_brl, inst.point_value_brl
     slip = cost.slippage_ticks_per_side * tick
     cash = cost.cash_per_side_brl
@@ -520,6 +529,34 @@ def stage_a(split: str = "exploration") -> Path:
                       "trades": mb.get("trades", 0)})
         print(f"tf {tf}m done in {time.time() - t0:.0f}s", flush=True)
     return _finish("A", split, cfg, rows, daily, start)
+
+
+def stage_a_measured() -> Path:
+    """Stage A's 552 variants again, with the measured costs (cost_reevaluation); n_trials stays 561."""
+    cfg = load_config()
+    start, end = split_bounds("exploration")
+    years = (end - start).days / 365.25
+    ex = cfg["execution"]
+    cm, cp = measured_cost("measured", cfg), measured_cost("measured_p90", cfg)
+    rows, daily = [], {}
+    for tf in cfg["data"]["timeframes_min"]:
+        fr = load_frame(tf, end, cfg)
+        sig = Signals(fr)
+        for fam, p in signal_settings(cfg):
+            d = sig.direction(fam, p)
+            for hold, stop in itertools.product(ex["exit_grid"]["hold_min"], ex["exit_grid"]["stop_frac"]):
+                vid = variant_id(fam, p, tf, hold, stop)
+                tb = simulate(fr, d, hold, stop, cm, ex["max_entries_per_session"], start)
+                tc = simulate(fr, d, hold, stop, cp, ex["max_entries_per_session"], start)
+                daily[vid] = daily_returns(tb, fr, start)
+                rows.append({"variant": vid, "family": fam, "params": p, "tf": tf, "hold_min": hold, "stop_frac": stop,
+                             "base": metrics(tb, fr, start, years), "conservative": metrics(tc, fr, start, years),
+                             "_scenarios": {"base": "measured", "conservative": "measured_p90"}})
+                _log({"variant": vid, "stage": "A-measured", "split": "exploration",
+                      "read_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "trades": rows[-1]["base"].get("trades", 0)})
+        print(f"tf {tf}m done", flush=True)
+    b = json.loads((OUT / "B-exploration.json").read_text(encoding="utf-8"))
+    return _finish("A-measured", "exploration", cfg, rows, daily, start, prior_trials=b["n_variants"])
 
 
 def _finish(stage: str, split: str, cfg: dict, rows: list, daily: dict, start, prior_trials: int = 0,
@@ -765,6 +802,7 @@ def main(argv=None) -> int:
     sub.add_parser("fidelity")
     sub.add_parser("stage-a")
     sub.add_parser("stage-b")
+    sub.add_parser("stage-a-measured")
     a = ap.parse_args(argv)
     if a.cmd == "fidelity":
         r = fidelity()
@@ -773,6 +811,8 @@ def main(argv=None) -> int:
         print(stage_a())
     if a.cmd == "stage-b":
         print(stage_b())
+    if a.cmd == "stage-a-measured":
+        print(stage_a_measured())
     return 0
 
 
