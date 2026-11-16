@@ -258,3 +258,20 @@ def test_the_b3_scope_allows_only_1_5_and_15_minute_signals():
         pr.check_scope("WIN", 60, scope)
     hourly = type("H", (), {"params": {"strategy_timeframe": "1h"}, "timeframe_min": 5})
     assert pr.signal_timeframe_min(hourly) == 60          # a ported crypto strategy is judged by its own candles
+
+
+def test_new_b3_rules_alternate_1_and_5_minutes(tmp_path, monkeypatch):
+    """Owner 2026-11-16: half of the new WIN/WDO rules on 1 minute, half on 5, alternating from P-013."""
+    from b3 import proxy_program as prog
+    cfg = prog.load_program(prog.LANES["b3"]["program"])
+    assert [prog.assigned_timeframe(f"P-{n:03d}", cfg) for n in range(13, 19)] == [1, 5, 1, 5, 1, 5]
+    good = json.loads((prog.LANES["b3"]["proposals"] / "P-013.json").read_text(encoding="utf-8"))
+    good = {k: v for k, v in good.items() if k in prog.PROPOSAL_KEYS}
+    assert prog.validate_proposal(good, "P-013", cfg, ["WIN", "WDO"]) == []
+    bad = dict(good, timeframe_min=5)
+    assert any("must be 1 for P-013" in x for x in prog.validate_proposal(bad, "P-013", cfg, ["WIN", "WDO"]))
+    lanes = {k: dict(v) for k, v in prog.LANES.items()}
+    lanes["b3"]["context"] = tmp_path
+    monkeypatch.setattr(prog, "LANES", lanes)
+    text = prog.write_context("P-014", prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[]), cfg).read_text(encoding="utf-8")
+    assert "Timeframe of P-014: 5 minutes, fixed" in text

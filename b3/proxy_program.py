@@ -141,6 +141,17 @@ def next_rule_id(props: list[dict] | None = None, builtin: list[str] | None = No
     return f"P-{max(used) + 1:03d}"
 
 
+def assigned_timeframe(rule_id: str, program: dict | None = None) -> int | None:
+    """Owner 2026-11-16: half of the new WIN/WDO rules on a 1-minute clock, half on 5 minutes, alternating from the
+    first counted rule (P-013 is 1 minute, P-014 5 minutes, ...). None when the program has no alternation."""
+    cfg = program or load_program()
+    alt = cfg.get("scope", {}).get("alternate_timeframes_min")
+    if not alt:
+        return None
+    k = _num(rule_id) - _num(cfg.get("first_counted_rule", rule_id))
+    return int(alt[k % len(alt)]) if k >= 0 else None
+
+
 def validate_proposal(p: dict, rule_id: str, program: dict | None = None, scope_markets: list[str] | None = None) -> list[str]:
     cfg = program or load_program()
     sc = cfg["scope"]
@@ -167,6 +178,9 @@ def validate_proposal(p: dict, rule_id: str, program: dict | None = None, scope_
         problems.append(f"markets must be a non-empty subset of {sorted(allowed)}")
     if p["timeframe_min"] not in sc["timeframes_min"]:
         problems.append(f"timeframe_min must be one of {sc['timeframes_min']}")
+    want = assigned_timeframe(rule_id, cfg)
+    if want is not None and p["timeframe_min"] != want:
+        problems.append(f"timeframe_min must be {want} for {rule_id} (owner: new rules alternate 1 and 5 minutes)")
     lo, hi = sc["hold_min_range"]
     if not lo <= p["expected_median_hold_min"] <= hi:
         problems.append(f"expected_median_hold_min must be within {lo}-{hi} minutes")
@@ -289,6 +303,9 @@ def _write_context_b3(rule_id: str, st: Status, cfg: dict) -> Path:
         "market you list raises it by 0.1% for all later rules: list only the markets your mechanism is about.",
         f"Program: {len(st.counted_rules)} agent rules so far ({', '.join(st.counted_rules) or 'none'}); the program "
         f"stops after {cfg['stop_after_rules_without_validation_pass']} rules with no validation pass.", "",
+        *([f"**Timeframe of {rule_id}: {assigned_timeframe(rule_id, cfg)} minutes, fixed.** Owner 2026-11-16: half of the "
+           "new rules on a 1-minute clock and half on 5 minutes, alternating; a proposal on any other timeframe is "
+           "refused.", ""] if assigned_timeframe(rule_id, cfg) is not None else []),
         FACTS_B3, "## Rules already explored on WIN/WDO (exploration split only; the crypto strategies are below)", "",
         *[ln for ln in _exploration_table(paths["results"]) if not ln.startswith("| C-")], "", *screen, "",
     ])
