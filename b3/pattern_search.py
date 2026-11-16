@@ -367,6 +367,98 @@ class Signals:
         return _cross(ef > es, self.day).astype(int) - _cross(ef < es, self.day).astype(int)
 
 
+    # ---- path C (pattern_search_b3.json path_c): rarer, fast trades ----------------------------
+
+    def _gap(self):
+        def f():
+            g = self.df.groupby("local_date", sort=False)
+            first_open = g["open"].first()
+            last_close = g["close"].last()
+            gap_by_day = (first_open / last_close.shift(1) - 1.0).to_numpy()      # per session index
+            gap = gap_by_day[self.day]
+            absg = pd.Series(np.abs(gap_by_day))
+            s = absg.rolling(20, min_periods=20).mean().shift(1).to_numpy()[self.day]
+            prev_ok = _prev_in_day(self.fr.entry_ok.astype(float), self.day, 1, 0.0) > 0
+            first_in_window = self.fr.entry_ok & ~prev_ok
+            return gap, s, first_in_window
+        return self._get("gap", f)
+
+    def _c01(self, fam, p, sign=-1):
+        gap, s, first = self._gap()
+        up = first & (gap >= p["k"] * s)
+        dn = first & (gap <= -p["k"] * s)
+        return sign * (up.astype(int) - dn.astype(int))
+
+    def _c02(self, fam, p):
+        return self._c01(fam, p, +1)
+
+    def _c03(self, fam, p):
+        return self._f03(fam, p, -1)
+
+    def _c04(self, fam, p, sign=-1):
+        rng = self.h - self.l
+        med = self._get("rngmed", lambda: _same_minute_stat(rng, self.day, self.minute, "median"))
+        shock = (rng >= p["k"] * med) & (med > 0)
+        bar = np.sign(self.c - self.o).astype(int)
+        return sign * np.where(shock, bar, 0)
+
+    def _c05(self, fam, p):
+        return self._c04(fam, p, +1)
+
+    def _run_length(self, cond):
+        # length of the current run of `cond` inside the session (0 where cond is false)
+        out = np.zeros(len(cond), dtype=np.int64)
+        for i in range(len(cond)):
+            if cond[i]:
+                out[i] = out[i - 1] + 1 if i and cond[i - 1] and self.day[i] == self.day[i - 1] else 1
+        return out
+
+    def _c06(self, fam, p):
+        n = int(p["n"])
+        up_run = self._get("runup", lambda: self._run_length(self.c > self.o))
+        dn_run = self._get("rundn", lambda: self._run_length(self.c < self.o))
+        return (dn_run == n).astype(int) - (up_run == n).astype(int)
+
+    def _c07(self, fam, p):
+        m = self.bars(15)
+        r1, s1 = self._shock(m)
+        r2, s2 = self._shock(m, "wdo")
+        k = p["k"]
+        up = _cross((r1 >= k * s1) & (r2 >= k * s2), self.day)
+        dn = _cross((r1 <= -k * s1) & (r2 <= -k * s2), self.day)
+        return dn.astype(int) - up.astype(int)
+
+    def _c08(self, fam, p):
+        return self._f07(fam, p, +1)
+
+    def _c09(self, fam, p):
+        return self._f07(fam, p, -1)
+
+    def _c10(self, fam, p):
+        def f():
+            g = pd.DataFrame({"d": self.day, "h": self.h, "l": self.l})
+            maxb = g.groupby("d")["h"].transform(lambda x: x.cummax().shift(1)).to_numpy()
+            minb = g.groupby("d")["l"].transform(lambda x: x.cummin().shift(1)).to_numpy()
+            r = self.c / self.df["day_open"].to_numpy(float) - 1.0
+            s = _same_minute_stat(np.abs(r), self.day, self.minute, "mean")
+            return maxb, minb, r, s
+        maxb, minb, r, s = self._get("late", f)
+        late = self.minute >= 16 * 60
+        short = _cross(late & (self.c > maxb) & (r >= p["k"] * s), self.day)
+        long = _cross(late & (self.c < minb) & (r <= -p["k"] * s), self.day)
+        return long.astype(int) - short.astype(int)
+
+    def _c11(self, fam, p):
+        morning = (self.minute >= 9 * 60) & (self.minute < 12 * 60)
+        g = pd.DataFrame({"d": self.day, "h": np.where(morning, self.h, np.nan), "l": np.where(morning, self.l, np.nan)})
+        rh = g.groupby("d")["h"].transform("max").to_numpy()
+        rl = g.groupby("d")["l"].transform("min").to_numpy()
+        after = self.minute >= 12 * 60
+        up = _cross(after & (self.c > rh), self.day)
+        dn = _cross(after & (self.c < rl), self.day)
+        return up.astype(int) - dn.astype(int)
+
+
 # ---------------------------------------------------------------------------------------------
 # Simulation with the fill rules of b3/backtest.py
 # ---------------------------------------------------------------------------------------------
@@ -574,6 +666,43 @@ def stage_a_measured() -> Path:
         return _finish("A-measured", "exploration", cfg, rows, daily, start)
     b = json.loads((OUT / "B-exploration.json").read_text(encoding="utf-8"))
     return _finish("A-measured", "exploration", cfg, rows, daily, start, prior_trials=b["n_variants"])
+
+
+def stage_c() -> Path:
+    """Path C (pattern_search_b3.json path_c) on exploration for MARKET, measured costs."""
+    cfg = load_config()
+    pc = cfg["path_c"]
+    start, end = split_bounds("exploration")
+    years = (end - start).days / 365.25
+    ex = cfg["execution"]
+    cm, cp = measured_cost("measured", cfg), measured_cost("measured_p90", cfg)
+    rows, daily = [], {}
+    for tf in pc["timeframes_min"]:
+        fr = load_frame(tf, end, cfg)
+        sig = Signals(fr)
+        for fam, p in signal_settings({"families": pc["families"]}):
+            d = sig.direction(fam, p)
+            for hold, stop in itertools.product(ex["exit_grid"]["hold_min"], ex["exit_grid"]["stop_frac"]):
+                vid = variant_id(fam, p, tf, hold, stop)
+                tb = simulate(fr, d, hold, stop, cm, ex["max_entries_per_session"], start)
+                tc = simulate(fr, d, hold, stop, cp, ex["max_entries_per_session"], start)
+                daily[vid] = daily_returns(tb, fr, start)
+                rows.append({"variant": vid, "family": fam, "params": p, "tf": tf, "hold_min": hold, "stop_frac": stop,
+                             "base": metrics(tb, fr, start, years), "conservative": metrics(tc, fr, start, years),
+                             "_scenarios": {"base": "measured", "conservative": "measured_p90"}})
+                _log({"variant": vid, "stage": "C", "split": "exploration",
+                      "read_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "trades": rows[-1]["base"].get("trades", 0)})
+        print(f"tf {tf}m done", flush=True)
+    from lab import stats
+    prior = pd.read_csv(OUT / "A-measured-exploration-daily.csv.gz", index_col=0)
+    prior_sharpes = [stats.sharpe(prior[c].to_numpy()) for c in prior.columns]
+    prior_trials = 561 if MARKET == "WIN" else 552
+    if MARKET == "WIN":                       # B's 9 variants: their Sharpes come from B's daily matrix
+        b = pd.read_csv(OUT / "B-exploration-daily.csv.gz", index_col=0)
+        prior_sharpes += [stats.sharpe(b[c].to_numpy()) for c in b.columns]
+    g = dict(cfg["gate_search"], min_trades_per_year=pc["gate"]["min_trades_per_year"])
+    return _finish("C", "exploration", dict(cfg, gate_search=g), rows, daily, start, prior_trials=prior_trials,
+                   prior_sharpes=prior_sharpes)
 
 
 def _finish(stage: str, split: str, cfg: dict, rows: list, daily: dict, start, prior_trials: int = 0,
@@ -822,9 +951,10 @@ def main(argv=None) -> int:
     sub.add_parser("stage-a")
     sub.add_parser("stage-b")
     sub.add_parser("stage-a-measured")
+    sub.add_parser("stage-c")
     a = ap.parse_args(argv)
     set_market(a.market)
-    if a.market != "WIN" and a.cmd not in ("fidelity", "stage-a-measured"):
+    if a.market != "WIN" and a.cmd not in ("fidelity", "stage-a-measured", "stage-c"):
         raise SystemExit("WDO: only fidelity and stage-a-measured are pre-registered (wdo_extension)")
     if a.cmd == "fidelity":
         r = fidelity()
@@ -835,6 +965,8 @@ def main(argv=None) -> int:
         print(stage_b())
     if a.cmd == "stage-a-measured":
         print(stage_a_measured())
+    if a.cmd == "stage-c":
+        print(stage_c())
     return 0
 
 

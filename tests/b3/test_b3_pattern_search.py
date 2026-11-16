@@ -42,3 +42,25 @@ def test_cross_fires_once_per_crossing_and_never_on_the_previous_session():
 def test_recorded_fidelity_was_exact():
     f = json.loads((ps.OUT / "fidelity.json").read_text(encoding="utf-8"))
     assert all(v["identical_share"] == 1.0 and v["official_trades"] > 500 for v in f["variants"])
+
+
+def test_path_c_has_288_variants_per_market():
+    cfg = ps.load_config()
+    settings = ps.signal_settings({"families": cfg["path_c"]["families"]})
+    assert len(settings) == 24 and len(settings) * 2 * 6 == 288
+    assert cfg["path_c"]["gate"]["min_trades_per_year"] == 50
+
+
+def test_path_c_signals_are_causal():
+    """A bar's signal must not change when later data is added (no look-ahead)."""
+    import pandas as pd
+    cfg = ps.load_config()
+    short = ps.load_frame(5, pd.Timestamp("2022-09-01", tz="UTC"), cfg)
+    long = ps.load_frame(5, pd.Timestamp("2022-11-01", tz="UTC"), cfg)
+    n = len(short.df)
+    assert (long.df["time"].iloc[:n].to_numpy() == short.df["time"].to_numpy()).all()
+    s1, s2 = ps.Signals(short), ps.Signals(long)
+    for fam, p in ps.signal_settings({"families": cfg["path_c"]["families"]}):
+        a, b = s1.direction(fam, p), s2.direction(fam, p)[:n]
+        assert (a == b).all(), fam
+        assert np.abs(b).sum() > 0 or fam.startswith(("C01", "C02", "C07", "C08", "C09")), fam
