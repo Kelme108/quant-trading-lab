@@ -202,3 +202,29 @@ Resultado:
 - **Onde existe o lado do agressor:** só no contrato vigente. A série contínua WIN$N grava todos os negócios com a mesma marca e não diz quem agrediu.
 - **Quanto histórico há:** o terminal guarda poucas semanas, e com buracos.
 - **O que isso exige:** pesquisar fluxo de agressão significa **começar a gravar** os ticks desde agora, com um gravador simples e só de leitura, e esperar alguns meses até ter dados para explorar e validar.
+
+## 9. "Rode no máximo" (16/11/2026, noite)
+
+**Correção da medição de custo.** No terminal da Clear, o horário dos ticks é o relógio da B3 contado como se fosse UTC. A primeira versão da ferramenta de custo leu, sem perceber, das 12h às 18h30, e rotulou esse período como 9h às 15h30. Refiz a medição com o pregão inteiro (commit `b7705d2`):
+
+| | WIN (21 pregões) | WDO (10 pregões) |
+|---|---|---|
+| Spread de 1 tick | 95% do tempo (um pouco mais largo das 9h às 11h) | 99,7% do tempo |
+| Ordem a mercado, por ponta | 0,37 tick (p90: 1) | 0,40 tick (p90: 1) |
+| Stop | no nível (média 0,6–0,9 tick a favor) | no nível |
+| Ordem limitada no bid/ask | pior que a mercado | melhor que a mercado quando executada (−0,2 a −0,3 contra −0,5 tick), mas executada só em 50–71% das vezes |
+
+Os custos pré-registrados (0,4 tick por ponta, 1 tick no p90 e stop sem tick extra) continuam certos, então as reavaliações das seções 8 e 9 valem.
+
+**Caminho A no WDO.** A extensão foi gravada no protocolo antes de qualquer leitura (`wdo_extension`, commit `d046a43`). São as mesmas 552 variações, agora com o custo medido do WDO. Na família F14, o sinal passa a ser o índice liderando o dólar. O simulador conferiu 100% com o motor oficial.
+- Nenhuma passou.
+- 0 das 398 variações frequentes lucram, nem no custo médio medido.
+- O maior Sharpe deflacionado é 0,0001, e a probabilidade de sobreajuste é 0,06: todas perdem, de forma consistente.
+- Os poucos padrões com bruto bom são raros: o volume anormal contra o candle rende +0,04% por operação, com cerca de 56 operações por ano.
+- A validação continua sem leitura.
+
+No WDO, a ida e volta custa cerca de 0,010% do contrato, contra 0,004% no WIN. Isso pesa mais.
+
+**Gravador de ticks (alavanca 2).** O código está em `b3/data/tick_recorder.py`, e a tarefa do Windows `TradeInitial-TickRecorder` roda em dias úteis às 19h05. Ele é só de leitura e não envia ordens. Grava todos os ticks do contrato vigente e do próximo, para WIN e WDO, em `user_data/data/b3/clear/ticks/`. O backfill salvou o que o terminal ainda guardava: só os contratos atuais (WINZ26, WING27, WDOZ26, WDOF27), porque os vencidos não podem mais ser lidos.
+
+**Atenção.** Todos esses ticks ficam dentro do período trancado do teste final do programa de candles (desde 01/10/2025). Para pesquisar fluxo de agressão neles, é preciso primeiro um programa de ticks com divisão própria (exploração, validação e teste) aprovada por você, antes de qualquer leitura de resultado.

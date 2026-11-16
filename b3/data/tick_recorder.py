@@ -7,7 +7,10 @@ For every trading day it saves ALL ticks (COPY_TICKS_ALL) of the active contract
     user_data/data/b3/clear/ticks/<CONTRACT>/<YYYY-MM-DD>.csv.gz      time_msc,bid,ask,last,volume_real,flags
     user_data/data/b3/clear/ticks/<CONTRACT>/<YYYY-MM-DD>.json        rows, trades, aggressor counts, coverage
 
-`time_msc` is UTC milliseconds as MT5 returns it. Flags: BUY=32 / SELL=64 mark the aggressor of a trade
+`time_msc` is kept exactly as MT5 returns it: milliseconds of the SERVER's wall clock (Sao Paulo, B3 time) counted
+as if it were UTC, like the bar times (live configs: server offset -3). Real UTC = time_msc + 3 h. Requests use the
+same clock: a window 09:00-09:20 B3 time is asked as 09:00-09:20 "UTC" (checked 2026-11-16: the day's last tick is
+18:31 on that clock, the closing time). Flags: BUY=32 / SELL=64 mark the aggressor of a trade
 (LAST=8); 1336 = buy aggressor at the ask, 1368 = sell aggressor at the bid on the Clear feed.
 
 The terminal caps one request near 100,000 ticks, so a day is read in 20-minute windows, and a window that comes
@@ -56,12 +59,12 @@ TICK_FLAG_LAST, TICK_FLAG_BUY, TICK_FLAG_SELL = 8, 32, 64
 
 
 def _ms(d: date, t: time) -> int:
-    return int(datetime.combine(d, t, SP).timestamp() * 1000)
+    """B3 wall time -> the server clock's milliseconds (wall time counted as UTC), the unit of time_msc."""
+    return int(datetime.combine(d, t, timezone.utc).timestamp() * 1000)
 
 
 def _local(ms: int) -> datetime:
-    # the MetaTrader5 package reads a NAIVE datetime as this machine's local time, so pass an aware UTC datetime
-    # (checked against time_msc by tests/b3/test_tick_recorder.py's window filter and the first real run)
+    # an AWARE datetime: the MetaTrader5 package would read a naive one as this machine's local time (+3 h here)
     return datetime.fromtimestamp(ms / 1000, timezone.utc)
 
 
@@ -103,9 +106,9 @@ def summarize(parts: list, day: date) -> dict:
         if len(p):
             first = int(p["time_msc"][0]) if first is None else first
             last = int(p["time_msc"][-1])
-    iso = lambda x: None if x is None else datetime.fromtimestamp(x / 1000, SP).isoformat(timespec="seconds")  # noqa: E731
+    iso = lambda x: None if x is None else datetime.fromtimestamp(x / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")  # noqa: E731
     return {"day": day.isoformat(), "rows": rows, "trades": trades, "buy_aggressor": buy, "sell_aggressor": sell,
-            "minutes_with_trades": len(minutes), "first_tick_sp": iso(first), "last_tick_sp": iso(last)}
+            "minutes_with_trades": len(minutes), "first_tick_b3_time": iso(first), "last_tick_b3_time": iso(last)}
 
 
 def write_day(sym: str, day: date, parts: list, final: bool, out: Path = OUT) -> dict:
@@ -124,7 +127,8 @@ def write_day(sym: str, day: date, parts: list, final: bool, out: Path = OUT) ->
     meta = {"symbol": sym, **summarize(parts, day), "final": final, "file": path.name,
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             "recorded_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "source": "Clear MT5 demo terminal, copy_ticks_range COPY_TICKS_ALL, 20-minute windows"}
+            "source": "Clear MT5 demo terminal, copy_ticks_range COPY_TICKS_ALL, 20-minute windows",
+            "time_msc": "server wall clock (B3 time) in ms counted as UTC; real UTC = time_msc + 3 h"}
     (d / f"{day.isoformat()}.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return meta
 
