@@ -1,0 +1,52 @@
+{
+ "rule_id": "P-014",
+ "title": "WIN abnormal-volume bar reversal: fade a 5-minute bar whose volume and move are both large for its time of day",
+ "class_name": "WinVolumeShockReversal",
+ "file_stem": "p014_win_volume_shock_reversal",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (B3 regular session, Sao Paulo time). O_t, H_t, L_t, C_t, V_t = open, high, low, close and volume (contracts) of bar t. r_t = C_t/O_t - 1 (inside one bar, so no price ever spans sessions). SLOT = minute_of_day of the bar open. BASELINES for bar t, over the previous 20 sessions (today excluded) that have a bar in the same slot: VBAR = mean V, ABAR = mean |r|. No signal if fewer than 15 of those 20 sessions have that slot. The baselines span sessions and rolls. The continuous WIN$N series follows the most liquid contract and rolls between sessions. Each volume term is one bar of the contract then traded, and each |r| term is inside one bar, so the roll price jump never enters. WINDOW: the signal bar opens at or after 11:00 (minute_of_day >= 660), and minutes_to_close >= 45 at its close (17:40 with an 18:25 close, 17:10 with a 17:55 close). DAY FILTER: no entries on FOMC_today days (mark_events, kind FOMC). SIGNAL at the close of window bar t: V_t >= 2.0*VBAR AND |r_t| >= 1.5*ABAR. LONG: signal with C_t < O_t (a high-volume down bar) -> ENTER_LONG by market order at the open of t+1. SHORT (symmetric, because hedging and stop flow hits both sides): signal with C_t > O_t -> ENTER_SHORT at the open of t+1. Signals are ignored while a position is open. After an exit, only signal bars that close after the exit bar count. STOP on every entry: D = min(max(H_t - L_t, 0.0015*C_t), 0.006*C_t). Long stop = tick_floor(C_t - D), short stop = tick_ceil(C_t + D) (5-point tick). EXIT, first of: (a) retracement: at the close of any bar after entry with close >= O_t (long) or close <= O_t (short), i.e. the whole signal bar retraced, exit at the next open; (b) time: exit at the open of the 6th bar after the entry bar (30 minutes); (c) the stop; (d) the engine's flat-before-close. Max 4 entries per day. Lookbacks: 1 bar for the signal, 20 sessions for VBAR and ABAR.",
+ "parameters": {
+  "timeframe_min": 5,
+  "baseline_sessions": 20,
+  "min_baseline_sessions": 15,
+  "volume_mult": 2.0,
+  "abs_return_mult": 1.5,
+  "window_start_minute_of_day": 660,
+  "min_minutes_to_close_at_signal": 45,
+  "stop_range_mult": 1.0,
+  "stop_min_frac": 0.0015,
+  "stop_max_frac": 0.006,
+  "max_hold_bars": 6,
+  "skip_fomc_days": 1,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "WIN is an index contract. Its price is an aggregate of about 90 stocks, so private information about it is scarce, and much of its abnormal volume is non-informational. Pension and multimarket funds hedge or re-hedge cash portfolios. Foreign investors put on macro overlays. Retail day traders' stop orders and the brokers' compulsory liquidations hit clustered levels. Campbell, Grossman and Wang (1993) model risk-averse market makers who absorb such liquidity-driven selling or buying pressure and are paid by a temporary price concession. The testable result is that a price move on high volume is more likely to reverse than the same move on low volume. Llorente, Michaely, Saar and Wang (2002) refine this. Risk-sharing (hedging) trades produce returns that reverse, and speculative trades produce returns that persist. The reversal is strongest where informed trading is least, as in a broad index future. On the other side of this rule is the impatient hedger or the forced seller. They trade a large size within 5 minutes and accept a worse price for immediacy. HFT and proprietary liquidity providers take the inventory at a discount and unload it over the next tens of minutes. The rule joins them only when the bar is abnormal FOR ITS TIME OF DAY. The 10:00 cash-auction volume, the US cash open and the lunch lull are already in the slot baseline, so the flag catches unusual flow rather than the routine intraday volume U-shape. The first two hours are excluded because futures-only discovery, the 10:00 cash opening auction and the US 08:30 ET releases are information events, where LMSW predict continuation. FOMC days are skipped for the same reason.",
+ "why_gross_beats_3x_cost": "WIN base round trip is ~0.011%, so the target mean gross is >= 0.033%. From anatomy.json, the median absolute 5-minute move is 0.052% (p75 0.098%) and the 5-minute range is ~0.11% from 12h to 17h. A signal bar moves at least 1.5x its slot's mean |r|, about >= 0.08-0.10% at midday, and usually more (0.12-0.25%) because high volume comes with large ranges. The 30-minute median move is 0.1245% (p75 0.239%, 11x the cost), and it is higher on the high-volume days where signals cluster. Existing evidence on WIN points to short-horizon reversal. P-005 (1-minute VWAP trend-following, 4,481 trades/yr) lost 0.0135% GROSS per trade, so the plain opposite side earned about +0.013% with no volume filter. CGW predict the reversal grows with abnormal volume. Expected profile: hit rate ~55%. Average win ~0.15%: the retracement exit (a) caps a winner at the full signal bar, about 0.12-0.25%, and time exits on winners are smaller. Average loss ~0.11%, with the stop (about 1 signal range beyond the close, 0.15-0.6%) hit on roughly 10-15% of trades. That gives 0.55 x 0.15 - 0.45 x 0.11 = ~0.033-0.035% per trade, about 3x the base cost. The extra stop tick (0.0044%) on ~12% of trades costs ~0.0005% on average.",
+ "expected_trades_per_year": 560,
+ "expected_median_hold_min": 30,
+ "novelty_vs_tried": "None of P-001..P-011 uses volume relative to a time-of-day baseline as the trigger, and none fades a bar. P-001/P-003/P-006 break out of an opening range, the noise area or the first candle (momentum). P-002/P-004/P-007 carry the first-half-hour or rest-of-day move into the close (momentum). P-005 follows price vs VWAP: volume only weights the price, it is not a signal. Its gross loss is the reason to expect the opposite side here. P-008 fades a large OPENING move once per day at a fixed time, and this rule never trades before 11:00. P-009 is a calendar (month-end) flow in the last hour. P-011 fades touches of a fixed price level (round numbers). This rule has no price level, no reference to the open or VWAP, and no calendar. It fires on any 5-minute bar from 11:00 to 45 minutes before the close whose volume is >= 2x and whose body is >= 1.5x that slot's 20-session mean, up to 4 times per day. It holds at most 30 minutes, with an exit at the signal bar's open. P-013 (never implemented, not counted) faded a 4x-scale 10-minute price shock once per day on a 1-minute clock after a counter-bar. This rule has a different trigger (abnormal volume, not price scale), a different clock and no confirmation bar, and it trades 2-3 times per session instead of ~0.3.",
+ "sources": [
+  {
+   "title": "Campbell, Grossman & Wang (1993), Trading Volume and Serial Correlation in Stock Returns, QJE 108(4) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:oup:qjecon:v:108:y:1993:i:4:p:905-939."
+  },
+  {
+   "title": "Campbell, Grossman & Wang, Trading Volume and Serial Correlation in Stock Returns (Harvard scholar page)",
+   "url": "https://campbell.scholars.harvard.edu/publications/trading-volume-and-serial-correlation-stock-returns"
+  },
+  {
+   "title": "Llorente, Michaely, Saar & Wang, Dynamic Volume-Return Relation of Individual Stocks (NBER w8312)",
+   "url": "https://www.nber.org/papers/w8312"
+  },
+  {
+   "title": "Llorente, Michaely, Saar & Wang (2002), RFS 15(4) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:oup:rfinst:v:15:y:2002:i:4:p:1005-1047"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-014.md (scope, costs, gates, table of P-001..P-011 on WIN/WDO); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/data_quality.json (grep only: zero-volume bar counts are 0); research/b3/proposals/P-013.json (never implemented); b3/config/sessions.json (session hours); b3/events.py (mark_events, FOMC/CPI/NFP); b3/b3_data.py (grep: bars carry real contract volume); b3/strategies/proxies.py (grep of class and indicator names). Web: WebSearch results on Campbell-Grossman-Wang 1993, Llorente-Michaely-Saar-Wang 2002 and volume-conditioned intraday reversal; search summaries only, no full text fetched. WDO was dropped: its cost is 0.0235%, and its 30-minute median move of 0.091% leaves no room. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-16T19:50:20+00:00"
+}
