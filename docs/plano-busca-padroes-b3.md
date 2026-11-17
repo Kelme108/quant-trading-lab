@@ -228,3 +228,36 @@ No WDO, a ida e volta custa cerca de 0,010% do contrato, contra 0,004% no WIN. I
 **Gravador de ticks (alavanca 2).** O código está em `b3/data/tick_recorder.py`, e a tarefa do Windows `TradeInitial-TickRecorder` roda em dias úteis às 19h05. Ele é só de leitura e não envia ordens. Grava todos os ticks do contrato vigente e do próximo, para WIN e WDO, em `user_data/data/b3/clear/ticks/`. O backfill salvou o que o terminal ainda guardava: só os contratos atuais (WINZ26, WING27, WDOZ26, WDOF27), porque os vencidos não podem mais ser lidos.
 
 **Atenção.** Todos esses ticks ficam dentro do período trancado do teste final do programa de candles (desde 01/10/2025). Para pesquisar fluxo de agressão neles, é preciso primeiro um programa de ticks com divisão própria (exploração, validação e teste) aprovada por você, antes de qualquer leitura de resultado.
+
+## 10. Suas três decisões (16/11/2026, noite)
+
+**1. Ritmo máximo dos agentes.**
+- O teto de regras por semana passou de 3 para 168 (`b3_program.json`).
+- O ciclo agora roda de hora em hora (`TradeInitial-ProxyCycle`), então o limite real é de 24 regras por dia.
+- As paradas de 15 regras sem aprovação continuam valendo, e cada regra nova sobe a barra das seguintes.
+
+Corrigi também um bloqueio antigo: a checagem de código só aceitava regras de 5, 15, 30 e 60 minutos, então as regras de 1 minuto (P-013, P-015) nunca teriam como passar. Agora aceita 1 minuto. A P-015 foi interrompida por um alarme falso da proteção de arquivos, disparado por edições minhas feitas durante o ciclo. Ela não rodou e não conta.
+
+**2. Programa de ticks (fluxo de agressão).**
+- O protocolo foi gravado antes do código e de qualquer leitura (`b3/config/tick_program_b3.json`, commit `a7aa6ea`).
+- A divisão é a que você aprovou: exploração até 31/12/2026, validação em jan–fev/2027 e teste final a partir de mar/2027, trancado.
+- São 6 famílias: seguir ou desfazer o desequilíbrio entre compra e venda agressoras, absorção, negócios grandes seguidos ou desfeitos, e rajadas de negócios.
+- Cada uma roda em 1 e 5 minutos, com saídas de 5 a 30 minutos, o que dá 384 variações por mercado.
+- Exige pelo menos 500 operações por ano.
+
+**Primeira leitura parcial (não decide nada).** Pelo protocolo, a decisão só vale na leitura feita depois de 31/12.
+- **WIN, 20 pregões:** 83 das 220 variações frequentes lucram nos dois custos medidos. A melhor desfaz o desequilíbrio de agressão dos últimos 15 minutos, com cerca de 960 operações por ano e +0,094% bruto por operação, cerca de 9 vezes o custo.
+- O maior Sharpe deflacionado foi 0,22, o mais alto do projeto até agora, mas ainda muito abaixo do mínimo de 0,95. A probabilidade de sobreajuste foi 0,57. Com 20 pregões, isso ainda é compatível com sorte.
+- **WDO:** só 7 pregões, sem conclusão.
+
+**3. Busca C: operações mais raras e rápidas, nos candles de 2021 a 2024.**
+- O protocolo foi gravado antes de qualquer código ou leitura (commit `229b5f8`).
+- São 11 famílias: gap, VWAP extrema, candle de amplitude anormal, sequência de candles, WIN e WDO andando juntos, volume extremo, extremo do fim do dia e rompimento do meio-dia. Somam 288 variações por mercado, exigindo pelo menos 50 operações por ano.
+- **WIN:** 20 variações lucram nos dois custos. A melhor desfaz candles de 5 minutos com amplitude anormal: 61 operações por ano, +0,045% bruto por operação, +7% em 2,6 anos, queda máxima de 1,8%.
+- Mas, somando todas as 849 tentativas no WIN, o maior Sharpe deflacionado foi 0,034 e a probabilidade de sobreajuste foi 0,59. **Nenhuma passou.**
+- **WDO:** nada.
+- A validação continua sem leitura.
+
+**Calendário de 2027.** A B3 ainda não publicou os feriados de 2027, e o projeto não os acrescenta de memória. Por isso o gravador passou a gravar os 3 contratos mais próximos pelo mês, sem depender do calendário. O programa de ticks usa, enquanto o ano não estiver no calendário, o contrato com mais negócios do dia. Quando a B3 publicar o Ofício Circular, o ano deve ser acrescentado em `b3/config/holidays.json`.
+
+**P-016.** A regra de 5 minutos proposta pelo agente foi rejeitada às 21h18, mas por um erro meu: a mudança que liberou regras de 1 minuto quebrou um teste antigo, que ainda esperava a rejeição de 1 minuto. O teste foi corrigido. A regra não rodou e não conta.

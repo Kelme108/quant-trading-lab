@@ -169,7 +169,7 @@ def test_proxy_rule_screen_accepts_a_good_file_and_rejects_bad_ones(tmp_path):
     good.write_text(GOOD, encoding="utf-8")
     assert check_proxy_rule_source(good, "P-099") == []
     bad = tmp_path / "p099_bad.py"
-    bad.write_text(GOOD.replace("import pandas as pd", "import os").replace('timeframe_min = 5', 'timeframe_min = 1')
+    bad.write_text(GOOD.replace("import pandas as pd", "import os").replace('timeframe_min = 5', 'timeframe_min = 2')
                    .replace('    params = {"x": 1}\n', '    params = {"x": 1}\n    symbol = "US500"\n'), encoding="utf-8")
     problems = check_proxy_rule_source(bad, "P-099")
     assert any("import of 'os'" in p for p in problems)
