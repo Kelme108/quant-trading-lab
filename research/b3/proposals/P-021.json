@@ -1,0 +1,58 @@
+{
+ "rule_id": "P-021",
+ "title": "WDO PTAX-window pressure fade: fade the 40-minute run-up into each of the four daily PTAX consultation windows",
+ "class_name": "WdoPtaxWindowPressureFade",
+ "file_stem": "p021_wdo_ptax_window_pressure_fade",
+ "markets": [
+  "WDO"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Bars: 1-minute WDO, session-only (Sao Paulo time); minute_of_day = minutes since midnight of the bar's OPEN time; tick = 0.5 point. WINDOWS: the BCB PTAX consultation windows open at S_k = 600, 660, 720, 780 (10:00, 11:00, 12:00, 13:00) and last 10 minutes. For each window k of a session: C_ref = close of the last bar with minute_of_day <= S_k-31 (the bar that opens at xx-1:29 and closes at xx-1:30). C_end = close of the bar with minute_of_day = S_k+9 (opens xx:09, closes xx:10). If that bar is missing, skip window k. Run-up R_k = C_end/C_ref - 1, a 40-minute return: 30 minutes before the window plus the window itself, all inside one session. SCALE: M_k = median of |R_k| for the SAME window k over the previous 20 sessions. This is the only cross-session input. It is a ratio taken inside each session, so the unadjusted WDO$N monthly roll (between sessions) does not affect it. M_k needs at least 10 valid values, otherwise no trade on window k. THRESHOLD: T_k = max(0.75*M_k, 4 ticks / C_end). SHORT: if R_k >= +T_k and flat, ENTER_SHORT by market order at the open of bar S_k+10 (xx:10). LONG (symmetric, because PTAX-linked dealer flow is net dollar buying on some days and net selling on others): if R_k <= -T_k, ENTER_LONG at the open of bar S_k+10. STOP, fixed for the trade: short = tick_ceil(max High of bars S_k-30..S_k+9 + 2 ticks); long = tick_floor(min Low of the same bars - 2 ticks). The stop distance is clamped to between 0.12% and 0.30% of the entry price: if the extreme gives less than 0.12%, the stop goes at 0.12%; if more than 0.30%, at 0.30%. EXIT: first of (a) the stop; (b) time exit, by market order at the open of bar S_k+50 (xx:50), so the hold is at most 40 minutes and the position is flat 10 minutes before the next window opens; (c) the engine's flat-before-close (never binds, the last exit is 13:50). No profit target. EVENTS (mark_events with kinds CPI and NFP): on a CPI_today or NFP_today session, skip window 1 (10:00). Its run-up or hold contains the 08:30 New York release (09:30 or 10:30 Sao Paulo). FOMC (14:00 or later New York time) falls after the last exit and needs no rule. At most one position. One entry per window, with no re-entry after a stop. Max 4 entries per day. Entry window: 10:10-13:10 Sao Paulo (70-250 minutes after the 09:00 open). Lookbacks: 40-minute run-up, 20 sessions for the scale.",
+ "parameters": {
+  "timeframe_min": 1,
+  "window_starts_minute_of_day": "600,660,720,780",
+  "window_length_min": 10,
+  "pre_window_runup_min": 30,
+  "scale_lookback_sessions": 20,
+  "scale_min_valid_sessions": 10,
+  "threshold_mult_of_median": 0.75,
+  "threshold_floor_ticks": 4,
+  "entry_offset_after_window_start_min": 10,
+  "exit_offset_after_window_start_min": 50,
+  "stop_ticks_beyond_runup_extreme": 2,
+  "min_stop_frac": 0.0012,
+  "max_stop_frac": 0.003,
+  "skip_window_index_on_cpi_nfp_days": 1,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "The PTAX is the BCB's reference USD/BRL rate. The BCB collects quotes from the FX dealers in four 10-minute windows each day (10:00, 11:00, 12:00, 13:00 Brasilia time; Circular 3.506, now Resolucao BCB 45). PTAX settles B3 dollar futures and options, OTC derivatives, exporter and importer contracts and fund marks. A bank that owes or receives dollars at PTAX must deliver that rate, so it buys or sells the dollar into and during the windows. Its pressure moves the quotes the BCB samples. StoneX notes that volume and volatility rise in the windows, and that traders lean on the rate to favour their positions. WDO is the cheapest instrument for this, because it is tied by arbitrage to the spot and to DOL. Evans (JBF 2018, 21 currencies, a decade) finds the same pattern around the WM/Reuters 4 pm fix: extraordinary volatility and negative serial correlation. Prices that ran up into the fix fall back after it, more so at month end. The other side of this trade is the fixing-constrained dealer. It is not price-sensitive inside the window, because its P&L is the PTAX, not the trade price. Once the window closes, that demand is gone. The liquidity providers who absorbed it hold inventory and lean it off, and the price reverts part of the push. We sell the dollar after a push up into a window and buy it after a push down. We provide the liquidity the fixing flow paid for, and we are flat before the next window's pressure.",
+ "why_gross_beats_3x_cost": "WDO base round trip ~0.0235%, so the target is a mean gross >= ~0.07%. From anatomy.json, the WDO median |move| is 0.091% at 30 minutes and 0.131% at 60 minutes, so a 40-minute run-up has a median near 0.105%. The 10-13h hours are the active part of the WDO day: the median 5-minute range is 0.144% at 10h, 0.133% at 11h, 0.106% at 12h and 0.087% at 13h, versus 0.062-0.070% after 16h. With a 0.75x-median threshold, the AVERAGE |run-up| of a firing trade is ~1.15 sigma, about 0.18% (more with fat tails). If 35-40% of a fix push reverses within 40 minutes (Evans reports partial reversals), the mean capture is ~0.065-0.075%, about 2.8-3.2x the base cost. Expected profile: hit rate ~54%, average win ~0.16%, average loss ~0.11% (the stop is 0.12-0.30%, most losers are time exits), giving 0.54*0.16 - 0.46*0.11 = ~0.036% at minimum and more if the reversal is as strong as at the WMR fix. Honest risk: dealer flow that is split across all four windows makes the pushes persist from window to window, and the gross could be ~0. P-011 and the other WDO rules lost money gross, and WDO needs moves this large. FREQUENCY: |R| > 0.75x its median fires ~61% of the time for a near-normal distribution. That gives 4 x 0.61 = 2.44 signals per session. Window 1 is skipped on ~24 CPI/NFP days a year, and a few sessions are short or missing bars, so ~2.35 entries per session x ~248 sessions = ~580 trades/yr.",
+ "expected_trades_per_year": 580,
+ "expected_median_hold_min": 40,
+ "novelty_vs_tried": "No explored rule uses the PTAX clock or a fixing flow. P-001/P-003/P-006 (opening-range, first-candle and noise-area breakouts), P-002/P-004/P-007 (first/last half-hour and rest-of-day momentum) and P-005 (VWAP trend) follow intraday trends, and this rule fades them. P-008 fades the opening move once a day. P-009 is a month-end last-hour flow (17-18h), not the 10-13h fixing windows and not every day. P-011 fades price touches of round-number levels. P-013/P-014/P-017/P-020 fade shocks, volume bars, stop sweeps or thin-volume moves on WIN, triggered by the PRICE path at any time of day. Here the trigger time is fixed by the BCB schedule, four times a day, and the size is relative to the same window's own history. P-015 trades the sign of half-hour slots from history (continuation, WIN). P-019 fades WIN against WDO. This rule trades WDO alone, against the run-up into an exogenous fixing. No crypto strategy uses a fixing schedule.",
+ "sources": [
+  {
+   "title": "Evans (2018), Forex trading and the WMR Fix, Journal of Banking & Finance 87 (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jbfina:v:87:y:2018:i:c:p:233-247"
+  },
+  {
+   "title": "Banco Central do Brasil, Circular 3.506 (PTAX methodology, consultation windows)",
+   "url": "https://www.bcb.gov.br/pre/normativos/circ/2010/pdf/circ_3506_v3_p.pdf"
+  },
+  {
+   "title": "StoneX glossary: Cambio PTAX (four 10-minute windows from 10:00 to 13:00, dealers, use in B3 dollar futures)",
+   "url": "https://www.stonex.com/pt-br/empresas/glossario-financeiro/cambio-ptax/"
+  },
+  {
+   "title": "StoneX: Fechamento de cambio 2025-04-30 (volume and volatility in the PTAX windows at month end)",
+   "url": "https://www.stonex.com/pt-br/insights/fechamento-de-cambio-2025-04-30/"
+  },
+  {
+   "title": "Marsh, Panagiotou & Payne, The WMR fix and its impact on currency markets (Norges Bank conference paper)",
+   "url": "https://www.norges-bank.no/contentassets/619c8b75e1ed4ba691e8ad6a006855e6/39-panagiotou---the-wmr-fix-and-its-impact-on-currency-markets-.pdf"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-021.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WDO move sizes by horizon and 5-minute range by hour, exploration only); b3/events.py (mark_events, event_times); b3/config/sessions.json; research/b3/proposals/P-013..P-020 (titles; P-017 in full for the format). Web: search summaries on the PTAX windows (StoneX, Serasa, Suno, the BCB Circular 3.506 PDF links) and on PTAX-window pressure (StoneX market notes; no academic PTAX study found). I fetched the StoneX PTAX glossary page and the EconPapers abstract of Evans (2018). The Marsh-Panagiotou-Payne PDF came back as unreadable binary. Its authors and its pre-fix-accumulation reversal finding come only from the search summary. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T05:00:46+00:00"
+}
