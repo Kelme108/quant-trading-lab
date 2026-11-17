@@ -1,0 +1,56 @@
+{
+ "rule_id": "P-022",
+ "title": "WIN foreign-flow continuation: follow a 15-minute WIN move only when the dollar moves the opposite way at the same time",
+ "class_name": "WinForeignFlowJointMove",
+ "file_stem": "p022_win_foreign_flow_joint_move",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Trades WIN only. WDO is an input. DATA: WIN 5m session bars plus WDO 5m bars (b3_data.load_b3_bars('WDO','5m'), session-only on the WDO calendar), joined on bar open time. A WIN bar with no WDO bar at the same time gives no signal (no forward fill). RETURNS (intra-session only, so no roll gap of either contract enters): rW_k = C_k/C_(k-1) - 1, and rD_k the same on WDO, for bar_in_day >= 1. SCALE, from the previous 5 sessions (today excluded): sW = sd(rW)*sqrt(3) and sD = sd(rD)*sqrt(3). No signal if either contract has fewer than 300 returns. MOVE at the close of WIN bar t: mW = C_t/C_(t-3) - 1 and mD = WDO C_t/C_(t-3) - 1. Bars t-3..t must all be today and all four WDO bars must exist. zW = mW/sW, zD = mD/sD. JOINT FLAG: J_t = +1 if zW >= 1.0 and zD <= -1.0 (stocks up, dollar down: inflow). J_t = -1 if zW <= -1.0 and zD >= 1.0 (outflow). Otherwise J_t = 0. SIGNAL at the close of bar t. It needs the bar-close minute_of_day >= 615 (10:15, so the whole 15-minute window comes after the 10:00 cash-equity open) and minutes_to_close >= 45. LONG if J_t = +1 and J_(t-1) != +1. SHORT if J_t = -1 and J_(t-1) != -1. Only a fresh joint move counts. The short side is the exact mirror (outflow: equities sold, BRL sold). If flat, enter by market order at the open of t+1. STOP, fixed at entry: d = min(max(2.0*sW, 0.0015), 0.0060). Long stop tick_floor(E*(1-d)), short stop tick_ceil(E*(1+d)), where E = the open of t+1 (use C_t if the engine needs the stop at signal time). EXIT, first of: (a) time exit at the open of the 6th bar after the entry bar (30 minutes); (b) the stop; (c) the engine's flat-before-close. No target, no trailing stop, no reversal while in a position. Signals while in a position are ignored. After an exit, only a flag on a bar after the exit bar can trigger, and it must be fresh under the same J_(t-1) test. One position. Max 5 entries per day. Lookbacks: 3 bars for the move, 1 bar for freshness, 5 sessions for the scale. No event filter. Live use needs the WDO 5m bar of the same minute; if it is missing, there is no signal.",
+ "parameters": {
+  "timeframe_min": 5,
+  "move_window_bars": 3,
+  "scale_lookback_sessions": 5,
+  "min_scale_returns": 300,
+  "entry_z_win": 1.0,
+  "entry_z_wdo": 1.0,
+  "signal_start_minute_of_day": 615,
+  "min_minutes_to_close_at_signal": 45,
+  "hold_bars": 6,
+  "stop_scale_mult": 2.0,
+  "stop_frac_min": 0.0015,
+  "stop_frac_max": 0.006,
+  "max_entries_per_day": 5
+ },
+ "mechanism": "Foreign investors are the largest group in Brazilian cash equities (62% of B3 cash-equity trading in 2025 per Rio Times; more than half in earlier years). A foreigner who buys Brazilian stocks must also buy BRL, so the dollar falls. When they sell, they sell BRL too. A short window in which WIN rises AND WDO falls, both beyond their normal 15-minute scale, is therefore the footprint of the one flow that moves both markets: non-resident portfolio buying or selling. Global risk repricing that reaches Brazil through foreigners leaves the same footprint. That flow is large, and the funds execute it by splitting orders over the day. Lee, Liu, Roll & Subrahmanyam (JFQA 2004) find that order-imbalance persistence, from splitting and herding, is strongest for foreign institutions, and that the price pressure lasts up to a day, i.e. it plays out intraday. Evans & Lyons (JPE 2002) show that FX order flow has a lasting price impact. Who is on the other side: (1) WIN market makers and local liquidity providers. They sell to the first slices and are run over by the later ones. (2) Retail mini-index day traders, who mostly trade short-term reversal and lose (Chague, Giovannetti & De-Losso: 97% of persistent day traders lost money). They fade the move the foreign flow keeps pushing. A WIN-only move of the same size gives no signal, because it is mostly local flow. So the rule follows only the cross-market-confirmed part of WIN's moves. It starts after the 10:00 cash open, when the foreign cash-equity flow is active, and holds 30 minutes, the time over which split orders keep arriving.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target mean gross is >= 0.033%. anatomy.json (exploration): the WIN 30-minute median |move| is 0.1245% and the p75 is 0.239%, so the mean |move| is ~0.16%. Entries happen only when both contracts are already moving >= 1 sd over 15 minutes, i.e. in active, high-volatility stretches (the 10h-11h 5-minute ranges are 0.18-0.21% vs 0.11% after 13h). The expected 30-minute |move| after an entry is therefore ~0.18-0.20%, 16-18x the base cost. A mean gross of 0.033% then needs a directional edge of only ~17-18% of the mean |move|. Expected profile: hit rate ~54%, average win ~0.20%, average loss ~0.17%. That gives 0.54*0.20 - 0.46*0.17 = ~0.030-0.035% gross, about 3x base. The stop sits at 2x the 15-minute scale (~0.25%, ~55 ticks), so stops should be ~10% of trades and their extra tick costs ~0.0004% per trade on average. Frequency: the signal window, 10:15 to 45 minutes before the close, is ~89 five-minute bars (~83 in the 17:55 summers). Assuming a WIN-WDO 15-minute correlation of -0.3 to -0.5 (an assumption, not measured), the joint >= 1 sd opposite-sign condition holds on ~9-13% of bars. Flags come in runs of 2-3 bars, which gives ~3-5 fresh joint moves per day. The 30-minute hold blocks some, leaving ~2.4 entries per session, ~600 trades/yr.",
+ "expected_trades_per_year": 600,
+ "expected_median_hold_min": 30,
+ "novelty_vs_tried": "Every rule in the table reads only the traded contract: opening-range, first-candle and noise-area breakouts (P-001/P-003/P-006), first/last half-hour and rest-of-day momentum (P-002/P-004/P-007), VWAP trend (P-005), large-open fade (P-008), month-end flow (P-009), round-number fade (P-011), volume-shock fade (P-014), stop-sweep fade (P-017) and thin-volume fade (P-020). Here the trigger is a joint cross-market event: WIN beyond 1 sd AND WDO beyond 1 sd in the opposite direction in the same 15 minutes. A WIN move of any size without the dollar's confirmation never trades, and the WIN move threshold alone is not the signal, so this is not intraday time-series momentum. It is the complement of the unrun P-019 (implementation_failed), which faded the WIN residual NOT explained by the dollar. P-022 takes the opposite cases, follows them, uses no hedge-ratio regression and no target, and trades on the 5-minute clock. P-021 used WDO alone around the PTAX windows. No crypto strategy uses a second market.",
+ "sources": [
+  {
+   "title": "Lee, Liu, Roll & Subrahmanyam (2004), Order Imbalances and Market Efficiency: Evidence from the Taiwan Stock Exchange, JFQA 39(2) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:cup:jfinqa:v:39:y:2004:i:02:p:327-341_00"
+  },
+  {
+   "title": "Evans & Lyons (2002), Order Flow and Exchange Rate Dynamics, Journal of Political Economy 110(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:ucp:jpolec:v:110:y:2002:i:1:p:170-180"
+  },
+  {
+   "title": "Evans & Lyons, Order Flow and Exchange Rate Dynamics, NBER Working Paper 7317",
+   "url": "https://nber.org/papers/w7317"
+  },
+  {
+   "title": "Rio Times: Foreign trading drove Brazil's stock volume in 2025 as local institutions sold (62% of B3 cash-equity trading)",
+   "url": "https://www.riotimesonline.com/foreign-trading-drove-brazils-stock-volume-in-2025-as-local-institutions-sold/"
+  },
+  {
+   "title": "Chague, Giovannetti & De-Losso, Day Trading for a Living? (FEA-USP WP 2019_47, EconPapers)",
+   "url": "https://econpapers.repec.org/paper/spawpaper/2019wpecon47.htm"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-022.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/screen_followup.json (first 80 lines); research/b3/execution_cost.json (first 60 lines, execution only); research/b3/proposals/P-019.json in full, plus grep of the titles of P-013..P-021; b3/config/sessions.json; grep of b3/events.py, b3/b3_data.py (load_b3_bars columns) and b3/strategy.py (single-market frame: the developer must load and join the WDO 5m bars inside indicators(); P-019's similar join ended as implementation_failed for a reason I could not find). Web: search summaries on foreign share of B3 volume, order-imbalance persistence, and Brazil flows/BRL; fetched the EconPapers pages of Lee et al. 2004 and Chague et al., and the Rio Times article. The WIN-WDO 15-minute correlation is an assumption, not a measurement. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T06:02:25+00:00"
+}
