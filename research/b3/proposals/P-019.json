@@ -1,0 +1,58 @@
+{
+ "rule_id": "P-019",
+ "title": "WIN dollar-unconfirmed move fade: fade a 30-minute WIN residual against the WDO-implied move on 1-minute bars",
+ "class_name": "WinDollarResidualFade",
+ "file_stem": "p019_win_dollar_residual_fade",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Trades WIN only. Input: WIN 1m session bars plus WDO 1m bars (b3_data.load_b3_bars('WDO','1m'), session-only), joined on bar time. WDO close is forward-filled inside the same session only. RETURNS (intra-session only, so the roll gaps of either contract never enter): rW_t = C_t/C_(t-1) - 1 and rD_t = WDO C_t/C_(t-1) - 1 for bar_in_day >= 1. If WDO has no bar at t, rD_t = 0. BETA AND SCALE, from the previous 5 sessions (today excluded) and the pairs where both bars exist (no signal if fewer than 1000 pairs): beta = cov(rW,rD)/var(rD), residual e = rW - beta*rD, sig = sd(e). Today: e_t = rW_t - beta*rD_t. S_t = sum of e over bars t-29..t (all today). Z_t = S_t/(sig*sqrt(30)). There is no signal if more than 5 of those 30 bars lack a real WDO bar. SIGNAL at the close of bar t, which needs minute_of_day >= 630 (10:30) and minutes_to_close >= 40, and a fresh crossing: SHORT if Z_t >= 1.5 and Z_(t-1) < 1.5 (WIN rose more than the dollar explains). LONG if Z_t <= -1.5 and Z_(t-1) > -1.5. No entry if |Z_t| > 3.5 (news scale). If flat, enter by market order at the open of t+1. EVENTS (mark_events, kinds FOMC, CPI, NFP): no entry if any <kind>_min_since is in [0,30] at t. On FOMC_today, no entry from 15 minutes before the release on. STOP on every entry, fixed for the trade: long tick_floor(entry*(1-0.0025)), short tick_ceil(entry*(1+0.0025)), with entry = the next-bar open (use C_t if the engine needs it at signal time). EXIT, first of: (a) target: residual since the signal, R_k = sum of e over bars t+1..k. Long exits when R_k >= 0.5*|S_t|, short when R_k <= -0.5*|S_t|, at the close of bar k, then EXIT at the open of k+1. (b) time: EXIT at the open of the 30th bar after the entry bar. (c) the stop. (d) the engine's flat-before-close. Signals while in a position are ignored. After an exit only a fresh crossing on a bar after the exit bar counts. One position. Max 6 entries per day. Lookbacks: 5 sessions for beta and sig, 30 bars for S, 1 bar for the crossing.",
+ "parameters": {
+  "timeframe_min": 1,
+  "beta_lookback_sessions": 5,
+  "min_beta_pairs": 1000,
+  "residual_window_bars": 30,
+  "max_missing_wdo_bars": 5,
+  "entry_z": 1.5,
+  "max_entry_z": 3.5,
+  "window_start_minute_of_day": 630,
+  "min_minutes_to_close_at_signal": 40,
+  "stop_frac": 0.0025,
+  "target_retrace_frac": 0.5,
+  "max_hold_bars": 30,
+  "event_block_after_min": 30,
+  "fomc_block_before_min": 15,
+  "max_entries_per_day": 6
+ },
+ "mechanism": "Intraday, the Ibovespa and the real move together. Foreign investors, the marginal informed holders of Brazilian equities, buy or sell stocks and BRL at the same time, and global risk news reprices both. So a WIN move that comes with the matching WDO move (dollar down when WIN rises) is common information, and it lasts. WIN is also the retail day-trading contract. Chague, De-Losso and Giovannetti follow 19,646 individuals who day-traded it, and almost all lose. A WIN move the dollar does not confirm is therefore mostly local, non-informational liquidity demand: retail bursts, chasing, and stop runs on the mini contract. It moves WIN alone. Hendershott and Menkveld (JFE 2014) show that risk-averse intermediaries absorb such demand at a price concession and unwind it, so price pressure decays. Here the intermediaries are WIN market makers and the IND/WIN and spot-futures arbitrageurs, who lean against it with inventory. The rule measures WIN's move net of the dollar-implied part, using a hedge ratio from the previous 5 sessions. This is the residual of Avellaneda and Lee's statistical arbitrage, but against a cross-asset factor, not a sector ETF. It fades the residual only when it reaches 1.5 sd over 30 minutes. On the other side is the impatient local flow that paid for immediacy on a move the informed foreign flow did not join. Above 3.5 sd and around scheduled US releases, the residual is more likely real equity-specific news, so those cases are skipped. Honest weakness: a US equity move that hits WIN harder than BRL also shows up as a residual and need not revert. The WDO factor removes only the BRL-borne part of global risk.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target mean gross is >= 0.033%. From anatomy.json, the WIN 5-minute median |move| is 0.052%, so the 1-minute sd is ~0.034%. Assuming a WIN-WDO 1-minute correlation of about -0.4, the residual sd is ~0.031% per minute and ~0.17% per 30 minutes. A 1.5 sd entry therefore means a dollar-unconfirmed move of ~0.25% (23x the cost). The 50% retrace target is ~0.12% away and the stop is 0.25%. The 30-minute median |move| is 0.125%, so the stop is rarely hit (~12%) and most trades end on the target or the 30-bar time exit. A mean of 0.033% needs only ~13% of the entry residual to revert on average. Expected profile: hit rate ~56%, average win ~0.15% (target hits plus favourable time exits), average loss ~0.115% (stops plus partial time-exit losses). That gives 0.56*0.15 - 0.44*0.115 = ~0.034%, ~3.1x base. The extra stop tick on ~12% of trades costs ~0.0005%. Supporting hint: on WIN, 1-minute trend following lost 0.0135% gross (P-005), which points to short-horizon reversion. The size-blind fades earned ~0 (P-014, P-017), and this rule adds the cross-asset filter for which moves are non-informational. FREQUENCY: the window 10:30 to 40 minutes before the close is ~430 one-minute bars (~395 in the 17:55 summers). A 30-bar sum decorrelates in ~30 bars, so there are ~14 independent windows per day. In each, the path maximum of |Z| exceeds 1.5 with probability ~20-25% (about twice the 13% endpoint probability), more with fat tails and the busy 10:30-12:00 hours. That gives ~3-3.5 fresh crossings per day. One position at a time (median hold ~16 min), the 3.5 cap and the event blocks bring this to ~2.5 entries per session, ~620 trades/yr.",
+ "expected_trades_per_year": 620,
+ "expected_median_hold_min": 16,
+ "novelty_vs_tried": "Every rule in the table uses only the traded contract's own price or volume: opening-range, first-candle or noise-area breakouts (P-001/P-003/P-006), first/last half-hour or rest-of-day momentum (P-002/P-004/P-007), VWAP trend (P-005), a large-open fade (P-008), month-end flows (P-009), round-number fades (P-011), abnormal-volume fades (P-014), failed swing-break fades (P-017), and the unrun price shocks (P-013), slot periodicity (P-015), VWAP reversion (P-016) and trade size (P-018). This rule is the first cross-asset rule. Its signal is WIN's move NET of the move the dollar implies, with a hedge ratio from the previous 5 sessions. A large WIN move that the dollar confirms gives no signal, and a modest WIN move against a flat or contrary dollar can. It is not momentum: it fades the dollar-unexplained part only. The target is a retracement of that residual, not a price level or VWAP. No crypto strategy uses a second market.",
+ "sources": [
+  {
+   "title": "Avellaneda & Lee (2010), Statistical Arbitrage in the U.S. Equities Market, Quantitative Finance 10(7) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:taf:quantf:v:10:y:2010:i:7:p:761-782"
+  },
+  {
+   "title": "Avellaneda & Lee, Statistical Arbitrage in the U.S. Equities Market (NYU CIMS abstract)",
+   "url": "https://cims.nyu.edu/ams/abstracts/avellaneda.html"
+  },
+  {
+   "title": "Hendershott & Menkveld (2014), Price Pressures, Journal of Financial Economics 114(3) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:114:y:2014:i:3:p:405-423"
+  },
+  {
+   "title": "Chague, De-Losso, Giovannetti, Day Trading for a Living? (EconPapers)",
+   "url": "https://econpapers.repec.org/paper/spawpaper/2019wpecon47.htm"
+  },
+  {
+   "title": "Quantpedia: Retail Day Trading is an Uphill Battle (mini-Ibovespa as the day traders' preferred asset)",
+   "url": "https://quantpedia.com/retail-day-trading-is-an-uphill-battle/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-019.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-017.json, P-018.json, titles of P-013..P-016 (grep); b3/events.py; b3/config/sessions.json; grep of b3/b3_data.py (load_b3_bars), b3/strategy.py (indicators/prepare hooks), b3/backtest.py and b3/proxy_research.py (single-market frame, so the developer must load and join WDO 1m bars inside the strategy). Web: search summaries for Avellaneda-Lee, Hendershott-Menkveld, Chague-De-Losso-Giovannetti, and a search on intraday Ibovespa-futures/dollar-futures links. That search surfaced Garcia-Medeiros-Santos on high-frequency announcement effects on B3 FX and index futures; the PDF was unreadable, so it is not cited. The WIN-WDO 1-minute correlation (~-0.4) is an assumption, not a measurement. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T03:01:18+00:00"
+}
