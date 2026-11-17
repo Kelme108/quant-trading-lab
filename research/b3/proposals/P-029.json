@@ -1,0 +1,53 @@
+{
+ "rule_id": "P-029",
+ "title": "WIN low-volume-node traversal: follow a 1-minute exit from a high-volume price zone of today's profile into a thin zone",
+ "class_name": "WinLowVolumeNodeTraversal",
+ "file_stem": "p029_win_low_volume_node_traversal",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "WIN, 1-minute session bars. Session-only: the profile resets each local_date, so nothing spans a roll. PROFILE: price buckets of B=50 points, bucket k=[k*B,(k+1)*B), k=floor(price/B). Each bar's real volume (column volume) is split equally over all buckets from floor(low/B) to floor(high/B). At the close of bar t the profile P uses only today's bars before t (bar t excluded). Vmax=max_k P[k]. HVN: P[k]>=0.5*Vmax. LVN: P[k]<=0.2*Vmax (zero allowed). WINDOW: signals only when minutes since day open >=60 and minutes_to_close >60; no open position; at most 4 entries per day. LONG at close of bar t: b_now=floor(close[t]/B) > b_prev=floor(close[t-1]/B); bucket b_now-1 is HVN; bucket b_now is LVN; h = the nearest HVN bucket above b_now exists; target T=h*B (lower edge of h); T-close[t] >=200 points. SHORT (mirror): b_now<b_prev; bucket b_now+1 is HVN; b_now is LVN; h = nearest HVN bucket below b_now exists; T=(h+1)*B (upper edge of h); close[t]-T >=200 points. If both fire (cannot in practice) skip. ENTRY: market at the open of bar t+1. STOP: entry fill price -100 points (long) / +100 points (short), a stop order resting from entry. EXITS (first of): (a) target: a bar closes at or beyond T (long close>=T, short close<=T) -> market exit at next bar open; (b) time: 60 bars after the entry bar -> exit at next bar open; (c) flat: exit at the close of the last bar with minutes_to_close <=5. T and stop are fixed at entry; the profile is not used for exits. After any exit a new entry needs a fresh signal on a later bar.",
+ "parameters": {
+  "bucket_points": 50,
+  "hvn_frac_of_poc": 0.5,
+  "lvn_frac_of_poc": 0.2,
+  "warmup_min_after_open": 60,
+  "last_entry_min_before_close": 60,
+  "min_target_distance_points": 200,
+  "stop_points": 100,
+  "max_hold_bars": 60,
+  "flat_min_before_close": 5,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "Inside a session, the volume traded at each price is a map of where two-sided business and resting liquidity sit. High-volume nodes are prices the auction accepted: dealers and day traders built inventory there and keep limit orders around them, and Kavajecz and Odders-White (RFS 2004) show that support/resistance levels coincide with depth peaks of the limit order book. Low-volume nodes are prices the market crossed quickly earlier today: few resting orders, few participants with a reference price there. When price leaves the edge of an accepted zone into such a thin zone, the first liquidity providers who sell into the push (long case) face little resting interest behind them and have to buy back, and the stop orders of traders who faded from the accepted zone's edge sit just beyond it; the move tends to run through the vacuum until it meets the next accepted zone, where two-sided trade resumes. The counterparties are the passive sellers and faders at the node edge who treat every edge as resistance, and the WIN retail day traders (Chague et al.) who supply liquidity at levels without regard to the depth behind them. The opposite node gives a concrete, ex-ante target, so the payoff is asymmetric by construction.",
+ "why_gross_beats_3x_cost": "Target >=200 points (~0.175% at 114,370) against a 100-point stop (~0.087% plus 1 stop tick ~0.004%). Under a random walk the chance of hitting +0.175% before -0.087% is ~33% (0.087/0.262), which gives ~0 gross; the mechanism must lift the target hit rate. Expected: ~40% target (+0.19% average, the close beyond T), ~40% stop (-0.092%), ~20% time/flat exits (~+0.02%): 0.076-0.037+0.004 = ~+0.043% gross per trade, ~3.9x the WIN base round trip (0.0109%) and ~2x the conservative one. Move sizes are realistic: the 15-minute median WIN move is 0.088% and the 30-minute 0.125% (anatomy.json), so 0.175% inside 60 minutes is a p75-type move, not a tail.",
+ "expected_trades_per_year": 600,
+ "expected_median_hold_min": 18,
+ "novelty_vs_tried": "Levels come from today's own volume-at-price distribution, a new input: not round numbers (P-011), prior-session high/low/close (P-027), the session VWAP (P-005/P-016, one average) or the open/noise band (P-003). It is not a range breakout (P-001/P-006/P-017/P-026): the signal fires inside today's range, never at a new extreme, because a high-volume node must lie beyond. Volume rules so far (P-014/P-018/P-020/P-024) looked at volume per time bar; this one uses volume per price. Not momentum (no return lookback); the exit is a price-defined target, not a time-of-day or trend exit.",
+ "sources": [
+  {
+   "title": "Kavajecz & Odders-White (2004), Technical Analysis and Liquidity Provision, RFS 17(4) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:oup:rfinst:v:17:y:2004:i:4:p:1043-1071"
+  },
+  {
+   "title": "Kavajecz & Odders-White, Technical Analysis and Liquidity Provision (IDEAS/RePEc)",
+   "url": "https://ideas.repec.org/a/oup/rfinst/v17y2004i4p1043-1071.html"
+  },
+  {
+   "title": "NexusFi: Volume Profile (HVN/LVN, Market Profile origin)",
+   "url": "https://nexusfi.com/articles/trading/Volume-Profile"
+  },
+  {
+   "title": "The Right Trader: High and low volume nodes",
+   "url": "https://therighttrader.com/learn/volume-and-order-flow/high-and-low-volume-nodes"
+  },
+  {
+   "title": "LuxAlgo library: Volume profile concept",
+   "url": "https://www.luxalgo.com/library/concept/volume-profile.md"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-029.md; research/b3/anatomy.json (WIN move sizes by horizon, range by hour, costs); b3/events.py; b3/b3_data.py (bar columns: volume, tick_volume); titles of research/b3/proposals/P-013..P-028. Web: search results for volume profile HVN/LVN (NexusFi, The Right Trader, LuxAlgo) and Kavajecz & Odders-White 2004 (EconPapers, IDEAS). No backtest, validation or final-test result seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T13:02:44+00:00"
+}
