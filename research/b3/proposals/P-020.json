@@ -1,0 +1,56 @@
+{
+ "rule_id": "P-020",
+ "title": "WIN thin-volume move fade: fade a large 15-minute WIN move that came on no more than normal volume for its time of day",
+ "class_name": "WinThinVolumeMoveFade",
+ "file_stem": "p020_win_thin_volume_move_fade",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "WIN only, 5-minute session bars (Sao Paulo). O,H,L,C,V of bar t (V = contracts); tick 5 points. MOVE: R_t = C_t/C_(t-3) - 1, bars t-3..t all from today (bar_in_day >= 3), so no roll gap enters. SCALE S15 = mean |C_j/C_(j-3) - 1| over all bars j with bar_in_day >= 3 and minute_of_day >= 615 in the previous 20 sessions (today excluded). No signal before 20 sessions exist. VOLUME BASELINE: SLOT = minute_of_day of the bar open. VBAR(slot) = mean V of that slot over the previous 20 sessions that have it (today excluded, at least 15 needed, else no signal). Relative volume rv_t = (V_(t-2)+V_(t-1)+V_t) / (VBAR(slot t-2)+VBAR(slot t-1)+VBAR(slot t)). S15 and VBAR span sessions and WIN rolls, but every term is inside one session or one bar. WINDOW: signal bar t opens at minute_of_day >= 615 (10:15) and has minutes_to_close >= 45 at its close. SIGNAL at the close of bar t: |R_t| >= 1.5*S15 AND rv_t <= 1.0, AND bar t-1 did not meet both conditions (first bar of the episode only). SHORT if R_t > 0 (a thin rally), LONG if R_t < 0 (a thin drop), by market order at the open of t+1, only if flat. EVENTS (mark_events, kinds FOMC, CPI, NFP): no entry if any <kind>_min_since is in [0,30] at t. On FOMC_today, no entry from 15 minutes before the release on. STOP on every entry, fixed for the trade: D = min(max(|C_t - C_(t-3)|, 0.0020*C_t), 0.0050*C_t). Long stop = tick_floor(C_t - D), short stop = tick_ceil(C_t + D). EXIT, first of: (a) target: M = (C_t + C_(t-3))/2, half the move. At the close of any bar after entry with close >= M (long) or close <= M (short), EXIT at the next open. (b) time: EXIT at the open of the 6th bar after the entry bar (30 minutes). (c) the stop (checked first when one bar hits both). (d) the engine's flat-before-close. Signals while in a position are ignored. After an exit, only a signal bar with a later index than the exit bar counts, and it must still be the first bar of its episode. One position. Max 6 entries per day. Lookbacks: 3 bars for R and rv, 1 bar for freshness, 20 sessions for S15 and VBAR.",
+ "parameters": {
+  "timeframe_min": 5,
+  "move_lookback_bars": 3,
+  "scale_lookback_sessions": 20,
+  "volume_baseline_sessions": 20,
+  "min_volume_baseline_sessions": 15,
+  "move_mult": 1.5,
+  "max_relative_volume": 1.0,
+  "window_start_minute_of_day": 615,
+  "min_minutes_to_close_at_signal": 45,
+  "stop_min_frac": 0.002,
+  "stop_max_frac": 0.005,
+  "stop_move_mult": 1.0,
+  "target_retrace_frac": 0.5,
+  "max_hold_bars": 6,
+  "event_block_after_min": 30,
+  "fomc_block_before_min": 15,
+  "max_entries_per_day": 6
+ },
+ "mechanism": "In microstructure, the permanent part of a price change is the part carried by order flow. Informed trading arrives as volume, and the market maker updates beliefs by the signed flow (Kyle 1985). Hasbrouck (1991) separates trade-driven information, which is impounded for good, from inventory and liquidity effects, which are transient. A large WIN move made on no more than normal volume for its time of day therefore carries little traded information. It is mostly the book being thin: liquidity providers (HFT and the IND/WIN arbitrageurs) pulled or widened quotes for a moment, and a modest stream of retail market and stop orders walked the book. Foucault, Kadan and Kandel (2005) and Obizhaeva and Wang model book resiliency: after such a liquidity shock, patient limit orders refill the book, and the transient part of the impact decays. On the other side of the fade is the impatient trader who crossed a thin book: retail chasers and stopped-out day traders in the retail mini contract. They pay the temporary concession. The liquidity provider who refills the book collects it as price returns toward the pre-move level. The volume filter is relative to the slot's 20-session mean, so the 10:00 cash auction, the US open and the lunch lull count as normal. A move on heavy volume (the informed, metaorder or hedging case P-014 faded, which earned ~0 gross) is excluded by construction. Scheduled US releases are blocked because a fast move there is information even on light volume.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target mean gross is >= 0.033%. From anatomy.json the 15-minute median |move| is 0.0876% (p75 0.167%), so S15 is ~0.11% and the trigger |R| >= 1.5*S15 is ~0.165%. Triggered moves average ~0.22% (20x the cost), and more in the 10h-11h hours (5-minute range 0.18-0.21%). The half-retrace target is ~0.08-0.12% away (8-11x the cost). The stop is at least 0.20%, typically ~0.22%, about 1.8x the 30-minute median move (0.125%), so it is hit on ~20% of trades. Expected profile: hit rate ~57%, average win ~0.12% (target fills plus favourable time exits), average loss ~0.085% (stops plus smaller time-exit losses): 0.57*0.12 - 0.43*0.085 = ~0.032%, ~3x base. The extra stop tick (0.0044%) on ~20% of trades costs ~0.001%. Supporting hints: P-005's 1-minute trend flips lost 0.0135% GROSS (short-horizon WIN moves revert), while the heavy-volume fade P-014 earned only +0.002%. This rule takes the complement: moves the volume did not back. Honest risk: Campbell-Grossman-Wang predict LESS reversal for low-volume moves at daily horizons. If that holds at 15-30 minutes, the gross is ~0. FREQUENCY: ~89 window bars per session (83 with a 17:55 close). |R| >= 1.2 sd holds on ~20% of bars; first bars of episodes are ~10%. rv <= 1.0 holds on ~55% of bars, but on ~30-35% given a large move, so ~3.2% of bars qualify: ~2.8 signals per session. One position at a time (median hold ~20 min) and the event blocks leave ~2.3 entries per session, ~560 trades/yr.",
+ "expected_trades_per_year": 560,
+ "expected_median_hold_min": 20,
+ "novelty_vs_tried": "P-001/P-003/P-006 follow breaks of the opening range, the noise area or the first candle. P-002/P-004/P-007 carry first/last half-hour or rest-of-day momentum, and P-005 follows VWAP. All of these follow moves, and this rule fades them. P-008 fades the opening move once a day before 10:30. P-009 is month-end flow and P-011 fades round-number levels. This rule has no level, no calendar, and no reference to the open or VWAP. P-014 faded single bars with HIGH volume (>= 2x the slot mean) and a large body. This rule fades a 15-minute move ONLY when its volume was at or BELOW the slot norm, the opposite volume condition with the opposite economic claim (transient book-thinness impact, not liquidity-demand price pressure). Its exit is the half-retrace of the move. P-017 fades failed breaks of 60-minute swing extremes on 1-minute bars, a level and pattern trigger with no volume. The unrun P-013 (4x shocks, once a day), P-016 (VWAP deviation on balanced days), P-018 (contracts per print, continuation) and P-019 (dollar residual) use neither the move/volume mismatch nor this exit. No crypto strategy conditions a fade on low relative volume.",
+ "sources": [
+  {
+   "title": "Hasbrouck (1991), Measuring the Information Content of Stock Trades, Journal of Finance 46(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:46:y:1991:i:1:p:179-207"
+  },
+  {
+   "title": "Foucault, Kadan & Kandel, Limit Order Book as a Market for Liquidity (Hebrew University Ratio page)",
+   "url": "https://ratio.huji.ac.il/node/3129258"
+  },
+  {
+   "title": "Obizhaeva & Wang, Resilient price impact of trading and the cost of illiquidity (Princeton)",
+   "url": "https://collaborate.princeton.edu/en/publications/resilient-price-impact-of-trading-and-the-cost-of-illiquidity/"
+  },
+  {
+   "title": "Limit-order book resiliency after effective market orders: Spread, depth and intensity (arXiv 1602.00731, IDEAS)",
+   "url": "https://ideas.repec.org/p/arx/papers/1602.00731.html"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-020.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-013..P-019.json; b3/proxy_rules/p014_win_volume_shock_reversal.py (how a 5-minute slot-baseline rule is written); b3/events.py; b3/config/sessions.json; grep of b3/strategy.py (single-market hooks) and b3/strategies/proxies.py (class list). Web: search summaries only, for Hasbrouck 1991 and for book resiliency and transient impact (Foucault-Kadan-Kandel, Obizhaeva-Wang, arXiv 1602.00731). No full text fetched. The 30-35% share of low relative volume given a large move is an assumption, not a measurement. WDO was dropped: its 15-30-minute median moves (0.066-0.091%) leave no room for a half-retrace edge after a 0.0235% round trip. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T04:07:06+00:00"
+}
