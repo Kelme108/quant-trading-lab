@@ -1,0 +1,55 @@
+{
+ "rule_id": "P-016",
+ "title": "WIN balanced-day VWAP reversion: fade 1.5-scale deviations from the session VWAP when the day has no trend and no volatility shock",
+ "class_name": "WinBalancedDayVwapReversion",
+ "file_stem": "p016_win_balanced_day_vwap_reversion",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (Sao Paulo time). O,H,L,C,V of bar t; n_t = bar_in_day+1. VWAP_t = cumsum(((H+L+C)/3)*V)/cumsum(V) over today's bars up to t (V clipped below at 1). SCALES from the previous 20 sessions (today excluded; no signal before 20 sessions exist): S = mean |C_j/C_{j-6}-1| over all bars j with bar_in_day>=6 (30-minute move); A = mean |C_j/C_{j-1}-1| over all bars j with bar_in_day>=1 (5-minute move). Both span sessions and rolls, but every term lies inside one session, so the WIN$N roll jump never enters. FEATURES at the close of bar t: deviation z = (C_t/VWAP_t-1)/S; balance B = |C_t/day_open-1| / (S*sqrt(n_t/6)) (today's move from the open in random-walk units); shock U = mean of |C_i/C_{i-1}-1| over today's last 6 bars (i = t-5..t, i>=1) / A. WINDOW: signal bar opens at minute_of_day >= 625 (it closes at 10:30 or later) and minutes_to_close >= 60 at its close. DAY FILTER: no entries on FOMC_today days (mark_events, kind FOMC). FILTERS: B <= 1.0 AND U <= 2.0. LONG: flat, filters pass, z <= -1.5 -> ENTER_LONG by market order at the open of t+1. SHORT (symmetric, because balanced-day flow overshoots both ways): flat, filters pass, z >= +1.5 -> ENTER_SHORT at the open of t+1. STOP on every entry: d = min(max(2.0*S, 0.0020), 0.0060); long stop = tick_floor(C_t*(1-d)), short stop = tick_ceil(C_t*(1+d)), 5-point tick, fixed for the trade. EXIT, first of: (a) VWAP touch: at the close of a bar after entry, close >= VWAP of that bar (long) or close <= VWAP (short) -> EXIT at the next open; (b) time: EXIT at the open of the 12th bar after the entry bar (60 minutes); (c) the stop; (d) the engine's flat-before-close. RE-ENTRY: after an exit or stop, a new entry needs a signal bar that closes after the exit bar AND, since that exit, at least one bar close with |z| < 1.0 (the excursion must reset; no re-entry into the same excursion). Max 4 entries per day. Lookbacks: 20 sessions for S and A; 6 bars for U; today's bars for VWAP and B.",
+ "parameters": {
+  "timeframe_min": 5,
+  "scale_lookback_sessions": 20,
+  "scale_horizon_bars": 6,
+  "entry_z": 1.5,
+  "reset_z": 1.0,
+  "max_balance": 1.0,
+  "shock_lookback_bars": 6,
+  "max_shock_ratio": 2.0,
+  "stop_scale_mult": 2.0,
+  "stop_min_frac": 0.002,
+  "stop_max_frac": 0.006,
+  "max_hold_bars": 12,
+  "window_start_minute_of_day": 625,
+  "min_minutes_to_close_at_signal": 60,
+  "skip_fomc_days": 1,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "On a day with no dominant informed metaorder, WIN's price is set by liquidity providers (HFT and prop desks) and by benchmark-driven executors. Retail day traders make up most of WIN volume, and impatient hedgers trade around them. Two flows push a balanced day back toward its volume-weighted price. (1) Inventory: market makers who absorb a run of one-sided retail or hedge orders hold inventory. They skew quotes to unload it, so liquidity-driven excursions mean-revert (Boyarchenko, Larsen and Whelan model this inventory channel in index futures). (2) VWAP benchmarking: funds that roll or adjust IND/WIN hedges with VWAP-type schedules are judged against the day's VWAP (Madhavan 2002). A price far below VWAP is cheap against their benchmark, so price-sensitive schedules speed up there, and they slow down far above it. The other side is the impatient trader who pays for immediacy: the retail stop or chase order and the hedger who must trade now. They push price 1.5 scales from fair value, and the liquidity provider is paid when it returns. The rule only fades when today is not trending (B<=1) and not in a volatility shock (U<=2). Bianco and Reno (2006) find index-futures serial correlation turns positive in high and especially unexpected volatility, where information dominates and fades lose (cf. P-013 and P-014 shock fades). The 09:00-10:30 futures-only discovery and cash-open auction are excluded.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target mean gross is >= 0.033%. From anatomy.json the 30-minute median |move| is 0.1245% (mean ~0.16%, p75 0.239%), so S ~0.14-0.17% and an entry needs a deviation from VWAP of >= 1.5S, about 0.21-0.26%, i.e. 20x the cost. The full VWAP touch is worth that deviation minus the VWAP drift, about 0.15-0.25%. Existing WIN evidence is consistent with reversion around VWAP: P-005, which followed the VWAP side and flipped on every cross, lost 0.0135% GROSS per trade over 4,481 trades/yr, i.e. crossings revert. Expected profile: hit rate ~55%, average win ~0.17% (VWAP touches plus favourable time exits), average loss ~0.14% (time exits plus stops at 2S ~0.3%, hit on ~12% of trades) -> 0.55*0.17 - 0.45*0.14 = ~0.03-0.04% per trade, ~3-3.5x base cost. The extra stop tick (0.0044%) on ~12% of trades costs ~0.0005% on average. FREQUENCY: the entry window is 10:30 to 60 minutes before the close, about 83 five-minute signal bars with an 18:25 close (77 with 17:55). Under a random walk, P(B<=1) is ~0.58 of bars (S is a mean absolute move, ~0.8 sd), and the running VWAP deviation has sd ~sigma*sqrt(t/3), ~0.28% three hours in, so |z|>=1.5 is common. Jointly with B<=1 and the reset rule, I expect ~2-3 separate excursions per qualifying session, or ~2.3 entries per session after the FOMC and shock filters: ~560 trades/yr. Honest risk: WIN trends intraday (P-004 passed exploration), so B<=1 may leave fewer balanced days than a random walk would. Then frequency falls toward ~450 and the edge rests on those days.",
+ "expected_trades_per_year": 560,
+ "expected_median_hold_min": 30,
+ "novelty_vs_tried": "P-005 is the opposite claim: it goes WITH the VWAP side on every cross, with no threshold, no regime filter and a 1-minute flip. This rule FADES only large deviations (>=1.5 x the 20-session 30-minute scale), exits AT the VWAP, and trades only on balanced, calm days. P-003 uses the noise area as a momentum breakout. Here the random-walk band around the open (B<=1) is a regime gate for fading, the reverse use. P-001/P-006 (range breakouts) and P-002/P-004/P-007 (first/last half-hour and rest-of-day momentum) follow moves. P-008 fades the opening move once a day before 10:30, and this rule never enters before 10:30. P-009 is a month-end calendar flow. P-011 fades fixed price levels (round numbers); here the reference is the volume-weighted fair value, which moves with the day. P-014 faded abnormal-volume bars, and P-013 (never run) faded 4x price shocks; this rule explicitly EXCLUDES shock states (U<=2) and trending days, the regimes where Bianco-Reno predict continuation. No crypto strategy fades the session VWAP under a balance gate (H041 reclaims a weekly anchored VWAP, a trend entry).",
+ "sources": [
+  {
+   "title": "Madhavan (2002), VWAP Strategies, Investment Guides / Trading Practices (ITG) PDF",
+   "url": "https://www.smallake.kr/wp-content/uploads/2014/07/TP_Spring_2002_Madhavan.pdf"
+  },
+  {
+   "title": "Boyarchenko, Larsen & Whelan, The Overnight Drift (CEPR DP14462): liquidity-provider inventory and mean reversion in index futures",
+   "url": "https://repec.cepr.org/repec/cpr/ceprdp/DP14462.pdf"
+  },
+  {
+   "title": "Bianco & Reno (2006), Dynamics of intraday serial correlation in the Italian futures market, Journal of Futures Markets 26(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:wly:jfutmk:v:26:y:2006:i:1:p:61-84"
+  },
+  {
+   "title": "Sentana & Wadhwani (1992), Feedback Traders and Stock Return Autocorrelations, Economic Journal (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:ecj:econjl:v:102:y:1992:i:411:p:415-25"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-016.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-013.json, P-014.json, P-015.json; research/proxies/failure_anatomy.json (head only); b3/config/sessions.json (session hours); b3/events.py (grep: mark_events kinds); b3/backtest.py (grep: single-market frame); b3/strategies/proxies.py (head and the P-005 VwapTrend1m lines). Web: search summaries on Sentana-Wadhwani and on Ibovespa/index-futures intraday autocorrelation; I fetched the EconPapers page for Bianco-Reno 2006; search summaries for Madhavan 2002 and for VWAP/inventory mean reversion (Boyarchenko-Larsen-Whelan). WDO was dropped: its 30-minute median move of 0.091% against a 0.0235% cost leaves no room for a reversion edge. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T00:04:08+00:00"
+}
