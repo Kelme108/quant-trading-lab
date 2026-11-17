@@ -1,0 +1,52 @@
+{
+ "rule_id": "P-018",
+ "title": "WIN large-print flow continuation: follow a 5-minute bar whose contracts per print are unusually large for its time of day",
+ "class_name": "WinLargePrintFlowContinuation",
+ "file_stem": "p018_win_large_print_flow_continuation",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (Sao Paulo time). O,H,L,C of bar t; V_t = volume (contracts), N_t = tick_volume (prints) of bar t; tick = 5 points. Size per print A_t = V_t / max(N_t, 1). Bar move r_t = C_t/O_t - 1 (inside one bar). SLOT = minute_of_day of the bar open. BASELINES for bar t, over the previous 20 sessions (today excluded) that have a bar in the same slot (no signal if fewer than 15): QA = median of A, RA = mean of |r|. Relative print size q_t = A_t / QA. SIZE THRESHOLD Q85 = the 85th percentile of q over all window bars of the previous 20 sessions (today excluded; each past q uses its own trailing baselines; no signal until 20 such sessions exist). All baselines span sessions and WIN rolls, but every term lies inside one bar of the contract then traded, so the roll price gap never enters. WINDOW: the signal bar opens at minute_of_day >= 615 (10:15) and minutes_to_close >= 60 at its close. SIGNAL at the close of window bar t: q_t >= Q85 AND |r_t| >= RA. LONG: signal with C_t > O_t, flat -> ENTER_LONG by market order at the open of t+1. SHORT (symmetric: large informed clips sell as often as they buy): signal with C_t < O_t, flat -> ENTER_SHORT at the open of t+1. C_t = O_t is no signal. STOP on every entry, fixed for the trade: long D = min(max(C_t - L_t + 1 tick, 0.0020*C_t), 0.0050*C_t), stop = tick_floor(C_t - D); short D = min(max(H_t - C_t + 1 tick, 0.0020*C_t), 0.0050*C_t), stop = tick_ceil(C_t + D). EXIT, first of: (a) opposite flow: a bar after entry meets q >= Q85 AND |r| >= RA in the opposite direction (any time of day) -> EXIT at the next open, no flip on that bar; (b) time: EXIT at the open of the 12th bar after the entry bar (60 minutes); (c) the stop; (d) the engine's flat-before-close. Same-direction signals while in a position are ignored. After an exit, only signal bars that close after the exit bar count. Max 5 entries per day. Lookbacks: 1 bar for the signal; 20 sessions (min 15 per slot) for QA and RA; 20 sessions for Q85. No event filter: scheduled releases are information, which is what the rule follows.",
+ "parameters": {
+  "timeframe_min": 5,
+  "baseline_sessions": 20,
+  "min_baseline_sessions": 15,
+  "size_percentile": 85,
+  "size_percentile_lookback_sessions": 20,
+  "abs_return_mult": 1.0,
+  "window_start_minute_of_day": 615,
+  "min_minutes_to_close_at_signal": 60,
+  "stop_extra_ticks_beyond_bar": 1,
+  "stop_min_frac": 0.002,
+  "stop_max_frac": 0.005,
+  "max_hold_bars": 12,
+  "max_entries_per_day": 5
+ },
+ "mechanism": "WIN is the retail contract: individuals trade it in 1-10 lot clips, while institutions, foreign investors and their hedges sit mainly in the full IND contract (5x the point value) or arrive through algorithms and IND-WIN arbitrageurs, who print in much larger WIN clips. Contracts per print (real volume / tick volume) on a 5-minute bar is therefore a footprint of WHO moved the price. Easley and O'Hara (JFE 1987) show informed traders prefer large sizes, so large trades carry information and move prices permanently. Barber, Odean and Zhu (RFS 2009) use small trades as the retail proxy: their imbalance moves prices that then revert, and individuals largely provide liquidity to institutions. The rule follows only bars that moved at least a normal amount for their slot AND printed in unusually large clips for that slot (top 15% after time-of-day normalisation, so the 10:00 cash auction, the US open and the lunch lull are in the baseline). Such a bar is an institutional metaorder or an IND repricing being carried into WIN. Metaorders are split over tens of minutes, so their pressure persists over the 60-minute hold. On the other side are retail contrarian limit orders and liquidity providers who sell into the informed buyer (or buy from the seller). They lose to adverse selection because they cannot tell the informed clip from noise at the moment they fill. The same split explains why size-blind volume fades (P-014) earned ~0: they pooled retail bursts (which revert) with institutional flow (which persists).",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target mean gross is >= 0.033%. The hold is up to 60 minutes. From anatomy.json the 60-minute median |move| is 0.181% (16.5x the cost; p75 0.346%), so the mean |move| is ~0.23% and the sd ~0.28%. A mean of 0.033% needs only a ~55% directional hit rate on a near-symmetric payoff: Phi(0.033/0.28) ~ 0.547. WIN shows mild continuation at these horizons in the table: P-001 +0.014%, P-007 +0.018%, P-004 +0.031%, P-009 +0.037% gross, all following moves of 30+ minutes. Short-horizon size-blind fades earned ~0 (P-014 +0.002%, P-017 -0.005%). The rule adds the size filter that separates informed from retail flow. Expected profile: hit rate ~53%, average win ~0.20% (time exits on persistent flow), average loss ~0.15%. Stops sit beyond the signal bar's extreme, >= 0.20% away, and are hit on ~25% of trades; opposite-flow and time exits cut the rest. That gives 0.53*0.20 - 0.47*0.15 = ~0.035% per trade, ~3.2x base. The extra stop tick (0.0044%) on ~25% of trades costs ~0.001%. FREQUENCY: ~86 window bars per session (10:15 to 17:25 with an 18:25 close, 80 with 17:55). q >= Q85 holds on ~15% of them by construction. |r| >= RA (mean |r|) holds on ~38-42% of bars (0.8 sd for normal returns, a bit less with fat tails). Jointly that is ~5-6% of bars, ~4.5 signals per session, or ~3 if size and |r| are negatively correlated. Signals cluster in time and a position lasts up to 60 minutes, so I expect ~2.5 entries per session: ~620 trades/yr. Honest risk: if MT5 tick_volume counts quote updates rather than deals, A is a noisier footprint and the edge shrinks toward the size-blind ~0.",
+ "expected_trades_per_year": 620,
+ "expected_median_hold_min": 55,
+ "novelty_vs_tried": "No rule in the table uses the size of the trades. P-001/P-003/P-006 break the opening range, the noise area or the first candle. P-002/P-004/P-007 carry the first-half-hour or rest-of-day move. P-005 follows price vs VWAP. All of these condition on today's price path relative to a level, and none looks at who traded. P-008 fades the opening move, P-009 is a month-end calendar flow and P-011 fades round numbers. P-014 FADED bars with high total volume, which is size-blind and on the opposite side. This rule FOLLOWS bars with unusually large contracts per print, whatever the total volume: a bar with ordinary volume printed in big clips qualifies, and a heavy retail burst of one-lots does not. The direction comes from a single bar's flow footprint anywhere from 10:15 to an hour before the close, not from the day's trend or a breakout level, and the exit is an opposite large-print bar or 60 minutes. P-017 fades failed swing breaks on a 1-minute clock. The unrun P-013/P-015/P-016 use price shocks, slot periodicity and VWAP reversion, none of them trade size. No crypto strategy uses volume per print.",
+ "sources": [
+  {
+   "title": "Easley & O'Hara (1987), Price, Trade Size, and Information in Securities Markets, JFE 19(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:19:y:1987:i:1:p:69-90"
+  },
+  {
+   "title": "Barber, Odean & Zhu (2009), Do Retail Trades Move Markets?, RFS 22(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:oup:rfinst:v:22:y:2009:i:1:p:151-186"
+  },
+  {
+   "title": "MQL5 documentation: MqlRates structure (tick_volume, real_volume)",
+   "url": "https://www.mql5.com/en/docs/constants/structures/mqlrates"
+  },
+  {
+   "title": "Trading Wyckoff: Tick volume vs real volume",
+   "url": "https://tradingwyckoff.com/en/tick-volume-vs-real-volume/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-018.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-013.json (grep), P-014.json, P-015.json, P-016.json, P-017.json; b3/config/sessions.json; b3/events.py; b3/backtest.py (run signature: single-market frame); b3/b3_data.py (bars carry volume = real contracts and tick_volume); grep of tick_volume in the repo (b3/data/store.py maps MT5 real_volume/tick_volume; b3/tick_search.py sets tick_volume = n_trades on tick-built bars). Web: search summaries on Easley-O'Hara 1987, Barber-Odean-Zhu 2009, MT5 tick vs real volume, the PTAX windows and FX-fix reversals (Evans; FCA OP46), and foreign-investor flows in Ibovespa futures (market press only, not cited). WDO was considered for a PTAX-window fade and dropped: at a 30-45 minute hold its median move (0.09-0.11%) would need ~50% of the mean move as edge to clear 3x its 0.0235% cost. No validation or final-test results were seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T02:03:22+00:00"
+}
