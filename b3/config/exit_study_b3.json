@@ -1,0 +1,46 @@
+{
+  "approved_by_owner": true,
+  "_approved": "Owner 2026-11-17: 'Beleza, pode montar o estudo' (after seeing demo trades give back +R$80), then 'aprovo, retire' on this protocol (docs/plano-gestao-saida-b3.md) and on removing the demo BRL caps. Committed BEFORE any read with these exits; code b3/exit_study.py; results research/b3/exit_study/.",
+  "question": "Does a minute-by-minute profit/loss exit layer turn any registered entry into a net-positive rule? Entries are unchanged; only exits vary.",
+  "splits": "b3/config/splits_b3.json: exploration 2021-11-16..2024-07-01 only; validation read ONCE per (rule, market, exit) finalist; final test locked.",
+  "entries": {
+    "rules": ["P-014", "P-017", "P-020", "P-023", "P-024", "P-025", "P-026", "P-028", "P-030"],
+    "_rules": "Agent rules registered and run on WIN, plus any rule registered before the first read of this study. Eligible only with >= 500 trades/yr in the already-recorded exploration row (research/b3/ledger.jsonl), so eligibility needs no new read. P-029 (15/yr) is out.",
+    "p004": {"markets": ["WIN", "WDO"], "_note": "Exploration only for WIN: P-004 WIN validation was already read (2026-11-16). WDO validation unread."}
+  },
+  "brl_per_point": {"WIN": 0.2, "WDO": 10.0},
+  "exits": {
+    "X00": {"kind": "rule"},
+    "X01": {"kind": "target", "target_brl": 20},
+    "X02": {"kind": "target", "target_brl": 30},
+    "X03": {"kind": "target", "target_brl": 50},
+    "X04": {"kind": "target_stop", "target_brl": 30, "stop_brl": 30},
+    "X05": {"kind": "target_stop", "target_brl": 50, "stop_brl": 50},
+    "X06": {"kind": "breakeven", "trigger_brl": 20},
+    "X07": {"kind": "breakeven", "trigger_brl": 40},
+    "X08": {"kind": "trailing", "distance_brl": 20},
+    "X09": {"kind": "trailing", "distance_brl": 30},
+    "X10": {"kind": "trailing", "distance_brl": 50},
+    "X11": {"kind": "target_breakeven", "target_brl": 30, "trigger_brl": 20},
+    "_common": "Every variant keeps the rule's own stop (or the tighter stop_brl), its time exit and the engine's flatten before the close. Breakeven moves the stop to entry +1 tick in the trade's favour. Trailing arms when the open profit reaches distance_brl and then trails the best price of the PREVIOUS minutes by distance_brl."
+  },
+  "simulation": {
+    "path_bars": "1-minute bars of the exploration split for every rule, whatever its own timeframe; the rule's signals and its own exits are decided on its own bars exactly as in b3/backtest.py.",
+    "same_minute": "stop first (worst case) when one minute reaches both the stop and the target",
+    "target_fill": "limit order: filled at the target only if the minute trades 1 tick THROUGH it",
+    "stop_fill": "at the level (measured: stops filled at the level), plus the side's slippage",
+    "costs": "pattern_search_b3.json cost_reevaluation: measured (0.4 tick/side, fees WIN 0.25 / WDO 1.00 BRL) and measured_p90 (1.0 tick/side, fees WIN 0.50 / WDO 1.50 BRL)",
+    "fidelity": "X00 must match the official engine (b3/backtest.py) trade for trade; the intra-minute ordering is checked against recorded ticks with RANDOM entries only (no rule signal: the ticks are inside the locked final test)"
+  },
+  "gate": {
+    "min_trades_per_year": 500,
+    "net_positive": ["measured", "measured_p90"],
+    "dsr_min": 0.95,
+    "dsr_trials": "all trials already counted on the market (WIN: 561 A+B + 288 C = 849) plus this study's variants",
+    "pbo_max": 0.3,
+    "pbo_slices": 8
+  },
+  "demo": {
+    "_rule": "Owner decides. Recommended: demo robots back to the rules' own exits (no BRL cap) and every trade journals MFE, MAE and the counterfactual result of X01..X11 from the live price path. Measurement only; not evidence for the gate."
+  }
+}
