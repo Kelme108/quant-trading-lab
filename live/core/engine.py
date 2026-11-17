@@ -129,9 +129,21 @@ class Engine:
             return ["safe_mode"]
 
         self._check_lockouts(now, acts)
+        self._take_profit(acts)
         for symbol in self.symbols:
             self._process_symbol(symbol, now, phase, acts)
         return acts
+
+    def _take_profit(self, acts: list[str]) -> None:
+        """DEMO overlay (strategy.take_profit = {"brl": N}): close the robot's position at once when its unrealized
+        profit reaches N BRL, checked on every pass (not only on bar closes). Owner 2026-11-17."""
+        tp = getattr(self.strategy, "take_profit", None)
+        if not tp or not self.broker.positions():
+            return
+        if self._unrealized() >= float(tp["brl"]):
+            self.broker.close_all("demo_take_profit")
+            self._drain()
+            acts.append("take_profit")
 
     def _check_lockouts(self, now, acts: list[str]) -> None:
         cfg = self.risk.cfg
