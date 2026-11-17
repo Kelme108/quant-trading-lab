@@ -1,0 +1,53 @@
+{
+ "rule_id": "P-028",
+ "title": "WIN session autocorrelation switch: follow or fade 15-minute moves by the day's own variance ratio",
+ "class_name": "WinSessionVarianceRatioSwitch",
+ "file_stem": "p028_win_session_variance_ratio_switch",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "5-minute session bars of WIN only. All indicators use TODAY's bars only (bar_in_day counted from 1); nothing spans sessions, so the bimonthly WIN rolls do not matter. Returns: r_1 = ln(close_1 / open_1) for the first bar of the day, r_j = ln(close_j / close_(j-1)) for j >= 2. At the close of signal bar t (n = t bars today): A(t) = sum_{j=1..t} r_j^2 / t; B(t) = sum_{j=3..t} (r_j + r_(j-1) + r_(j-2))^2 / (t - 2); variance ratio VR(t) = B(t) / (3 x A(t)) (Lo-MacKinlay overlapping VR with q = 3, no mean adjustment); today's 15-minute scale S(t) = sqrt(3 x A(t)); 15-minute move M(t) = ln(close_t / close_(t-3)). Regime: TREND if VR(t) >= 1.15, REVERT if VR(t) <= 0.87, otherwise no trade on that bar. Signal: |M(t)| >= 0.75 x S(t). TREND regime: LONG if M(t) > 0, SHORT if M(t) < 0. REVERT regime: SHORT if M(t) > 0, LONG if M(t) < 0. Both sides are traded symmetrically. Entry: market order at the open of bar t+1. Entry window: bar_in_day of t >= 24 (the first 2 hours, about 09:00-11:00, only build the statistic) and minutes_to_close at the close of bar t >= 45. Stop (on every entry, a stop order): 0.30% of the entry price, long stop = entry x (1 - 0.003) rounded down to the 5-point tick, short stop = entry x (1 + 0.003) rounded up to the tick. Exit: time exit at the open of bar t+7 (6 bars = 30 minutes held), or the stop, or the engine's flatten before the close, whichever comes first. No target, no reversal or re-check while in a position. Signals are evaluated only while flat, and a new signal bar must be at or after the bar on whose open the previous trade exited. Maximum 5 entries per session. If A(t) = 0 there is no signal.",
+ "parameters": {
+  "vr_lag_bars": 3,
+  "min_bar_in_day_at_signal": 24,
+  "vr_trend_min": 1.15,
+  "vr_revert_max": 0.87,
+  "move_bars": 3,
+  "move_min_scale": 0.75,
+  "stop_pct": 0.3,
+  "hold_bars": 6,
+  "min_minutes_to_close_at_signal": 45,
+  "max_entries_per_day": 5
+ },
+ "mechanism": "The sign of short-horizon autocorrelation in an index future is not a constant; it is set by who dominates that day's order flow, and that state lasts hours. (1) On days when large parent orders are being worked (foreign allocations into Brazil, fund hedges of equity books in WIN, structured-product delta hedges), the child orders arrive in the same direction for hours (Bacry, Iuga, Lasnier & Lehalle 2014: metaorders executed over the day with a slowly decaying, transient impact), so 5-minute returns are positively autocorrelated and VR > 1. The counterparties are the passive quoters and the retail WIN day traders who keep selling every rise as 'too far' and are run over. (2) On days without such flow, liquidity providers and the large population of WIN day traders trading against each other dominate; price impact is temporary and reverts (Bianco & Reno 2006 find intraday serial correlation in the FIB30 index future mostly negative below 20 minutes, and changing with the volatility regime, with unexpected volatility making it positive, Bianco & Reno 2009). There, the impatient side that pushes a 15-minute move pays the liquidity provider, and the rule stands with the provider. A fixed follow rule (P-005, P-023, P-026) loses on the reverting days and a fixed fade rule (P-020, P-024, P-025) loses on the trending days; measuring today's VR after two hours and taking the side the day's own dependence favours is the structural difference. Lo & MacKinlay (1988) give the statistic: the variance of 15-minute sums over three times the 5-minute variance.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%; 3x = ~0.033%. The hold is 30 minutes, where the median absolute WIN move is 0.1245% (11.4x cost) and p75 0.239% (anatomy.json, exploration), so the mean absolute 30-minute move is ~0.16%. A directional tilt of ~0.035% per trade needs a hit rate of ~55% at a payoff near 1 (0.55 x 0.165 - 0.45 x 0.155 = ~0.021%) up to ~57% (~0.035%); I expect 54-57% hit rate and a payoff of 1.0-1.1, so a gross of ~0.02-0.04% per trade, i.e. 2-3.5x the base cost; I state honestly that the low end does not clear 3x. Cost drag stays at the fee + 1 tick per side because the 0.30% stop is ~2.4x the median 30-minute move: I expect only ~5-8% of trades to stop out, so the stop-fill extra tick, which pushed several tried rules to negative gross, applies rarely. Frequency, from the sampling law of VR(3) under a random walk (asymptotic sd sqrt(2(2q-1)(q-1)/(3qn)) = 0.30 at n = 24 bars, 0.19 at 60, 0.15 at 100): the band 0.87-1.15 (about +-0.14 in log) is left on ~35-45% of eligible bars, more early in the window and on days with real dependence. Eligible signal bars per session: ~80 (11:00 to ~17:40; ~70 in the US-summer short sessions). |M| >= 0.75 x S holds on ~40-45% of bars. Regime x signal gives ~12-15 signal bars per session, clustered; with one position at a time, 30-minute holds and the 5-per-day cap, about 2.2-2.6 entries per session, ~550-650 per year.",
+ "expected_trades_per_year": 560,
+ "expected_median_hold_min": 30,
+ "novelty_vs_tried": "No tried rule chooses its DIRECTION from the measured serial dependence of the current session. P-005 VWAP trend, P-023 metaorder grind, P-026 compression breakout, P-001/P-006 opening ranges, P-002/P-004/P-007 half-hour and rest-of-day momentum always follow; P-008, P-011, P-013, P-014, P-017, P-020, P-024, P-025 always fade. P-016 (balanced-day VWAP reversion, a proposal) only fades and conditions on trend and volatility of the day, not on autocorrelation, and trades deviations from VWAP; here the reference is the last 15 minutes and the same signal is followed or faded depending on VR. P-015 uses same-slot returns of past sessions (periodicity across days); this rule uses only today's bars. P-019/P-022 use the dollar; this rule uses WIN alone. No anchor level (open, VWAP, prior-session levels of P-027, round numbers), no volume, no calendar, no month end.",
+ "sources": [
+  {
+   "title": "Bianco & Reno (2006), Dynamics of intraday serial correlation in the Italian futures market, Journal of Futures Markets 26(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:wly:jfutmk:v:26:y:2006:i:1:p:61-84"
+  },
+  {
+   "title": "Bianco & Reno, Unexpected volatility and intraday serial correlation (arXiv physics/0610023)",
+   "url": "https://arxiv.org/pdf/physics/0610023"
+  },
+  {
+   "title": "Lo & MacKinlay (1988), Stock Market Prices Do Not Follow Random Walks: Evidence from a Simple Specification Test (MIT page)",
+   "url": "https://web.mit.edu/Alo/www/Papers/lo-mackinlay-88.html"
+  },
+  {
+   "title": "Lo & MacKinlay (1988), Review of Financial Studies 1(1) (IDEAS/RePEc)",
+   "url": "https://ideas.repec.org/a/oup/rfinst/v1y1988i1p41-66.html"
+  },
+  {
+   "title": "Bacry, Iuga, Lasnier & Lehalle, Market impacts and the life cycle of investors orders (arXiv 1412.0217)",
+   "url": "https://arxiv.org/pdf/1412.0217"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-028.md; research/b3/anatomy.json (WIN/WDO move sizes by horizon, 5-minute range by hour, costs); b3/markets.py; function list of b3/strategies/proxies.py and b3/events.py; titles of research/b3/proposals/P-013..P-027 and full text of P-026. Web: search results for Bianco & Reno 2006/2009 (EconPapers, arXiv), Lo & MacKinlay 1988 (MIT, IDEAS), Bacry et al. 2014 (arXiv). No backtest, validation or final-test result seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T12:02:51+00:00"
+}
