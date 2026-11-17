@@ -23,6 +23,16 @@ def test_round_trip_is_journalled_end_to_end(tmp_path):
     assert all(e["strategy_hash"] == "abcdef123456" for e in rig.kinds("signal"))
 
 
+def test_excursion_is_journalled_once_per_trade_and_never_trades(tmp_path):
+    rig = Rig(tmp_path, SCENARIO_A)
+    rig.engine.start()
+    rig.run(2, 107)
+    exc = rig.kinds("excursion")
+    assert len(exc) == 1 and exc[0]["samples"] >= 1
+    assert exc[0]["mfe_brl"] >= exc[0]["mae_brl"]
+    assert [(e["side"], e["reduce_only"]) for e in rig.kinds("order_sent")] == [("buy", False), ("sell", True)]
+
+
 def test_decisions_use_closed_bars_only(tmp_path):
     seen = []
 

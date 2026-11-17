@@ -49,6 +49,7 @@ class Engine:
         self._sticky_safe = False
         self._mismatch_seen: set[str] = set()
         self.safe_reason = ""
+        self._exc: dict[str, dict] = {}        # open-trade excursion per symbol (best / worst open profit, BRL)
 
     # ---------- helpers ----------
     def _alert(self, msg: str) -> None:
@@ -100,6 +101,7 @@ class Engine:
         """One pass. Returns short action tags (for tests and the console)."""
         now, acts = self.clock.now(), []
         self._drain()
+        self._track_excursion(now)
 
         if self.ks.active():
             if self.journal.log("killswitch", key=self.ks.token(), reason=self.ks.reason()):
@@ -133,6 +135,29 @@ class Engine:
         for symbol in self.symbols:
             self._process_symbol(symbol, now, phase, acts)
         return acts
+
+    def _track_excursion(self, now) -> None:
+        """Measurement only (owner 2026-11-17): the best (MFE) and worst (MAE) open profit of each trade, in BRL,
+        sampled on every pass; journalled as an `excursion` event when the position is gone. Never trades.
+        Kept in memory: a restart while a trade is open starts the sampling again from the restart."""
+        try:
+            held = {}
+            for p in self.broker.positions():
+                s = self.broker.symbol_spec(p.symbol)
+                pnl = (self.broker.last_price(p.symbol) - p.entry_price) / s.tick_size * s.tick_value * p.volume
+                held[p.symbol] = ((p.entry_price, p.volume), pnl)
+        except Exception:          # measurement must never stop the robot
+            return
+        for sym in list(self._exc):
+            ex = self._exc[sym]
+            if sym not in held or held[sym][0] != ex["key"]:
+                self.journal.log("excursion", sym, key=f"exc:{sym}:{ex['since']}", entry_price=ex["key"][0],
+                                 volume=ex["key"][1], mfe_brl=round(ex["mfe"], 2), mae_brl=round(ex["mae"], 2),
+                                 since=ex["since"], until=now.isoformat(), samples=ex["n"])
+                del self._exc[sym]
+        for sym, (key, pnl) in held.items():
+            ex = self._exc.setdefault(sym, {"key": key, "mfe": pnl, "mae": pnl, "since": now.isoformat(), "n": 0})
+            ex["mfe"], ex["mae"], ex["n"] = max(ex["mfe"], pnl), min(ex["mae"], pnl), ex["n"] + 1
 
     def _take_profit(self, acts: list[str]) -> None:
         """DEMO overlay (strategy.take_profit = {"brl": N}): close the robot's position at once when its unrealized
