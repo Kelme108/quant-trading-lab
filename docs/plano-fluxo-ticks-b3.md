@@ -39,6 +39,14 @@ O que **não** foi verificado: preço, licença de uso, lista exata de campos e 
 - O programa de ticks já tem candles de 1 minuto com fluxo (compra agressora, venda agressora, negócios grandes, rajadas), em `user_data/data/b3/clear/tickbars/`.
 - A proposta é um **segundo tipo de regra**, de fluxo, que enxerga esses candles, e um **robô de demo** capaz de montar os mesmos candles de fluxo a partir dos ticks ao vivo.
 
+**Gestão de ganho e perda faz parte da regra (pedido seu de 17/11/2026):**
+- Hoje a saída é decidida no fechamento do candle, e o robô ao vivo não tem como proteger lucro entre um candle e outro. O backtest e a demo ficam descasados, e foi isso que você viu nas operações que chegaram a +R$ 80.
+- A regra de fluxo passa a declarar um **plano de saída** junto com a entrada, registrado antes do teste, com poucas opções vindas da grade do estudo de saídas: alvo em reais, stop que vai para o preço de entrada depois de certo lucro, stop móvel, stop inicial, tempo máximo.
+- **O mesmo plano roda nos dois lados:** o backtest o acompanha minuto a minuto (nos ticks, quando houver), com as premissas conservadoras já usadas (stop antes do alvo no mesmo minuto, alvo só conta se o preço passar 1 tick), e o robô ao vivo o executa a cada passada, não só no fechamento. Assim o que se mede no teste é o que a demo faz.
+- Cada plano de saída conta como tentativa para o Sharpe deflacionado, então o número de opções é pequeno e fixo.
+- **Ressalva honesta:** o estudo de saídas mostrou que, em regras de candle sem vantagem, a gestão corta perdas mas não cria lucro (a melhor combinação rendeu +R$ 0,20 por operação). Ela molda o resultado de uma entrada que **já tem** vantagem; por isso vale desenhar junto com a regra de fluxo, que é o sinal mais forte até agora.
+- **Engenharia:** o contrato da regra ganha o plano de saída, o motor do backtest o aplica minuto a minuto, e o motor ao vivo o executa (a camada de limite em reais que usei na demo, agora definitiva e testada em paridade com o backtest).
+
 **Divisão dos dados (a aprovar, só vale depois da conferência de qualidade):**
 - **Exploração:** 2021-11-16 a 2024-06-30, a mesma janela das regras de candle.
 - **Validação:** 2024-07-01 a 2025-09-30, lida **uma vez** por candidata.
