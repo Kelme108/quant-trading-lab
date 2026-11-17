@@ -78,6 +78,10 @@ def test_ash_wednesday_opens_late():
     cal = B3SessionCalendar("WIN")                            # 2026-01..03 hours come from the inferred period
     assert cal.phase(datetime(2026, 2, 18, 10, tzinfo=SP_TZ)) == "closed"
     assert cal.session(date(2026, 2, 18)).open.time() == time(13, 0)
+    # a rule whose entry window cannot fit the late open simply has no session that day (P-021 crashed on it)
+    late = B3SessionCalendar("WDO", rules=SessionRules(300, 44, 5))
+    assert late.session(date(2026, 2, 18)) is None and late.session(date(2026, 2, 19)) is not None
+    assert late.phase(datetime(2026, 2, 18, 15, tzinfo=SP_TZ)) == "closed"
 
 
 def test_local_time_follows_brazil_dst_before_2019():

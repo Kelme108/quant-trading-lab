@@ -293,9 +293,13 @@ class B3SessionCalendar(B3Calendar):
             entry_start = o + timedelta(minutes=r.entry_start_after_open_min)
             entry_end = c - timedelta(minutes=r.entry_end_before_close_min)
             flatten = c - timedelta(minutes=r.flatten_before_close_min)
-            if not (o <= entry_start <= entry_end <= flatten <= c):
+            # A late-open day (Ash Wednesday 13:00) where the rule's windows do not fit takes NO session for that rule:
+            # no entry and nothing to flatten, exactly as the history calendar (b3_data.B3HistoryCalendar) already
+            # did. Raising here made the code check (and a live robot) crash on that one day (P-021, 2026-11-17).
+            if o <= entry_start <= entry_end <= flatten <= c:
+                out = SessionDay(d, o, entry_start, entry_end, flatten, c)
+            elif self.holidays.special_open_time(d) is None:      # a normal day the rules cannot fit: a real mistake
                 raise ValueError(f"{self.root} {d}: session rules do not fit the session {opening}-{p.close}")
-            out = SessionDay(d, o, entry_start, entry_end, flatten, c)
         self._cache[d] = out
         return out
 
