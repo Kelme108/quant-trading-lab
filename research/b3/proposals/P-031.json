@@ -1,0 +1,60 @@
+{
+ "rule_id": "P-031",
+ "title": "WIN scheduled-information impulse follow: trade with the first 5 minutes after the 4 daily information times",
+ "class_name": "WinScheduledInfoImpulseFollow",
+ "file_stem": "p031_win_scheduled_info_impulse_follow",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Clock: 1-minute session bars of WIN, each labelled by its open time. Four anchor times A are fixed per session: (1) 10:00 Sao Paulo, the B3 cash-equity open (local minute_of_day 600); (2) 08:30 New York, the US macro release minute; (3) 09:30 New York, the NYSE open; (4) 10:00 New York, the second US release batch. New York anchors are found by converting the bar's UTC time to America/New_York, the same way b3/events.py mark_events does, so they move with US daylight time (summer 09:30/10:30/11:00 Sao Paulo, winter 10:30/11:30/12:00). An anchor counts only if all 5 bars A..A+4 exist in the session. Impulse: r = close(A+4) / open(A) - 1, a 5-minute move inside one session. Scale: S = median of |r| for the SAME anchor over the previous 20 sessions where that anchor existed (it spans sessions but uses only within-session returns, so rolls and the unadjusted series do not matter). Skip the anchor if fewer than 10 earlier values exist. Signal: |r| >= 0.75 x S. LONG if r > 0, SHORT if r < 0 (symmetric, both sides). Entry: market order at the open of bar A+5. Stop: the impulse origin open(A), i.e. distance d = |entry - open(A)|, clipped to at least 4 ticks (20 points) and at most 0.30% of the entry price; a long's stop is at entry - d, a short's at entry + d. If entry is already beyond open(A) (the impulse reversed in bar A+5's gap), skip. Exit: time exit at the open of bar A+25 (20 minutes after entry), or the stop, whichever comes first; flat before the close (all anchors end by about 12:30 Sao Paulo). At most one position; if one is open when a signal fires, skip the signal. Maximum 4 entries per day, one per anchor. No other filter.",
+ "parameters": {
+  "cash_open_anchor_local_minute": 600,
+  "us_release_anchor_ny_minute": 510,
+  "nyse_open_anchor_ny_minute": 570,
+  "us_second_release_anchor_ny_minute": 600,
+  "impulse_bars": 5,
+  "scale_lookback_sessions": 20,
+  "scale_min_history": 10,
+  "impulse_threshold_x_median": 0.75,
+  "stop_min_ticks": 4,
+  "stop_max_pct_of_entry": 0.3,
+  "hold_bars": 20,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "Prices take in public information in two stages (Fleming & Remolona 1999): first a near-instant jump while liquidity providers widen spreads and pull quotes, then a longer stage of heavy volume as traders reconcile their different readings, with the price still drifting. On WIN the scheduled information arrives at four known minutes: the US data minute (08:30 ET), the 10:00 ET data batch, the B3 cash open (where the equity order book first prices the night), and the NYSE open (when US index futures and Brazilian ADRs start live price discovery). Andersen et al. (2003) show that surprises move the conditional mean of prices in jumps. Moves with identified news drift, and moves without news revert (Chan 2003). The other side is the large population of WIN retail day traders, who are documented contrarians and lose money (Chague, De-Losso & Giovannetti), plus slower local institutions that rehedge after the first move. Retail fades the opening impulse with limit orders and is run over in the second stage. Our own book supports this: P-025 faded the 20-minute impulses at these same auctions and lost 0.027% gross per trade, so the people on the fading side are paying. This rule trades only at information minutes and never fades. It does not trade the B3 futures open (09:00, the ORB rules), the closing call, or the end of the day.",
+ "why_gross_beats_3x_cost": "Target: at least 0.033% gross per trade, 3x the 0.011% WIN base round trip. These windows sit in the most active hours: WIN's median 5-minute range is 0.21% at 10h and 0.18% at 11h, against 0.11% in the afternoon (anatomy.json). A 20-minute hold covers a typical move between the 15-minute (0.088%) and 30-minute (0.125%) medians, more in these hours. The stop at the impulse origin puts the loss at about one impulse (median ~0.07-0.08% when the signal fires), so the stop is 6-7x the cost. Expected hit rate is about 54-55%, with an average win of ~0.12% (move plus drift) and an average loss of ~0.075%, which gives 0.55 x 0.12 - 0.45 x 0.075 = ~0.032-0.035%. Independent evidence: P-025, the fade of impulses at the same auctions, made -0.027% gross on 514 trades a year. Taking the other side of a similar trade suggests about +0.027% before this rule's stricter filters (information minutes only, origin stop, 20-minute hold). Risk: if continuation is as weak as on the other WIN rules, gross falls to 0.01-0.02% and the rule fails.",
+ "expected_trades_per_year": 590,
+ "expected_median_hold_min": 20,
+ "novelty_vs_tried": "P-001/P-006 take the 09:00 B3 futures opening range; this rule never uses it and takes no levels, only the 5-minute impulse at external information minutes. P-002/P-004/P-007 are first/last-half-hour and rest-of-day momentum, and this rule trades nothing after about 12:30. P-003/P-005/P-030 (noise area, VWAP, multi-session trend) follow running trend states all day, while this rule fires only at 4 clock times set by the information calendar. P-025 FADES impulses at the cash open, the NYSE open and the closing call. This rule takes the opposite thesis (information plus slow second-stage adjustment instead of auction inventory pressure), adds the US data minutes, drops the closing call, and stops at the impulse origin. P-008/P-013/P-014/P-020/P-024 fade shocks wherever they happen. P-015 uses the same slot's 20-day average return sign, while this rule uses today's impulse. P-017/P-026/P-027/P-029 trade breaks of price levels or ranges, and P-019/P-022 compare WIN with WDO. P-009/P-011/P-021/P-023/P-028 are month-end, round numbers, PTAX, order-flow grind and the variance-ratio switch.",
+ "sources": [
+  {
+   "title": "Fleming & Remolona (1999), Price Formation and Liquidity in the U.S. Treasury Market: The Response to Public Information, Journal of Finance 54(5) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:54:y:1999:i:5:p:1901-1915"
+  },
+  {
+   "title": "Fleming & Remolona, FRBNY research paper 9633 (FRASER PDF)",
+   "url": "https://fraser.stlouisfed.org/files/docs/historical/frbny/researchpapers/frbny_researchpapers_9633.pdf"
+  },
+  {
+   "title": "Andersen, Bollerslev, Diebold & Vega, Micro Effects of Macro Announcements: Real-Time Price Discovery in Foreign Exchange, NBER w8959",
+   "url": "https://www.nber.org/system/files/working_papers/w8959/w8959.pdf"
+  },
+  {
+   "title": "Andersen, Bollerslev, Diebold & Vega (2003), American Economic Review 93(1) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:aea:aecrev:v:93:y:2003:i:1:p:38-62"
+  },
+  {
+   "title": "Chan (2003), Stock price reaction to news and no-news: drift and reversal after headlines, JFE 70(2) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:70:y:2003:i:2:p:223-260"
+  },
+  {
+   "title": "Money Times: B3 muda horario de negociacao a partir de 9 de marco (cash market from 10:00, index futures from 09:00)",
+   "url": "https://www.moneytimes.com.br/b3-b3sa3-muda-horario-de-negociacao-a-partir-de-9-de-marco-veja-o-que-altera-ceci/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-031.md (scope, costs, gates, the explored-rules table including P-025's -0.0270% gross), research/b3/anatomy.json (move medians by horizon, 5-minute range by hour), b3/events.py (New York time conversion as in mark_events), titles of research/b3/proposals/P-013..P-030. Web: the EconPapers/FRASER records for Fleming & Remolona, the NBER/EconPapers records for Andersen et al., the EconPapers record for Chan 2003, and Money Times on B3 trading hours. No validation or final-test result seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T15:01:22+00:00",
+ "_interrupted": "Owner 2026-11-17 ~12:05 'por favor, pause tudo': the cycle was stopped while proxy-developer was writing the rule; the rule was never checked or run and read no data. Same treatment as P-012."
+}
