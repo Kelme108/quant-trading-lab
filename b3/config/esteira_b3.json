@@ -1,0 +1,58 @@
+{
+  "_what": "Strategy conveyor ('esteira') for WIN/WDO: agents (or the assistant) write FAMILIES of simple rules, b3/esteira.py screens every variant on EXPLORATION with one fixed default exit, and the survivors go to the Clear demo, which is the real test. Owner 2026-11-17: 'a estrategia nao e validada no backtest... precisa ver um jeito de achar regras boas que nao sejam tao ruins, e tambem nao sejam tao ajustadas... precisa ser uma esteira'. Proposal accepted the same day with 'tudo aprovado' (screen criteria below, automatic demo entry and cut, the 15-rule stop replaced by a daily limit).",
+  "approved_by_owner": true,
+  "approved_at": "2026-11-17",
+  "registered_before_any_read": true,
+  "split": "exploration",
+  "_split": "Exploration only (splits_b3.json). Validation stays unread: it is used once per candidate, only before a REAL-account decision by the owner. The final test stays locked.",
+  "markets": ["WIN", "WDO"],
+  "timeframes_min": [1, 5],
+  "family_limits": {
+    "max_params": 3,
+    "max_values_per_param": 5,
+    "max_variants_per_timeframe": 45,
+    "_why": "simple rules with a small grid; the grid exists only to check the plateau, not to optimise"
+  },
+  "default_exit": {
+    "kind": "target_stop_time",
+    "target_brl": 30.0,
+    "stop_brl": 30.0,
+    "max_hold_min": 30,
+    "_why": "one exit for every family so rules compete on the same footing; the owner will decide the demo stop/take-profit later and this block changes then (a change = a new screen run, its variants counted again)",
+    "_fills": "signal at the close of bar t; market order at the open of the 1-minute bar that starts at t's close (+ slippage); every 1-minute bar from the entry minute on: stop first (fills at the stop or the gap open, - slippage), then the target (a limit: needs a trade 1 tick through, fills at the target); time exit at the open of the first minute at or after entry + max_hold_min; flat at the session's flatten time; one position at a time; at most max_entries_per_session entries per session"
+  },
+  "max_entries_per_session": 10,
+  "costs": "pattern_search_b3.json cost_reevaluation (WIN) / wdo_extension.costs (WDO): 'measured' decides, 'measured_p90' is reported only",
+  "screen": {
+    "min_trades_per_year": 500,
+    "mean_net_brl_measured_gt": 0.0,
+    "time_slices": 8,
+    "min_positive_slices": 5,
+    "plateau_min_positive_neighbour_share": 0.6667,
+    "_plateau": "neighbours = the variants one grid step away on ONE parameter (same timeframe); at least two thirds of them must have mean net > 0 at the measured cost, and there must be at least one neighbour",
+    "best_per_family": true,
+    "_best": "per family and market, only the passing variant with the highest mean net per trade goes on",
+    "max_overlap_with_selected": 0.5,
+    "_overlap": "share of the candidate's trades whose entry has the SAME side within 5 minutes of a trade of an already selected (or deployed) conveyor rule; above 0.5 it is the same bet and is dropped",
+    "_not_used": "deflated Sharpe and PBO are reported (honesty) but do not decide demo entry; they remain the bar for any real-account decision"
+  },
+  "checks": {
+    "causality_cuts": 3,
+    "window_sessions": 21,
+    "_checks": "before any result: (1) the signal on the history cut at 3 points equals the full-history signal up to each cut (no look-ahead); (2) the signal of a session computed from only that session plus the 20 before equals the full-history one (the live robot can rebuild it). A family failing either is rejected without reading a result."
+  },
+  "once_only": "a family id is screened once; a changed family must take a new id (its variants count again). research/b3/esteira/ledger.jsonl holds every variant read.",
+  "demo": {
+    "auto_deploy": true,
+    "contracts": 1,
+    "review_after_trades": 60,
+    "cut_if_mean_net_brl_below": 0.0,
+    "promote_review_after_trades": 200,
+    "_demo": "a survivor enters the Clear demo by itself (own magic, 1 contract, the default exit on the server); after 60 demo trades it is switched off if its mean net per trade is negative; at 200 trades it becomes a candidate for an owner decision (validation read once, then the owner decides). Implemented in step 3 of the conveyor; until then survivors are listed for the assistant to deploy."
+  },
+  "limits": {
+    "max_families_per_day": 40,
+    "max_agent_cost_usd_per_day": 15.0,
+    "_limits": "replace the 15-rule stop (owner 2026-11-17 'tudo aprovado'); the assistant set these numbers, the owner may change them"
+  }
+}
