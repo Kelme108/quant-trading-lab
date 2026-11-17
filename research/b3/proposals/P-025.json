@@ -1,0 +1,61 @@
+{
+ "rule_id": "P-025",
+ "title": "WIN auction-pressure reversal: fade the 20-minute impulse around the B3 cash open, the NYSE open and the cash closing call",
+ "class_name": "AuctionPressureReversal",
+ "file_stem": "p025_auction_pressure_reversal",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "1-minute WIN bars, session only; a bar is labelled by its open time. Three ANCHORS per session, all fixed clock times: A1 = B3 cash equity open, 10:00 Sao Paulo; A2 = NYSE open, 09:30 America/New_York converted to Sao Paulo (10:30 when New York is on EDT, 11:30 on EST); A3 = B3 cash close / end of the closing call, which B3 aligns with the NYSE close: 16:00 America/New_York converted to Sao Paulo (17:00 on EDT, 18:00 on EST). For each anchor A: IMPULSE = close of the bar opening at A+4 min (it closes at A+5) / open of the bar opening at A-15 min - 1 (a 20-minute within-session return; skip the anchor if either bar is missing or the anchor is outside the day's session, e.g. late-open days). SCALE(A) = median of |IMPULSE| at the same anchor over the previous 20 sessions that had it (cross-session lookback of returns only, so the unadjusted roll between sessions does not enter it; no trade at an anchor until 20 past values exist). ENTRY: if |IMPULSE| >= 0.5 x SCALE(A), signal at the close of bar A+4, market order at the open of bar A+5: SHORT if IMPULSE > 0, LONG if IMPULSE < 0 (symmetric). STOP: distance = max(|IMPULSE| x entry price, 0.20% x entry price), placed above entry for shorts and below for longs, rounded away from entry to the 5-point tick. EXIT: time exit at the open of the 25th bar after entry (25 minutes), or the stop, or the session flatten (5 minutes before close), whichever is first. Session rules: entry_start_after_open_min 60, entry_end_before_close_min 15, flatten_before_close_min 5 (so A3 at 18:00 holds 18:05-18:20). At most one position; an anchor whose entry bar finds a position open is skipped. Maximum 3 entries per day (one per anchor). No events filter, no other indicator.",
+ "parameters": {
+  "cash_open_minute_sao_paulo": 600,
+  "nyse_open_minute_new_york": 570,
+  "nyse_close_minute_new_york": 960,
+  "pre_anchor_min": 15,
+  "post_anchor_min": 5,
+  "scale_lookback_sessions": 20,
+  "threshold_mult_of_scale": 0.5,
+  "stop_min_pct": 0.2,
+  "stop_impulse_mult": 1.0,
+  "hold_min": 25,
+  "max_entries_per_day": 3,
+  "entry_start_after_open_min": 60,
+  "entry_end_before_close_min": 15,
+  "flatten_before_close_min": 5
+ },
+ "mechanism": "The three anchors are the scheduled moments when a new block of non-discretionary, price-insensitive orders hits Brazilian equity risk: the B3 cash opening auction (pre-open 09:45-10:00, where attention-driven retail and overnight-accumulated orders are crossed), the NYSE open (US institutions, EWZ and ADR flows that arbitrageurs transmit to WIN), and the B3/NYSE closing call (benchmark, index-fund and NAV-pegged orders that must trade at the close). Index arbitrageurs and market makers who take the other side of these imbalances hedge them in WIN, the only instrument that trades the whole index in one order, during the indicative-price minutes before the cross and the first minutes after it. They are paid by a temporary price concession that reverses once the imbalance is absorbed: Berkman et al. (JFQA 2012) find attention-driven buying at the open creates an intraday price impact that reverses; Boyarchenko, Larsen and Whelan (NY Fed SR917) find closing order imbalances in S&P futures are followed by reversals once the cash market closes. The counterparties giving money away are the flows that must execute at the auction regardless of price (retail market-on-open orders, benchmark orders at the close, US opening orders), and the late WIN momentum traders who chase the auction move. The fade takes the liquidity provider's side after the cross, holding 25 minutes for the concession to decay.",
+ "why_gross_beats_3x_cost": "3x the WIN base round trip is ~0.033%. The anchors sit in the session's most active minutes: the median 5-minute range is 0.21% in the 10h hour and 0.18% in the 11h hour vs 0.11% from 13h to 16h (research/b3/anatomy.json), and the 30-minute median move is 0.125% overall (11.4x cost), higher at these hours. A 20-minute impulse that passes 0.5x its own anchor's median has a mean size of roughly 0.15-0.25%; a reversal of a fifth of it over 25 minutes is 0.03-0.05% per trade. Expected hit rate ~52-54%, average win / average loss ~1.1-1.2 (the 0.20% floor stop is ~1.5x the median 25-minute move, so it is hit on perhaps 15-20% of trades, the information cases), average gross ~0.035-0.045%. Honest caveat: P-008 (a conditional open fade at 09:00) made ~0.0%; this rule differs by anchoring at the cash/US crosses, not the futures open, and by holding 25 minutes instead of the rest of the morning.",
+ "expected_trades_per_year": 540,
+ "expected_median_hold_min": 25,
+ "novelty_vs_tried": "No earlier rule trades at the scheduled liquidity crosses of other markets. P-001/P-006 (opening-range breakouts) and P-008 (large opening move fade) use the WIN futures open at 09:00, which is not an anchor here; P-002/P-004/P-007 follow day momentum into the last half hour, while A3 fades only the 20 minutes around the cash closing call and is flat after 25 minutes or at flatten; P-021 fades the PTAX windows on WDO (central-bank fixing in the dollar, not equity auctions); P-013/P-014/P-020/P-024 fade shocks or volume anomalies at any time of day, chosen by size or volume, not by the clock of an auction; P-015 trades every half-hour slot in its past sign (periodicity, no auction logic, no fade); P-016 fades VWAP deviations; P-017 fades stop sweeps of 60-minute extremes; P-019/P-022 are WIN-WDO cross-market rules; P-018/P-023 are flow-continuation rules. The trigger is relative to the same anchor's own 20-session scale, so the frequency is fixed by the calendar (3 anchors per day) and not by a volatility regime.",
+ "sources": [
+  {
+   "title": "Berkman, Koch, Tuttle & Zhang (2012), Paying Attention: Overnight Returns and the Hidden Cost of Buying at the Open, JFQA 47(4) (Cambridge Core)",
+   "url": "https://www.cambridge.org/core/journals/journal-of-financial-and-quantitative-analysis/article/paying-attention-overnight-returns-and-the-hidden-cost-of-buying-at-the-open/F9AAD159B512C651F09D5D52011D88E0"
+  },
+  {
+   "title": "Berkman, Koch, Tuttle & Zhang, Paying Attention (IDEAS/RePEc record)",
+   "url": "https://ideas.repec.org/a/cup/jfinqa/v47y2012i04p715-741_00.html"
+  },
+  {
+   "title": "Federal Reserve Bank of New York Staff Report 917 (The Overnight Drift: close order imbalances and reversals in S&P 500 futures)",
+   "url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr917.pdf"
+  },
+  {
+   "title": "B3: B3 ajusta horarios de negociacao de acoes e derivativos acompanhando fim do horario de verao nos EUA (cash 10:00-17:55, closing call 17:55-18:00)",
+   "url": "https://www.b3.com.br/pt_br/noticias/b3-ajusta-horarios-de-negociacao-de-acoes-e-derivativos-acompanhando-fim-do-horario-de-verao-nos-eua.htm"
+  },
+  {
+   "title": "Bora Investir (B3): Bolsa de valores fecha mais cedo a partir de 11/3 com inicio do horario de verao nos EUA",
+   "url": "https://borainvestir.b3.com.br/noticias/bolsa-de-valores-fecha-mais-cedo-a-partir-de-11-3-com-inicio-do-horario-de-verao-nos-eua/"
+  },
+  {
+   "title": "Trademap: B3 volta a fechar as 17h em marco com o inicio do horario de verao nos EUA",
+   "url": "https://trademap.com.br/agencia/mercados/b3-b3sa3-bolsa-volta-a-fechar-as-17h-em-marco-com-o-inicio-do-horario-de-verao-nos-eua"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-025.md; research/b3/anatomy.json (exploration move sizes and by-hour ranges); b3/config/sessions.json; b3/markets.py; b3/events.py; b3/calendar.py session-rule defaults (grep); titles of research/b3/proposals/P-013..P-024. Web: B3 news page on the 2026 hours change (fetched), search results on B3 summer hours (cash close 17:00, call 16:55-17:00, from 13/03/2023), Berkman et al. 2012 records, NY Fed SR917 search summary. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T09:03:21+00:00"
+}
