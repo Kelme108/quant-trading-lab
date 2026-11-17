@@ -1,0 +1,62 @@
+{
+ "rule_id": "P-027",
+ "title": "WIN prior-session level break: follow a 1-minute close through yesterday's high, low or close, stop back across the level",
+ "class_name": "WinPriorSessionLevelBreak",
+ "file_stem": "p027_win_prior_session_level_break",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "1-minute session bars of WIN only. Levels, fixed at the start of each session from the PREVIOUS completed session (the lookback spans one session): PDH = previous session high, PDL = previous session low, PDC = close of the previous session's last bar. Roll handling: on a WIN roll day (b3_data.roll_day_set(roll_days('WIN')), the first session of the new contract, whose prior levels belong to the old contract) the rule does not trade at all. If |PDC - PDH| or |PDC - PDL| < 0.10% of PDC, PDC is dropped for the day (it merges with that extreme). Confirmation buffer B = 2 ticks (10 points). Signals (evaluated on the close of bar t, only while flat, and only on a bar after the exit bar of the previous trade): LONG at the open of bar t+1 if close(t) >= PDH + B and close(t-1) < PDH + B (an upward cross of yesterday's high), or close(t) >= PDC + B and close(t-1) < PDC + B. SHORT at the open of bar t+1 if close(t) <= PDL - B and close(t-1) > PDL - B (a downward cross of yesterday's low), or close(t) <= PDC - B and close(t-1) > PDC - B. PDH gives only longs and PDL only shorts (a fall back below PDH is not traded: that is the failed-break fade of P-017). If two levels fire on the same bar, take the one closer to close(t). Entry window: bar t has bar_in_day >= 10 (bar 1 = first bar of the session, so not before ~09:10) and minutes_to_close >= 60 at the close of bar t. Stop (stop order, on every entry): long: L x (1 - 0.0008) rounded down to the tick, where L is the level that fired; short: L x (1 + 0.0008) rounded up to the tick; then the entry-to-stop distance is clamped to at least 0.08% and at most 0.25% of the entry price. Exit: time exit at the open of the 46th bar after the entry bar (45 bars = 45 minutes held), or the stop, or the engine's flatten before the close, whichever comes first. No profit target, no reversal while in a position. Maximum 2 entries per level per session and 6 entries per session.",
+ "parameters": {
+  "confirm_ticks": 2,
+  "pdc_merge_pct": 0.1,
+  "min_bar_in_day": 10,
+  "min_minutes_to_close_at_signal": 60,
+  "stop_beyond_level_pct": 0.08,
+  "min_stop_pct": 0.08,
+  "max_stop_pct": 0.25,
+  "hold_bars": 45,
+  "max_entries_per_level_per_day": 2,
+  "max_entries_per_day": 6,
+  "level_lookback_sessions": 1
+ },
+ "mechanism": "Yesterday's high, low and close are the most widely shared reference levels in WIN: every Brazilian platform draws them, the day's change is shown against the previous session, and the daily mark-to-market (ajuste diario) settles every overnight holder against the previous day's price (B3 contract page). Because they are common knowledge, conditional orders gather there. Swing holders and retail day traders put protective stops just beyond yesterday's extremes, short stops above PDH and long stops below PDL, and breakout traders put entry stops in the same places (practitioner guides name PDH/PDL with a 1-2 tick buffer as the levels with 'actual resting interest'). Osler (FRBNY EPR 2000; SR 125) shows that published support and resistance levels predict where intraday trends stop, and that trends speed up once such levels are crossed, because stop-loss orders sit just beyond them and turn into market orders in the direction of the cross. PDC is the line where overnight holders' mark-to-market turns from gain to loss, so stops and de-risking cluster around it on both sides. The counterparties who give money away are the stopped-out holders and the passive liquidity providers run over by the cascade: they trade at the worst price for reasons that have nothing to do with value. The rule waits for a 1-minute close that is clearly through the level (2 ticks), enters in the direction of the cross, and puts the stop just back on the other side. If the cross was noise, the loss is small. If it triggers the cascade, the 45-minute hold captures the follow-through.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so 3x = ~0.033%. The hold is up to 45 minutes. The median absolute WIN move is 0.1245% at 30 minutes and 0.181% at 60 minutes (anatomy.json, exploration), so ~0.15% at 45 minutes, about 14x cost, with a p75 of ~0.29%. Entry comes ~0.01-0.03% beyond the level and the stop 0.08% back across it, so the risk is ~0.10% (clamp 0.08-0.25%), ~0.115% including the stop tick. Losers are capped at that size. Winners are time-exited after a cascade, at roughly the upper half of the 45-minute move distribution. Expected: hit rate ~42%, average winner ~0.25%, average loser ~0.115%, so gross ~0.42*0.25 - 0.58*0.115 = ~0.038% per trade, ~3.5x base cost. Frequency (honest estimate from the measured ranges): the median WIN day range is 1.56% and the open-to-close median is 0.74%, so today trades above yesterday's high on roughly half the sessions and below yesterday's low on roughly half (outside days are a minority). That gives ~1.0 first crosses of PDH/PDL per session, plus ~0.4 second crosses after a failed first break. Today's open sits close to PDC (overnight gaps are mostly a few tenths of a percent), and PDC is crossed on roughly two thirds of the sessions, often twice, so ~1.1 PDC entries. That is ~2.5 candidate signals per session. Losing some to the one-position rule, the 45-minute holds and the 09:10 / 60-minutes-before-close window leaves ~2.1-2.3 entries, ~520-560 per year. WDO is left out: its 45-minute median move is only ~4.7x its 0.0235% cost, and the same payoff would need a hit rate near 55%.",
+ "expected_trades_per_year": 530,
+ "expected_median_hold_min": 25,
+ "novelty_vs_tried": "The levels come from the PREVIOUS session (high, low, close), carried across the overnight break. No tried rule uses yesterday's levels. P-001/P-006 break today's opening range, which is anchored to today's open, once a day. P-003 uses bands around today's open widened by average moves. P-026 breaks a rolling 60-minute box, only when it is compressed. P-017 FADES failed breaks of a rolling 60-minute high/low (this rule follows breaks and never trades the fall back inside). P-011 fades round numbers (arbitrary price grid, fade direction). P-008 fades large opening gaps, judged at the open only. This rule trades through the whole day whenever a shared mark-to-market or extreme level is crossed. No volume conditions (P-014/P-018/P-020/P-024), no grind or metaorder shape (P-023), no auction clock (P-025), no VWAP (P-005/P-016), no WDO cross-signal (P-019/P-022), no time-of-day slot sign (P-015), no rest-of-day/half-hour momentum (P-002/P-004/P-007), no month-end (P-009).",
+ "sources": [
+  {
+   "title": "Osler (2000), Support for Resistance: Technical Analysis and Intraday Exchange Rates, FRBNY Economic Policy Review 6(2)",
+   "url": "https://www.newyorkfed.org/research/epr/00v06n2/0007osle.html"
+  },
+  {
+   "title": "FRBNY research news: support and resistance levels predict intraday trend interruptions (2000)",
+   "url": "https://www.newyorkfed.org/newsevents/news/research/2000/rp000622a"
+  },
+  {
+   "title": "Osler, Support for Resistance (Fed in Print record)",
+   "url": "https://www.fedinprint.org/item/fednep/19790"
+  },
+  {
+   "title": "Osler, Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis, FRBNY Staff Report 125 (FRASER)",
+   "url": "https://fraser.stlouisfed.org/files/docs/publications/frbnysr/frbny_sr125.pdf"
+  },
+  {
+   "title": "NexusFi: Key reference levels for futures day trading (prior day high/low, resting interest, 1-2 tick buffer)",
+   "url": "https://nexusfi.com/a/market-structure/key-reference-levels-futures-day-trading"
+  },
+  {
+   "title": "Edgeful docs: previous day's range by levels report",
+   "url": "https://www.edgeful.com/docs/api-reference/reports/previous-days-range-by-levels.md"
+  },
+  {
+   "title": "B3: Futuro de Ibovespa / Futuro Mini de Ibovespa (ajuste diario against the previous settlement)",
+   "url": "https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/mercado-de-acoes/futuro-de-ibovespa.htm"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-027.md; research/b3/anatomy.json (WIN/WDO move sizes by horizon, 5m range by hour, day range, open-to-close, costs); research/b3/data_quality.json (sessions, roll days and gaps); b3/events.py; grep of b3/strategies/proxies.py and b3/b3_data.py (roll_days, roll_day_set); titles of research/b3/proposals/P-013..P-026 and full text of P-026. Web: search results for Osler 2000 / SR 125 (newyorkfed.org, fedinprint, FRASER), practitioner pages on prior-day high/low levels (NexusFi, Edgeful), and a B3/Suno search on the WIN daily settlement (ajuste diario). No backtest, validation or final-test result seen.",
+ "status": "implementation_failed",
+ "registered_at_utc": "2026-11-17T11:01:39+00:00"
+}
