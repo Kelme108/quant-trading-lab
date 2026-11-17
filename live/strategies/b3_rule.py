@@ -41,7 +41,12 @@ def load_rule(rule_id: str, market: str):
 class B3RuleStrategy:
     """live.core.engine.Strategy around a B3Strategy / ProxyStrategy instance."""
 
-    def __init__(self, rule_id: str, market: str, snapshot_file: str | Path | None = None, symbol: str = "") -> None:
+    def __init__(self, rule_id: str, market: str, snapshot_file: str | Path | None = None, symbol: str = "",
+                 take_profit: dict | None = None) -> None:
+        # Optional DEMO overlay (owner 2026-11-17: "na faixa de 20, 30 ja esta adequado"): exit as soon as the open
+        # position's profit, on the last closed bar, reaches take_profit["brl"]. {"brl": 25, "brl_per_point": 0.2}.
+        # The rule's own code and hash are untouched; this is a demonstration setting, not a research result.
+        self.take_profit = take_profit
         self.rule_id, self.market = rule_id, market
         self.snapshot_file, self.symbol = (Path(snapshot_file) if snapshot_file else None), symbol
         self.rule = load_rule(rule_id, market)()
@@ -67,6 +72,12 @@ class B3RuleStrategy:
             return Signal("hold", reason="bar outside the regular session")
         window = kept[-self.warmup - 4:]
         sig = self.rule.signal(window, position)
+        if self.take_profit and position is not None and position.volume:
+            side = 1.0 if position.volume > 0 else -1.0
+            points = side * (window[-1].close - position.entry_price)
+            profit = points * float(self.take_profit["brl_per_point"]) * abs(position.volume)
+            if profit >= float(self.take_profit["brl"]):
+                sig = Signal("exit", reason=f"demo_take_profit_{self.take_profit['brl']:g}_brl")
         if self.snapshot_file is not None:
             try:
                 self._snapshot(window, position, sig)

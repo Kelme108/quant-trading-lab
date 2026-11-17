@@ -124,7 +124,8 @@ def build_broker(cfg: dict, mt5_module: Any, alert: Callable[[str], None] | None
 def build_strategy(cfg: dict, broker: MT5Broker):
     s = cfg.get("strategy", {"name": "smoke"})
     if s.get("name") == "b3_rule":
-        st = B3RuleStrategy(str(s["rule"]), str(s["market"]), cfg.get("snapshot_file"), cfg["symbols"][0])
+        st = B3RuleStrategy(str(s["rule"]), str(s["market"]), cfg.get("snapshot_file"), cfg["symbols"][0],
+                           cfg.get("take_profit"))
         if len(cfg["symbols"]) != 1 or not cfg["symbols"][0].upper().startswith(st.market):
             raise SystemExit(f"a b3_rule runs on exactly one {st.market} contract (e.g. {st.market}Z26)")
         if int(cfg.get("timeframe_min", st.timeframe_min)) != st.timeframe_min:
