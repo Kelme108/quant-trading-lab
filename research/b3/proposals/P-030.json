@@ -1,0 +1,55 @@
+{
+ "rule_id": "P-030",
+ "title": "WIN pullback against the multi-session trend: buy 30-minute dips in a 5-session up-trend, sell rallies in a down-trend",
+ "class_name": "MultiSessionTrendPullback",
+ "file_stem": "p030_multi_session_trend_pullback",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "5-minute session bars of WIN. (1) Multi-session trend T: the sum, over the 5 previous completed sessions, of ln(last close of the session / first open of the session). Only intraday session returns are used, never the overnight gap, so the unadjusted roll between sessions (every two months) does not enter T. T is fixed for the whole day; if T == 0 or fewer than 5 previous sessions exist, no trade that day. (2) Scale s: the standard deviation of the 5-minute close-to-close log returns inside the 5 previous sessions (pairs of bars of the same local_date only, so the first bar's gap is excluded), times sqrt(6) to give a 30-minute scale; fixed for the day. (3) Pullback R30 at the close of bar t: ln(close_t / close_{t-6}), both bars on today's local_date (needs bar_in_day >= 6). LONG: T > 0 and R30 <= -1.0*s. SHORT: T < 0 and R30 >= +1.0*s. There is no other side: the rule never fades with the trend, it only trades the pullback in the direction of T. Entry at the open of the next bar (market). Entry window: signal bar closing at or after minute_of_day 600 (10:00, cash open) and minutes_to_close >= 60. Stop on every entry: entry price -/+ 1.5*s*entry price (long below, short above), rounded away from the entry to the 5-point tick. Exit: time exit at the open of the 9th bar after entry (45 minutes), or at the first bar with minutes_to_close <= 15, whichever is earlier; the stop at any time. After an exit, no new entry for 2 bars (cooldown) and the signal must be re-evaluated on a bar that closes after the cooldown. At most one position, at most 4 entries per day.",
+ "parameters": {
+  "trend_sessions": 5,
+  "scale_sessions": 5,
+  "pullback_bars": 6,
+  "scale_horizon_bars": 6,
+  "z_entry": 1.0,
+  "stop_scale_mult": 1.5,
+  "hold_bars": 9,
+  "entry_start_minute_of_day": 600,
+  "min_minutes_to_close_entry": 60,
+  "flatten_minutes_to_close": 15,
+  "cooldown_bars": 2,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "Two flows with different horizons meet in WIN. Over days, the direction of the Brazilian index is driven by slow institutional and foreign allocation (foreigners are the majority of B3 cash-equity trading) that is executed across several sessions; this is the time-series persistence that Moskowitz, Ooi and Pedersen document in index futures, where speculators earn it from hedgers. Inside the day, WIN is dominated by retail day traders and short-horizon liquidity demanders whose 30-minute bursts of one-sided orders push the price away from its value; liquidity providers who absorb them are paid by the subsequent reversal (Grossman and Miller: price concessions for immediacy; Nagel: short-term reversal returns are the return to liquidity provision). A 30-minute move AGAINST the multi-session trend is where the two coincide: the intraday burst is a temporary concession, and the slow institutional flow that keeps arriving on the trend side is the counterparty that pulls price back. The rule supplies immediacy only on that side: it buys the dip when the slow money is buying and sells the rally when it is selling. Who gives the money away: the impatient intraday seller (long case), paying a price concession to get filled against a market whose slow flow is on the other side. Pullbacks WITH the trend are not traded, because there the burst and the slow flow agree and reversal is not expected.",
+ "why_gross_beats_3x_cost": "The trade holds 45 minutes from a point 1 scale away from where it started. On WIN exploration the median absolute 30-minute move is 11.4x the base round trip (~0.125%) and the 60-minute move 16.5x, so a 45-minute hold has a median absolute move near 0.15%, ~14x cost. 3x cost (0.033%) needs a signed drift of about 22% of the median move: e.g. a 54% hit rate with an average win of ~0.16% against an average loss of ~0.14% (stops at 1.5 scale, ~0.3%, are hit on a minority, ~10-15%, of trades). The entry follows a 1-scale displacement, which is the condition where reversal returns are concentrated (Nagel), and the trend filter removes the half of pullbacks expected to continue. Unlike P-005/P-017/P-024, the hold is long (45 min) and the entry is conditioned on a large displacement, so each trade spans a move an order of magnitude larger than the round trip.",
+ "expected_trades_per_year": 700,
+ "expected_median_hold_min": 45,
+ "novelty_vs_tried": "No earlier rule uses a multi-session direction at all: P-001..P-006 and P-023 follow intraday moves (momentum), P-014/P-016/P-020/P-024/P-025 fade intraday moves symmetrically on both sides by volume, VWAP or auction conditions, P-028 switches by today's own variance ratio, P-027 trades yesterday's levels, P-019/P-022 use the dollar. Here the side is fixed for the whole day by the previous 5 sessions' intraday returns, and only counter-trend 30-minute pullbacks are entered, never with-trend moves; it is an asymmetric, horizon-mismatch liquidity-provision rule, not a momentum or a plain fade.",
+ "sources": [
+  {
+   "title": "Nagel (2012), Evaporating Liquidity, Review of Financial Studies 25(7) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:oup:rfinst:v:25:y:2012:i:7:p:2005-2039"
+  },
+  {
+   "title": "Nagel, Evaporating Liquidity, NBER Working Paper 17653",
+   "url": "https://nber.org/papers/w17653"
+  },
+  {
+   "title": "Moskowitz, Ooi & Pedersen (2012), Time Series Momentum, JFE 104(2) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:104:y:2012:i:2:p:228-250"
+  },
+  {
+   "title": "AQR: Time Series Momentum (journal article page)",
+   "url": "https://www.aqr.com/library/journal-articles/time-series-momentum"
+  },
+  {
+   "title": "Grossman & Miller, Liquidity and Market Structure, NBER Working Paper 2641",
+   "url": "https://www.nber.org/papers/w2641"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-030.md (scope, costs, gates, exploration move sizes, explored-rule table); b3/events.py; titles of research/b3/proposals/P-013..P-029 to avoid repeating a mechanism; web search results for Nagel (2012), Moskowitz-Ooi-Pedersen (2012), Grossman-Miller (1988). No validation or test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T13:59:38+00:00"
+}
