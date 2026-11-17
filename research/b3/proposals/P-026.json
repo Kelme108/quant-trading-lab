@@ -1,0 +1,58 @@
+{
+ "rule_id": "P-026",
+ "title": "WIN compression-box breakout: follow a 5-minute close outside a 60-minute range that is tight for its time of day",
+ "class_name": "WinCompressionBoxBreakout",
+ "file_stem": "p026_win_compression_box_breakout",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "5-minute session bars of WIN only. Box at bar t: the 12 bars t-12..t-1 of TODAY's session (60 minutes); H = max high, L = min low of those 12 bars; box width R(t-1) = (H - L) / close(t-1). Time-of-day norm: N(t-1) = median of R computed at the same minute_of_day (a box of 12 bars of one session ending at that minute) over the previous 20 completed sessions, today excluded; this lookback spans sessions and the bimonthly WIN rolls, which is harmless because R is a share of price. Compressed: R(t-1) <= 0.80 x N(t-1). LONG at the open of bar t+1 if the box is compressed and close(t) >= H + 1 tick (5 points). SHORT at the open of bar t+1 if the box is compressed and close(t) <= L - 1 tick. Signals are evaluated only while flat; a signal bar must come after the exit bar of the previous trade. Entry window: bar t must have at least 12 earlier bars of today (bar_in_day >= 13 counting the first bar as 1, i.e. not before ~10:00) and minutes_to_close at the close of bar t >= 75. Stop (on every entry, a stop order): long: box midpoint M = (H + L) / 2 rounded down to the tick; short: M rounded up to the tick; then the distance between the entry price and the stop is clamped to at least 0.10% and at most 0.30% of the entry price. Exit: time exit at the open of the 13th bar after the entry bar (12 bars held = 60 minutes), or the stop, or the engine's flatten before the close, whichever comes first. No profit target, no reversal while in a position. Maximum 4 entries per session. Needs 20 completed sessions of history before the first trade (sessions without a valid norm at that minute_of_day give no signal).",
+ "parameters": {
+  "box_bars": 12,
+  "baseline_sessions": 20,
+  "compression_ratio_max": 0.8,
+  "breakout_ticks": 1,
+  "min_bar_in_day": 13,
+  "min_minutes_to_close_at_signal": 75,
+  "stop_at_box_fraction": 0.5,
+  "min_stop_pct": 0.1,
+  "max_stop_pct": 0.3,
+  "hold_bars": 12,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "Volatility is persistent but mean-reverting after the strong intraday periodicity is removed (Andersen & Bollerslev 1997): an hour that is unusually quiet FOR ITS TIME OF DAY is a temporary state, and the next information or order arrival expands the range. While WIN sits in a tight box, two groups pile orders just outside it: retail day traders in WIN (the contract Brazilian day traders use most, Chague et al.) put protective stops just beyond the recent high and low, and breakout traders put entry stops at the same places. Liquidity providers quote tightly inside the box because recent volatility is low, so the depth just beyond the edges is thin relative to the resting stop orders. When a 5-minute bar closes outside the box, those stop orders turn into market orders in the direction of the break; Osler (NY Fed SR 150) shows that executed stop-loss orders create self-reinforcing 'price cascades' that are faster and last longer (hours, not days) than responses to take-profit orders. The counterparties who give money away are the stopped-out traders and the passive quoters run over by the cascade: both trade at the worst price of the move for reasons unrelated to value. Crabel's contraction-then-expansion principle is the practitioner form of the same effect. The rule enters after the break with a stop at the box midpoint: if the break was only noise, price returns into the box and the loss is small; if it starts the expansion, the 60-minute hold captures a move several times the box half-width.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, 3x = ~0.033%. The hold is 60 minutes, where the median absolute WIN move is 0.181% (16.5x cost) and p75 is 0.346% (anatomy.json, exploration). A typical 60-minute WIN box is ~0.4% wide (the 60-minute median close-to-close move is 0.18% and the high-low range is roughly twice that); compressed boxes are <= 0.8 x the time-of-day norm, ~0.25-0.3%, so the stop at the midpoint sits ~0.13-0.20% from entry (clamp 0.10-0.30%). Payoff is asymmetric: losers are capped at the stop (~0.15% plus 1 stop tick), winners are time-exited after an expansion. Expected: hit rate ~42-45%, average winner ~0.28-0.30%, average loser ~0.15%, gross ~0.43*0.29 - 0.57*0.15 = ~0.04% per trade, about 3.5x base cost. Frequency (honest estimate): the entry window has ~85 five-minute signal bars per session (10:00 to ~17:05). With the 60-minute range ratio roughly log-normal (log sd ~0.4), R <= 0.8 x norm holds on ~29% of bars (~25 per session, clustered on quiet stretches). A close at least 1 tick beyond the preceding 12-bar range happens on ~12-15% of bars (more often when the box is tight), so ~3-3.5 signals per session; one position at a time with 60-minute holds leaves ~2.2-2.3 entries, ~550 per year. WDO is left out: its 60-minute median move is only 5.6x its 0.0235% cost, so the same payoff would need a hit rate near 55%.",
+ "expected_trades_per_year": 550,
+ "expected_median_hold_min": 50,
+ "novelty_vs_tried": "The condition is volatility COMPRESSION of a rolling 60-minute box relative to the same minute_of_day over 20 sessions; no tried rule conditions on a range being unusually narrow. P-001/P-006 break the opening range (anchored at the open, once a day); here the box rolls all day and is valid only when tight. P-003 noise area uses bands around the day's open widened by average moves, i.e. a breakout of a WIDE band; this rule breaks a NARROW recent box. P-017 fades failed breaks of a 60-minute high/low with no volatility condition; this rule follows breaks, only out of compressed boxes, with the stop back inside the box. P-014/P-020/P-024 condition on volume vs move of single bars and fade; P-023 follows smooth grinds (already moving), whereas this rule enters when nothing has moved. Not VWAP, rest-of-day, half-hour momentum, open fades, month-end or round numbers.",
+ "sources": [
+  {
+   "title": "Osler, Stop-Loss Orders and Price Cascades in Currency Markets, Federal Reserve Bank of New York Staff Report 150",
+   "url": "https://www.newyorkfed.org/research/staff_reports/sr150.html"
+  },
+  {
+   "title": "Osler, Stop-Loss Orders and Price Cascades in Currency Markets (EconPapers record)",
+   "url": "https://econpapers.repec.org/RePEc:fip:fednsr:150"
+  },
+  {
+   "title": "Andersen & Bollerslev (1997), Intraday periodicity and volatility persistence in financial markets, Journal of Empirical Finance 4(2-3) (IDEAS/RePEc)",
+   "url": "https://ideas.repec.org/a/eee/empfin/v4y1997i2-3p115-158.html"
+  },
+  {
+   "title": "Andersen & Bollerslev, Intraday Periodicity and Volatility Persistence in Financial Markets (Kellogg research page)",
+   "url": "https://www.kellogg.northwestern.edu/academics-research/research/detail/1997/intraday-periodicity-and-volatility-persistence-in-financial-markets/"
+  },
+  {
+   "title": "Crabel, 2-bar NR and ORB (Technical Analysis of Stocks & Commodities V.8:2)",
+   "url": "https://store.traders.com/-v08-c02-barnr-pdf.html"
+  },
+  {
+   "title": "LuxAlgo library: Range expansion/contraction (Crabel contraction-then-expansion concept)",
+   "url": "https://www.luxalgo.com/library/concept/range-expansion-contraction/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-026.md; research/b3/anatomy.json (WIN/WDO move sizes by horizon, median 5m range by hour, costs); titles and mechanisms of research/b3/proposals/P-013..P-025 (full text of P-024). Web: search results for Osler SR 150 (NY Fed, EconPapers), Andersen & Bollerslev 1997 (IDEAS, Kellogg), Crabel narrow-range/contraction pages (traders.com, LuxAlgo). No backtest, validation or final-test result seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T10:00:10+00:00"
+}
