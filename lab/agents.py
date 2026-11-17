@@ -27,7 +27,7 @@ DEFAULT_MODEL = "sonnet"
 # Owner's request (2026-11-06): the agents that design and implement the rule run on the stronger model;
 # the others stay on the default. Costs more per call; the per-call and per-cycle caps still apply.
 AGENT_MODELS: dict[str, str] = {"scout": "opus", "research": "opus",  # developer back on sonnet 2026-11-09: same error rate, ~3x cheaper
-                                "proxy-research": "opus"}
+                                "proxy-research": "opus", "esteira-research": "opus"}
 
 # tools: the built-in tools the agent gets at all (--tools).
 # allow: tool rules pre-approved so a headless run never stops on a prompt;
@@ -104,6 +104,26 @@ AGENT_SPECS: dict[str, dict[str, list[str]]] = {
             "Read(./research/b3/trades/**)",
             "Read(./research/b3/ledger.jsonl)",
             "Read(./b3/config/splits_b3.json)",
+        ],
+    },
+    # Strategy conveyor (b3/esteira_cycle.py, owner 2026-11-17): writes families as one Python file. It sees the
+    # conveyor's EXPLORATION summary through its context file, never a validation or final-test read.
+    "esteira-research": {
+        "tools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Write"],
+        "allow": ["WebSearch", "WebFetch", "Write"],
+        "deny": [
+            "Read(./research/b3/results/**)",
+            "Read(./research/b3/trades/**)",
+            "Read(./research/b3/ledger.jsonl)",
+            "Read(./research/b3/esteira/trades/**)",
+            "Read(./b3/config/splits_b3.json)",
+            "Read(./research/proxies/results/**)",
+            "Read(./research/proxies/trades/**)",
+            "Read(./research/reviews/**)",
+            "Read(./research/command-log.md)",
+            "Read(./research/experiments/**)",
+            "Read(./research/lab.sqlite)",
+            "Read(./live/**)",
         ],
     },
     "proxy-developer": {
