@@ -1,0 +1,55 @@
+{
+ "rule_id": "P-017",
+ "title": "WIN stop-sweep failure fade: fade a 1-minute break of a standing 60-minute high/low that closes back inside within 5 bars",
+ "class_name": "WinStopSweepFailureFade",
+ "file_stem": "p017_win_stop_sweep_failure_fade",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Bars: 1-minute, session-only (Sao Paulo). H,L,C of bar t; tick = 5 points. LEVELS at a bar b with bar_in_day >= 60: Lhi(b) = max High and Llo(b) = min Low over the previous 60 bars of TODAY (b-60..b-1). R(b) = Lhi-Llo, mid M(b) = (Lhi+Llo)/2. All bars are from one session, so the WIN$N roll never enters. STANDING: Lhi(b) was last set by a bar >= 15 bars before b (same rule for Llo). UP-BREAK at b: H_b > Lhi(b), Lhi standing, R(b) >= 0.20% of Lhi. The break event freezes Lhi, M, R from b. FAILURE (short): the first bar f in b..b+4 with C_f <= Lhi - 1 tick. X = max High over b..f. The event is void if X - Lhi > 0.25% of Lhi, or if no failure by b+4. SHORT: at the close of f, if flat -> ENTER_SHORT by market order at the open of f+1. Stop = tick_ceil(max(X + 2 ticks, C_f*1.0012)). Skip if that stop is more than 0.40% above C_f. LONG (symmetric, because retail stops sit under swing lows as much as over swing highs): DOWN-BREAK L_b < Llo(b), Llo standing, R >= 0.20%; failure = first f in b..b+4 with C_f >= Llo + 1 tick; X = min Low over b..f; void if Llo - X > 0.25% of Llo; ENTER_LONG at the open of f+1; stop = tick_floor(min(X - 2 ticks, C_f*0.9988)); skip if more than 0.40% below C_f. If a long and a short failure fire on the same bar, take neither. WINDOW: failure bar f with minute_of_day >= 615 and minutes_to_close >= 45 at its close. EVENTS (mark_events, kinds FOMC, CPI, NFP): no entry if any <kind>_min_since is in [0, 30] at f. On FOMC_today, no entry from 15 minutes before the release (event_times) on. EXIT, first of: (a) target: at the close of a bar after entry, C <= M (short) or C >= M (long) -> EXIT at the next open; (b) time: EXIT at the open of the 30th bar after the entry bar; (c) the stop, fixed for the trade; (d) the engine's flat-before-close. One entry per break event, with no re-entry on the same event after a stop or an exit. A new event needs a new break bar after the exit bar. At most one position. Max 6 entries per day. Lookbacks: 60 bars for the levels, 15 bars standing age, 5-bar failure window. Nothing from earlier sessions is used.",
+ "parameters": {
+  "timeframe_min": 1,
+  "level_lookback_bars": 60,
+  "min_level_age_bars": 15,
+  "min_range_frac": 0.002,
+  "failure_window_bars": 5,
+  "failure_close_ticks_inside": 1,
+  "max_sweep_excursion_frac": 0.0025,
+  "stop_ticks_beyond_sweep": 2,
+  "min_stop_frac": 0.0012,
+  "max_stop_frac": 0.004,
+  "max_hold_bars": 30,
+  "window_start_minute_of_day": 615,
+  "min_minutes_to_close_at_signal": 45,
+  "event_block_after_min": 30,
+  "fomc_block_before_min": 15,
+  "max_entries_per_day": 6
+ },
+ "mechanism": "WIN is a retail day-trading contract. Chague, De-Losso and Giovannetti follow ~19,600 individuals who day-traded mini-Ibovespa futures, and almost all lose. B3 price-action teaching has them put stops just beyond the latest visible top or bottom. Brazilian traders call the run on those stops a 'violinada': price pierces the swing extreme, fills the stops, then reverses. Osler (JF 2003; NY Fed SR 150) shows stop-loss orders cluster just beyond salient levels. When they fire, they are price-insensitive market orders that speed up the move (a cascade). This rule only trades the cases where the cascade did NOT ignite: the 60-minute extreme breaks, then within 5 minutes a bar closes back inside the old range. There, the stop and breakout-chasing flow was absorbed. HFT and prop liquidity providers took the other side and now hold inventory taken at the extreme: short after an up-sweep, long after a down-sweep. No informed continuation flow came in behind it. The trapped breakout buyers (or sellers) and the re-entries of stopped-out traders then unwind toward the middle of the range. The other side of our trade is the impatient retail stop or breakout order that paid for immediacy at the extreme and is now offside. It gives the money away because its stop rule is mechanical and its level is public. Event windows (FOMC, CPI, NFP) are skipped because a break there is information, not a sweep.",
+ "why_gross_beats_3x_cost": "WIN base round trip ~0.011%, so the target is a mean gross >= 0.033%. The entry is at or just inside a 60-minute extreme. The range is >= 0.20% by filter, and from anatomy.json the 60-minute median |move| is 0.18%, so typical ranges are 0.3-0.4%. The midpoint target is therefore 0.10-0.20% away (9-18x the cost). The stop sits 2 ticks beyond the sweep extreme and at least 0.12% away, typically 0.12-0.20%. A 15-minute median move is 0.088% and a 30-minute one 0.125%, so the 30-bar time exit closes many trades with partial moves. Expected profile: hit rate ~57-58%. Average win ~0.15% (target touches plus favourable time exits). Average loss ~0.12% (stops ~0.15% on ~30% of trades, smaller time-exit losses on the rest). That gives 0.58*0.15 - 0.42*0.12 = ~0.035%, ~3.2x the base cost. The extra stop tick (0.0044%) on ~30% of trades costs ~0.0013% on average. Supporting evidence: P-005 (1-minute VWAP-trend flips) lost 0.0135% GROSS per trade on WIN, so short-horizon follow-through on WIN reverts. Honest risk: P-011 (round-number touch fades) made -0.009% gross on WIN. If failed swing breaks behave like round-number touches, the gross is ~0. FREQUENCY: the window is 10:15 to 45 minutes before the close, ~400 one-minute bars. For a random walk, the chance a bar makes a new 60-bar extreme is ~1/sqrt(pi*60) ~ 7%. Counting only first breaks of levels standing >= 15 bars gives about 4-6 break events per side per day. Roughly 35-45% fail within 5 bars, so ~4 signals/day. After the range and sweep caps, event blocks and one position at a time (median hold ~18 min), I expect ~2.7 entries per session: ~650 trades/yr.",
+ "expected_trades_per_year": 650,
+ "expected_median_hold_min": 18,
+ "novelty_vs_tried": "P-001/P-006 trade WITH a break of the opening range or the first candle, and P-003 with a break of the noise area. This rule trades AGAINST a break, only after it has failed, and the level is a rolling 60-minute swing extreme that has stood >= 15 minutes, anywhere in the day, not the opening range. P-002/P-004/P-007 (first/last half-hour, rest-of-day momentum) and P-005 (VWAP trend) follow trends. P-008 fades the opening move once a day before mid-morning. P-009 is a month-end calendar flow. P-011 fades touches of fixed round-number levels (take-profit clusters). Here the level is endogenous, the trigger is a pierce beyond it (the stop cluster is hit) plus a close back inside within 5 bars, and the exit is the range midpoint. P-014 fades abnormal-volume bars. The unrun proposals P-013 (4x-scale liquidation shocks), P-015 (cross-day slot periodicity) and P-016 (VWAP reversion on balanced days) use no swing levels and no failed-break trigger. No crypto strategy in the table trades a 1-minute failed sweep (H055 reclaims an hourly breakdown on 15-minute bars, long only, a few trades).",
+ "sources": [
+  {
+   "title": "Osler, Stop-Loss Orders and Price Cascades in Currency Markets, NY Fed Staff Report 150",
+   "url": "https://www.newyorkfed.org/research/staff_reports/sr150.html"
+  },
+  {
+   "title": "Osler (2003), Currency Orders and Exchange Rate Dynamics: An Explanation for the Predictive Success of Technical Analysis, Journal of Finance 58(5) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:58:y:2003:i:5:p:1791-1819"
+  },
+  {
+   "title": "Chague, De-Losso, Giovannetti, Day Trading for a Living? (EconPapers)",
+   "url": "https://econpapers.repec.org/paper/spawpaper/2019wpecon47.htm"
+  },
+  {
+   "title": "CXO Advisory summary: Day Trading a Bust (Brazil mini-Ibovespa day traders)",
+   "url": "https://www.cxoadvisory.com/investing-expertise/day-trading-a-bust/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-017.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and 5-minute range by hour, exploration only); research/b3/proposals/P-013.json, P-015.json, P-016.json (never run); b3/config/sessions.json; b3/events.py (mark_events, event_times); b3/b3_data.py (grep: bar columns). Web: search summaries for Osler (NY Fed SR 150, JF 2003), for Chague-De-Losso-Giovannetti, and for 'violinada' on the mini index (Brazilian trader usage only, no formal source, so not cited). I fetched an Awake Trader WIN guide, which had no stop-placement content and is not cited. WDO was dropped: its 15-30-minute median moves (0.066-0.091%) leave no room for a midpoint-reversion edge after a 0.0235% round trip. No validation or final-test results were seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T01:01:09+00:00"
+}
