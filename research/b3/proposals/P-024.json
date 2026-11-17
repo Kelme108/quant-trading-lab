@@ -1,0 +1,57 @@
+{
+ "rule_id": "P-024",
+ "title": "WIN absorption-bar fade: fade a 30-minute run when a 5-minute bar trades heavy volume but barely moves",
+ "class_name": "WinAbsorptionBarFade",
+ "file_stem": "p024_win_absorption_bar_fade",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "5-minute session bars of WIN only. Lookbacks span sessions and contract rolls (WIN$N is unadjusted; every measure below is a share of price or a volume ratio, so rolls do not distort it). For each bar t: rng(t) = (high-low)/close, floored at one tick (5 points / close). vol_norm(t) = volume(t) / median volume of bars with the same minute_of_day over the previous 20 sessions (today excluded). rng_norm(t) = rng(t) / median rng of the same minute_of_day over the previous 20 sessions. Effort-to-result er(t) = vol_norm(t) / rng_norm(t). P85 = 85th percentile of er over all bars of the previous 20 sessions that lie in the entry window (today excluded, recomputed once per session). Run into the bar: run(t) = close(t-1)/close(t-7) - 1, both bars of today's session (6 bars = 30 minutes). Absorption bar: er(t) >= P85 AND vol_norm(t) >= 1.0. SHORT at the open of bar t+1 if bar t is an absorption bar and run(t) >= +0.10% (buyers pushed for 30 minutes, then heavy volume met a passive seller and price stopped). LONG at the open of t+1 if bar t is an absorption bar and run(t) <= -0.10%. Entry window: signal bar t with bar_in_day >= 7 (needs 7 earlier bars of today) and minutes_to_close at the close of t >= 60. Stop (on every entry): short: max(high of bars t-6..t) + 2 ticks; long: min(low of bars t-6..t) - 2 ticks; then the distance from the entry price is clamped to at least 0.10% and at most 0.30% of the entry price. Exit: time exit at the open of the 10th bar after entry (9 bars held = 45 minutes), or the stop, or the engine's flatten before the close, whichever comes first. No profit target, no reversal on an opposite signal while in a position (one position at a time; signals while in a position are ignored). Maximum 6 entries per session. Needs 20 completed sessions of history before the first trade.",
+ "parameters": {
+  "baseline_sessions": 20,
+  "er_percentile": 85,
+  "min_vol_norm": 1.0,
+  "run_bars": 6,
+  "min_run_pct": 0.1,
+  "min_bar_in_day": 7,
+  "min_minutes_to_close_at_signal": 60,
+  "stop_buffer_ticks": 2,
+  "stop_lookback_bars": 7,
+  "min_stop_pct": 0.1,
+  "max_stop_pct": 0.3,
+  "hold_bars": 9,
+  "max_entries_per_day": 6,
+  "range_floor_ticks": 1
+ },
+ "mechanism": "A 5-minute bar that trades well above its usual volume for that time of day while its range stays small is a bar where aggressive orders hit a large standing counterparty and did not move the price: absorption. On B3 a patient institution can rest size with a displayed-quantity (iceberg) order, and B3 iceberg activity is visible enough that vendors sell detectors for it. Large, less aggressive orders are the ones that hide size (Bessembinder, Panayides & Venkataraman 2009), and patient traders with longer-lived information prefer limit orders (Kaniel & Liu 2006). When that absorption happens at the end of a 30-minute run, the people on the other side are the run's aggressors: mostly retail and short-horizon day traders in WIN, the contract Brazilian day traders use most, chasing the move with market orders. They pay the spread into a seller (or buyer) who does not need to move the price, and when their buying stops, the price has nothing to hold it and drifts back toward the absorber's side. Icebergs that are revealed attract market orders and carry adverse selection for the other side (Frey & Sandas), so the passive side wins on average. The rule takes the absorber's side for 45 minutes. The direction comes from the run that ended in the absorption, so the rule is symmetric long and short.",
+ "why_gross_beats_3x_cost": "WIN base round trip is ~0.011%, so 3x is ~0.033%. The hold is 45 minutes. The measured median absolute WIN move is 0.125% over 30 minutes and 0.181% over 60 minutes (anatomy.json), so ~0.15% at 45 minutes, and the mean absolute move is larger. That puts the typical hold at ~14x cost, while a 5-minute hold is 4.7x. The stop sits beyond the run's extreme, 0.10-0.30% away, typically ~0.15-0.2%, and is rarely hit unless the absorption fails. Expected: hit rate ~52%, average winner ~0.20%, average loser ~0.15% (stops and adverse time exits), for gross ~0.52*0.20 - 0.48*0.15 = ~0.032-0.035% per trade, at or just above 3x base cost. The edge needed is a small directional tilt on a large move, not a large tilt on a small move (the P-005/P-017 failure mode). Frequency: the entry window has ~100 five-minute bars per session. The er >= P85 condition fires on ~15 of them by construction (a trailing percentile); vol_norm >= 1.0 keeps about half (~7); |run| >= 0.10% over 30 minutes keeps roughly 45% (the 30-minute median absolute move is 0.125%), so ~3 signals per session. One position at a time with 45-minute holds and the 6-per-day cap leave ~2.4 entries per session, or ~600 per year. WDO is left out: its 45-minute median move is only ~4.5x its 0.0235% cost, and the rule would need a 60%+ hit rate there.",
+ "expected_trades_per_year": 600,
+ "expected_median_hold_min": 45,
+ "novelty_vs_tried": "The signal is the ABSENCE of price impact on heavy volume: high volume relative to range, at the end of a run. None of the tried rules uses it. P-014 fades bars where volume AND move are both large (here the bar's range must be small for its volume). P-020 fades large moves on normal or thin volume (the opposite volume condition). P-018 follows large contracts per print. P-013 fades shocks. P-017 fades failed breaks of a fixed 60-minute high/low level, P-011 round numbers, and P-016 VWAP deviations: all price-level rules, while this rule uses no reference level. P-023 and P-022 follow runs, but here the run is faded only when volume shows a passive counterparty. It is not an opening-range, half-hour, noise-area, VWAP-trend, rest-of-day, open-fade or month-end rule.",
+ "sources": [
+  {
+   "title": "Frey & Sandas, The Impact of Iceberg Orders in Limit Order Books (CFR Working Paper 09-06, EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:zbw:cfrwps:0906"
+  },
+  {
+   "title": "Bessembinder, Panayides & Venkataraman (2009), Hidden liquidity: order exposure strategies, JFE 94(3) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:94:y:2009:i:3:p:361-383"
+  },
+  {
+   "title": "Kaniel & Liu (2006), So What Orders Do Informed Traders Use?, Journal of Business 79(4) (EconPapers)",
+   "url": "https://econpapers.repec.org/RePEc:ucp:jnlbus:v:79:y:2006:i:4:p:1867-1914"
+  },
+  {
+   "title": "Bookmap knowledge base: B3 Icebergs On Chart Indicator",
+   "url": "https://bookmap.com/knowledgebase/docs/Addons-B3-Icebergs-On-Chart-Indicator"
+  },
+  {
+   "title": "B3: What is mini index (WIN) and why does it attract day trade newcomers?",
+   "url": "https://b3.com.br/en_us/news/what-is-mini-index-win-and-why-does-it-attract-day-trade-newcomers.htm"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-024.md; research/b3/anatomy.json (WIN/WDO move sizes by horizon, 5m range by hour, costs); b3/markets.py; b3/config/sessions.json; b3/events.py; b3/b3_data.py (bar columns: volume = contracts, tick_volume); titles of research/b3/proposals/P-013..P-023. Web: EconPapers records for Frey & Sandas, Bessembinder et al., and Kaniel & Liu (abstracts only); Bookmap B3 icebergs page; B3 WIN page found in search results. No backtest or validation result seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T08:01:47+00:00"
+}
