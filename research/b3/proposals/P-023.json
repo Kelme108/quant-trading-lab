@@ -1,0 +1,56 @@
+{
+ "rule_id": "P-023",
+ "title": "WIN metaorder grind continuation: follow a 30-minute move built from many small same-sign minutes, no jump",
+ "class_name": "WinMetaorderGrindContinuation",
+ "file_stem": "p023_win_metaorder_grind_continuation",
+ "markets": [
+  "WIN"
+ ],
+ "timeframe_min": 1,
+ "ex_ante_rule": "Clock: 1-minute session-only bars of WIN. All features use closed bars only. Within today's session let r_i = close_i / close_(i-1) - 1 for consecutive bars of TODAY (never across sessions, so the roll gap and the overnight gap never enter). At the close of bar t, with bar_in_day >= 30 (so the window holds 30 returns of today): UP = number of the last 30 returns > 0, DN = number < 0 (zero returns count for neither), D = UP - DN; R30 = close_t / close_(t-30) - 1; MAXR = the largest |r_i| among those 30 returns. Scale S (one number per session, fixed at the open): the median of |close_j / close_(j-30) - 1| over every bar j with bar_in_day >= 30 in the previous 20 complete sessions (within-session ratios only; the lookback spans sessions and rolls but each ratio is inside one session). If fewer than 20 prior sessions exist, no trading. LONG setup at bar t: D >= +10 AND R30 >= 1.0 x S AND MAXR <= 0.5 x R30. SHORT setup: D <= -10 AND R30 <= -1.0 x S AND MAXR <= 0.5 x |R30|. Entry: only on a FRESH setup (the same side's setup was false at bar t-1), only when flat, only if minutes_to_close >= 45 at the close of bar t, at most 4 entries per day (both sides together); market order at the open of bar t+1. Stop on every entry: long stop = fill x (1 - S), short stop = fill x (1 + S), rounded to the tick away from the entry. Exits (first that occurs): the stop; a signal exit when the persistence dies, long: D <= 0 at a bar close, short: D >= 0, exit at the next bar's open; a time exit 30 bars after entry at the next bar's open; flat at the open of the first bar with minutes_to_close <= 10. After any exit a new entry needs a new fresh setup. No events filter.",
+ "parameters": {
+  "window_bars": 30,
+  "net_sign_threshold": 10,
+  "min_move_over_scale": 1.0,
+  "max_single_bar_share": 0.5,
+  "scale_lookback_sessions": 20,
+  "scale_return_bars": 30,
+  "stop_over_scale": 1.0,
+  "signal_exit_net_sign": 0,
+  "time_exit_bars": 30,
+  "min_bar_in_day": 30,
+  "last_entry_minutes_to_close": 45,
+  "flat_minutes_to_close": 10,
+  "max_entries_per_day": 4
+ },
+ "mechanism": "Large institutions (local pension and multimarket funds, foreign investors hedging or building Brazil equity exposure, index and ETF arbitrage desks) cannot trade their size at once in WIN; they split a metaorder into many small child orders over tens of minutes to hours (TWAP/VWAP/participation algos). Toth, Palit, Lillo and Farmer show that on horizons below a few hours the persistence of order flow is overwhelmingly due to this splitting, and Bacry, Iuga, Lasnier and Lehalle measure that impact keeps building while the metaorder runs (square-root temporary impact) and only then decays. The footprint of such an execution on 1-minute bars is a GRIND: many more up minutes than down minutes, a moderate net move and no single minute carrying it (a jump instead means discrete news, which the market prices at once). The other side is (a) liquidity providers who keep refilling against the slicing algo and are run over one tick at a time, and (b) the large contrarian retail day-trader population of WIN (Chague, De-Losso, Giovannetti) who sell small rallies; both react to price levels, not to the composition of the path, which is the frog-in-the-pan underreaction to information that arrives in many small pieces (Da, Gurun, Warachka). We ride the remaining part of the metaorder and leave as soon as the sign persistence disappears (D back to 0), i.e. when the execution has most likely finished and impact starts to decay.",
+ "why_gross_beats_3x_cost": "WIN base round trip is ~0.011%, so the target is >= 0.033% gross per trade. The hold is up to 30 minutes, where the measured median |move| is 0.1245% (11.4x cost) and the p75 0.239%; the stop is 1.0 x S, S being exactly that trailing median 30-minute move (~0.12%, ~28 ticks, so the extra stop tick is ~4% of the stop distance). Entries require R30 >= S, i.e. a grind of at least a median 30-minute move already in progress, which selects active, trending stretches where subsequent 30-minute moves are larger than the unconditional median. The signal exit at D <= 0 cuts most losers before the stop (a grind that stalls exits near flat), while winners run to the 30-bar time exit. Expected: hit rate ~54-55%, average winner ~0.15%, average loser ~0.11% (mix of signal exits near -0.05% and full stops at -0.12%), giving 0.55 x 0.15 - 0.45 x 0.11 = ~0.033-0.035% gross per trade, ~3.1x the base cost. This is a modest edge per trade; the reason it can exist where P-005 failed is that it does not flip on every small signal: it trades only fresh, no-jump, large-count episodes and holds them up to 30 minutes.",
+ "expected_trades_per_year": 650,
+ "expected_median_hold_min": 24,
+ "novelty_vs_tried": "Every momentum rule tried (P-001 opening range, P-002/P-004/P-007 half-hour and rest-of-day momentum, P-003 noise area from the open, P-005 VWAP side, P-006 first candle) triggers on the SIZE or LEVEL of the move relative to the open, a range or VWAP; this rule triggers on the COMPOSITION of the path (net count of up vs down minutes) and explicitly rejects moves carried by one large minute, so a jump that would fire those rules is excluded here and a grind that is too small for them fires here. The fades P-008, P-011, P-013, P-014, P-017, P-020 take the other side of large, volume-shock, sweep or thin-volume moves; P-016 fades VWAP deviation; P-018 uses trade size per print; P-015 uses same-slot periodicity; P-019/P-022 use the WDO cross-market move; P-021 is the WDO PTAX window; P-009 month end. None uses order-sign persistence, and none exits when the persistence statistic dies rather than on price or time.",
+ "sources": [
+  {
+   "title": "Toth, Palit, Lillo, Farmer: Why is equity order flow so persistent? (arXiv 1108.1632, JEDC 2015)",
+   "url": "https://www.arxiv.org/pdf/1108.1632"
+  },
+  {
+   "title": "Why is order flow so persistent? (EconPapers record, Journal of Economic Dynamics and Control 51, 2015)",
+   "url": "https://econpapers.repec.org/RePEc:eee:dyncon:v:51:y:2015:i:c:p:218-239"
+  },
+  {
+   "title": "Bacry, Iuga, Lasnier, Lehalle: Market impacts and the life cycle of investors orders (arXiv 1412.0217)",
+   "url": "https://arxiv.org/abs/1412.0217v2"
+  },
+  {
+   "title": "Lillo, Farmer: The long memory of the efficient market (arXiv cond-mat/0311053)",
+   "url": "https://arxiv.org/abs/cond-mat/0311053v1"
+  },
+  {
+   "title": "Alpha Architect: Frog in the Pan, Continuous Information and Momentum (summary of Da, Gurun, Warachka)",
+   "url": "https://alphaarchitect.com/2015/11/frog-in-the-pan-identifying-the-highest-quality-momentum-stocks/"
+  }
+ ],
+ "data_visible_at_proposal": "research/b3/context/P-023.md (scope, costs, gates, explored-rule table); research/b3/anatomy.json (WIN/WDO move sizes by horizon and by hour, costs); b3/events.py; b3/b3_data.py (bar columns: OHLC, volume, tick_volume, spread); titles of research/b3/proposals/P-013..P-022 and research/proxies/proposals; web pages listed in sources (abstracts and summaries only). Frequency estimate is analytic: under coin-flip minute signs D over 30 bars has sd ~5.5 and steps of variance 2, giving ~4 up-crossings of +10 and ~4 down-crossings of -10 per 550-bar session; the move and no-jump filters, the one-position limit and the 4-per-day cap leave ~2.5-3 entries per session, ~650 per year. No validation or test data seen.",
+ "status": "registered",
+ "registered_at_utc": "2026-11-17T07:03:16+00:00"
+}
