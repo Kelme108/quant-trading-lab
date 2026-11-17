@@ -144,7 +144,7 @@ def evaluate_market(rule_id: str, symbol: str, cfg: dict, cache: dict) -> dict:
         cache[key] = minute_path(root, series, rule.rules)
     m = cache[key]
     m = m[(m["time"] >= start - pd.Timedelta(days=1)) & (m["time"] < end + pd.Timedelta(days=1))].reset_index(drop=True)
-    tv = m["time"].astype("int64").to_numpy()
+    tv = m["time"].dt.as_unit("ns").astype("int64").to_numpy()      # the bars are stored in microseconds
     mins = {"time": tv, "open": m["open"].to_numpy(), "high": m["high"].to_numpy(), "low": m["low"].to_numpy(),
             "pos": {int(v): k for k, v in enumerate(tv)},
             "base_slip": market(symbol).cost("base").slippage_ticks_per_side * inst.tick_size}
@@ -175,6 +175,8 @@ def evaluate_market(rule_id: str, symbol: str, cfg: dict, cache: dict) -> dict:
                              "gross_pct": 100 * gross_pts * inst.point_value_brl / notional,
                              "net_pct": 100 * net / notional, "net_brl": net})
             df = pd.DataFrame(rows)
+            if df.empty:
+                raise RuntimeError(f"{rule_id} {symbol} {xid}: no trade matched a 1-minute bar")
             r = df["net_pct"].to_numpy() / 100
             eq = np.cumprod(1 + r)
             yr = pd.to_datetime(df["exit_time"], utc=True).dt.tz_convert("America/Sao_Paulo").dt.year
