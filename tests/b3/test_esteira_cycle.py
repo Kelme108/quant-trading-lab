@@ -75,3 +75,19 @@ FAMILIES = [
     assert res["families"]["E-902"] and res["families"]["E-902"][0].startswith("look-ahead")
     res = cy.precheck(f, ["E-901", "E-902", "E-903"])
     assert any("differ" in p for p in res["file"])
+
+
+def test_usage_limit_is_recognised_and_never_pauses(tmp_path, monkeypatch):
+    from b3 import esteira_cycle as cy
+    assert cy.is_usage_limit("You've hit your 5-hour limit · resets 3:40pm (America/Sao_Paulo)")
+    assert not cy.is_usage_limit("SyntaxError: invalid syntax")
+    monkeypatch.setattr(cy, "STOP_FILE", tmp_path / "STOP")
+    monkeypatch.setattr(cy, "LOCK", tmp_path / "lock")
+    monkeypatch.setattr(cy, "log", lambda *a, **k: None)
+
+    def boom():
+        raise cy.UsageLimit("You've hit your 5-hour limit")
+    monkeypatch.setattr(cy, "cycle", boom)
+    for _ in range(3):
+        assert cy.main(["cycle", "--max", "1"]) == 0
+    assert not (tmp_path / "STOP").exists()

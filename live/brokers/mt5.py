@@ -48,7 +48,7 @@ TIMEFRAMES = {1: "TIMEFRAME_M1", 5: "TIMEFRAME_M5", 15: "TIMEFRAME_M15", 30: "TI
 
 # Defaults equal the MetaTrader5 package constants; the module's own values win.
 _DEFAULTS = {
-    "TRADE_ACTION_DEAL": 1, "TRADE_ACTION_REMOVE": 8,
+    "TRADE_ACTION_DEAL": 1, "TRADE_ACTION_REMOVE": 8, "TRADE_ACTION_SLTP": 6,
     "ORDER_TYPE_BUY": 0, "ORDER_TYPE_SELL": 1,
     "ORDER_FILLING_FOK": 0, "ORDER_FILLING_IOC": 1, "ORDER_FILLING_RETURN": 2,
     "ORDER_TIME_GTC": 0,
@@ -388,6 +388,25 @@ class MT5Broker:
                 return last
             left = round(left - part, 8)
         return last
+
+    def modify_stop(self, symbol: str, stop: float) -> tuple[bool, str]:
+        """Move the server stop of our tickets on `symbol` to `stop` (TRADE_ACTION_SLTP; the take-profit is kept).
+        Only TIGHTENS: a ticket whose stop already sits at or past `stop` in its favour is left alone.
+        Returns (all accepted, message). Sends no deal: the position's volume is never changed here."""
+        self._ensure()
+        msgs, ok = [], True
+        for p in self._own_positions(symbol):
+            is_buy = p.type == self._c("POSITION_TYPE_BUY")
+            cur = float(p.sl or 0.0)
+            if cur and ((is_buy and stop <= cur + 1e-9) or (not is_buy and stop >= cur - 1e-9)):
+                continue
+            r = self.mt5.order_send({"action": self._c("TRADE_ACTION_SLTP"), "symbol": symbol, "position": p.ticket,
+                                     "sl": float(stop), "tp": float(getattr(p, "tp", 0.0) or 0.0), "magic": self.magic})
+            if r is None or r.retcode not in OK_SEND:
+                ok = False
+                msgs.append(f"ticket {p.ticket}: {retcode_name(r.retcode) if r is not None else self.mt5.last_error()}"
+                            f" {getattr(r, 'comment', '')}")
+        return ok, "; ".join(msgs)
 
     def cancel_all(self) -> None:
         self._ensure()

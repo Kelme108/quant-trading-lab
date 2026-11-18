@@ -344,8 +344,21 @@ def run_agent(prompt: str) -> dict:
     log("agent", agent=AGENT, exit=done.returncode, cost_usd=data.get("total_cost_usd"), turns=data.get("num_turns"),
         is_error=data.get("is_error"), result=str(data.get("result", ""))[:800])
     if done.returncode != 0 or data.get("is_error"):
+        text = f"{data.get('result', '')} {done.stderr}"
+        if is_usage_limit(text):
+            raise UsageLimit(text.strip()[:300])
         raise CycleError(f"{AGENT} failed: {str(data.get('result', ''))[:300]} {done.stderr[:300]}")
     return data
+
+
+class UsageLimit(Exception):
+    """The Claude plan's usage window is used up: not a fault of the conveyor. The hour is skipped, it never counts
+    towards the automatic pause (2026-11-18: a 5-hour limit at 12:29 paused the conveyor for the whole afternoon)."""
+
+
+def is_usage_limit(text: str) -> bool:
+    t = text.lower()
+    return ("hit your" in t and "limit" in t) or "usage limit" in t or "rate limit" in t or "resets " in t
 
 
 def commit(paths: list[str], message: str) -> None:
@@ -380,9 +393,14 @@ def cycle() -> str:
     ctx = write_context(batch, ids, cfg)
     out = es.FAMILY_DIR / f"b{batch:03d}_agent.py"
     before = changed_paths()
-    run_agent(f"Batch id: B-{batch:03d}\nFamily ids (exactly these, in order): {', '.join(ids)}\n"
-              f"Context file: {_rel(ctx)}\nOutput path: {_rel(out)}\n"
-              "Read the context file first. Write exactly one Python file at the output path.")
+    try:
+        run_agent(f"Batch id: B-{batch:03d}\nFamily ids (exactly these, in order): {', '.join(ids)}\n"
+                  f"Context file: {_rel(ctx)}\nOutput path: {_rel(out)}\n"
+                  "Read the context file first. Write exactly one Python file at the output path.")
+    except UsageLimit:
+        if out.exists() and _rel(out) not in before:
+            out.unlink()                                    # a half-written batch is redone from scratch next run
+        raise
     guard(before, {_rel(out)}, AGENT)
     if not out.exists():
         raise CycleError(f"{AGENT} wrote no {_rel(out)}")
@@ -481,6 +499,10 @@ def main(argv=None) -> int:
                 break
             try:
                 outcome = cycle()
+            except UsageLimit as e:
+                log("usage_limit", detail=str(e)[:300])     # skip this hour; the next hourly run tries again
+                print(f"usage limit, skipping this run: {e}")
+                return 0
             except Exception as e:                          # noqa: BLE001 - record, maybe pause, never retry here
                 after_error(e)
                 return 1

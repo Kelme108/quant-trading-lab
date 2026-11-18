@@ -186,6 +186,19 @@ class PaperBroker:
         out, self._queue = self._queue, []
         return out
 
+    def modify_stop(self, symbol: str, stop: float) -> tuple[bool, str]:
+        """Tighten the stop of the open position (never loosens). Mirrors MT5Broker.modify_stop."""
+        p = self._pos.get(symbol)
+        if p is None:
+            return False, "no position"
+        if p.stop is not None and ((p.volume > 0 and stop <= p.stop) or (p.volume < 0 and stop >= p.stop)):
+            return True, "not tighter"
+        last = self.last_price(symbol)
+        if (p.volume > 0 and stop >= last) or (p.volume < 0 and stop <= last):
+            return False, "INVALID_STOPS: stop beyond the current price"
+        p.stop = float(stop)
+        return True, ""
+
     def cancel_all(self) -> None:  # market-only broker: nothing is ever pending
         return None
 

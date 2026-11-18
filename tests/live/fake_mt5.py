@@ -128,6 +128,11 @@ class FakeMT5:
         if request["action"] == TRADE_ACTION_REMOVE:
             self._orders = [o for o in self._orders if o.ticket != request["order"]]
             return SimpleNamespace(retcode=10009, comment="removed")
+        if request["action"] == 6:                    # TRADE_ACTION_SLTP: move the stop of one ticket
+            if self.send_retcodes and self.send_retcodes[0] != 10009:
+                return SimpleNamespace(retcode=self.send_retcodes.pop(0), comment="injected")
+            self._positions[request["position"]].sl = request["sl"]
+            return SimpleNamespace(retcode=10009, comment="sltp")
         if self.send_retcodes:
             code = self.send_retcodes.pop(0)
             if code != 10009:

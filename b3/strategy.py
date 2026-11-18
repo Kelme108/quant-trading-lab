@@ -48,7 +48,8 @@ from b3.instruments import Instrument, instrument_for
 from live.core.models import Bar, Position, Signal
 
 ENTER_LONG, ENTER_SHORT, EXIT, HOLD = "enter", "enter_short", "exit", "hold"
-ACTIONS = frozenset({ENTER_LONG, ENTER_SHORT, EXIT, HOLD})
+MOVE_STOP = "move_stop"   # tighten the server stop of the open position to Signal.stop_price (live engine only)
+ACTIONS = frozenset({ENTER_LONG, ENTER_SHORT, EXIT, HOLD, MOVE_STOP})
 BASE_COLUMNS = ("time", "open", "high", "low", "close", "volume")
 SESSION_COLUMNS = ("local_date", "minute_of_day", "bar_in_day", "day_open", "minutes_to_close")
 

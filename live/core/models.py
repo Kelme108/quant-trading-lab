@@ -45,7 +45,7 @@ class Position:
 
 @dataclass(frozen=True)
 class Signal:
-    action: str  # "enter" | "exit" | "hold"
+    action: str  # "enter" | "enter_short" | "exit" | "hold" | "move_stop" (tighten the open position's server stop)
     stop_price: float | None = None
     reason: str = ""
 

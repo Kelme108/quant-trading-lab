@@ -1,0 +1,28 @@
+{
+  "_what": "Exit menu over the conveyor: every family the conveyor already screened (research/b3/esteira/families.jsonl, not rejected) is re-run on EXPLORATION with four volatility-scaled exits instead of the single R$30/R$30 default. Owner 2026-11-18: 'tudo que a gente falou pode rodar para a gente validar esses stop loss, esse take profit... nao so a validacao da regra em si, mas como que vamos administrar esse lucro, essa perda', then 'implemente o plano' (run it overnight). Registered before any read; every (variant, exit) read is counted in research/b3/exit_menu/ledger.jsonl.",
+  "approved_by_owner": true,
+  "approved_at": "2026-11-18",
+  "split": "exploration",
+  "families": "all screened, not rejected, whose code_hash still matches the file",
+  "exits": {
+    "S1": {"what": "stop 1 V, target 1 V, 60 min", "stop": ["V", 1.0], "target": ["V", 1.0], "hold_min": 60},
+    "S2": {"what": "high hit rate: stop 1.5 V, target 0.75 V, 60 min", "stop": ["V", 1.5], "target": ["V", 0.75], "hold_min": 60},
+    "S3": {"what": "trend: stop 1 V, target 2 V, 60 min", "stop": ["V", 1.0], "target": ["V", 2.0], "hold_min": 60},
+    "S4": {"what": "stop 1 V, breakeven at +1 V, trailing 1 V, no target, 60 min", "stop": ["V", 1.0], "target": null, "breakeven": ["V", 1.0], "trail": ["V", 1.0], "hold_min": 60}
+  },
+  "_V": "V = mean absolute 30-minute return at the signal bar's minute of day over the 20 previous sessions, as a share of price (b3/p026_lab.features); the distances are V x entry price, rounded up to the tick. Fills and costs exactly as b3/p026_lab.simulate (the conveyor's 'measured' decides, 'measured_p90' reported).",
+  "exit_neighbours": {"S1": ["S2", "S3"], "S2": ["S1"], "S3": ["S1", "S4"], "S4": ["S3"]},
+  "max_entries_per_session": 10,
+  "random_control": {"seeds": 3, "only_for": "versions that pass every other check (saves time; the control is part of the selection)"},
+  "selection": {
+    "min_trades_per_year": 250,
+    "mean_net_brl_measured_gt": 0.0,
+    "min_positive_slices": 5,
+    "time_slices": 8,
+    "plateau": "at least 2/3 positive among: the variants one grid step away on one parameter (same timeframe, same exit) and the same variant with the neighbouring exits",
+    "beats_random": "mean net per trade > the random control's mean net (same exit)",
+    "pick": "per family and market, the passing version with the highest total net per year; the list goes to the owner, who decides which go to the Clear demo",
+    "_250": "the owner (2026-11-18) puts profit of one rule above frequency, as in the P-026 study"
+  },
+  "honesty": "every family here already failed the conveyor's default exit; trying 4 more exits multiplies the versions read (multiple testing). A pick is a demo candidate, never evidence; validation stays unread."
+}
