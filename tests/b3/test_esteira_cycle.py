@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from b3 import esteira as es
 from b3 import esteira_cycle as cy
 
-TODAY = datetime.now(timezone.utc).date().isoformat()
+TODAY = datetime.now(timezone.utc).isoformat(timespec="seconds")   # now, so it is today in Sao Paulo too
 CFG = {"limits": {"max_families_per_day": 40, "max_agent_cost_usd_per_day": 15.0}}
 
 
@@ -35,13 +35,13 @@ def test_static_check_refuses_files_network_and_dunder():
 
 
 def test_room_stops_on_the_family_and_cost_limits():
-    done = {f"E-{i:03d}": {"screened_at_utc": TODAY + "T01:00:00+00:00"} for i in range(30)}
+    done = {f"E-{i:03d}": {"screened_at_utc": TODAY} for i in range(30)}
     k, why = cy.room(CFG, done=done, rows=[])
     assert k == 10 and why == []
-    done |= {f"E-{i:03d}": {"screened_at_utc": TODAY + "T02:00:00+00:00"} for i in range(30, 37)}
+    done |= {f"E-{i:03d}": {"screened_at_utc": TODAY} for i in range(30, 37)}
     k, why = cy.room(CFG, done=done, rows=[])
     assert k == 0 and "family limit" in why[0]
-    rows = [{"event": "agent", "at_utc": TODAY + "T03:00:00+00:00", "cost_usd": 12.5}]
+    rows = [{"event": "agent", "at_utc": TODAY, "cost_usd": 12.5}]
     k, why = cy.room(CFG, done={}, rows=rows)
     assert k == 0 and "agent cost" in why[0]
     old = [{"event": "agent", "at_utc": "2020-01-01T03:00:00+00:00", "cost_usd": 99.0}]

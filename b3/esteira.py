@@ -503,8 +503,9 @@ def screen(only: list[str] | None = None, cfg: dict | None = None) -> Path:
     todo = [f for f in fams if (only is None or f.id in only) and f.id not in done]
     if not todo:
         raise SystemExit("no family left to screen (each id is screened once; a changed idea needs a new id)")
-    today = datetime.now(timezone.utc).date().isoformat()
-    today_n = sum(1 for r in done.values() if str(r.get("screened_at_utc", "")).startswith(today))
+    today = datetime.now(SP_TZ).date()
+    today_n = sum(1 for r in done.values()
+                  if datetime.fromisoformat(r["screened_at_utc"]).astimezone(SP_TZ).date() == today)
     room = cfg["limits"]["max_families_per_day"] - today_n
     if room <= 0:
         raise SystemExit(f"daily limit reached ({cfg['limits']['max_families_per_day']} families)")

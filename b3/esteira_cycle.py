@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from b3 import esteira as es
+from b3.calendar import SP_TZ
 
 ROOT = es.ROOT
 OUT = es.OUT
@@ -86,20 +87,25 @@ def _log_rows() -> list[dict]:
 # Limits and ids
 # ---------------------------------------------------------------------------------------------
 
-def today_utc() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+def sp_day(at_utc: str):
+    return datetime.fromisoformat(at_utc).astimezone(SP_TZ).date()
 
 
-def cost_today(rows: list[dict] | None = None, day: str | None = None) -> float:
-    day = day or today_utc()
+def today_sp():
+    return datetime.now(SP_TZ).date()
+
+
+def cost_today(rows: list[dict] | None = None, day=None) -> float:
+    """Agent cost of the Sao Paulo calendar day (owner 2026-11-18)."""
+    day = day or today_sp()
     return float(sum(r.get("cost_usd") or 0.0 for r in (rows if rows is not None else _log_rows())
-                     if r.get("event") == "agent" and str(r.get("at_utc", "")).startswith(day)))
+                     if r.get("event") == "agent" and r.get("at_utc") and sp_day(r["at_utc"]) == day))
 
 
-def families_today(done: dict | None = None, day: str | None = None) -> int:
-    day = day or today_utc()
+def families_today(done: dict | None = None, day=None) -> int:
+    day = day or today_sp()
     done = es.screened_ids() if done is None else done
-    return sum(1 for r in done.values() if str(r.get("screened_at_utc", "")).startswith(day))
+    return sum(1 for r in done.values() if r.get("screened_at_utc") and sp_day(r["screened_at_utc"]) == day)
 
 
 def room(cfg: dict, done: dict | None = None, rows: list[dict] | None = None) -> tuple[int, list[str]]:
@@ -443,6 +449,7 @@ def main(argv=None) -> int:
     sub.add_parser("status")
     c = sub.add_parser("cycle")
     c.add_argument("--max", type=int, default=1)
+    c.add_argument("--minutes", type=float, default=None, help="start no new batch after this many minutes")
     p = sub.add_parser("precheck")
     p.add_argument("file")
     p.add_argument("--ids")
@@ -464,7 +471,14 @@ def main(argv=None) -> int:
         return 2
     try:
         os.write(fd, str(os.getpid()).encode())
+        t0 = datetime.now(timezone.utc)
         for _ in range(a.max):
+            if a.minutes is not None and (datetime.now(timezone.utc) - t0).total_seconds() > a.minutes * 60:
+                log("time_budget", minutes=a.minutes)
+                break
+            if STOP_FILE.exists():
+                log("paused_by_file")
+                break
             try:
                 outcome = cycle()
             except Exception as e:                          # noqa: BLE001 - record, maybe pause, never retry here
