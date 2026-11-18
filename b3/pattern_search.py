@@ -169,7 +169,7 @@ def _prev_sessions_stat(values: np.ndarray, day: np.ndarray, how: str, n: int = 
 
 def _same_minute_stat(values: np.ndarray, day: np.ndarray, minute: np.ndarray, how: str, n: int = 20) -> np.ndarray:
     """Per bar: median/mean of `values` at the same minute of day over the n sessions before."""
-    p = pd.DataFrame({"d": day, "m": minute, "v": values}).pivot_table(index="d", columns="m", values="v", aggfunc="first")
+    p = pd.DataFrame({"d": day, "m": minute, "v": values}).pivot_table(index="d", columns="m", values="v", aggfunc="first", dropna=False)
     p = p.reindex(range(int(day.max()) + 1))
     roll = p.rolling(n, min_periods=max(5, n // 2))
     st = (roll.median() if how == "median" else roll.mean()).shift(1)
