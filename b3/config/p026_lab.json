@@ -1,0 +1,39 @@
+{
+  "_what": "Focused study of rule P-026 (compression box breakout): entry versions x exit (stop/target) versions, on EXPLORATION only, with a random-entry control per exit. Owner 2026-11-18: 'pegasse essa P26... gere versoes melhores, de outros sentidos, teste take profit, stop loss para ela... mais valido do que gerar muitas estrategias e uma que funciona'. Registered before any read; every version read is counted.",
+  "approved_by_owner": true,
+  "approved_at": "2026-11-18",
+  "split": "exploration",
+  "markets": ["WIN", "WDO"],
+  "entry_grid": {
+    "tf": [1, 5],
+    "box_min": [30, 60, 120],
+    "ratio_max": [0.6, 0.8, 1.0],
+    "direction": ["follow", "fade"]
+  },
+  "_entry": "Box = the bars of the last box_min minutes of TODAY before bar t; H/L its high/low; R = (H-L)/close(t-1); N = median of R at the same minute over the 20 previous sessions. Compressed: R <= ratio_max x N. Event: close(t) >= H + 1 tick (up break) or <= L - 1 tick (down break). follow = trade the break's direction (the original P-026); fade = the opposite. Entry window: at least box_min minutes into the session and >= 75 minutes to the close. At most 4 entries per session, one position at a time. Original P-026 = tf 5, box 60, ratio 0.8, follow, exit X0.",
+  "exits": {
+    "X0": {"what": "original: stop at the box midpoint (distance clamped to 0.10-0.30% of the price), no target, 60 min", "stop": ["box_mid_clamped"], "target": null, "hold_min": 60},
+    "X1": {"what": "conveyor default: stop BRL 30, target BRL 30, 30 min", "stop": ["brl", 30], "target": ["brl", 30], "hold_min": 30},
+    "B1": {"what": "stop half-box (B), target 1 B, 60 min", "stop": ["B", 1.0], "target": ["B", 1.0], "hold_min": 60},
+    "B2": {"what": "stop 1 B, target 2 B, 60 min", "stop": ["B", 1.0], "target": ["B", 2.0], "hold_min": 60},
+    "B3": {"what": "stop 1 B, target 3 B, 60 min", "stop": ["B", 1.0], "target": ["B", 3.0], "hold_min": 60},
+    "BT": {"what": "stop 1 B, to breakeven at +1 B, then trailing 1 B, no target, 60 min", "stop": ["B", 1.0], "target": null, "breakeven": ["B", 1.0], "trail": ["B", 1.0], "hold_min": 60},
+    "S1": {"what": "stop 1 V, target 1 V (V = mean absolute 30-minute move at that minute over 20 sessions)", "stop": ["V", 1.0], "target": ["V", 1.0], "hold_min": 60},
+    "S2": {"what": "high hit rate: stop 1.5 V, target 0.75 V", "stop": ["V", 1.5], "target": ["V", 0.75], "hold_min": 60},
+    "S3": {"what": "trend: stop 1 V, target 2 V", "stop": ["V", 1.0], "target": ["V", 2.0], "hold_min": 60},
+    "S4": {"what": "stop 1 V, breakeven at +1 V, trailing 1 V, no target", "stop": ["V", 1.0], "target": null, "breakeven": ["V", 1.0], "trail": ["V", 1.0], "hold_min": 60}
+  },
+  "exit_neighbours": {"X0": ["B1", "BT"], "X1": ["S1"], "B1": ["B2", "X0"], "B2": ["B1", "B3"], "B3": ["B2"], "BT": ["X0", "B2"], "S1": ["S2", "S3"], "S2": ["S1"], "S3": ["S1", "S4"], "S4": ["S3"]},
+  "_fills": "As the conveyor: signal at the close of bar t, market order at the open of the next 1-minute bar (+slippage); each minute: stop first (fills at the stop or the gap open, -slippage -stop extra), then the target (needs a trade 1 tick through, fills at the target); breakeven/trailing move the stop at the END of a minute (used from the next minute); time exit at the open of the minute at entry + hold_min; flat at the session's flatten time. Distances rounded to the tick, away from the entry. Costs: the conveyor's 'measured' decides, 'measured_p90' reported.",
+  "random_control": {"seeds": 5, "_how": "each real entry is moved to a random other exploration session at the same minute of day with a random side; same exit, same one-position and per-session limits"},
+  "selection": {
+    "min_trades_per_year": 250,
+    "mean_net_brl_measured_gt": 0.0,
+    "min_positive_slices": 5,
+    "time_slices": 8,
+    "beats_random": "mean net per trade > the random control's mean net (same exit)",
+    "plateau": "at least 2/3 of the neighbours positive: one step on one entry parameter (same exit) and the listed neighbouring exits (same entry)",
+    "pick": "among versions passing all of the above, the highest total net per year; that version goes to the Clear demo next to the original; validation is read once, for that version only, before any real-account decision by the owner",
+    "_250": "lower than the conveyor's 500 trades/year: the owner (2026-11-18) puts profit of one rule above frequency"
+  }
+}
