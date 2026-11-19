@@ -172,6 +172,10 @@ def run(only: list[str] | None = None, markets: list[str] | None = None) -> Path
             report["n_versions_read"] = sum(v[m]["versions"] for v in report["families"].values() for m in v if m != "title")
             (WORK / f"{run_id}.json").write_text(json.dumps(report, indent=1, default=str), encoding="utf-8")
     ps.set_market("WIN")
+    with (WORK / "picks.jsonl").open("a", encoding="utf-8") as fh:      # every pick of every run, for the demo step
+        for p in report["picks"]:
+            fh.write(json.dumps(dict(p, run=run_id)) + "
+")
     return WORK / f"{run_id}.json"
 
 

@@ -42,14 +42,18 @@ class B3RuleStrategy:
     """live.core.engine.Strategy around a B3Strategy / ProxyStrategy instance."""
 
     def __init__(self, rule_id: str, market: str, snapshot_file: str | Path | None = None, symbol: str = "",
-                 take_profit: dict | None = None) -> None:
+                 take_profit: dict | None = None, esteira: dict | None = None) -> None:
         # Optional DEMO overlay (owner 2026-11-17: "na faixa de 20, 30 ja esta adequado"): exit as soon as the open
         # position's profit, on the last closed bar, reaches take_profit["brl"]. {"brl": 25, "brl_per_point": 0.2}.
         # The rule's own code and hash are untouched; this is a demonstration setting, not a research result.
         self.take_profit = take_profit
         self.rule_id, self.market = rule_id, market
         self.snapshot_file, self.symbol = (Path(snapshot_file) if snapshot_file else None), symbol
-        self.rule = load_rule(rule_id, market)()
+        if esteira:                                    # a conveyor family variant + exit-menu exit (b3/esteira_live.py)
+            from b3.esteira_live import build
+            self.rule = build(rule_id, market, int(esteira["tf"]), dict(esteira["params"]), str(esteira["exit"]))()
+        else:
+            self.rule = load_rule(rule_id, market)()
         self.name = f"demo-{rule_id}-{market}"
         self.hash = self.rule.hash                    # the same hash the research ledger records
         self.timeframe_min = int(self.rule.timeframe_min)

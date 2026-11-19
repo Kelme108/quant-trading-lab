@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+import pytest
+
 from fake_mt5 import FakeMT5
 from live.core.models import Position, Signal
 from live_helpers import BASE, SYMBOL, Rig, pad
@@ -53,3 +55,36 @@ def test_engine_moves_the_stop_up_ignores_a_looser_one_and_exits_when_refused(tm
     moves = rig.kinds("stop_move")
     assert [m["done"] for m in moves] == [True, False, False]
     assert rig.kinds("order_sent")[-1]["reduce_only"] and "stop_move_refused" in rig.kinds("order_sent")[-1]["reason"]
+
+
+def test_mt5_entry_carries_the_take_profit():
+    fake = FakeMT5()
+    b = broker(fake)
+    from live.core.models import OrderRequest
+    b.send(OrderRequest("c9", SYM, "buy", 1.0, stop_loss=95.0, take_profit=110.0, reason="t"))
+    assert fake.sent[-1]["tp"] == 110.0 and fake.sent[-1]["sl"] == 95.0
+
+
+class EnterWithTarget:
+    name, hash, timeframe_min, warmup = "tp", "aaaaaa111111", 5, 3
+
+    def __init__(self):
+        self.seen = 0
+
+    def signal(self, bars, position):
+        self.seen += 1
+        if position is None and self.seen == 2:
+            c = bars[-1].close
+            return Signal("enter", stop_price=c - 100, take_profit=c + 40, reason="t")
+        return Signal("hold")
+
+
+def test_paper_take_profit_closes_at_the_target(tmp_path):
+    closes = pad([BASE] * 3 + [BASE, BASE + 100] + [BASE + 100] * 10)
+    rig = Rig(tmp_path, closes, strategy=EnterWithTarget())
+    rig.engine.start()
+    rig.run(2, 8)
+    assert rig.broker.positions() == []
+    fills = rig.kinds("fill")
+    assert [f.get("reason") for f in fills][-1] == "take_profit"
+    assert fills[-1]["price"] == pytest.approx(BASE + 40)          # the limit at the target, never better than it here

@@ -39,6 +39,7 @@ class _Pos:
     entry_cost: float
     stop: float | None
     entered_at: datetime
+    tp: float | None = None
 
 
 class PaperBroker:
@@ -134,7 +135,7 @@ class PaperBroker:
                 return OrderResult(False, req.client_id, retcode="ALREADY_OPEN")
             cost = self.cfg.cost_per_contract_per_side * req.volume
             sign = 1.0 if req.side == "buy" else -1.0
-            self._pos[req.symbol] = _Pos(sign * req.volume, price, cost, req.stop_loss, self.clock.now())
+            self._pos[req.symbol] = _Pos(sign * req.volume, price, cost, req.stop_loss, self.clock.now(), req.take_profit)
             self._scanned.pop(req.symbol, None)
             return OrderResult(True, req.client_id, Fill(
                 req.client_id, req.symbol, req.side, req.volume, price, self.clock.now(),
@@ -144,7 +145,7 @@ class PaperBroker:
                 return OrderResult(False, req.client_id, retcode="ALREADY_OPEN")
             cost = self.cfg.cost_per_contract_per_side * req.volume
             self._pos[req.symbol] = _Pos(req.volume, price, cost, req.stop_loss,
-                                         self.clock.now())
+                                         self.clock.now(), req.take_profit)
             self._scanned.pop(req.symbol, None)
             return OrderResult(True, req.client_id, Fill(
                 req.client_id, req.symbol, "buy", req.volume, price, self.clock.now(),
@@ -179,6 +180,12 @@ class PaperBroker:
                     fill = self._close_part(
                         symbol, abs(p.volume), price - slip if long else price + slip,
                         f"stop-{symbol}-{int(b.time.timestamp())}", "stop_loss")
+                    self._queue.append(replace(fill, time=b.time + tf))
+                    break
+                if p.tp is not None and ((long and b.high >= p.tp) or (not long and b.low <= p.tp)):
+                    price = max(b.open, p.tp) if long else min(b.open, p.tp)       # a limit: at the target or better
+                    fill = self._close_part(symbol, abs(p.volume), price, f"tp-{symbol}-{int(b.time.timestamp())}",
+                                            "take_profit")
                     self._queue.append(replace(fill, time=b.time + tf))
                     break
 

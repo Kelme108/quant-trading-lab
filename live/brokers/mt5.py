@@ -340,6 +340,8 @@ class MT5Broker:
                                        message="one position per symbol")
                 request = self._base_request(req.symbol, req.volume, req.side, comment, info)
                 request["sl"] = float(req.stop_loss)
+                if req.take_profit is not None:
+                    request["tp"] = float(req.take_profit)
                 ok, code, msg = self._check_and_send(request, req.symbol, req.side)
         elif req.side == "buy":
             if req.reduce_only:
@@ -349,6 +351,8 @@ class MT5Broker:
                                    message="entries need a server-side stop")
             request = self._base_request(req.symbol, req.volume, "buy", comment, info)
             request["sl"] = float(req.stop_loss)
+            if req.take_profit is not None:
+                request["tp"] = float(req.take_profit)
             ok, code, msg = self._check_and_send(request, req.symbol, "buy")
         else:
             ok, code, msg = self._close_volume(req.symbol, req.volume, comment, info)

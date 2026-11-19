@@ -48,6 +48,7 @@ class Signal:
     action: str  # "enter" | "enter_short" | "exit" | "hold" | "move_stop" (tighten the open position's server stop)
     stop_price: float | None = None
     reason: str = ""
+    take_profit: float | None = None  # entries only: the server target
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,7 @@ class OrderRequest:
     volume: float
     stop_loss: float | None = None
     reduce_only: bool = False
+    take_profit: float | None = None  # a limit on the server with the entry (MT5 'tp'); None = no target
     reason: str = ""
 
 

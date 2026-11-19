@@ -439,7 +439,22 @@ def cycle() -> str:
     commit(paths, f"exp(esteira): batch B-{batch:03d} screened on exploration: "
                   f"{len(selected)} selected" + (f" ({', '.join(selected)})" if selected else ""))
     log("batch_done", batch=batch, screened=good, selected=selected)
+    exit_menu(good)
     return "done"
+
+
+def exit_menu(ids: list[str]) -> None:
+    """Owner 2026-11-18 ('teste tudo, stop loss, take profit, novas estrategias'): every new family also runs the exit
+    menu (b3/config/exit_menu.json). It writes under ops/state/exit_menu only; a failure is logged, never a cycle error."""
+    if not ids:
+        return
+    args = ["-m", "b3.exit_menu", "run"] + [x for i in ids for x in ("--family", i)]
+    try:
+        done = _py(*args, timeout=3600)
+        picks = [ln for ln in done.stdout.splitlines() if " pick " in ln]
+        log("exit_menu", exit=done.returncode, families=ids, picks=picks, out=done.stdout[-300:], err=done.stderr[-300:])
+    except Exception as e:                                  # noqa: BLE001
+        log("exit_menu", exit=-1, families=ids, error=repr(e)[:300])
 
 
 def after_error(error: Exception) -> None:
