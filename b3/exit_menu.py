@@ -174,8 +174,7 @@ def run(only: list[str] | None = None, markets: list[str] | None = None) -> Path
     ps.set_market("WIN")
     with (WORK / "picks.jsonl").open("a", encoding="utf-8") as fh:      # every pick of every run, for the demo step
         for p in report["picks"]:
-            fh.write(json.dumps(dict(p, run=run_id)) + "
-")
+            fh.write(json.dumps(dict(p, run=run_id)) + "\n")
     return WORK / f"{run_id}.json"
 
 
