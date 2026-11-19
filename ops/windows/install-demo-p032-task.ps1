@@ -9,7 +9,13 @@ $robots = @(
     @('TradeInitial-DemoB3-E118', 'demo-b3-e118-win'),
     @('TradeInitial-DemoB3-E040', 'demo-b3-e040-win'),
     @('TradeInitial-DemoB3-E102', 'demo-b3-e102-win'),
-    @('TradeInitial-DemoB3-E062', 'demo-b3-e062-win')
+    @('TradeInitial-DemoB3-E062', 'demo-b3-e062-win'),
+    @('TradeInitial-DemoB3-E209', 'demo-b3-e209-win'),
+    @('TradeInitial-DemoB3-E164', 'demo-b3-e164-win'),
+    @('TradeInitial-DemoB3-E193', 'demo-b3-e193-win'),
+    @('TradeInitial-DemoB3-E160', 'demo-b3-e160-win'),
+    @('TradeInitial-DemoB3-E225', 'demo-b3-e225-win'),
+    @('TradeInitial-DemoB3-E217', 'demo-b3-e217-win')
 )
 foreach ($pair in $robots) {
     $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"Start-Process -WindowStyle Hidden -Wait -FilePath cmd.exe -ArgumentList '/c D:\Trade-Initial\ops\windows\demo-b3.cmd $($pair[1])'`""
