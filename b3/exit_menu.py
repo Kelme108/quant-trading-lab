@@ -26,8 +26,10 @@ CONFIG = ROOT / "b3" / "config" / "exit_menu.json"
 WORK = ROOT / "ops" / "state" / "exit_menu"
 
 
-def load_config() -> dict:
-    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+def load_config(path: Path | None = None) -> dict:
+    """The default menu (b3/config/exit_menu.json) or another pre-registered menu with the same layout (e.g. the
+    fixed-BRL one, b3/config/exit_brl.json). A config may name its own work folder under ops/state/ (`work_dir`)."""
+    cfg = json.loads((Path(path) if path else CONFIG).read_text(encoding="utf-8"))
     if not cfg.get("approved_by_owner") or cfg.get("split") != "exploration":
         raise SystemExit("exit menu: config not approved or not on exploration")
     return cfg
@@ -72,14 +74,19 @@ def select(rows: list[dict], fam: es.Family, cfg: dict) -> None:
         r["fails"] = fails
 
 
-def run(only: list[str] | None = None, markets: list[str] | None = None) -> Path:
+def run(only: list[str] | None = None, markets: list[str] | None = None, config_path: Path | None = None) -> Path:
     from b3.markets import market
-    cfg = load_config()
+    import hashlib
+    cfg = load_config(config_path)
+    cfg_file = Path(config_path) if config_path else CONFIG
     ecfg = es.load_config()
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    WORK = ROOT / cfg.get("work_dir", "ops/state/exit_menu")
     WORK.mkdir(parents=True, exist_ok=True)
     ledger = WORK / "ledger.jsonl"
-    report = {"run": run_id, "config": "b3/config/exit_menu.json", "split": "exploration", "families": {}, "picks": []}
+    report = {"run": run_id, "config": cfg_file.resolve().relative_to(ROOT).as_posix(),
+              "config_sha256": hashlib.sha256(cfg_file.read_bytes()).hexdigest(),     # the pre-registered file, as read
+              "split": "exploration", "families": {}, "picks": []}
     fams = [f for f in screened_families() if only is None or f.id in only]
     ps_cfg = ps.load_config()
     t0 = time.time()
@@ -184,8 +191,13 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--family", action="append")
     r.add_argument("--market", action="append")
+    r.add_argument("--config", help="another pre-registered exit menu (default b3/config/exit_menu.json)")
+    r.add_argument("--families-file", help="text file with one family id per line (added to --family)")
     a = ap.parse_args(argv)
-    print(run(a.family, a.market))
+    fams = list(a.family or [])
+    if a.families_file:
+        fams += [x.strip() for x in Path(a.families_file).read_text(encoding="utf-8").splitlines() if x.strip()]
+    print(run(fams or None, a.market, Path(a.config) if a.config else None))
     return 0
 
 

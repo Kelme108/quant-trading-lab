@@ -52,8 +52,15 @@ def test_path_c_has_288_variants_per_market():
 
 
 def test_path_c_signals_are_causal():
-    """A bar's signal must not change when later data is added (no look-ahead)."""
+    """A bar's signal must not change when later data is added (no look-ahead). Needs the Clear WIN history, which is
+    NOT in git (user_data/data/b3/clear/): skipped on a fresh clone."""
     import pandas as pd
+    import pytest
+    from b3 import b3_data
+    try:
+        b3_data.load_b3_bars("WIN", "5m")
+    except (FileNotFoundError, OSError):
+        pytest.skip("Clear WIN history not present (user_data/data/b3/clear/); see docs/cerebro/Dados.md")
     cfg = ps.load_config()
     short = ps.load_frame(5, pd.Timestamp("2022-09-01", tz="UTC"), cfg)
     long = ps.load_frame(5, pd.Timestamp("2022-11-01", tz="UTC"), cfg)
