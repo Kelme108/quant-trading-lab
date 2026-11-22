@@ -61,10 +61,13 @@ class BuildArgvTests(unittest.TestCase):
             else:
                 self.assertFalse({"Bash", "Edit"} & tools, name)
 
-    def test_only_research_and_scout_can_use_the_web(self) -> None:
+    def test_only_the_idea_writers_can_use_the_web(self) -> None:
+        # research, scout, proxy-research and (since the conveyor, 2026-11-17) esteira-research look up ideas on the web;
+        # none of them has Bash or Edit (previous test), and the code they write passes the static checks before any read.
+        # The reviewers, developers and the quant never see the web.
         for name, spec in agents.AGENT_SPECS.items():
             has_web = bool({"WebSearch", "WebFetch"} & set(spec["tools"]))
-            self.assertEqual(has_web, name in ("research", "scout", "proxy-research"), name)
+            self.assertEqual(has_web, name in ("research", "scout", "proxy-research", "esteira-research"), name)
 
     def test_the_proxy_developer_may_only_run_pytest_and_the_proxy_researcher_sees_no_result(self) -> None:
         allow = self.after(self.argv("proxy-developer"), "--allowedTools")
