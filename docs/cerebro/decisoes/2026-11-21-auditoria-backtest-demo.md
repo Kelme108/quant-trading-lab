@@ -63,3 +63,21 @@ Mesmo no custo otimista (sem slippage), P-020, P-026 e P-028 ficam negativas com
 ## Mudança feita com o aval do dono
 
 A esteira saiu da pausa em 2026-11-21 e cada lote novo também roda o menu de saídas em reais (`b3/config/exit_brl.json`) em `ops/state/exit_brl/` (`b3/esteira_cycle.py`, função `exit_menu`).
+
+## Depois da aprovação (2026-11-21, noite)
+
+O dono aprovou as propostas 1 e 2; o portão foi trocado (`b3/config/gates_b3.json`, commit `6af910a`).
+
+**Regras P na exploração com o portão novo** (diagnóstico, sem registro no ledger; t mínimo 3,34 com 266 tentativas):
+
+| Regra | Trades/ano | Acerto | Líquido base | Líquido p90 | t | Decisão |
+|---|---|---|---|---|---|---|
+| P-004 | 246 | 60,5% | +24,4% | +18,6% | 5,96 | **passa** (mas a validação já foi lida em 2026-11-16 e reprovou no portão antigo) |
+| P-014 | 225 | 53,3% | +3,5% | −0,9% | 0,64 | reprova |
+| P-017, P-030 | 700–1.000 | 44–50% | ≈ 0 | negativo | ≈ 0 | reprova |
+| P-020, P-023, P-026, P-028 | 540–930 | 35–55% | −8% a −18% | negativo | < 0 | reprova |
+| P-024, P-025 | 500–870 | 31–43% | −25% | negativo | ≈ −3 | reprova |
+
+Conclusão: com custo justo e barra estatística, as regras P continuam sem vantagem nas saídas originais; a exceção é a P-004, cuja validação não pode ser relida.
+
+**Candidatas da esteira (exploração, melhores 30 por acerto com p90 > 0 e acima da entrada aleatória):** nenhuma atinge t ≥ 4,6 (≈ 35 mil versões lidas). Mais perto: E-410 1m com B1 (alvo R$ 35, stop R$ 90): 2.725 trades, acerto 71%, +R$ 4,17 por trade, p90 +R$ 2,88, t 4,48, os 4 anos positivos. Depois: E-303 S2 (t 3,38) e E-286 B5 (t 3,29).
