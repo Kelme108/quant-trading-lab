@@ -45,6 +45,7 @@ DRYRUN_LIVE_PATH = ASSET_DIR / "dryrun_live.js"
 INDICES_JS_PATH = ASSET_DIR / "indices.js"
 UNIVERSES_JS_PATH = ASSET_DIR / "universes.js"
 DEMO_B3_JS_PATH = ASSET_DIR / "demo_b3.js"
+ESTEIRA_JS_PATH = ASSET_DIR / "esteira.js"
 INDICES_TRADE_FILE = re.compile(r"[A-Za-z0-9/._-]{1,160}")
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
 DEFAULT_PORT = 8765
@@ -1166,6 +1167,7 @@ def render_page(state: dict, *, nonce: str | None, live: bool) -> str:
         .replace("/*__DRYRUN_LIVE__*/", DRYRUN_LIVE_PATH.read_text(encoding="utf-8"))
         .replace("/*__INDICES__*/", INDICES_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__DEMO_B3__*/", DEMO_B3_JS_PATH.read_text(encoding="utf-8"))
+        .replace("/*__ESTEIRA__*/", ESTEIRA_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__VENDOR_CHARTS__*/", VENDOR_CHARTS_PATH.read_text(encoding="utf-8"))
         .replace("__NONCE_ATTR__", nonce_attr)
         .replace("__LIVE__", "true" if live else "false")
@@ -1280,6 +1282,10 @@ class _Handler(BaseHTTPRequestHandler):
                     return
                 status, body = indices_portal.trades_file(raw, ROOT)
                 self._send(status, _embed(indices_portal.clean(body)).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/esteira":
+                from lab import esteira_portal  # the strategy conveyor (owner 2026-11-22); reads files only
+
+                self._send(200, _embed(esteira_portal.cached_state(ROOT)).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/demo-b3":
                 from lab import demo_b3  # the Clear demo demonstration (owner 2026-11-16); reads files only
 
