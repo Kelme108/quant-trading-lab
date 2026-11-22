@@ -5,6 +5,7 @@ raw notional of 1 contract). Synthetic data only."""
 import csv
 import gzip
 import json
+import math
 from datetime import date, datetime, time, timedelta, timezone
 
 import pandas as pd
@@ -165,7 +166,8 @@ def test_the_b3_lane_records_in_its_own_ledger_with_raw_notional_returns(lane):
     out = pr.evaluate("P-001", "WIN", "exploration", data_dir=lane)
     assert out["lane"] == "b3" and out["symbol"] == "WIN" and out["data_symbol"] == "WIN$N"
     assert out["roll_days_in_split"] == 1 and out["cost_round_trip_base_pct"] == pytest.approx(
-        100 * 2 * (0.25 + 1.0) / (120_000 * 0.2), rel=0.1)
+        100 * 2 * (0.25 + 0.4) / (120_000 * 0.2), rel=0.1)      # measured cost basis (owner 2026-11-21)
+    assert out["cost_basis"].startswith("measured")
     base = out["scenarios"]["base"]
     assert base["trades"] > 0 and base["positions_held_overnight"] == 0
     nets = [out["scenarios"][s]["net_return_pct"] for s in ("optimistic", "base", "conservative", "stress")]
@@ -277,3 +279,19 @@ def test_new_b3_rules_alternate_1_and_5_minutes(tmp_path, monkeypatch):
     monkeypatch.setattr(prog, "LANES", lanes)
     text = prog.write_context("P-014", prog.status(date(2026, 11, 17), program=cfg, props=[], ledger=[]), cfg).read_text(encoding="utf-8")
     assert "Timeframe of P-014: 5 minutes, fixed" in text and "at least 500 trades per year" in text
+
+
+def test_gate_t_bar_replaces_the_linear_bar():
+    # owner 2026-11-21: t of the mean net trade >= max(3, sqrt(2 ln N)); net > 0 in base and conservative
+    g = {"minimum_trades": 30, "net_return_pct_floor": 1.0, "per_variant_increase": 0.1, "max_drawdown_pct": 25.0,
+         "drawdown_scenarios": ["base"], "positive_years_share": 0.6,
+         "multiple_testing": {"method": "t_stat_expected_max", "t_floor": 3.0}}
+    ok = {"trades": 500, "net_return_pct": 5.0, "net_return_excl_best_pct": 4.0, "max_drawdown_pct": 5.0,
+          "positive_years_share": 1.0, "t_stat_mean_net": 3.5}
+    rep = pr.gate_report({"base": ok, "conservative": dict(ok, net_return_pct=1.0)}, g, variants=265)
+    assert rep["decision"] == "passed" and rep["t_min"] == pytest.approx(math.sqrt(2 * math.log(266)))
+    weak = dict(ok, t_stat_mean_net=3.2)
+    assert pr.gate_report({"base": weak, "conservative": ok}, g, variants=265)["decision"] == "rejected"
+    assert pr.gate_report({"base": weak, "conservative": ok}, g, variants=5)["decision"] == "passed"   # floor 3
+    neg = dict(ok, net_return_pct=-0.1)
+    assert pr.gate_report({"base": ok, "conservative": neg}, g, variants=5)["decision"] == "rejected"

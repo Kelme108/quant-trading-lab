@@ -159,6 +159,8 @@ def metrics(trades: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, tz) ->
         "max_drawdown_pct": 100 * dd,
         "profit_factor": float(wins.sum() / -losses.sum()) if losses.sum() < 0 else math.inf,
         "win_rate_pct": 100 * len(wins) / n,
+        "t_stat_mean_net": (float(r_net.mean() / r_net.std(ddof=1) * math.sqrt(n))
+                            if n > 2 and r_net.std(ddof=1) > 0 else math.nan),
         "daily_sharpe_annualised": float(daily.mean() / sd * math.sqrt(252)) if sd and sd > 0 else math.nan,
         "positive_years_share": float((per_year > 0).mean()),
         "per_year_return_pct": {int(y): round(100 * float(v), 3) for y, v in per_year.items()},
@@ -174,7 +176,19 @@ def gate_report(by_scenario: dict, gates: dict, variants: int) -> dict:
     base, cons = by_scenario["base"], by_scenario["conservative"]
     if base["trades"] < g["minimum_trades"]:
         return {"decision": "inconclusive", "fails": [f"trades {base['trades']} < {g['minimum_trades']}"]}
-    bar = g["net_return_pct_floor"] * (1 + g["per_variant_increase"] * variants)
+    mt = g.get("multiple_testing") or {}
+    extra = {}
+    if mt.get("method") == "t_stat_expected_max":
+        # owner 2026-11-21: the linear bar (floor x (1 + 0.1 x variants)) is replaced by a t-stat bar that grows like
+        # the expected maximum of N noise trials, sqrt(2 ln N), never below the floor (Harvey-Liu-Zhu t > 3)
+        bar = 0.0
+        t_min = max(float(mt["t_floor"]), math.sqrt(2.0 * math.log(variants + 1))) if variants > 0 else float(mt["t_floor"])
+        extra = {"t_min": t_min, "n_trials": variants + 1}
+        t = base.get("t_stat_mean_net", math.nan)
+        if not (t >= t_min):
+            fails.append(f"base: t of the mean net trade {t:.2f} < {t_min:.2f} ({variants + 1} trials)")
+    else:
+        bar = g["net_return_pct_floor"] * (1 + g["per_variant_increase"] * variants)
     for name, m in (("base", base), ("conservative", cons)):
         if not m["net_return_pct"] > bar:
             fails.append(f"{name}: net {m['net_return_pct']:.2f}% <= bar {bar:.2f}%")
@@ -185,7 +199,21 @@ def gate_report(by_scenario: dict, gates: dict, variants: int) -> dict:
             fails.append(f"{name}: drawdown {by_scenario[name]['max_drawdown_pct']:.1f}% > {g['max_drawdown_pct']}%")
     if base["positive_years_share"] < g["positive_years_share"]:
         fails.append(f"base: positive years {base['positive_years_share']:.0%} < {g['positive_years_share']:.0%}")
-    return {"decision": "rejected" if fails else "passed", "fails": fails, "net_bar_pct": bar}
+    return {"decision": "rejected" if fails else "passed", "fails": fails, "net_bar_pct": bar} | extra
+
+
+def measured_b3_cost(mkt, scenario: str):
+    """Owner 2026-11-21 (gates_b3.json cost_basis 'measured'): base = the MEASURED execution cost and conservative =
+    its p90 (b3/config/pattern_search_b3.json, research/b3/execution_cost.json); optimistic and stress unchanged."""
+    from b3.costs import B3Cost
+    from b3 import pattern_search as ps
+    key = {"base": "measured", "conservative": "measured_p90"}.get(scenario)
+    if key is None:
+        return mkt.cost(scenario)
+    c = ps.load_config()
+    src = (c["cost_reevaluation"] if mkt.root == "WIN" else c["wdo_extension"]["costs"])[key]
+    return B3Cost(scenario, float(src["fees_per_side_brl"]), 0.0, float(src["slippage_ticks_per_side"]),
+                  stop_extra_ticks=float(src.get("stop_extra_ticks", 0.0)))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -259,10 +287,15 @@ def evaluate(rule_id: str, symbol: str, split: str, *, data_dir: Path | None = N
         inside = bars[(bars["time"] >= start)]
         raw_close = float((inside["close"] - inside["adj_offset"]).median()) if len(inside) else math.nan
         inst = mkt.instrument()
-        out["cost_round_trip_base_pct"] = 100 * mkt.cost("base").round_trip_brl(inst) / (raw_close * inst.point_value_brl)
+        base_cost = measured_b3_cost(mkt, "base") if gates.get("cost_basis") == "measured" else mkt.cost("base")
+        out["cost_round_trip_base_pct"] = 100 * base_cost.round_trip_brl(inst) / (raw_close * inst.point_value_brl)
         out["stop_extra_ticks_base"] = mkt.stop_extra_ticks_base
+    measured = isinstance(mkt, B3Market) and gates.get("cost_basis") == "measured"
+    if measured:
+        out["cost_basis"] = "measured (base) / measured_p90 (conservative)"
     for scen in REQUIRED_SCENARIOS:
-        res = run(bars, strategy, mkt.cost(scen), CONFIGS.get(rule_id, BacktestConfig()))
+        cost = measured_b3_cost(mkt, scen) if measured else mkt.cost(scen)
+        res = run(bars, strategy, cost, CONFIGS.get(rule_id, BacktestConfig()))
         tr = res.trades_frame()
         if not tr.empty:
             tr = tr[pd.to_datetime(tr["entry_time"], utc=True) >= start]

@@ -2,6 +2,12 @@
   "approved_by_owner": true,
   "_approved": "Owner, 2026-11-16 ('tudo mais que você sugeriu, pode fazer') on docs/plano-b3-reuso.md D2 (a): the SAME gates as the proxy markets, applied to WIN and WDO with the B3 costs in BRL per contract (b3/costs.py) and returns as a share of the notional of 1 contract at the raw entry price. Written before any WIN/WDO backtest. Edits need the owner.",
   "_status": "B3 lane (research/b3/ledger.jsonl): its own trial count; copies gates_proxies.json of 2026-11-14.",
+  "_revised_2026_11_21": "Owner 2026-11-21 ('Aprovo tudo que voce citou', after the backtest x demo audit docs/cerebro/decisoes/2026-11-21-auditoria-backtest-demo.md): (1) cost_basis 'measured': base = measured execution cost (fees 0.25/side + 0.4 tick/side on WIN) and conservative = its p90 (0.50/side + 1 tick), from b3/config/pattern_search_b3.json; (2) multiple_testing: the linear net bar (floor x (1 + 0.1 x prior variants), 27.5% after 265 variants) is replaced by: net > 0 in base AND conservative, and the t-stat of the mean net trade (base) >= max(t_floor, sqrt(2 ln N)), N = prior variants + 1 (the expected maximum of N noise trials). Everything else unchanged; validation read once, final test locked. Earlier results keep the decision they got.",
+  "cost_basis": "measured",
+  "multiple_testing": {
+    "method": "t_stat_expected_max",
+    "t_floor": 3.0
+  },
   "minimum_trades": 30,
   "_minimum_trades": "Below this in a split the decision is 'inconclusive'. Trades per year are reported; day trading aims at 200+ per year.",
   "net_return_pct_floor": 1.0,
