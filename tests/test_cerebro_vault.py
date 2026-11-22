@@ -60,6 +60,34 @@ def test_relative_markdown_links_resolve():
     assert not broken, f"broken relative links: {broken}"
 
 
+def test_relative_links_point_to_versioned_files():
+    """Um link que resolve no disco do dono mas aponta para arquivo fora do Git quebra no clone de quem recebe."""
+    import subprocess
+
+    import pytest
+
+    try:
+        out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        pytest.skip("git indisponível")
+    if out.returncode != 0 or not out.stdout.strip():
+        pytest.skip("não é um repositório git")
+    tracked = set(out.stdout.splitlines())
+    loose = []
+    for p in _notes():
+        for m in re.findall(r"\]\((?!https?:|mailto:|#)([^)#\s]+)", _strip_code(p.read_text(encoding="utf-8"))):
+            if not m.endswith(".md"):
+                continue
+            target = (p.parent / m).resolve()
+            try:
+                rel = target.relative_to(ROOT.resolve()).as_posix()
+            except ValueError:
+                continue
+            if target.exists() and rel not in tracked:
+                loose.append(f"{p.relative_to(ROOT)} -> {m}")
+    assert not loose, f"links para arquivos que não estão no Git (quebram no clone): {loose}"
+
+
 def test_every_note_has_front_matter_with_date():
     missing = []
     for p in _notes():

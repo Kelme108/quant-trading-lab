@@ -53,7 +53,7 @@ Convenção: **versionado** = vai no git; **local** = ignorado, precisa ser reco
 | [plano-fluxo-ticks-b3.md](../plano-fluxo-ticks-b3.md) | Programa de ticks | vigente |
 | [plano-gestao-saida-b3.md](../plano-gestao-saida-b3.md) | Estudo de saídas | histórico |
 | [plano-portal-proxies.md](../plano-portal-proxies.md) | Portal de índices | histórico |
-| [runbook-ao-vivo.md](../runbook-ao-vivo.md) | Operação da seção "ao vivo" | rascunho |
+| `runbook-ao-vivo.md` | Operação da seção "ao vivo" | rascunho, **ainda sem commit** (frente de controles ao vivo; ver [[Publicar-no-GitHub]]) |
 | [funcionamento-geral.md](../funcionamento-geral.md) | Manual geral da linha **cripto**, de 2026-11-08 | **envelhecido** |
 | [protocolo-validacao-v3.md](../protocolo-validacao-v3.md) | Protocolo de validação | vigente |
 | [migracao-linux.md](../migracao-linux.md) | Mover o laboratório para Linux | só linha cripto |

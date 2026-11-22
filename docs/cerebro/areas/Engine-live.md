@@ -35,7 +35,7 @@ Motor próprio, fora do Freqtrade e fora do Docker, que roda no Windows com o te
 
 ## Controles do portal (conta real, sem robô ainda)
 
-Botões do portal escrevem `live/commands/<robô>.json`; o próprio motor executa e registra no journal. Nunca feche por fora do motor. Decisão: [[2026-11-17-portal-controles-ao-vivo]]. Operação: [../../runbook-ao-vivo.md](../../runbook-ao-vivo.md).
+Botões do portal escrevem `live/commands/<robô>.json`; o próprio motor executa e registra no journal. Nunca feche por fora do motor. Decisão: [[2026-11-17-portal-controles-ao-vivo]]. Operação: `docs/runbook-ao-vivo.md` (rascunho, ainda sem commit; ver [[Publicar-no-GitHub]]).
 
 ## Journal e MFE/MAE
 
