@@ -1,6 +1,6 @@
 ---
 tipo: mapa
-atualizado: 2026-11-19
+atualizado: 2026-11-22
 tags: [cerebro, mapa]
 ---
 
@@ -27,6 +27,7 @@ Convenção: **versionado** = vai no git; **local** = ignorado, precisa ser reco
 | `live/strategies/b3_rule.py` | Liga uma regra de pesquisa ao motor | [[Engine-live]] |
 | `lab/` | Laboratório: orquestrador, gates, registro, portal, agentes | [[Lab-de-pesquisa]] |
 | `lab/dashboard.py` + `lab/dashboard_assets/` | Portal local (HTML/JS) | [[Portal]] |
+| `lab/esteira_portal.py`, `lab/dashboard_assets/esteira.js` | Seção **Esteira** do portal (só leitura dos arquivos da esteira) | [[Portal]] |
 | `research/` | Ledgers, manifestos, propostas, relatórios, resultados | |
 | `research/b3/` | Resultados da linha B3 (esteira, exit_menu, buscas, trades) | [[Resultados-B3]] |
 | `research/proxies/` | Linha de proxies (encerrada) | [[2026-11-14-proxies-indices]] |
@@ -39,6 +40,7 @@ Convenção: **versionado** = vai no git; **local** = ignorado, precisa ser reco
 | `ops/state/` | **Local**: pausas, logs de ciclo, saída do menu de saídas | |
 | `.claude/agents/`, `.claude/skills/` | Agentes da pesquisa e skills `trader-*` | [[Agentes-e-skills]] |
 | `forward/`, `docker-compose*.yml`, `testnet/` | Dry-run Freqtrade e testnet (cripto) | [[Cripto-Freqtrade]] |
+| `reports/`, `research_notes/` | Relatórios de pesquisa na web (ex.: panorama de trading quantitativo e IA, 2026-11-21) e as notas de apoio | [[Lab-de-pesquisa]] |
 | `bot.py` | Script antigo, fora do laboratório | |
 
 ## Documentos longos em `docs/`

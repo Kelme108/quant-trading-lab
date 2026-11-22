@@ -1,6 +1,6 @@
 ---
 tipo: entrada
-atualizado: 2026-11-19
+atualizado: 2026-11-22
 tags: [cerebro, entrada]
 ---
 
@@ -32,6 +32,7 @@ Este cofre é o **segundo cérebro** do projeto: tudo que o dono e as sessões d
 | 4 | [[Como-rodar-em-outro-ambiente]] | Montar o ambiente |
 | 5 | [[Glossario]] | Termos (esteira, V, S1..S4, DSR, PBO...) |
 | 6 | [[Pendencias-e-calendario]] | O que vence e o que espera decisão |
+| 6b | [[Publicar-no-GitHub]] | O que falta decidir antes do primeiro push e como conferir um clone limpo |
 | 7 | Áreas e decisões abaixo | Aprofundar |
 
 ## Índice por área

@@ -1,6 +1,6 @@
 ---
 tipo: area
-atualizado: 2026-11-19
+atualizado: 2026-11-22
 tags: [cerebro, robos, demo]
 ---
 
@@ -8,7 +8,9 @@ tags: [cerebro, robos, demo]
 
 Todos rodam no terminal **Clear demo** (conta hedging), 1 contrato, via `ops/windows/demo-b3.cmd <nome>` (`live.run` com `live/config/<nome>.json`). **Demonstração, não evidência.** Motor: [[Engine-live]]. Como foram escolhidos os da esteira: [[Menu-de-saidas]].
 
-Estado em 2026-11-19: **24 rodando** (todos abaixo, menos `demo-b3-p004-wdo`, desligado). Sessão: entradas 15 min após a abertura até 30 min antes do fechamento, zeragem 10 min antes do fim. Limite de entradas por dia: 10 (P-004: 2, P-032: 4). Perda diária máxima do robô: R$ 300.
+Estado em 2026-11-22: **25 robôs configurados (14 regras P e 11 da esteira), 0 rodando**. Ficaram parados de propósito no fim de semana (mercado fechado) e desde o reinício do PC de 2026-11-20; religar é com o terminal da Clear aberto na conta demo ([[Pendencias-e-calendario]]). Sessão: entradas 15 min após a abertura até 30 min antes do fechamento, zeragem 10 min antes do fim. Limite de entradas por dia: 10 (P-004: 2, P-032: 4). Perda diária máxima do robô: R$ 300.
+
+**E-164 não deve ser religado como está:** a família usa o fechamento do dólar (`other_close`) e o robô ao vivo só recebe barras do índice, então erra em toda barra. Antes: dar barras de WDO ao robô, ou tirá-lo da demo.
 
 ## Regras de agente (P-NNN)
 
@@ -31,21 +33,36 @@ Estado em 2026-11-19: **24 rodando** (todos abaixo, menos `demo-b3-p004-wdo`, de
 
 ## Famílias da esteira com saída do menu (E-NNN)
 
-Taxa de acerto e resultado por trade são da **pesquisa** (exploração, custo medido), para comparar com a demo. Parâmetros da variante em `live/config/<robô>.json` (`strategy.esteira`).
+Números da **pesquisa** (exploração 2021-11 a 2024-06, 1 contrato, custo medido R$ 1,30 por ida e volta; p90 = custo pessimista R$ 3,00), refeitos em 2026-11-22 com a variante e a saída de cada robô, para comparar com a demo. "Aleatória" é o controle (mesma saída, entradas aleatórias); **t** é a estatística da média por trade, que precisa passar de ~4,6 com as ~35 mil versões lidas, e **nenhum chega perto** (maior: 2,39). Parâmetros da variante em `live/config/<robô>.json` (`strategy.esteira`).
 
-| Robô | TF | Magic | Saída | Parâmetros | Acerto pesquisa | Por trade pesquisa | Família |
+| Robô | TF | Magic | Saída | Parâmetros | Acerto | Por trade | p90 | Aleatória | Trades/ano | Fatias + | t | Família |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `demo-b3-e040-win` | 1m | 262040 | S2 | `{"k": 4}` | 66,8% | +R$ 1,91 | +R$ 0,59 | −R$ 0,80 | 576 | 5/8 | 1,76 | E-040: Clock-hour open defence |
+| `demo-b3-e062-win` | 5m | 262062 | S2 | `{"run": 3, "k": 0.8}` | 67,9% | +R$ 2,55 | +R$ 1,24 | **+R$ 0,35** | 265 | 7/8 | 1,55 | E-062: Rising-volume run follow |
+| `demo-b3-e102-win` | 5m | 262102 | S3 | `{"n": 14, "th": 45}` | 42,4% | +R$ 2,44 | +R$ 0,89 | −R$ 2,24 | 281 | 5/8 | 1,34 | E-102: Choppiness-index trend onset |
+| `demo-b3-e118-win` | 5m | 262118 | S2 | `{"win_min": 10, "k": 1.0}` | 68,1% | +R$ 3,93 | +R$ 2,62 | −R$ 0,92 | 368 | 7/8 | 2,32 | E-118: Close-vs-midpoint divergence fade |
+| `demo-b3-e156-win` | 1m | 262156 | S3 | `{"k": 1.25, "win_min": 60}` | 41,1% | +R$ 3,87 | +R$ 2,34 | −R$ 1,20 | 418 | 6/8 | 2,24 | E-156: Post-wide-day consolidation fade |
+| `demo-b3-e160-win` | 5m | 262160 | S2 | `{"tail_min": 15, "q": 0.1}` | 65,2% | +R$ 2,30 | +R$ 0,97 | −R$ 1,40 | 356 | 5/8 | 1,68 | E-160: Hour-end painting fade |
+| `demo-b3-e164-win` | 5m | 262164 | S3 | `{"win_min": 60, "k": 1.5}` | 42,2% | +R$ 3,33 | +R$ 1,77 | −R$ 1,22 | 250 | 7/8 | 1,37 | E-164: Macro-backed dip buy (**não religar**) |
+| `demo-b3-e193-win` | 5m | 262193 | S2 | `{"step": 0.33, "k": 0.0}` | 66,2% | +R$ 2,72 | +R$ 1,40 | −R$ 0,77 | 588 | 6/8 | 2,25 | E-193: Volume-clock milestone momentum |
+| `demo-b3-e209-win` | 5m | 262209 | S3 | `{"k": 0.75, "win_min": 15}` | 42,9% | +R$ 3,53 | +R$ 1,97 | −R$ 1,31 | 547 | 7/8 | 2,39 | E-209: Post-narrow-session break follow |
+| `demo-b3-e217-win` | 1m | 262217 | S2 | `{"q": 0.1, "pb": 2}` | 68,1% | +R$ 1,65 | +R$ 0,34 | −R$ 0,22 | 263 | 6/8 | 0,98 | E-217: Open-drive day pullback resumption |
+| `demo-b3-e225-win` | 1m | 262225 | S2 | `{"n_sessions": 5, "k": 4}` | 65,7% | +R$ 1,89 | +R$ 0,57 | −R$ 1,61 | 930 | 7/8 | 2,10 | E-225: Multi-day channel edge micro-break fade |
+
+## Regras P: números da exploração (2026-11-22)
+
+Mesma conta, na saída própria de cada regra, com R$ por contrato convertido do retorno em % (aproximado). Só a **P-004 em WIN** passa a barra nova (t 5,96, positiva em 8 de 8 fatias), e a validação dela **já foi lida** em 2026-11-16, então não pode ser relida. P-004 em WDO perde. As demais ficam perto de zero ou negativas:
+
+| Regra | Mercado | Acerto | Por trade | p90 | Trades/ano | Fatias + | t |
 |---|---|---|---|---|---|---|---|
-| `demo-b3-e040-win` | 1m | 262040 | S2 | `{"k": 4}` | 66.8% | +R$ 1.91 | E-040: Clock-hour open defence |
-| `demo-b3-e062-win` | 5m | 262062 | S2 | `{"run": 3, "k": 0.8}` | 67.9% | +R$ 2.55 | E-062: Rising-volume run follow |
-| `demo-b3-e102-win` | 5m | 262102 | S3 | `{"n": 14, "th": 45}` | 42.4% | +R$ 2.44 | E-102: Choppiness-index trend onset |
-| `demo-b3-e118-win` | 5m | 262118 | S2 | `{"win_min": 10, "k": 1.0}` | 68.1% | +R$ 3.93 | E-118: Close-vs-midpoint divergence fade |
-| `demo-b3-e156-win` | 1m | 262156 | S3 | `{"k": 1.25, "win_min": 60}` | 41.1% | +R$ 3.87 | E-156: Post-wide-day consolidation fade |
-| `demo-b3-e160-win` | 5m | 262160 | S2 | `{"tail_min": 15, "q": 0.1}` | 65.2% | +R$ 2.30 | E-160: Hour-end painting fade |
-| `demo-b3-e164-win` | 5m | 262164 | S3 | `{"win_min": 60, "k": 1.5}` | 42.2% | +R$ 3.33 | E-164: Macro-backed dip buy |
-| `demo-b3-e193-win` | 5m | 262193 | S2 | `{"step": 0.33, "k": 0.0}` | 66.2% | +R$ 2.72 | E-193: Volume-clock milestone momentum |
-| `demo-b3-e209-win` | 5m | 262209 | S3 | `{"k": 0.75, "win_min": 15}` | 42.9% | +R$ 3.53 | E-209: Post-narrow-session break follow |
-| `demo-b3-e217-win` | 1m | 262217 | S2 | `{"q": 0.1, "pb": 2}` | 68.1% | +R$ 1.65 | E-217: Open-drive day pullback resumption |
-| `demo-b3-e225-win` | 1m | 262225 | S2 | `{"n_sessions": 5, "k": 4}` | 65.7% | +R$ 1.89 | E-225: Multi-day channel edge micro-break fade |
+| P-004 | WIN | 60,5% | +R$ 7,62 | +R$ 6,12 | 246 | 8/8 | 5,96 |
+| P-014 | WIN | 53,3% | +R$ 1,40 | −R$ 0,29 | 225 | 6/8 | 0,64 |
+| P-032 | WIN | 36,3% | +R$ 3,32 | +R$ 1,37 | 256 | 6/8 | 0,77 |
+| P-029 | WIN | 28,2% | +R$ 3,65 | +R$ 2,05 | 15 | 4/8 | 0,48 |
+| P-030 | WIN | 49,5% | +R$ 0,04 | −R$ 1,74 | 707 | 5/8 | −0,02 |
+| P-017 | WIN | 43,5% | −R$ 0,07 | −R$ 1,72 | 1.020 | 5/8 | −0,02 |
+| P-020, P-023, P-024, P-025, P-026, P-028 | WIN | 31–55% | −R$ 0,90 a −R$ 5,10 | negativo | 514–931 | 1–4/8 | −0,87 a −3,35 |
+| P-004, P-026 | WDO | 41–43% | −R$ 4,51 e −R$ 5,04 | negativo | 245 e 475 | 2–4/8 | −1,55 e −2,39 |
 
 ## Como ler os resultados da demo
 
