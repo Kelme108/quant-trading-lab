@@ -90,6 +90,18 @@ def comment_for(client_id: str) -> str:
     return "h:" + hashlib.sha1(client_id.encode()).hexdigest()[: COMMENT_MAX - 2]
 
 
+def _bar_volume(r) -> float:
+    """Contracts traded (MT5 'real_volume') when the symbol reports them - B3 futures do, and the research bars
+    (b3/b3_data.py) use exactly that column - else the tick count (CFDs/forex report real_volume 0).
+    Audit 2026-11-21: the demo robots got tick_volume while the research used contracts, so volume-based rules
+    (E-193) signalled at other bars than the backtest."""
+    try:
+        rv = float(r["real_volume"])
+    except (KeyError, ValueError, IndexError, TypeError):
+        rv = 0.0
+    return rv if rv > 0 else float(r["tick_volume"])
+
+
 class MT5Unavailable(ConnectionError):
     """The terminal is not reachable after the reconnect attempts."""
 
@@ -195,7 +207,7 @@ class MT5Broker:
         if rates is None:
             raise ConnectionError(f"copy_rates_from_pos({symbol}) failed: {self.mt5.last_error()}")
         return [Bar(self._to_utc(int(r["time"])), float(r["open"]), float(r["high"]),
-                    float(r["low"]), float(r["close"]), float(r["tick_volume"])) for r in rates]
+                    float(r["low"]), float(r["close"]), _bar_volume(r)) for r in rates]
 
     def last_price(self, symbol: str) -> float:
         self._ensure()

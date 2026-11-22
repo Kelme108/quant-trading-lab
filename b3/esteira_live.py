@@ -30,7 +30,10 @@ from b3.markets import ProxyStrategy
 from b3.strategy import ENTER_LONG, ENTER_SHORT, EXIT, HOLD, MOVE_STOP, bars_to_frame
 from live.core.models import Signal
 
-EXITS = json.loads((Path(__file__).resolve().parent / "config" / "exit_menu.json").read_text(encoding="utf-8"))["exits"]
+_CFG = Path(__file__).resolve().parent / "config"
+# V-based menu S1..S4 and the fixed-BRL menu B1..B5 (owner 2026-11-21: stop/take-profit in reais)
+EXITS = {**json.loads((_CFG / "exit_menu.json").read_text(encoding="utf-8"))["exits"],
+         **json.loads((_CFG / "exit_brl.json").read_text(encoding="utf-8"))["exits"]}
 RULES = SessionRules(entry_start_after_open_min=15, entry_end_before_close_min=30, flatten_before_close_min=10)
 EPS = 1e-9
 BARS_PER_SESSION_1M = 560
@@ -100,6 +103,10 @@ class _Base(ProxyStrategy):
         s = self.spec.get(key)
         if s is None:
             return None
+        if s[0] == "brl":            # fixed BRL per contract (b3/config/exit_brl.json), as b3/p026_lab.distances
+            return _ceil_tick(s[1] / self.market.instrument().point_value_brl, self.market.tick_size)
+        if s[0] != "V":
+            raise ValueError(f"exit kind {s[0]!r} is not supported live")
         return _ceil_tick(s[1] * v * price, self.market.tick_size)
 
     def _plan(self, side, v, c, since):

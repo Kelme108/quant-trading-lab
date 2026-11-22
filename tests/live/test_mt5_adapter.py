@@ -48,6 +48,17 @@ def test_bar_times_are_converted_from_server_time_to_utc():
     assert bars[0].time == open_utc and bars[0].close == 1.5
 
 
+def test_bar_volume_is_contracts_when_reported_else_ticks():
+    # B3 futures report real_volume (contracts), as the research bars use; CFDs report 0 and keep the tick count
+    fake = FakeMT5()
+    fake.rates[SYM] = [{"time": 1_800_000_000, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "tick_volume": 10,
+                        "real_volume": 250},
+                       {"time": 1_800_000_300, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "tick_volume": 7,
+                        "real_volume": 0},
+                       {"time": 1_800_000_600, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "tick_volume": 4}]
+    assert [b.volume for b in broker(fake).bars(SYM, 5, 10)] == [250.0, 7.0, 4.0]
+
+
 def test_server_offset_estimate_from_last_tick():
     assert broker(FakeMT5(server_offset_h=3.0)).estimate_server_offset(SYM) == 3.0
 
