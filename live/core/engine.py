@@ -213,7 +213,9 @@ class Engine:
                          stop=sig.stop_price, reason=sig.reason, close=last.close,
                          strategy_hash=st.hash)
 
-        if sig.action == "exit" and pos:
+        if sig.action == "move_stop" and pos:
+            self._move_stop(symbol, pos, sig, last, now, phase, age, bar_key, acts)
+        elif sig.action == "exit" and pos:
             side = "sell" if pos.volume > 0 else "buy"          # a short (demo only) is bought back
             self._send(OrderRequest(self._cid(symbol, last, "X"), symbol, side,
                                     abs(pos.volume), reduce_only=True, reason=sig.reason),
@@ -224,10 +226,33 @@ class Engine:
             side = "buy" if sig.action == "enter" else "sell"
             res = self._send(OrderRequest(self._cid(symbol, last, "E"), symbol, side,
                                           self.volume, stop_loss=sig.stop_price,
-                                          reason=sig.reason),
+                                          reason=sig.reason, take_profit=getattr(sig, "take_profit", None)),
                              self._ctx(symbol, now, phase, last, age, pos))
             acts.append("enter" if res else "veto")
         self.journal.log("bar", symbol, key=bar_key)
+
+    def _move_stop(self, symbol, pos, sig, last, now, phase, age, bar_key, acts) -> None:
+        """Tighten the server stop (breakeven / trailing rules). Never loosens, never moves it past the last price.
+        If the broker refuses (e.g. the price already went through the new level), the position is closed at market:
+        the rule wanted to be out at that level. Allowed while paused or under the kill switch (it only cuts risk)."""
+        new, cur, long = sig.stop_price, pos.stop_loss, pos.volume > 0
+        if new is None or not new == new:
+            return
+        if cur is not None and ((long and new <= cur + 1e-9) or (not long and new >= cur - 1e-9)):
+            self.journal.log("stop_move", symbol, key=bar_key + ":sm", old=cur, new=new, done=False, why="not tighter")
+            return
+        mover = getattr(self.broker, "modify_stop", None)
+        through = (long and last.close <= new) or (not long and last.close >= new)
+        ok, msg = (False, "price already through the new stop") if through or mover is None else mover(symbol, new)
+        self.journal.log("stop_move", symbol, key=bar_key + ":sm", old=cur, new=new, done=ok, why=msg or sig.reason)
+        if ok:
+            acts.append("move_stop")
+            return
+        side = "sell" if long else "buy"
+        self._send(OrderRequest(self._cid(symbol, last, "S"), symbol, side, abs(pos.volume), reduce_only=True,
+                                reason=f"stop_move_refused_exit ({msg})"[:60]),
+                   self._ctx(symbol, now, phase, last, age, pos))
+        acts.append("exit")
 
     def _cid(self, symbol: str, last: Bar, tag: str) -> str:
         return f"{self.strategy.hash[:6]}-{symbol}-{int(last.time.timestamp())}-{tag}"
