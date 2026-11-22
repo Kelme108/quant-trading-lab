@@ -95,11 +95,20 @@ def today_sp():
     return datetime.now(SP_TZ).date()
 
 
-def cost_today(rows: list[dict] | None = None, day=None) -> float:
-    """Agent cost of the Sao Paulo calendar day (owner 2026-11-18)."""
-    day = day or today_sp()
+def budget_day(at: datetime, start_hour: int) -> object:
+    """The budget 'day' a moment belongs to: Sao Paulo days that start at `start_hour` (0 = calendar day). Owner
+    2026-11-21: 'US$15 por noite' -> one budget per night, so the window starts in the evening (esteira_b3.json)."""
+    return (at.astimezone(SP_TZ) - pd.Timedelta(hours=start_hour)).date()
+
+
+def cost_today(rows: list[dict] | None = None, day=None, start_hour: int | None = None) -> float:
+    """Agent cost of the current budget day (Sao Paulo; limits.budget_day_starts_at_hour, 0 = calendar day)."""
+    if start_hour is None:
+        start_hour = int(es.load_config()["limits"].get("budget_day_starts_at_hour", 0))
+    day = day or budget_day(datetime.now(timezone.utc), start_hour)
     return float(sum(r.get("cost_usd") or 0.0 for r in (rows if rows is not None else _log_rows())
-                     if r.get("event") == "agent" and r.get("at_utc") and sp_day(r["at_utc"]) == day))
+                     if r.get("event") == "agent" and r.get("at_utc")
+                     and budget_day(datetime.fromisoformat(r["at_utc"]), start_hour) == day))
 
 
 def families_today(done: dict | None = None, day=None) -> int:
@@ -445,16 +454,19 @@ def cycle() -> str:
 
 def exit_menu(ids: list[str]) -> None:
     """Owner 2026-11-18 ('teste tudo, stop loss, take profit, novas estrategias'): every new family also runs the exit
-    menu (b3/config/exit_menu.json). It writes under ops/state/exit_menu only; a failure is logged, never a cycle error."""
+    menu (b3/config/exit_menu.json). It writes under ops/state/exit_menu only; a failure is logged, never a cycle error.
+    Owner 2026-11-21 ('pode começar... tudo que você recomendou'): the fixed-BRL menu (b3/config/exit_brl.json, high
+    hit-rate exits, target R$35/stop R$90 and neighbours) runs on the same new families too (ops/state/exit_brl)."""
     if not ids:
         return
-    args = ["-m", "b3.exit_menu", "run"] + [x for i in ids for x in ("--family", i)]
-    try:
-        done = _py(*args, timeout=3600)
-        picks = [ln for ln in done.stdout.splitlines() if " pick " in ln]
-        log("exit_menu", exit=done.returncode, families=ids, picks=picks, out=done.stdout[-300:], err=done.stderr[-300:])
-    except Exception as e:                                  # noqa: BLE001
-        log("exit_menu", exit=-1, families=ids, error=repr(e)[:300])
+    fam_args = [x for i in ids for x in ("--family", i)]
+    for name, extra in (("exit_menu", []), ("exit_brl", ["--config", "b3/config/exit_brl.json"])):
+        try:
+            done = _py("-m", "b3.exit_menu", "run", *extra, *fam_args, timeout=3600)
+            picks = [ln for ln in done.stdout.splitlines() if " pick " in ln]
+            log(name, exit=done.returncode, families=ids, picks=picks, out=done.stdout[-300:], err=done.stderr[-300:])
+        except Exception as e:                              # noqa: BLE001
+            log(name, exit=-1, families=ids, error=repr(e)[:300])
 
 
 def after_error(error: Exception) -> None:

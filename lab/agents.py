@@ -27,7 +27,7 @@ DEFAULT_MODEL = "sonnet"
 # Owner's request (2026-11-06): the agents that design and implement the rule run on the stronger model;
 # the others stay on the default. Costs more per call; the per-call and per-cycle caps still apply.
 AGENT_MODELS: dict[str, str] = {"scout": "opus", "research": "opus",  # developer back on sonnet 2026-11-09: same error rate, ~3x cheaper
-                                "proxy-research": "opus", "esteira-research": "opus"}
+                                "proxy-research": "opus", "esteira-research": "sonnet"}  # esteira on sonnet: owner 2026-11-21 (cost)
 
 # tools: the built-in tools the agent gets at all (--tools).
 # allow: tool rules pre-approved so a headless run never stops on a prompt;
