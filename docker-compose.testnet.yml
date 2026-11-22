@@ -1,0 +1,21 @@
+# Binance SPOT TESTNET (testnet.binance.vision): real order mechanics, fake prices, no money.
+# Keys live only in testnet/.env (git-ignored; copy testnet/.env.example). Never put them in a config file.
+# The strategy is testnet/strategies/TestnetMechanics.py, an order exerciser, not research.
+# Start:  docker compose -f docker-compose.testnet.yml up -d
+# Stop:   docker compose -f docker-compose.testnet.yml down
+name: trading-lab-testnet
+
+services:
+  testnet-mechanics:
+    image: freqtradeorg/freqtrade:2026.9
+    restart: "no"
+    container_name: testnet-mechanics
+    env_file:
+      - testnet/.env
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./testnet:/freqtrade/testnet:ro"
+    command: >-
+      trade --config /freqtrade/testnet/config.testnet.json
+      --strategy TestnetMechanics --strategy-path /freqtrade/testnet/strategies
+      --logfile /freqtrade/user_data/logs/testnet-mechanics.log
