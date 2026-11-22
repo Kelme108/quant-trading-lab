@@ -8,6 +8,10 @@ Laboratório **reproduzível e auditável** para pesquisar, validar e (futuramen
 > - O laboratório **nunca aprova operação real**. Isso é uma decisão exclusiva do usuário.
 > - Isto não é recomendação de investimento. Resultados negativos são esperados e preservados de propósito.
 
+> **Segundo cérebro do projeto:** o mapa completo (estado atual, decisões do dono, regras invioláveis, robôs, como reconstruir o ambiente) está em [docs/cerebro/](docs/cerebro/00-LEIA-PRIMEIRO.md), um cofre Markdown que abre no Obsidian. O [CLAUDE.md](CLAUDE.md) aponta para ele. Comece por lá, sobretudo a linha atual de WIN/WDO; o resto deste README descreve principalmente a linha cripto original.
+>
+> **Clonou agora?** `python bootstrap.py --test` cria o ambiente e roda a suíte de sanidade; `python bootstrap.py --check` mostra o que falta. Regras de colaboração em [CONTRIBUTING.md](CONTRIBUTING.md).
+
 > **Mover o laboratório para Linux:** o manual passo a passo, escrito para o Claude do Linux ler, está em [docs/migracao-linux.md](docs/migracao-linux.md) (scripts em `ops/linux/`).
 
 ---

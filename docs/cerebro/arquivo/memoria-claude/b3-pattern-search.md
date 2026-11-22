@@ -1,0 +1,26 @@
+---
+name: b3-pattern-search
+description: "WIN pattern search paths A+B (owner-approved 2026-11-16): 552+9 variants on exploration, none passes; validation untouched; levers left: cost/limit orders, tick order-flow data, rarer bigger trades"
+metadata:
+  node_type: memory
+  type: project
+  modified: 2026-11-17T15:13:11.953Z
+---
+
+Owner approved docs/plano-busca-padroes-b3.md on 2026-11-16 (D1 a: A then B; D2 a: search gate = >=500 trades/yr, DSR >= 0.95, PBO <= 0.3, net > 0 base and conservative, agents keep the linear bar; D3 a: WIN only; D4 a: scikit-learn 1.9.1 + LightGBM 4.7.0 installed in C:\Python314). Pre-registered b3/config/pattern_search_b3.json (commit 1388af8) before any read; code b3/pattern_search.py; results research/b3/search/ (commit 6d84225).
+
+**Outcome (exploration only):** A 552 variants, none passes; best frequent gross +0.004%/trade vs 0.033% target; max DSR 0.002; PBO 0.20. B (LightGBM filter on 3 bases, walk-forward from 2023-Q1) 9 variants, gross up to +0.004%, PBO 0.81, none passes. No finalist -> validation NOT read (still clean for future work). Fast simulator matched the official engine 100% on 3 variants.
+
+**Why:** owner wants many trades per day ([[day-trade-focus]]); this was the test of whether candle patterns can give that on WIN.
+
+**How to apply:** do not re-run variations of these 16 families hoping for a different answer (they count as 561 trials). Next levers to offer the owner: (1) measure real slippage on the Clear demo / limit orders (slippage is ~80% of WIN cost), (2) tick order-flow (aggressor) data from MT5, (3) rarer, bigger trades. Related: [[b3-win-wdo-plan]].
+
+**Lever 1 done 2026-11-16 (commits fe93da7, 8c2c68e):** measured WINZ26 execution from Clear ticks (research/b3/execution_cost.json, tool research/tools/b3_execution_cost.py; ticks only ~1 month with quotes/aggressor on the front contract, holes after ~16h; WIN$N ticks have no bid/ask and no aggressor side; copy_ticks_range caps ~100k ticks per call; TIME: see [[mt5-tick-time-convention]]). Market orders 0.39 tick/side vs bar open (model 1), stops fill at the level (model 2 beyond), limits at the touch worse than market (adverse selection). Stage A re-read with measured cost: 36 frequent variants net > 0 at mean cost, none at p90, max DSR 0.009, PBO 0.51 -> none passes. Lever 2 (order flow) needs a tick recorder running for months first.
+
+**2026-11-16 night ("rode o projeto no maximo"):** path A on WDO (pre-registered `wdo_extension`, own ledger research/b3/search/wdo/): 0 of 398 frequent variants net > 0 even at measured cost, PBO 0.06, none passes. Tick recorder b3/data/tick_recorder.py + task TradeInitial-TickRecorder (weekdays 19:05, read-only) -> user_data/data/b3/clear/ticks/; backfill 58M ticks from 2026-08-17 (only current/next contracts readable). Those ticks sit inside the bar program's locked final test: a tick program needs its own owner-approved splits before any read. Agent pipeline is capped at 3 rules/week by b3_program.json (owner edit only).
+
+**Owner decisions 2026-11-16 ~20h:** (1) agent cap "maximo possivel" -> max_new_rules_per_week 168, task TradeInitial-ProxyCycle hourly (15-rule stops unchanged); (2) tick program approved: b3/config/tick_program_b3.json, splits exploration to 2026-12-31 / validation Jan-Feb 2027 / final from Mar 2027 locked, code b3/tick_search.py, gate decision only on the read after 2026-12-31; (3) "queremos estrategias rapidas": path C (rarer, fast) pre-registered + run: WIN best C04 range-shock fade 5m 61/yr +7%, max DSR 0.034 (849 trials), PBO 0.59, none passes; WDO nothing. First INTERIM tick read (20 WIN sessions): T02 imbalance fade 15 min ~960/yr +0.094% gross/trade, max DSR 0.22, PBO 0.57 - the strongest signal so far, still noise-level. Fixed: strategy_check now accepts 1-minute rules (P-013/P-015 never could pass); P-015 interrupted by a false guard trip from MY edits during a cycle; P-016 (5m) then failed because my screen change broke tests/b3/test_b3_plan_2026_11_14.py (fixed 3c1e7aa) - always run the full `pytest tests/b3` and check the exit code (not through `| tail`) before a cycle.
+
+**2026-11-17 (owner saw demo trades give back +R$80):** exit-management study pre-registered and approved ('aprovo, retire'): b3/config/exit_study_b3.json, b3/exit_study.py, docs/plano-gestao-saida-b3.md. Entries = official trades of registered agent rules, exits replayed on 1-minute bars (target/tighter stop/breakeven/trailing, stop-first, target needs 1 tick through). Result (commit 9c49811): 96 WIN variants (88 new trials, DSR trials 937), none passes; best +R$0.20/trade at measured cost, negative at p90; PBO 0.40. Exits cut losses but do not create an edge. Demo robots: BRL caps removed, MFE/MAE journalled (83b5dbf). Owner then paused everything (robots, cycles, recorder disabled; live\STOP and ops/state/STOP_PROXY_CYCLES present). Owner's real account is hedging ([[owner-account-hedging]]). Do not re-run exit variants on these rules.
+
+**How to apply (cycles):** never edit tracked files while a TradeInitial-ProxyCycle cycle runs (hourly at :57, ~15-25 min) - the pipeline's file guard fails the cycle; pause with ops/state/STOP_PROXY_CYCLES or use a worktree. B3 has not published the 2027 holiday calendar (as of 2026-11-16); never add it from memory; recorder/tick_search avoid needing it.

@@ -5,10 +5,13 @@ rem NOT evidence; the research pipeline keeps validating rules on its own. Start
 rem Windows tasks "TradeInitial-DemoB3" (WIN) and "TradeInitial-DemoB3-WDO" (it ignores a second start while running); the engine idles outside the session.
 rem Needs the Clear terminal open and logged in to ClearInvestimentos-DEMO. Stop: create live\STOP (it flattens and
 rem sends nothing new) or end the task. The journal is live\journal.demo-b3-p004-win.sqlite, the log live\logs\.
-cd /d D:\Trade-Initial
+call "%~dp0_env.cmd"
+cd /d "%ROOT%"
 set "NAME=%~1"
 if "%NAME%"=="" set "NAME=demo-b3-p004-win"
 if not exist live\logs mkdir live\logs
 echo ==== %DATE% %TIME% start >> live\logs\%NAME%-task.log
-live\.venv\Scripts\python.exe -m live.run --config live\config\%NAME%.json >> live\logs\%NAME%-task.log 2>&1
+set "LPY=%PY%"
+if exist "live\.venv\Scripts\python.exe" set "LPY=live\.venv\Scripts\python.exe"
+"%LPY%" -m live.run --config live\config\%NAME%.json >> live\logs\%NAME%-task.log 2>&1
 echo ==== %DATE% %TIME% exit %ERRORLEVEL% >> live\logs\%NAME%-task.log

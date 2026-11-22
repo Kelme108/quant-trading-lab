@@ -18,7 +18,7 @@ $robots = @(
     @('TradeInitial-DemoB3-E217', 'demo-b3-e217-win')
 )
 foreach ($pair in $robots) {
-    $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"Start-Process -WindowStyle Hidden -Wait -FilePath cmd.exe -ArgumentList '/c D:\Trade-Initial\ops\windows\demo-b3.cmd $($pair[1])'`""
+    $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"Start-Process -WindowStyle Hidden -Wait -FilePath cmd.exe -ArgumentList '/c $PSScriptRoot\demo-b3.cmd $($pair[1])'`""
     Register-ScheduledTask -TaskName $pair[0] -Action $a -Trigger $t.Triggers -Settings $t.Settings -Principal $t.Principal -Force | Out-Null
     Get-ScheduledTask $pair[0] | Get-ScheduledTaskInfo | Format-List TaskName, NextRunTime
 }
