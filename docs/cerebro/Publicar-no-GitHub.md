@@ -37,13 +37,14 @@ Resultado em 2026-11-22: _a preencher_.
 
 ## Antes de cada push
 
-1. `git status`: nenhum `.env`, banco ou dado de mercado.
-2. Segredos: `python -m pytest tests/test_cerebro_vault.py` varre o cofre; busque também `password`, `api_key` e `secret` nos arquivos novos.
-3. Testes: o comando da CI acima.
-4. `git remote -v` confere para onde vai.
-5. A esteira também comita (`exp(esteira):`). Em outra máquina, `git pull --rebase` antes de empurrar.
-6. Commit só dos seus caminhos ([[Regras-inviolaveis]]).
+1. **Foto dos menus de saída:** `python ops/snapshot_exit_reports.py --dry-run` mostra o que falta; sem `--dry-run` copia os relatórios novos e estende os ledgers de `ops/state/` para `research/b3/` (recusa se um ledger foi reescrito ou se um ciclo da esteira está rodando). Depois `git add research/b3/exit_menu research/b3/exit_brl`. Sem isso, o clone vê menos escolhas na seção Esteira do portal e a conta de versões lidas fica incompleta.
+2. `git status`: nenhum `.env`, banco ou dado de mercado.
+3. Segredos: `python -m pytest tests/test_cerebro_vault.py` varre o cofre; busque também `password`, `api_key` e `secret` nos arquivos novos.
+4. Testes: o comando da CI acima.
+5. `git remote -v` confere para onde vai.
+6. A esteira também comita (`exp(esteira):`). Em outra máquina, `git pull --rebase` antes de empurrar.
+7. Commit só dos seus caminhos ([[Regras-inviolaveis]]).
 
 ## O que a CI cobre
 
-Cofre, `tests/b3` e `tests/live`. A suíte antiga (`tests/archive`, linha cripto) tem falhas preexistentes por interferência entre testes e fica fora da CI ([[Pendencias-e-calendario]]).
+Cofre, `tests/b3` e `tests/live`. A suíte completa (`python -m pytest tests`) leva ~25 minutos e tem falhas conhecidas por **interferência entre testes**: 5 em `tests/archive` (H-019 e H-055, linha cripto) e 3 em `tests/b3/test_b3_freqtrade_adapter.py`, que passam quando rodados sozinhos. Por isso ficam fora da CI ([[Pendencias-e-calendario]]).
