@@ -1,0 +1,58 @@
+{
+ "rule_id": "P-010",
+ "title": "European-close order-flow reversal: fade a large 11:00-11:30 NY move from 12:30 to 13:55 NY, US500",
+ "class_name": "EuropeanCloseMiddayReversal",
+ "file_stem": "p010_european_close_midday_reversal",
+ "markets": [
+  "US500"
+ ],
+ "timeframe_min": 5,
+ "ex_ante_rule": "Bars: 5-minute, session-only (New York regular session 09:30-16:00); minute_of_day is local NY minutes after midnight. DAY FILTERS (all known ex ante, no price): (a) trade only when the European cash close (17:30 Europe/Berlin on that date, converted with zoneinfo) falls at 11:30 America/New_York; this skips the 2-4 weeks a year when US and European daylight-saving dates differ and Europe closes at 12:30 NY; (b) skip FOMC_today days (mark_events with kinds [FOMC]); (c) trade only on full sessions (close at 16:00 NY; half days are skipped). SIGNAL WINDOW: the 30 minutes before the European close. A = close of the bar that opens 10:55 (minute_of_day 655), B = close of the bar that opens 11:25 (minute_of_day 685, closes 11:30). R = B / A - 1. SCALE: S = mean of |R| over the previous 20 sessions that have both bars (today excluded; days skipped by filters a-c still count toward S; no trade until 20 values exist). TRIGGER: |R| >= 1.5*S and |R| >= 0.001. ENTRY: decided only at the close of the bar that opens 12:25 (minute_of_day 745), so the market order fills at the 12:30 NY bar open, 60 minutes after the European close; one decision a day, max_entries_per_day = 1. If R >= trigger (window went up): ENTER_SHORT. If R <= -trigger (window went down): ENTER_LONG. Symmetric sides. STOP on every entry: 0.4% of the 12:25-bar close, tick-rounded away from the price (long stop = tick_floor(C*0.996), short stop = tick_ceil(C*1.004)). EXIT: time exit at the close of the bar that opens 13:50 (minute_of_day 830), so the position is closed at the 13:55 bar open, before any 14:00 release; longest hold 85 minutes. Otherwise the stop. No target, no re-entry after a stop. Entry window: exactly 180 minutes after the open (210 minutes before the close). Lookbacks: 30-minute signal window, 20 sessions for S.",
+ "parameters": {
+  "european_close_local_berlin_hhmm": 1730,
+  "required_european_close_ny_minute_of_day": 690,
+  "window_start_bar_open_minute": 655,
+  "window_end_bar_open_minute": 685,
+  "signal_window_minutes": 30,
+  "scale_lookback_sessions": 20,
+  "threshold_mult": 1.5,
+  "min_abs_window_move_frac": 0.001,
+  "decision_bar_open_minute": 745,
+  "entry_minute_of_day": 750,
+  "entry_delay_after_european_close_min": 60,
+  "exit_decision_bar_open_minute": 830,
+  "exit_minute_of_day": 835,
+  "max_hold_minutes": 85,
+  "stop_frac": 0.004,
+  "skip_fomc_days": 1,
+  "max_entries_per_day": 1
+ },
+ "mechanism": "Between 11:00 and 11:30 NY, European participants finish their day: European asset managers hedging or adjusting their US equity exposure, dealers in London and Frankfurt flattening the intraday S&P futures risk they took on before their desks close, and basket and cross-asset hedges tied to the 17:30 CET European close. This flow is driven by a clock and by inventory limits, not by news about US companies. It arrives just as US liquidity thins out for lunch. JPMorgan's strategists (Kolanovic et al., reported by Bloomberg on 6 July 2022) found that a large gap between buyer- and seller-initiated S&P 500 e-mini trades during the European close makes a mid-session reversal in New York more likely, and that these reversals usually start around 1 p.m. They also report that liquidity around 1 p.m. had fallen about 40% in two years, and that by 2022 less than $1bn of five-minute imbalance moved the e-mini 1% (about $6bn in 2017). On the other side are US liquidity providers who absorb the one-way flow and charge a price concession for the inventory. Once the European flow stops, they unload into the thin early afternoon and part of the concession comes back. The NY Fed's overnight-drift study documents the same inventory logic at another hand-off, the US close to the European open: an order imbalance absorbed by market makers is followed by a predictable reversal. This rule cannot see order flow, so it uses the price move in the 30-minute window as a stand-in, and trades only when that move is large against its own 20-day history.",
+ "why_gross_beats_3x_cost": "On US500 the measured 30-minute median move is 9.2x the cost in the 11:00 hour, 7.7x in the 12:00 hour and 7.8x in the 13:00 hour. The 60-minute median over the whole day is 0.128% (mean 0.208%) (anatomy.json). An 85-minute midday hold therefore has a typical absolute move of about 0.12-0.18%. Trigger days have a European-close window move of at least 1.5x its 20-day average, roughly 0.15-0.3%. If the 12:30-13:55 leg gives back 15-20% of that window move on average, or equivalently the trade gets the sign right on 54-55% of trades with an average win about 1.1x the average loss, the mean gross is about 0.03-0.05% per trade, 3-5x the 0.01% round trip. The 0.4% stop is about 3x the typical midday 85-minute move, so it should fire on under 5% of trades. The 0.005% stop slippage is about 1% of the risk. The rule is short after up-windows and long after down-windows, so it does not lean on the market's upward drift. A known risk is that some large 11:00-11:30 moves are headline-driven, and those may continue.",
+ "expected_trades_per_year": 50,
+ "expected_median_hold_min": 85,
+ "novelty_vs_tried": "P-001/P-006 (opening-range and first-candle breakouts), P-003 (noise-area breakout) and P-005 (VWAP trend) bet on continuation. So do P-002/P-004/P-007, which carry first-half-hour or rest-of-day momentum into the last half hour. All of these use the open or the whole day as reference and none trades the midday. P-008 fades the overnight-plus-first-15-minutes opening move and is flat by 10:45. P-009 trades month-end calendar flow in the last hour. The event rules traded FOMC/CPI/NFP releases. This rule's signal is a fixed 30-minute window anchored to a different market's close, the 17:30 CET European cash close, which is 11:30 NY. It ignores the open, the overnight gap and the day's trend. It enters only at 12:30 NY, after a 60-minute gap following the signal, and is flat at 13:55, so it lives entirely in the lunch session that no earlier rule touched. It skips FOMC days and the daylight-saving mismatch weeks. The counterparty is European end-of-day flow absorbed by thin US lunch liquidity, not opening imbalance, trend-following or scheduled news.",
+ "sources": [
+  {
+   "title": "Bloomberg via The Wealth Advisor (Lu Wang, 6 July 2022): Liquidity-Sapped Stock Market Keeps Flipping in Your Lunch Break (JPMorgan/Kolanovic e-mini imbalance at the European close predicts midday reversals near 1 p.m.)",
+   "url": "https://www.thewealthadvisor.com/article/liquidity-sapped-stock-market-keeps-flipping-your-lunch-break"
+  },
+  {
+   "title": "BNN Bloomberg: Liquidity-Sapped Stock Market Keeps Flipping in Your Lunch Break (same article; fetch returned the homepage)",
+   "url": "https://www.bnnbloomberg.ca/liquidity-sapped-stock-market-keeps-flipping-in-your-lunch-break-1.1788644"
+  },
+  {
+   "title": "Liberty Street Economics (NY Fed, 2021): The Overnight Drift in U.S. Equity Returns (order imbalance absorbed by market makers, then reversal; opening reversal until noon)",
+   "url": "https://libertystreeteconomics.newyorkfed.org/2021/05/the-overnight-drift-in-us-equity-returns"
+  },
+  {
+   "title": "Liberty Street Economics (NY Fed, 2026): The Disappearing Overnight Drift (imbalance-driven reversal weaker in 2021-25: counter-evidence)",
+   "url": "https://libertystreeteconomics.newyorkfed.org/2026/07/the-disappearing-overnight-drift/"
+  }
+ ],
+ "data_visible_at_proposal": "research/proxies/context/P-010.md; research/proxies/anatomy.json (US500/USTEC move sizes by horizon and by hour); key list of research/proxies/failure_anatomy.json; research/proxies/proposals/P-008.json and P-009.json; b3/proxy_rules/p009_month_end_rebalancing_last_hour.py (rule style, SessionRules, mark_events use); b3/markets.py session definitions (grep); b3/events.py kinds (grep). Web: search results on Heston-Korajczyk-Sadka intraday periodicity, market intraday momentum/gamma, Golez-Jackwerth pinning (rejected as ideas), Dash-for-Cash (too close to P-009), and the JPMorgan/Bloomberg lunch-reversal article (text read on The Wealth Advisor; the BNN page fetch returned the homepage). The NY Fed pages are cited from search summaries. No validation or final-test results were seen.",
+ "status": "error",
+ "problems": [
+  "proxy-research failed: You've hit your 5-hour limit · resets 5:50pm (America/Sao_Paulo) "
+ ]
+}

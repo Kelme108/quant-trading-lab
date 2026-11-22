@@ -1,0 +1,17 @@
+{
+  "title": "15m Bollinger %B dip with fresh MACD upturn below zero, triple-barrier exit (Hummingbot MACD-BB controller)",
+  "source": {
+    "type": "blog",
+    "url": "https://hummingbot.org/blog/directional-trading-with-macd-and-bollinger-bands/",
+    "title": "Hummingbot: Directional Trading with MACD and Bollinger Bands",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars; signal at close t, fill at next open; long only, one position. On close: BB(100, 2.0) with population std; %B = (close - lower)/(upper - lower); width W = (upper - lower)/middle. MACD = EMA(21) - EMA(42); signal = EMA(9) of MACD; hist = MACD - signal. ENTRY when ALL hold: %B(t) < 0.3; hist(t) > 0 and hist(t-1) <= 0 (fresh upturn; added here so one dip gives one signal); MACD(t) < 0; W(t) >= 0.025 (bands wide enough for a 2% target); flat. EXIT, triple barrier, first hit: stop 1.0% below entry; take-profit 2.0% above entry; trailing stop that starts once price trades 1.0% above entry and then sits 0.4% below the highest high since entry; time limit at the close of the 48th bar after entry (12 hours). Source example values (Hummingbot docs): BB 100/2, long threshold 0.3, MACD 21/42/9, stop 1%, trailing 1%/0.4%, take-profit 6%, time limit 24h. The 2% target, 12h limit, width filter and freshness rule are adaptations.",
+  "mechanism": "It buys a dip that has stopped accelerating. Price sits in the lower part of a 25-hour band while MACD momentum has just turned up below zero, so the sellers who drove the dip are slowing. Whoever buys the low is paid by late sellers and stopped-out longs, and the trailing barrier keeps the bounce. The source (Hummingbot MACD-BB directional controller, blog plus the v2 examples docs) gives no mechanism beyond using momentum to confirm a mean-reversion entry. Cost: the 2% target and the 1% trail activation are 3-7x the 0.30% round trip, and the 1% stop keeps cost at 0.3R. The W filter skips quiet bands where 2% is out of reach.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 12,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "family_hint": "BBPercentMACDTurn"
+}

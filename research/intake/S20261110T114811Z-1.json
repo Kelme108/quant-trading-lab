@@ -1,0 +1,18 @@
+{
+  "title": "15m displacement fair-value-gap retrace: buy the first pullback into a volume-backed bullish gap, 1.5R bracket, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/fair-value-gap.md",
+    "title": "LuxAlgo Library: Fair Value Gap (concept)",
+    "license": "LuxAlgo Library licence: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars only; a signal at a bar close fills at the next bar open. Spot, long only, one position per pair, at most 3 entries per pair per UTC day. SETUP at the close of bar i: displacement bar d=i-1 has close(d)>open(d), close(d)/open(d)-1 >= 0.010 and volume(d) >= 2.0 x the mean volume of bars d-20..d-1; bullish gap exists: low(i) > high(i-2). Gap bottom GB=high(i-2), gap top GT=low(i), midpoint CE=(GB+GT)/2. Only the most recent setup is live; it stays armed for bars i+1..i+16 (4 hours) and is cancelled if any bar closes below GB first. ENTRY: the first armed bar t with low(t) <= CE and close(t) >= GB; buy at open of t+1 (fill E). STOP (intrabar, fixed at entry): S = min(low(d), 0.99*E), so the stop is at least 1% away. TARGET: E + 1.5*(E-S). TIME EXIT: sell at the close of the 48th bar after entry (12 hours). If stop and target are touched in the same bar, assume the stop. No higher-timeframe filter; the 2x volume on the displacement bar is the single activity filter.",
+  "mechanism": "A wide 15m up bar on double volume that leaves a gap is the footprint of an aggressive buyer lifting offers faster than sellers refill them (a one-sided auction, as the source describes). Large buyers split metaorders over hours (the Lillo-Mike-Farmer order-splitting model, arXiv 2301.13505, explains the long memory of order-flow signs), so buying pressure tends to continue. The pullback into the gap is supplied by short-term profit takers and late sellers; we buy from them before the remaining child orders arrive. Cost: the stop is at least 1% away, so the 0.30% round trip is at most 0.3R; the target is at least 1.5%. Average gross = R*(2.5p-1); with R about 1.2% and a continuation rate near 57% this is about 0.5% per trade. The source gives no statistics; this is a hypothesis.",
+  "timeframe": "15m",
+  "longest_lookback": 22,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "FVGDisplacementRetrace"
+}

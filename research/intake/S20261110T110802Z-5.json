@@ -1,0 +1,17 @@
+{
+  "title": "15m quiet-hour dip reversion: buy sharp 1-hour drops that happen in the day's lowest-volume time slots",
+  "source": {
+    "type": "paper",
+    "url": "https://arxiv.org/abs/2109.12142",
+    "title": "Hansen, Kim, Kimbrough: Periodicity in Cryptocurrency Volatility and Liquidity (arXiv 2109.12142)",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars, UTC; signal at close t, fill at next open; long only, one position. SLOTS: the 96 15m times of day. Once per UTC day d, at 00:00: for each slot s, SV(s) = mean volume of slot s over days d-20..d-1 (today excluded); slot s is QUIET on day d if SV(s) <= the 33rd percentile of the 96 SV values. r4(t) = close(t)/close(t-4) - 1. sig(t) = sample std (ddof=1) of the 1-bar log returns of bars t-672..t-1, times 2 (= sqrt 4). ENTRY when ALL hold: bar t is in a QUIET slot; r4(t) <= -max(0.008, 2.0*sig(t)); flat; fewer than 3 entries on this pair in the current UTC day. Store P = close(t-4), the pre-drop price. If the fill price open(t+1) >= P, cancel. EXIT, first of: take-profit limit at P; stop at entry*0.988; time exit at the close of the 16th bar after entry (4 hours). No trend filter; the quiet slots are re-estimated daily from data, not hard-coded hours.",
+  "mechanism": "Admati and Pfleiderer (RFS 1988): informed traders cluster in high-volume periods, so a price move in a thin period is more likely uninformed liquidity demand. Hansen, Kim and Kimbrough document stable hour-of-day volume and volatility patterns in crypto (trough near 05 UTC, peaks at 00 and 16 UTC; Quantpedia summary). Bianchi, Babiak and Dickerson (JBF 2022) find crypto reversal, i.e. liquidity-provision, returns concentrate where activity is low. A sharp 1-hour drop in a quiet slot is therefore likely a liquidity shock that reverts when normal depth returns, and the seller who hit a thin book pays the dip buyer. Different from tried volume-conditioned reversals: it conditions on the time-of-day liquidity regime. Cost: target is the full pre-drop price, at least 0.8% (usually 1-2%) away.",
+  "timeframe": "15m",
+  "longest_lookback": 2016,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "family_hint": "QuietSlotDipReversion"
+}

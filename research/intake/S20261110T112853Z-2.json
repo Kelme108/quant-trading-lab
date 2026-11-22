@@ -1,0 +1,18 @@
+{
+  "title": "HLHB trend-catcher on 15m: EMA5/EMA10 cross confirmed by RSI(10) crossing 50 and ADX above 25, trailing stop",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/hlhb.py",
+    "title": "freqtrade-strategies: hlhb (HLHB system, after the BabyPips trend-catcher)",
+    "license": "GPL-3.0"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. Indicators: EMA5 and EMA10 of close; RSI(10, Wilder) computed on the median price (high+low)/2; ADX(14, Wilder). ACTIVITY FILTER (fixed): Wilder ATR(14)/close >= 0.4% on the signal bar. ENTRY when flat at bar t, all of: EMA5 crossed above EMA10 on bar t or t-1 (EMA5(i) > EMA10(i) and EMA5(i-1) <= EMA10(i-1) for i = t-1 or t); RSI10 crossed above 50 on bar t or t-1 and RSI10(t) > 50; EMA5(t) > EMA10(t); ADX14(t) > 25; activity filter true. EXITS (first hit): initial stop 1.2% below entry, which becomes a trailing stop kept 1.2% below the highest high since entry (checked intrabar, never lowered); take-profit at +2.4% (keeps the source's long target and short trail, shortened for a 12h hold); signal exit at the close of a bar where EMA5 crosses below EMA10 and RSI10 < 50 (executed next open); time exit at the open 48 bars (12h) after entry. At most 3 entries per pair per UTC day.",
+  "mechanism": "HLHB (Huck Loves Her Bucks, the BabyPips 1h FX trend-catcher, restated in freqtrade-strategies hlhb.py) buys the start of a short trend only when a fast EMA cross, RSI crossing 50 and ADX above 25 agree. Who pays: mean-reversion liquidity providers who fade the first leg, while slow order flow (split institutional orders, rebalancing) keeps arriving for hours, which gives positive short-horizon autocorrelation in active periods. The rule trades only when 15m ATR is at least 0.4% and ADX shows a real trend; the 1.2% stop makes the 0.30% round trip 0.25R, and the trailing stop lets trend legs run to +2.4%. Gross estimate about 0.5% per trade if winners average about 1.6% at a 45% hit rate. The source gives no market evidence; popularity is not evidence.",
+  "timeframe": "15m",
+  "longest_lookback": 30,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "HLHBTrendCatcher"
+}

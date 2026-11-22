@@ -1,0 +1,18 @@
+{
+  "title": "Dual Thrust on 2-hour UTC blocks: buy block open plus half the 8-hour range, armed only on wide ranges, 4h exit",
+  "source": {
+    "type": "blog",
+    "url": "https://www.quantconnect.com/tutorials/strategy-library/dual-thrust-trading-algorithm",
+    "title": "Dual Thrust Trading Algorithm (QuantConnect strategy library)",
+    "license": "unknown (page marked all rights reserved)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. BLOCKS: each UTC day is split into twelve 2-hour blocks starting 00:00, 02:00, ..., 22:00 (8 bars each). For the current block j: O = open of its first 15m bar. From the 4 completed blocks j-4..j-1 (32 bars): HH = highest high, LL = lowest low, HC = highest block close, LC = lowest block close (block close = close of its 8th bar). RANGE = max(HH - LC, HC - LL). BUY LINE = O + 0.5*RANGE (Dual Thrust N = 4, K1 = 0.5, the published demo values). ARMED (activity filter, fixed): RANGE/O >= 2.0%. ENTRY when flat: the first 15m bar of block j whose close > BUY LINE; one entry per block; no entry on the block's 8th bar. STOP = O (the block open, 0.5*RANGE below the line, so the risk is at least 1%), intrabar. No take-profit. TIME EXIT: at the close of the last 15m bar of block j+1 (hold of about 2 to 4 hours), executed at the next open. If any bar of the blocks used is missing, block j is not armed. Long only: the short side (sell line) of the original is not traded.",
+  "mechanism": "Dual Thrust (Michael Chalek; QuantConnect strategy library; je-suis-tm quant-trading README) buys when price moves a fixed share of the recent N-period range away from the period open; max(HH-LC, HC-LL) measures both trending and whipsaw range. Resetting the period open every 2 hours gives several chances a day, and arming only when the 8h range is at least 2% keeps it to high-activity regimes. Who pays: range traders and liquidity providers who sell an outsized move from the open while split orders keep the flow going. A variant of HourlyWilliamsVolBreakout with a different period, range and exit. Cost: risk at least 1% (0.3R or less); the trigger needs a 1%+ move from the open, and continuation of about 1% in the next hours gives a gross estimate near 0.5%.",
+  "timeframe": "15m",
+  "longest_lookback": 40,
+  "free_parameters": 4,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "HourlyWilliamsVolBreakout"
+}

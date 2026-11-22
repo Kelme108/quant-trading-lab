@@ -1,0 +1,17 @@
+{
+  "title": "15m bullish fair-value-gap retest: buy a wick into the gap midpoint after a displacement bar",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/fair-value-gap.md",
+    "title": "LuxAlgo Library: Fair Value Gap",
+    "license": "Free to use with attribution (LuxAlgo Library licence)"
+  },
+  "rule_summary": "15m closed bars; signal at close t, fill at next open; long only, one position. ATR14 = Wilder ATR on 15m. GAP known at close of bar k: low(k) > high(k-2); displacement bar k-1 has close > open and close(k-1)-open(k-1) >= max(1.5*ATR14(k-2), 0.008*open(k-1)); GB = high(k-2), GT = low(k), CE = (GB+GT)/2; need (GT-GB)/GB >= 0.002. RETEST window: bars k+1..k+32. The setup is cancelled if a bar in the window closes below GB before entry, or when the window ends; a newer gap replaces a pending one. ENTRY at close of the first bar t in the window with low(t) <= CE and close(t) >= CE (wick into the gap, close back above its midpoint); flat; fewer than 4 entries today (UTC) on this pair. DH = highest high of bars k-1..t-1. STOP = min(GB*0.997, close(t)*0.99), so at least 1% below the signal close. TARGET = max(DH, close(t)*1.012). EXIT, first of: stop; take-profit limit at TARGET; time exit at the close of the 48th bar after entry (12 hours). One trade per gap.",
+  "mechanism": "A bullish fair value gap is left when a displacement bar runs through the book faster than sellers can post offers: one-sided, aggressive buying. Large buyers split their orders over time (order-flow persistence, Lillo and Farmer 2004), so the first pullback into the gap meets the rest of that buy flow, and the traders selling the retrace in the belief that the impulse has failed are on the other side. The source gives an institutional-imbalance story, not evidence; this is the closest honest mechanism. This is the opposite of the tried inverse FVG (I-094, which buys a reclaimed bearish gap). Cost: the target is at least 1.2% and the stop at least 1%, so the round trip is at most 0.3R.",
+  "timeframe": "15m",
+  "longest_lookback": 50,
+  "free_parameters": 9,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 500,
+  "family_hint": "BullishFVGRetest"
+}

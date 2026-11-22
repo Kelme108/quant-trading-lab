@@ -1,0 +1,18 @@
+{
+  "title": "15m bullish order-block retest after a volume-backed 4-hour structure break, target the impulse high, 12h cap",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/bullish-bearish-order-block.md",
+    "title": "LuxAlgo Library: Bullish/Bearish Order Block (concept)",
+    "license": "LuxAlgo Library licence: free to use with attribution"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at bar close, fill at next bar open. Spot, long only, one position per pair, at most 3 entries per pair per UTC day. DISPLACEMENT bar b: close(b) > highest high of bars b-16..b-1 (breaks the 4-hour swing high), close(b)/open(b)-1 >= 0.010, volume(b) >= 2.0 x mean volume of bars b-20..b-1. ORDER BLOCK: the most recent run of consecutive down-closing bars (close<open) within b-5..b-1; zone top OBT = max high, zone bottom OBB = min low of that run. No down bar in b-5..b-1 means no setup. The newest setup replaces older ones; it is armed for bars b+1..b+24 (6 hours) and cancelled if any bar closes below OBB. ENTRY: first armed bar t with low(t) <= OBT, close(t) >= OBB and close(t) > open(t) (bullish reaction in the zone); buy at open of t+1 (fill E). STOP (intrabar, fixed): S = min(0.999*OBB, 0.99*E). TARGET H = highest high of bars b..t (the impulse high); skip the entry if H/E-1 < 0.010. TIME EXIT: close of the 48th bar after entry. Stop wins a same-bar tie. The 2x volume on the break bar is the only activity filter.",
+  "mechanism": "The source treats the last down-closing candle before an impulse that breaks structure as the place where a large buyer absorbed selling before price left; when price returns, that buyer (with unfilled size, or adding near its average) tends to defend the zone, while the sellers on the pullback are late sellers and stopped longs. The source warns this is interpretive and often fails; the closest academic support is order splitting, which makes large-buyer flow persist for hours. Cost: the stop is at least 1% below entry and the target (the impulse high) at least 1% above, usually 1.5-2.5% after a 1% break bar, so the 0.30% cost is under 0.3R. If about half of retests reach the high, the average gross is near 0.5%. The source reports no statistics.",
+  "timeframe": "15m",
+  "longest_lookback": 22,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "OrderBlockRetest"
+}

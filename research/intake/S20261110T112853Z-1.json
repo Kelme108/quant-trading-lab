@@ -1,0 +1,18 @@
+{
+  "title": "15m Bollinger %B below 0.2 with a fresh MACD histogram turn, volatility-scaled triple-barrier exit",
+  "source": {
+    "type": "blog",
+    "url": "https://hummingbot.org/blog/directional-trading-with-macd-and-bollinger-bands/",
+    "title": "Directional Trading with MACD and Bollinger Bands (Hummingbot)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. Indicators on 15m closes: Bollinger Bands length 100, 2.0 std (mid = SMA100, sd100 = population std of the 100 closes); %B = (close - lower)/(upper - lower). MACD(12,26,9): line = EMA12 - EMA26, signal = EMA9 of line, hist = line - signal. ACTIVITY FILTER (fixed): Wilder ATR(14)/close >= 0.4% on the signal bar. ENTRY when flat and all hold at bar t: %B(t) < 0.2; MACD line(t) < 0; hist(t) > 0 and hist(t-1) <= 0 (momentum has just turned up while price is still stretched below the mean); activity filter true. BARRIERS fixed at entry: risk d = max(0.75*sd100(t), 1.0% of the entry price); stop-loss = entry - d; take-profit = entry + 2*d (the source's 1.5 sd : 0.75 sd ratio); time barrier: exit at the open 48 bars (12h) after entry if neither is hit. Stop and target checked intrabar on 15m highs and lows. At most 3 entries per pair per UTC day; no re-entry on the bar of an exit.",
+  "mechanism": "The Hummingbot directional controller (macd_bb) buys when price is overextended below its Bollinger band and MACD shows momentum turning, with volatility-scaled triple-barrier exits (Lopez de Prado). Who pays: late sellers and stop or liquidation flow that push price far below the 25-hour mean; once their flow is spent (histogram turns up) price reverts toward the mean. The source's own test with tiny barriers and a 55-minute limit lost money to fees, so this version widens the barriers to at least 1% risk and a 2R target with a 12h limit, and trades only when 15m ATR is at least 0.4%, so the 0.30% round trip is at most 0.3R. Gross estimate: stop ~1.2%, target ~2.4%; a hit rate near 47% gives about +0.5% per trade, with time exits adding small moves.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "BBPercentMACDTurn"
+}

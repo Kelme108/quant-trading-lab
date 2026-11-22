@@ -1,0 +1,17 @@
+{
+  "title": "15m band-acceleration capitulation (BinHV45 adapted): buy a sharp close below a widening lower band, 1.25% target",
+  "source": {
+    "type": "repo",
+    "url": "https://github.com/freqtrade/freqtrade-strategies/blob/main/user_data/strategies/berlinguyinca/BinHV45.py",
+    "title": "freqtrade-strategies: BinHV45 (berlinguyinca)",
+    "license": "GPL-3.0"
+  },
+  "rule_summary": "15m closed bars; signal at close of bar t, fill at open of t+1; long only, one position. BB on close: mid = SMA(40), sd = population std of the same 40 closes, lower = mid - 2*sd. bbdelta(t) = mid(t) - lower(t). closedelta(t) = |close(t) - close(t-1)|. tail(t) = close(t) - low(t). ENTRY when ALL hold: (1) bbdelta(t) >= 0.008*close(t) (bands already wide); (2) closedelta(t) >= 0.008*close(t); (3) close(t) <= close(t-1), so the move is a drop; (4) close(t) < lower(t-1); (5) tail(t) <= 0.25*bbdelta(t) (bar closes near its low); (6) flat. EXIT, first of: take-profit limit at entry*1.0125 (the source's flat 1.25% ROI); stop at entry*0.985; time exit at the close of the 24th bar after entry (6 hours). No higher-timeframe filter. The source runs on 1m with a 1.7% closedelta and a 5% stop; the 0.8% thresholds, 1.5% stop and time exit are this adaptation's choices.",
+  "mechanism": "It buys into a forced, one-sided sell burst. A big close-to-close drop that ends at the bar low, below a lower band that is already widening, looks like stop or liquidation selling that has used up the resting bids. The buyer supplies liquidity at a temporary discount and is paid by impatient sellers. Nagel (RFS 2012) shows reversal returns are liquidity-provision returns and grow when volatility is high, which the bbdelta condition requires. The same entry is used in the community CombinedBinHAndCluc. Cost: the 1.25% target is about 4x the 0.30% round trip, and entries need a drop of at least 0.8% in one 15m bar, so a partial retrace covers costs.",
+  "timeframe": "15m",
+  "longest_lookback": 41,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "BandAccelCapitulation"
+}

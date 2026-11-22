@@ -1,0 +1,18 @@
+{
+  "title": "15m bullish fair-value-gap retrace after a volume displacement candle: buy the held gap midpoint, 1.5R target",
+  "source": {
+    "type": "blog",
+    "url": "https://ninjatrader.com/futures/blogs/fair-value-gaps/",
+    "title": "The Ultimate Guide to Trading Fair Value Gaps (NinjaTrader)",
+    "license": "unknown"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. GAP on bars k-2, k-1, k: low(k) > high(k-2) (bullish fair value gap); gap top G1 = low(k), bottom G0 = high(k-2); require (G1-G0)/G0 >= 0.2%. DISPLACEMENT bar k-1: close > open, body (close-open) >= 1.5*ATR14 (Wilder ATR as of bar k-2), and volume(k-1) >= 2.0x the mean volume of bars k-21..k-2 (activity filter, fixed). The gap is active for bars k+1..k+32 (8 hours) and is dropped as filled when a bar closes below G0. ENTRY at the first bar t in the active window, when flat: low(t) <= G1 (price traded back into the gap), close(t) >= (G0+G1)/2 (it held the gap midpoint) and close(t) > open(t). One entry per gap. STOP = min(low(k-1), 0.99*entry price): beyond the displacement candle low and at least 1% away. TARGET = entry + 1.5*(entry - stop). EXITS: stop or target intrabar; time exit at the open 48 bars (12h) after entry. At most 3 entries per pair per UTC day.",
+  "mechanism": "NinjaTrader's FVG guide: one-sided aggressive buying moves price so fast that resting sell orders never trade inside the gap; price often comes back to rebalance the imbalance and then continues with the prior move, and a close through the gap invalidates the idea. Here the displacement is measurable (1.5 ATR body, 2x volume) and the entry needs a rejection close above the gap midpoint. Who pays: liquidity providers who sold into the displacement and short-term faders who sell the pullback, while the initiator's remaining orders lift price again. Differs from I-094 (inverse FVG, a bearish gap reclaimed) and from high breakouts. Cost: stop at least 1%, so the round trip is at most 0.3R; target 1.5R (about 1.5-2%). Gross estimate about 0.5% at a 48% hit rate.",
+  "timeframe": "15m",
+  "longest_lookback": 56,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "FVGRetraceContinuation"
+}

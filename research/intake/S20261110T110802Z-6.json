@@ -1,0 +1,17 @@
+{
+  "title": "15m Al Brooks High-2 second-entry pullback in a rising trend, pullback-low stop of at least 1%, 1.5R target",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/bar-counting-h1-h2.md",
+    "title": "LuxAlgo Library: Bar Counting H1/H2",
+    "license": "Free to use with attribution (LuxAlgo Library licence)"
+  },
+  "rule_summary": "15m closed bars; signal at close t, fill at next open; long only, one position. TREND: EMA20(t) > EMA20(t-8) on 15m closes, and the last COMPLETED 1h bar closes above EMA(50) of 1h closes. LEG HIGH: p = bar of the highest high of bars t-16..t-2, SH = high(p); need SH >= highest high of bars t-48..t-1 and high(t-1) <= SH. COUNT over j = p+1..t: a down bar has high(j) < high(j-1); an up event has high(j) > high(j-1) with at least one down bar since p or since the previous up event. The first up event is H1, the second is H2. ENTRY at close of bar t when: t is H2; close(t) > high(t-1); PL = lowest low of bars p+1..t; (SH-PL)/SH between 0.01 and 0.05; stop = PL*0.999; R = close(t) - stop with R/close(t) between 0.01 and 0.03 (else skip); flat; fewer than 3 entries today (UTC) on this pair. EXIT, first of: stop; take-profit limit at close(t) + 1.5R; time exit at the close of the 32nd bar after entry (8 hours).",
+  "mechanism": "Al Brooks (Trading Price Action, summarised by LuxAlgo and NexusFi): trend pullbacks are often two-legged. The first try to resume (H1) fails; counter-trend traders who sold that failure, with stops above recent bar highs, are trapped when the second try (H2) breaks the prior bar high. Their covering plus trend traders re-entering drives the continuation. This differs from the tried Holy Grail (first EMA20 touch with ADX) and from the 1h bull flag: the trigger is the second failed sell attempt inside a 15m pullback. Cost: R is at least 1% of price, so the 0.30% round trip is at most 0.3R, and the 1.5R target is at least a 1.5% move.",
+  "timeframe": "15m",
+  "longest_lookback": 200,
+  "free_parameters": 11,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 500,
+  "family_hint": "SecondEntryH2Pullback"
+}

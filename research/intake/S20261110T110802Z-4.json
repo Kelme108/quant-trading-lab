@@ -1,0 +1,17 @@
+{
+  "title": "15m Corwin-Schultz spread spike during a drop: buy when estimated liquidity evaporates, 6-hour exit",
+  "source": {
+    "type": "paper",
+    "url": "https://ideas.repec.org/a/eee/jbfina/v124y2021ics0378426620303022.html",
+    "title": "Brauneis, Mestel, Riordan, Theissen (2021) How to measure the liquidity of cryptocurrency markets? Journal of Banking & Finance 124",
+    "license": "unknown"
+  },
+  "rule_summary": "15m closed bars; signal at close t, fill at next open; long only, one position. For each bar i: B = ln(high(i)/low(i))^2 + ln(high(i-1)/low(i-1))^2; G = ln(max(high(i),high(i-1))/min(low(i),low(i-1)))^2; k = 3 - 2*sqrt(2); A = (sqrt(2B) - sqrt(B))/k - sqrt(G/k); S(i) = 2*(exp(A)-1)/(1+exp(A)), set to 0 if negative (the Corwin-Schultz two-period spread estimate on consecutive 15m bars). S4(t) = mean of S over bars t-3..t. Q(t) = 90th percentile of S4 over bars t-2016..t-1 (21 days, current bar excluded). D(t) = close(t)/(highest high of bars t-7..t) - 1. ENTRY when ALL hold: S4(t) >= Q(t); D(t) <= -0.012; close(t) > low(t); flat; at least 8 bars since the last exit. EXIT, first of: take-profit limit at entry*1.012; stop at entry*0.985; time exit at the close of the 24th bar after entry (6 hours). No trend or higher-timeframe filter.",
+  "mechanism": "The Corwin-Schultz spread rises when two bars overlap little relative to their own ranges, i.e. prints bounce between the bid and ask sides because the book is thin. Brauneis et al. find this estimator tracks time variation in crypto liquidity best, at any observation frequency. Nagel (RFS 2012) shows reversal returns pay liquidity providers and jump when liquidity is withdrawn. Farag, Luo, Yarovaya and Zieba (SSRN 4057510) find the crypto liquidity-provision premium rises with realized variance and with falling liquidity and volume. Buying a 1.2% drop while the spread spikes supplies liquidity just when market makers have pulled back; sellers pay the wide spread and a price impact that reverts. Cost: the 1.2% target is 4x the base round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 2020,
+  "free_parameters": 8,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 450,
+  "family_hint": "SpreadSpikeLiquidityReversal"
+}

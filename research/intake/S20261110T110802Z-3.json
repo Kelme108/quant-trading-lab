@@ -1,0 +1,17 @@
+{
+  "title": "15m sudden-flush rebound (E0V1E adapted): fast-RSI washout in a linear drop while RSI14 is not yet oversold",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/ssssi/freqtrade_strs/675b4942fecb370153c41d8a1f376d301842290c/binance/E0V1E.py",
+    "title": "ssssi/freqtrade_strs: E0V1E freqtrade strategy",
+    "license": "none"
+  },
+  "rule_summary": "15m closed bars; signal at close t, fill at next open; long only, one position. On close: Wilder RSI4, RSI14, RSI20; SMA15; CTI20 = Pearson correlation of closes t-19..t with the bar index 1..20 (+1 straight rise, -1 straight fall); fast stochastic K = SMA(3) of 100*(close - 5-bar lowest low)/(5-bar highest high - 5-bar lowest low). ENTRY when ALL hold: RSI20(t) < RSI20(t-1); RSI4(t) < 23; RSI14(t) > 36; close(t) < 0.975*SMA15(t); CTI20(t) < -0.39; flat. EXIT, first of: (a) close >= entry*1.008 AND K > 80, exit at next open (the source's 'fast-k in profit' exit with a minimum profit added); (b) take-profit limit at entry*1.02; (c) stop at entry*0.98; (d) time exit at the close of the 32nd bar after entry (8 hours). Source values on 5m: RSI4 < 23, RSI14 > 36, close < 0.961*SMA15, CTI < -0.39, K > 80 profit exit, 25% stop. The 0.975 multiplier, stop, target, minimum profit and time exit are adaptations to 15m and to lab costs.",
+  "mechanism": "RSI14 above 36 while price is 2.5% under its 4-hour mean means the drop was sudden, not a slow downtrend. A CTI near -1 says it was an orderly, almost linear sell, like a seller working a large order or a liquidation cascade, not a news gap. When that program ends, the discount it pushed into the book reverts as liquidity providers and dip bots refill bids, and the hurried seller pays the buyer. The source gives no mechanism; this is the closest honest one (Nagel 2012, liquidity provision). The CTI definition follows Ehlers 2020 (LuxAlgo CTI page). Cost: entries need a gap of at least 2.5% to SMA15, so even a partial reversion is more than 1%, well above the 0.30% round trip.",
+  "timeframe": "15m",
+  "longest_lookback": 40,
+  "free_parameters": 10,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "family_hint": "SuddenFlushCTIRebound"
+}

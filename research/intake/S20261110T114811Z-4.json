@@ -1,0 +1,18 @@
+{
+  "title": "Freqtrade multi_tf on 15m: buy when BTC and the pair are oversold on three timeframes at once, exit at 15m RSI above 70",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/multi_tf.py",
+    "title": "freqtrade-strategies: multi_tf",
+    "license": "GPL-3.0 (rule restated, no code copied)"
+  },
+  "rule_summary": "Chart 15m (the source runs 5m; the thresholds are kept), closed bars only; signal at bar close, fill at next bar open. Spot, long only, one position per pair. All RSIs are Wilder RSI on closes; higher-timeframe values come only from the last COMPLETED 30m or 1h candle built from the 15m data. Pair indicators: RSI14 on 15m, RSI14 on 30m, RSI14 on 1h. Market indicators on 1h: BTC/USDT RSI14, RSI4 and RSI2; RSI14 of the hourly ETH/BTC ratio (ETH/USDT close divided by BTC/USDT close). ENTRY at close of bar t when ALL hold: BTC 1h RSI14 < 35; BTC 1h RSI4 < 40; BTC 1h RSI2 < 30; ETH/BTC 1h RSI14 < 50; pair 30m RSI14 < 40; pair 1h RSI14 < 40; pair 15m RSI14 < 30; pair 15m RSI14 < pair 1h RSI14; volume > 0; flat. The same rule applies to BTC/USDT itself. EXIT (signal, next open): 15m RSI14 > 70 AND 15m RSI14 >= 1h RSI14. STOP: intrabar -2.0% from entry (replaces the source's -10%). TIME EXIT: sell at the close of the 48th bar after entry (12 hours). The source's 20% ROI is never reached and is dropped.",
+  "mechanism": "The entry needs BTC to be oversold on its 14, 4 and 2-hour RSI and the pair oversold on 15m, 30m and 1h at once: a market-wide, BTC-led selloff in which alts are sold mechanically with BTC (index-like hedging, stop cascades, leveraged longs being closed). Those sellers are forced or impatient, not informed about the single coin, so liquidity providers who buy after the cascade are paid when the pressure stops. The multi-timeframe requirement is the activity filter: it fires only during real selloffs. Exit at 15m RSI above 70 normally means a 1.5-3% bounce on alts and about 1% on BTC, against a 2% stop; with a bounce rate near 60% the average gross is about 0.6% per trade, twice the 0.30% round trip. Frequency is clustered in selloffs, so it may fall below the 400 per year target.",
+  "timeframe": "15m",
+  "longest_lookback": 60,
+  "free_parameters": 11,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 300,
+  "expected_gross_move_pct": 0.6,
+  "family_hint": "BTCLedOversoldCascade"
+}

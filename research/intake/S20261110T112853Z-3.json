@@ -1,0 +1,18 @@
+{
+  "title": "15m break-and-retest of a 12-hour high: volume-backed breakout, buy the held retest of the old ceiling, 2R target",
+  "source": {
+    "type": "blog",
+    "url": "https://www.luxalgo.com/library/concept/breakout-pullback-continuation.md",
+    "title": "LuxAlgo Library: Breakout-pullback-continuation",
+    "license": "free to use with attribution (LuxAlgo library licence)"
+  },
+  "rule_summary": "Chart 15m, closed bars; signal at bar close, fill at next open. LEVEL: P = highest high of the 48 bars b-48..b-1 (12 hours, breakout bar excluded). BREAKOUT bar b: close(b) >= 1.002*P, close(b) > open(b), and volume(b) >= 2.0x the mean volume of bars b-20..b-1 (activity filter, fixed). P is frozen for this setup. RETEST WINDOW: bars b+1..b+16 (4 hours). The setup is cancelled if any bar in the window closes below 0.995*P (price accepted back inside the old range) or a newer breakout replaces it. ENTRY at the first bar t in the window, when flat: low(t) <= 1.003*P (price came back to the old ceiling), close(t) > P and close(t) > open(t) (the level held and the bar turned up). One entry per setup. STOP = min(0.99*P, 0.99*entry price), so the risk is at least 1% of price. TARGET = entry + 2.0*(entry - stop). EXITS: stop or target intrabar; a 15m close below 0.995*P exits at the next open; time exit at the open 48 bars (12h) after entry. At most 3 entries per pair per UTC day.",
+  "mechanism": "Role reversal (LuxAlgo breakout-pullback-continuation; TradeZella break-and-retest playbooks): after a decisive, volume-backed close through a 12-hour high, shorts who sold the ceiling cover and breakout buyers defend their entries, so the old ceiling turns into a floor. Waiting for the retest removes the failed-breakout trades that sank plain Donchian rules (H-002): the entry comes only after price returns to the level and is bid there, so the stop sits just under a defended level instead of far below the breakout bar. Who pays: trapped range-sellers and late sellers of the pullback. Cost: risk at least 1%, so 0.30% is at most 0.3R; the 2R target is about +2.2-2.6%. Gross estimate about 0.55% per trade at a 42% hit rate plus time exits.",
+  "timeframe": "15m",
+  "longest_lookback": 64,
+  "free_parameters": 6,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.55,
+  "family_hint": "BreakRetestPolarity"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Freqtrade Strategy005 on 15m: buy a 4x volume climax below the 40-bar mean with RSI 26-35, time-decaying profit target",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/main/user_data/strategies/Strategy005.py",
+    "title": "freqtrade-strategies: Strategy005",
+    "license": "GPL-3.0 (rule restated, no code copied)"
+  },
+  "rule_summary": "Chart 15m (the source runs 5m; its numbers are kept), closed bars only; signal at bar close, fill at next bar open. Spot, long only, one position per pair. Indicators on 15m: Vavg = mean volume of the 150 bars t-150..t-1; SMA40 of close; fast stochastic fastK(5), fastD = SMA3 of fastK; RSI14 (Wilder); MACD(12,26,9); minus DI(14). The source's normalized inverse-Fisher RSI below 5 is equivalent to RSI14 below about 35.3. ENTRY at close of bar t when ALL hold: volume(t) > 4.0 x Vavg(t); close(t) < SMA40(t); fastD(t) > fastK(t); 26 < RSI14(t) < 35.3; flat. Buy at next open (fill E). EXITS (first to occur): (1) take-profit ladder by time in trade: +5% from entry, +4% after 20 minutes, +3% after 40 minutes, +2% after 80 minutes (intrabar against the active level); (2) signal, only while in profit: RSI14 crosses above 74 with MACD line < 0 and minus DI > 4; (3) stop -2.5% intrabar (replaces the source's -10%); (4) time exit at the close of the 48th bar after entry (12 hours).",
+  "mechanism": "A 15m bar with more than four times the 37-hour average volume while price is below its 10-hour mean and RSI is oversold but not collapsed is a capitulation print: stop-losses and liquidations hitting the book together. Those sellers trade for reasons other than information, so the buyer who supplies liquidity is paid by the rebound once the forced flow ends. The 4x volume is the single activity filter. RSI above 26 skips the true crash bars where selling is still accelerating. The ladder takes 2-3% when the rebound comes within the first hours; the 2.5% stop and 12h cap bound the losers. With about 60% of entries reaching the 2% level, average gross is about 0.5% per trade, above the 0.30% round trip. Variant of the lab's volume-spike rebound family with a different trigger (no bar-return threshold, RSI band, stochastic) and exit.",
+  "timeframe": "15m",
+  "longest_lookback": 150,
+  "free_parameters": 12,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 300,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "VolumeSpikeCrashRebound"
+}

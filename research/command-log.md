@@ -288,3 +288,16 @@ Nenhuma API privada, conta, depósito ou ordem real foi utilizada.
 - approve.py H-009 --stage dryrun (user: "faca os tres"); forward_freeze.py H-009; docker compose -f docker-compose.forward.yml up -d (3 bots, dry-run).
 - python -m lab.pipeline weekly --no-scout --max-new 1: I-001 -> H-019 rejected at exploration; cycle-20261104T222235Z.md.
 - Portal: Dry-run page + idea intake; e2e and 598-test suite pass. Weekly scheduling documented (docs §10), NOT installed.
+
+## 2026-11-12 - B3 lane (WIN/WDO), plan F1 and F2 code (owner: "Pode começar, a conta com a xp eu envio depois")
+
+- Plan: `docs/plano-b3-win-wdo.md`. New package `b3/` (no change to `live/`, `lab/` or any protected file):
+  - `b3/calendar.py` with official 2026 holidays (`b3/config/holidays.json`, from B3 OC 041/2026-VNC) and dated session hours (`b3/config/sessions.json`: WIN 09:00-18:25 from OC 005/2026-PRE; WDO 18:30 from the press only, marked as to confirm). Local time is America/Sao_Paulo, so Brazil's DST before 2019 is handled. Unknown years raise instead of guessing.
+  - `b3/contracts.py`: WIN and WDO expiry rules, contract codes, ex-ante roll schedule. Defaults to roll 2 trading days before expiry, because on expiry day the expiring WIN contract stops trading at 17h.
+  - `b3/costs.py`: 4 cost scenarios in BRL per contract plus ticks of slippage, marked as a HYPOTHESIS until the demo account's deal history is measured (F3.4).
+  - `b3/strategy.py`, `b3/backtest.py`: one strategy object for the backtester and the live engine. The backtester follows live/brokers/paper.py and live/core/engine.py (next-open fills, server-side stop with gap rule, flatten phase, risk vetoes, loss lockouts). It also supports shorts, which the live engine still ignores ("enter_short" acts as a hold).
+  - `b3/metrics.py`: metrics in BRL and a day-trade tax estimate. `b3/checks.py`: causality via lab/causality.py, plus parity between the live window and the full history. `b3/strategy_check.py`: AST screen for B3 strategies.
+  - `b3/data/`: `mt5_history` (symbols, depth, bar and tick download; stdlib only, keeps the raw server clock), `store` (server clock to UTC with a stated zone), `quality`, `continuous` (additive back-adjustment).
+- Tests: `python -m pytest tests/b3 -q` gives 59 passed. Among them, `tests/b3/test_b3_parity.py` replays the same bars through the real Engine + PaperBroker and through b3/backtest.py and gets identical fills: 3 random sessions, a flatten scenario, and loss limits with an entry cap. `tests/live` still passes (105).
+- Full suite: 1826 passed, 5 failed. The 5 are in `tests/archive` (H-019 x4, H-055 x1, `AttributeError: 'NoneType' object has no attribute 'loc'`). They also fail with `tests/archive` alone and pass when run file by file, so they come from interference between archived tests and predate the B3 work.
+- No B3 data was downloaded or looked at. The MetaQuotes-Demo account has no B3 symbols. The next step is the owner's XP demo account (F1.1 / F1.2).

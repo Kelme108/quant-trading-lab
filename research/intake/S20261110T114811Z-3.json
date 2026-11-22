@@ -1,0 +1,18 @@
+{
+  "title": "Hummingbot MACD-BB controller on 15m: price under the 100-bar lower band while MACD momentum turns up, volatile hours only",
+  "source": {
+    "type": "repo",
+    "url": "https://raw.githubusercontent.com/hummingbot/hummingbot/master/controllers/directional_trading/macd_bb_v1.py",
+    "title": "Hummingbot directional controller macd_bb_v1",
+    "license": "Apache-2.0"
+  },
+  "rule_summary": "Chart 15m, closed bars only; signal at bar close, fill at next bar open. Spot, long only, one position per pair, at most 4 entries per pair per UTC day, 4-bar cooldown after any exit. Indicators on 15m closes (the controller's defaults): Bollinger Bands length 100, 2.0 standard deviations (population std); BBP = (close - lower)/(upper - lower). MACD fast EMA 21, slow EMA 42, signal EMA 9; MACDh = MACD line - signal. ACTIVITY FILTER: ATR(14, Wilder) on 15m divided by close >= 0.004. ENTRY at close of bar t when BBP(t) < 0.0 AND MACDh(t) > 0 AND MACD line(t) < 0 AND the activity filter holds AND flat; buy at next open (fill E). EXIT as a triple barrier (fixed in advance because the controller's base-class defaults are not in the file): take profit at E*1.020, stop loss at E*0.990 (both intrabar; stop wins a same-bar tie), time limit 32 bars (8 hours) then sell at the next open.",
+  "mechanism": "A close below the 25-hour 2-sigma band means sellers pushed price far from its recent mean faster than liquidity refilled; MACD histogram above zero while the MACD line is still negative means the downside momentum has stopped accelerating, so the impatient selling is being absorbed. The long side is a liquidity provider paid for absorbing that one-sided flow, and the payment is larger when the market is volatile, which is why the rule trades only when 15m ATR is at least 0.4% of price. Cost: target 2.0% vs stop 1.0%, so the 0.30% round trip is 0.3R; with a hit rate near 50% after time exits, average gross is about 0.5% per trade. The repository gives the signal only, no evidence; this differs from the lab's earlier band rules by the momentum-turn confirmation and the long 100-bar band.",
+  "timeframe": "15m",
+  "longest_lookback": 100,
+  "free_parameters": 7,
+  "fixed_parameters": false,
+  "expected_trades_per_year": 400,
+  "expected_gross_move_pct": 0.5,
+  "family_hint": "BBMacdTurnReversal"
+}
