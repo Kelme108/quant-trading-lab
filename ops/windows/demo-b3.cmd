@@ -7,6 +7,12 @@ rem Needs the Clear terminal open and logged in to ClearInvestimentos-DEMO. Stop
 rem sends nothing new) or end the task. The journal is live\journal.demo-b3-p004-win.sqlite, the log live\logs\.
 call "%~dp0_env.cmd"
 cd /d "%ROOT%"
+rem One BLAS/OpenMP thread per robot. numpy's OpenBLAS reserves ~360 MB of committed memory PER CORE at import (12 cores here)
+rem while using ~13 MB of RAM; 60 robots then exhaust the Windows commit limit (2026-11-23: MemoryError at start) with the
+rem RAM half empty. With one thread each robot reserves ~60 MB. The rules are single-threaded, nothing is slower.
+set "OPENBLAS_NUM_THREADS=1"
+set "OMP_NUM_THREADS=1"
+set "MKL_NUM_THREADS=1"
 set "NAME=%~1"
 if "%NAME%"=="" set "NAME=demo-b3-p004-win"
 if not exist live\logs mkdir live\logs
