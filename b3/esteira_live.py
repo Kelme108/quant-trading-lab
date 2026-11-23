@@ -43,12 +43,15 @@ def _ceil_tick(x: float, tick: float) -> float:
     return max(math.ceil(x / tick - 1e-9) * tick, tick)
 
 
-def build(family_id: str, market: str, tf: int, params: dict, exit_id: str) -> type[ProxyStrategy]:
+def build(family_id: str, market: str, tf: int, params: dict, exit_id: str,
+          other_market_ok: bool = False) -> type[ProxyStrategy]:
+    """`other_market_ok`: DEMO only (owner 2026-11-23, "todos nos dois ativos"): run the family on a market it was never
+    screened on. The rule code is unchanged; there is no research number for that market to compare with."""
     fams = {f.id: f for f in es.load_families()}
     if family_id not in fams:
         raise SystemExit(f"unknown conveyor family {family_id}")
     fam = fams[family_id]
-    if tf not in fam.timeframes or market not in fam.markets:
+    if tf not in fam.timeframes or (market not in fam.markets and not other_market_ok):
         raise SystemExit(f"{family_id} does not run on {market} {tf}m")
     if params not in fam.variants():
         raise SystemExit(f"{family_id}: {params} is not a variant of its grid")

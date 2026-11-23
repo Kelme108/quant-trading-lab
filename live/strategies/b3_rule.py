@@ -51,7 +51,8 @@ class B3RuleStrategy:
         self.snapshot_file, self.symbol = (Path(snapshot_file) if snapshot_file else None), symbol
         if esteira:                                    # a conveyor family variant + exit-menu exit (b3/esteira_live.py)
             from b3.esteira_live import build
-            self.rule = build(rule_id, market, int(esteira["tf"]), dict(esteira["params"]), str(esteira["exit"]))()
+            self.rule = build(rule_id, market, int(esteira["tf"]), dict(esteira["params"]), str(esteira["exit"]),
+                              other_market_ok=bool(esteira.get("other_market_ok", False)))()
         else:
             self.rule = load_rule(rule_id, market)()
         self.name = f"demo-{rule_id}-{market}"

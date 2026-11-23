@@ -148,7 +148,7 @@ function dbStrip(items) {
     const e = DB.els[it.id] = { last: h('span', null, dbPx(it, last)), move: h('span', null, ok(last) && ok(pc) ? dbSigned((last / pc - 1) * 100) : dash),
       open: h('span', null, pos && ok(pos.open_result_brl) ? h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)) : dash), upd: h('span', { class: 'sub' }, it.feed ? 'atualizado às ' + dbSecs(it.feed.updated_at) : '') };
     return h('button', { type: 'button', class: 'db-tile', 'aria-pressed': String(DB.sel === it.id), 'data-fkey': 'db-sel:' + it.id, onclick: () => { DB.sel = it.id; render(); } },
-      h('div', { class: 'db-tile-h' }, h('b', null, `${it.market} · ${it.symbol}`), badge(st)),
+      h('div', { class: 'db-tile-h' }, h('b', { title: `${it.market} · ${it.symbol}` }, String(it.id || '').replace(/^(demo|live)-b3-/, '').toUpperCase()), badge(st)),
       h('div', { class: 'db-tile-p' }, e.last, ' ', e.move),
       h('div', { class: 'sub' }, pos ? `${pos.volume > 0 ? 'Comprado' : 'Vendido'} ${nf0.format(Math.abs(pos.volume))} · aberto ` : 'Zerado · ', pos ? e.open : `${nf0.format(it.trades.length)} ${plural(it.trades.length, 'operação', 'operações')}, ${dbBrl(it.pnl_total_brl)}`),
       e.upd);
@@ -216,10 +216,15 @@ function pageDemoB3() {
   if (!LIVE) return h('div', { class: 'rx rx-stack' }, head, card('Demonstração', null, notAvailable('Demonstração ao vivo', 'o snapshot estático não lê os robôs. Abra o painel com python -m lab.dashboard serve.')));
   dbLoad(false);
   if (!DB.data) return h('div', { class: 'rx rx-stack' }, head, DB.error ? emptyState('Não foi possível ler a demonstração.', DB.error) : loadingState('Lendo os robôs da demonstração…'));
-  const items = (DB.data.items || []).slice().sort((a, b) => String(b.market).localeCompare(String(a.market)));   /* WIN first */
-  if (!items.length) return h('div', { class: 'rx rx-stack' }, head, emptyState('Nenhuma demonstração configurada.', 'Os arquivos ficam em live/config/demo-b3-*.json.'));
+  const all = (DB.data.items || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (!all.length) return h('div', { class: 'rx rx-stack' }, head, emptyState('Nenhuma demonstração configurada.', 'Os arquivos ficam em live/config/demo-b3-*.json.'));
+  /* one tab per contract (owner 2026-11-23: "precisamos fazer duas abas na demo para wdo e win") */
+  const count = (m) => all.filter((i) => i.market === m).length;
+  if (!DB.mk || !count(DB.mk)) DB.mk = count('WIN') ? 'WIN' : 'WDO';
+  const items = all.filter((i) => i.market === DB.mk);
+  const tabs = segmented('Ativo', 'db-mk', DB.mk, [['WIN', `WIN · mini índice (${count('WIN')})`], ['WDO', `WDO · mini dólar (${count('WDO')})`]], (v) => { DB.mk = v; DB.sel = null; render(); });
   if (!DB.sel || !items.some((i) => i.id === DB.sel)) DB.sel = items[0].id;
-  return h('div', { class: 'rx rx-stack' }, head, dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
+  return h('div', { class: 'rx rx-stack' }, head, tabs, dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
 }
 const DB_STYLE = `.db-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
 .db-tile{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);cursor:pointer;font:inherit}
