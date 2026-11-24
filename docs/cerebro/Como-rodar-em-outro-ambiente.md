@@ -22,16 +22,26 @@ Objetivo: depois de `git clone`, um Claude (ou uma pessoa) entende o projeto e c
 ## 2. Requisitos
 
 - **Python 3.13+** (referência: 3.14). Dependências em `requirements.txt` (núcleo: `numpy`, `pandas`, `pyarrow`, `tzdata`, `pytest`) e `requirements-research.txt` (pesquisa de padrões: `lightgbm`, `scikit-learn`, `scipy`). O `bootstrap.py` instala tudo num `.venv`.
-- **Pacote `MetaTrader5`** (`live/requirements.txt`): **só Windows**, com o terminal aberto. Instale num venv dedicado `live/.venv`.
+- **Pacote `MetaTrader5`** (`live/requirements.txt`): só existe para Windows e precisa do terminal aberto. No Windows ele vai num venv dedicado, `live/.venv`; no Linux, num Python para Windows dentro do Wine (seção 5).
+- **Fim de linha CRLF (`core.autocrlf=true`) nos dois sistemas.** O hash das regras é calculado sobre os bytes do arquivo e os ledgers foram gravados com CRLF. O `bootstrap.py --check` mostra a linha "fim de linha"; os instaladores corrigem sozinhos.
 - **Claude Code** (CLI `claude`) para a esteira e o pipeline de agentes.
 - **Docker + Compose v2** só para a linha cripto (Freqtrade 2026.9).
 - Os launchers `ops/windows/*.cmd` descobrem sozinhos a raiz do repositório e o Python (`ops/windows/_env.cmd`: `.venv` da raiz, depois `C:\Python314`, depois `python` do PATH). Os instaladores `.ps1` usam a pasta do próprio script. Nada depende de `D:\Trade-Initial`.
 
 ## 3. Passo a passo (sem dados)
 
+Instalação completa, com um comando por sistema:
+
 ```bash
-git clone https://github.com/Kelme108/quant-trading-lab.git
+git clone -c core.autocrlf=true https://github.com/Kelme108/quant-trading-lab.git
 cd quant-trading-lab
+ops\windows\install.cmd           # Windows: .venv + testes, live\.venv (MetaTrader5), MT5 da Clear e normal (assinatura conferida)
+ops/linux/install.sh              # Linux: o mesmo, com o MT5 no Wine (ver seção 5)
+```
+
+Só a parte Python, sem MT5:
+
+```bash
 python bootstrap.py --test        # cria .venv, instala requirements.txt, cria as pastas locais e roda a suíte de sanidade
 python bootstrap.py --check       # diagnóstico: o que está ok e o que falta
 # ative o ambiente (.venv\Scripts\activate no Windows; source .venv/bin/activate no Linux/macOS) e use:

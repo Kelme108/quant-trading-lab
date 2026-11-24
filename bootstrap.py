@@ -66,9 +66,17 @@ def doctor() -> None:
     print(f"  git ...................... {'ok' if shutil.which('git') else 'FALTA'}")
     print(f"  claude (CLI, p/ agentes) . {'ok' if shutil.which('claude') else 'ausente (só a esteira/pipeline precisam)'}")
     print(f"  docker (linha cripto) .... {'ok' if shutil.which('docker') else 'ausente (só a linha cripto precisa)'}")
+    # O hash das regras é calculado sobre os bytes do arquivo-fonte e os ledgers foram gravados com checkout CRLF
+    # (core.autocrlf=true). Um checkout LF muda todos os hashes: avisar alto, nos dois sistemas.
+    crlf = b"\r\n" in (ROOT / "b3" / "strategy.py").read_bytes()
+    print(f"  fim de linha (CRLF) ...... {'ok' if crlf else 'ERRADO: checkout LF, os hashes das regras não batem com os ledgers. Rode ops/linux/install.sh ou ops\\windows\\install.cmd (ligam core.autocrlf=true e refazem o checkout)'}")
     if os.name == "nt":
         mt5 = Path(r"C:\Program Files\Clear Investimentos MT5 Terminal\terminal64.exe").exists()
-        print(f"  terminal Clear (MT5) ..... {'encontrado' if mt5 else 'ausente (robôs e dados da B3 precisam dele)'}")
+        normal = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe").exists()
+        live = (ROOT / "live/.venv/Scripts/python.exe").exists()
+        print(f"  terminal Clear (MT5) ..... {'encontrado' if mt5 else 'ausente (rode: ops\\windows\\install.cmd)'}")
+        print(f"  MT5 normal ............... {'encontrado' if normal else 'ausente (só a conta real/outras corretoras usam)'}")
+        print(f"  live\\.venv (MetaTrader5) . {'ok' if live else 'ausente (rode: ops\\windows\\install.cmd)'}")
     else:
         # Linux: os terminais e o Python que importa MetaTrader5 vivem num prefixo Wine (ops/linux/install.sh mt5)
         prefix = Path(os.environ.get("TRADE_WINEPREFIX") or Path.home() / ".wine-trade")

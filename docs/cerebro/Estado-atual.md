@@ -1,6 +1,6 @@
 ---
 tipo: estado
-atualizado: 2026-11-22
+atualizado: 2026-11-24
 tags: [cerebro, estado]
 ---
 
@@ -11,6 +11,16 @@ tags: [cerebro, estado]
 ## Em uma frase
 
 A **esteira roda em backtest** (exploração, teto de US$ 15 por noite, agente no Sonnet); **os 25 robôs da demo estão parados** (mercado fechado); o portão das regras P foi trocado por custo medido + barra estatística; nenhuma regra tem evidência para dinheiro real.
+
+## Atualização 2026-11-24
+
+- **Clone pronto para Windows e Linux:** `ops\windows\install.cmd` e `ops/linux/install.sh` (MT5 no Wine ≥ 10). Clone com `-c core.autocrlf=true`; o `bootstrap.py --check` acusa um checkout LF. Ver [[Como-rodar-em-outro-ambiente]].
+- **Noite 23→24:** 68 lotes, cerca de 650 famílias (até a E-1497), **0 selecionadas**, US$ 22,34 de US$ 30 (teto só daquela noite). A pausa das 07:00 falhou e a esteira rodou até as 09:15, gastando US$ 5,76 fora da janela. **Pausada** (`STOP_ESTEIRA`).
+- **B-074, B-117 e B-141 não foram triados:**
+  - a triagem do B-074 foi interrompida depois de 198 leituras, que ficaram registradas, e o lote não foi retriado;
+  - o B-117 e o B-141 foram abortados pelo guard e estão em `research/b3/esteira/rejected_files/`, junto com o antigo B-010, que também nunca foi registrado.
+- **Controles do portal e motor ao vivo commitados** (eram código não commitado, que já rodava nos robôs de demo): botões por arquivo de comando (`live/core/control.py`), seção da conta real e configs `live-b3-*` com a decisão do dono de 2026-11-17 (`owner_override`, hash fixo). **Nenhum robô da conta real está ligado.**
+- **Robôs da demo:** 78 configurados (`live/config/demo-b3-*.json`), cerca de 63 rodando na manhã de 2026-11-24.
 
 ## Atualização 2026-11-22
 

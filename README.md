@@ -10,9 +10,11 @@ Laboratório **reproduzível e auditável** para pesquisar, validar e (futuramen
 
 > **Segundo cérebro do projeto:** o mapa completo (estado atual, decisões do dono, regras invioláveis, robôs, como reconstruir o ambiente) está em [docs/cerebro/](docs/cerebro/00-LEIA-PRIMEIRO.md), um cofre Markdown que abre no Obsidian. O [CLAUDE.md](CLAUDE.md) aponta para ele. Comece por lá, sobretudo a linha atual de WIN/WDO; o resto deste README descreve principalmente a linha cripto original.
 >
-> **Clonou agora?** `python bootstrap.py --test` cria o ambiente e roda a suíte de sanidade; `python bootstrap.py --check` mostra o que falta. Regras de colaboração em [CONTRIBUTING.md](CONTRIBUTING.md).
-
-> **Linux:** `git clone -c core.autocrlf=true <repo> && cd <pasta> && ops/linux/install.sh` instala tudo: Python, Wine, MT5 da Clear e MT5 normal, Python para Windows com MetaTrader5 e serviços systemd. Guia em [docs/instalacao-linux.md](docs/instalacao-linux.md). A linha cripto tem manual próprio: [docs/migracao-linux.md](docs/migracao-linux.md).
+> **Clonou agora?** Clone sempre com `git clone -c core.autocrlf=true https://github.com/Kelme108/quant-trading-lab.git`. Os hashes das regras dependem do fim de linha CRLF.
+> - **Windows:** `ops\windows\install.cmd` instala o `.venv` com os testes, o `live\.venv` com MetaTrader5 e o MT5 da Clear e o normal.
+> - **Linux:** `ops/linux/install.sh` instala o mesmo, com o MT5 no Wine. Guia em [docs/instalacao-linux.md](docs/instalacao-linux.md).
+> - **Diagnóstico:** `python bootstrap.py --check` mostra o que falta.
+> - Regras de colaboração: [CONTRIBUTING.md](CONTRIBUTING.md). A linha cripto tem manual próprio: [docs/migracao-linux.md](docs/migracao-linux.md).
 
 ---
 
