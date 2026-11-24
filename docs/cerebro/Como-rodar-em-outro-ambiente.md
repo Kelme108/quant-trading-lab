@@ -1,6 +1,6 @@
 ---
 tipo: manual
-atualizado: 2026-11-19
+atualizado: 2026-11-23
 tags: [cerebro, ambiente, clone]
 ---
 
@@ -52,7 +52,21 @@ Se um teste falhar por falta de dado local, a mensagem diz qual arquivo falta.
 
 ## 5. Linux
 
-Há manual de migração em [../migracao-linux.md](../migracao-linux.md) e scripts em `ops/linux/`, **escritos para a linha cripto** e nunca executados em Linux. O MT5 não roda em Linux sem camada extra: a linha B3 ao vivo continua no Windows.
+Desde 2026-11-23 a linha B3 inteira instala no Linux com um script: **[../instalacao-linux.md](../instalacao-linux.md)**.
+
+```bash
+git clone -c core.autocrlf=true https://github.com/Kelme108/quant-trading-lab.git && cd quant-trading-lab
+ops/linux/install.sh                  # apt + WineHQ, .venv + testes, MT5 da Clear e normal no Wine, Python p/ Windows, unidades systemd
+ops/linux/mt5-terminal.sh clear       # 1º login na conta DEMO
+```
+
+- Pesquisa, esteira e portal usam o Python nativo.
+- O terminal MT5 e os robôs rodam no Wine (≥ 10), com um Python para Windows dentro do mesmo prefixo. O código é o mesmo do Windows.
+- `core.autocrlf=true` é obrigatório: o hash das regras é calculado sobre os bytes do arquivo, que no Windows têm CRLF.
+- Um robô roda em **uma** máquina só.
+- A instalação do MT5 no Wine ainda não foi testada de ponta a ponta (ver a seção 11 do guia).
+
+A linha cripto (Freqtrade) tem manual próprio: [../migracao-linux.md](../migracao-linux.md).
 
 ## 6. Antes de qualquer ação, leia
 

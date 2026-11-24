@@ -1,0 +1,15 @@
+# Terminal MetaTrader 5 da Clear no Wine, sempre aberto (os robôs de demo e o gravador de ticks se anexam a ele).
+# Antes de ligar: abra o terminal uma vez COM TELA e entre na conta DEMO salvando a senha (ops/linux/mt5-terminal.sh clear).
+# Ligar:  systemctl --user enable --now trade-mt5-clear
+[Unit]
+Description=MetaTrader 5 da Clear (Wine, conta demo)
+After=network-online.target
+
+[Service]
+WorkingDirectory=@ROOT@
+ExecStart=@ROOT@/ops/linux/mt5-terminal.sh clear --foreground
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

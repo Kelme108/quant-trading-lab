@@ -1,5 +1,7 @@
 # Manual de migração para Linux
 
+> **Atualização de 23/11/2026:** para instalar a linha **B3 (WIN/WDO, MT5 da Clear no Wine)** a partir de um clone, use [instalacao-linux.md](instalacao-linux.md). Este manual continua valendo para a **linha cripto** (Freqtrade), cuja migração depende de copiar os bytes (`tar`), e não de `git clone`.
+
 Escrito em 12/11/2026 para o **Claude que vai rodar no Linux** e para o dono do projeto (Luiz). A ideia: o Claude do Linux lê este arquivo do começo ao fim e consegue montar tudo sozinho, sem adivinhar. Origem: PC Windows 11 com Docker Desktop (WSL2). Destino: Debian 12 ou 13 (serve também Ubuntu 24.04).
 
 Se o dono só quer saber o que fazer: seções 4 e 5 (empacotar e extrair), seção 6 (conferir) e seção 7 (ligar os bots). A seção 8 (loop de pesquisa) gasta dinheiro de agente e só se liga com o aval dele.

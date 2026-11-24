@@ -70,7 +70,17 @@ def doctor() -> None:
         mt5 = Path(r"C:\Program Files\Clear Investimentos MT5 Terminal\terminal64.exe").exists()
         print(f"  terminal Clear (MT5) ..... {'encontrado' if mt5 else 'ausente (robôs e dados da B3 precisam dele)'}")
     else:
-        print("  MetaTrader 5 ............. só roda no Windows (robôs e dados da B3)")
+        # Linux: os terminais e o Python que importa MetaTrader5 vivem num prefixo Wine (ops/linux/install.sh mt5)
+        prefix = Path(os.environ.get("TRADE_WINEPREFIX") or Path.home() / ".wine-trade")
+        drive = prefix / "drive_c"
+        clear = (drive / "Program Files/Clear Investimentos MT5 Terminal/terminal64.exe").exists()
+        normal = (drive / "Program Files/MetaTrader 5/terminal64.exe").exists()
+        wpy = (drive / "Python314/python.exe").exists()
+        fix = "rode: ops/linux/install.sh mt5"
+        print(f"  wine ..................... {'ok' if shutil.which('wine') else 'FALTA (rode: ops/linux/install.sh sistema)'}")
+        print(f"  terminal Clear (Wine) .... {'encontrado' if clear else 'ausente (' + fix + ')'}")
+        print(f"  MT5 normal (Wine) ........ {'encontrado' if normal else 'ausente (' + fix + ')'}")
+        print(f"  Python p/ Windows (Wine) . {'ok' if wpy else 'ausente (' + fix + ')'}")
     b3 = ROOT / "user_data/data/b3/clear"
     print(f"  dados B3 (WIN/WDO) ....... {'ok' if any(b3.glob('*')) else 'ausentes: baixe com o terminal Clear aberto (ver cofre)'}")
     print(f"  cofre de notas ........... {has('docs/cerebro/00-LEIA-PRIMEIRO.md')}")

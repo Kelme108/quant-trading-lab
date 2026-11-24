@@ -12,7 +12,7 @@ Laboratório **reproduzível e auditável** para pesquisar, validar e (futuramen
 >
 > **Clonou agora?** `python bootstrap.py --test` cria o ambiente e roda a suíte de sanidade; `python bootstrap.py --check` mostra o que falta. Regras de colaboração em [CONTRIBUTING.md](CONTRIBUTING.md).
 
-> **Mover o laboratório para Linux:** o manual passo a passo, escrito para o Claude do Linux ler, está em [docs/migracao-linux.md](docs/migracao-linux.md) (scripts em `ops/linux/`).
+> **Linux:** `git clone -c core.autocrlf=true <repo> && cd <pasta> && ops/linux/install.sh` instala tudo: Python, Wine, MT5 da Clear e MT5 normal, Python para Windows com MetaTrader5 e serviços systemd. Guia em [docs/instalacao-linux.md](docs/instalacao-linux.md). A linha cripto tem manual próprio: [docs/migracao-linux.md](docs/migracao-linux.md).
 
 ---
 

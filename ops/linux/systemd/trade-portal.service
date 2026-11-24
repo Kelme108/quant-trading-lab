@@ -1,0 +1,13 @@
+# Portal somente leitura em http://127.0.0.1:8765. Ligar: systemctl --user enable --now trade-portal
+[Unit]
+Description=Portal do laboratorio (127.0.0.1:8765)
+After=network-online.target
+
+[Service]
+WorkingDirectory=@ROOT@
+ExecStart=@ROOT@/ops/linux/portal.sh --no-open
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

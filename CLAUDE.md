@@ -8,6 +8,7 @@ Este repositório é um laboratório de trading quantitativo (Quant Trading Lab)
 2. [docs/cerebro/Regras-inviolaveis.md](docs/cerebro/Regras-inviolaveis.md): o que você nunca faz.
 3. [docs/cerebro/Estado-atual.md](docs/cerebro/Estado-atual.md): onde o trabalho está parado hoje.
 4. [docs/cerebro/Como-rodar-em-outro-ambiente.md](docs/cerebro/Como-rodar-em-outro-ambiente.md): montar o ambiente a partir de um clone.
+5. No Linux: [docs/instalacao-linux.md](docs/instalacao-linux.md). Um script (`ops/linux/install.sh`) monta tudo, com o MT5 no Wine. Clone com `-c core.autocrlf=true`.
 
 ## Regras que valem sempre (resumo)
 

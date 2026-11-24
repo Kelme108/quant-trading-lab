@@ -1,0 +1,13 @@
+# Um robô de demonstração (live/config/<nome>.json) na conta demo da Clear. NÃO é evidência.
+# Ligar já:              systemctl --user start trade-demo@demo-b3-p032-win
+# Todo dia útil 08:40:   systemctl --user enable --now trade-demo@demo-b3-p032-win.timer
+# O motor fica ocioso fora do pregão e zera antes do fechamento. Parar todos: touch @ROOT@/live/STOP
+[Unit]
+Description=Robo demo B3 %i (Clear DEMO)
+After=trade-mt5-clear.service
+
+[Service]
+WorkingDirectory=@ROOT@
+ExecStart=@ROOT@/ops/linux/demo-b3.sh %i --foreground
+KillMode=control-group
+TimeoutStopSec=60
