@@ -109,8 +109,8 @@ function dbDrop() {
   DB.view = { key, range };
 }
 /* move the forming candle and the live numbers without drawing the page again */
-function dbLive() {
-  const items = DB.data ? DB.data.items || [] : [];
+function dbLive(data) {          /* `data`: another page's payload (the real-account section reuses this chart) */
+  const items = (data || DB.data) ? (data || DB.data).items || [] : [];
   for (const it of items) {
     const e = DB.els[it.id];
     if (!e) continue;
@@ -119,6 +119,11 @@ function dbLive() {
     if (e.move) e.move.replaceChildren(ok(last) && ok(pc) ? dbSigned((last / pc - 1) * 100) : dash);
     if (e.open) e.open.replaceChildren(pos && ok(pos.open_result_brl) ? h('span', { class: tone(pos.open_result_brl) }, dbBrl(pos.open_result_brl)) : dash);
     if (e.upd) e.upd.textContent = it.feed ? 'atualizado às ' + dbSecs(it.feed.updated_at) : '';
+    const orow = DB.els[it.id + ':openrow'];
+    if (orow && pos) {
+      if (orow.last) orow.last.textContent = dbPx(it, last);
+      if (orow.res) { orow.res.className = tone(pos.open_result_brl); orow.res.textContent = dbBrl(pos.open_result_brl); }
+    }
     const c = DB.els[it.id + ':card'];
     if (c) {
       c.last.textContent = dbPx(it, last);
@@ -150,9 +155,64 @@ function dbStrip(items) {
     return h('button', { type: 'button', class: 'db-tile', 'aria-pressed': String(DB.sel === it.id), 'data-fkey': 'db-sel:' + it.id, onclick: () => { DB.sel = it.id; render(); } },
       h('div', { class: 'db-tile-h' }, h('b', { title: `${it.market} · ${it.symbol}` }, String(it.id || '').replace(/^(demo|live)-b3-/, '').toUpperCase()), badge(st)),
       h('div', { class: 'db-tile-p' }, e.last, ' ', e.move),
-      h('div', { class: 'sub' }, pos ? `${pos.volume > 0 ? 'Comprado' : 'Vendido'} ${nf0.format(Math.abs(pos.volume))} · aberto ` : 'Zerado · ', pos ? e.open : `${nf0.format(it.trades.length)} ${plural(it.trades.length, 'operação', 'operações')}, ${dbBrl(it.pnl_total_brl)}`),
+      h('div', { class: 'db-pos' + (pos ? (pos.volume > 0 ? ' long' : ' short') : '') }, pos ? `${pos.volume > 0 ? '▲ Comprado' : '▼ Vendido'} ${nf0.format(Math.abs(pos.volume))} · aberto ` : 'Zerado', pos ? e.open : null),
+      dbTileStats(it),
       e.upd);
   }));
+}
+/* per-robot numbers (owner 2026-11-24: "calculados dentro dos blocos dele, a porcentagem de win rate, quantas operações") */
+function dbStats(it) {
+  const tr = it.trades || [], n = tr.length, wins = tr.filter((t) => t.pnl_brl > 0).length;
+  const gain = tr.filter((t) => t.pnl_brl > 0).reduce((s, t) => s + t.pnl_brl, 0), loss = -tr.filter((t) => t.pnl_brl < 0).reduce((s, t) => s + t.pnl_brl, 0);
+  const today = it.trades_today || [];
+  return { n, wins, losses: n - wins, wr: n ? wins / n * 100 : null, pnl: it.pnl_total_brl || 0, avg: n ? (it.pnl_total_brl || 0) / n : null,
+    pf: loss > 0 ? gain / loss : (gain > 0 ? Infinity : null), todayN: today.length, todayPnl: today.reduce((s, t) => s + t.pnl_brl, 0) };
+}
+const dbWr = (v) => ok(v) ? nf0.format(v) + '%' : dash;
+function dbTileStats(it) {
+  const s = dbStats(it);
+  const cell = (lab, val) => h('div', null, h('div', { class: 'db-k' }, lab), h('div', { class: 'db-v' }, val));
+  return h('div', { class: 'db-stats' },
+    cell('Operações', nf0.format(s.n)),
+    cell('Acerto', s.n ? h('span', { class: s.wr >= 50 ? 'pos' : 'neg' }, dbWr(s.wr)) : dash),
+    cell('Ganhos × perdas', s.n ? `${nf0.format(s.wins)} / ${nf0.format(s.losses)}` : dash),
+    cell('Resultado', s.n ? h('span', { class: tone(s.pnl) }, dbBrl(s.pnl)) : dash),
+    cell('Média por op.', s.n ? h('span', { class: tone(s.avg) }, dbBrl(s.avg)) : dash),
+    cell('Hoje', s.todayN ? h('span', null, `${nf0.format(s.todayN)} op. `, h('span', { class: tone(s.todayPnl) }, dbBrl(s.todayPnl))) : '0 op.'));
+}
+/* the market tab's totals */
+function dbOverview(items, mk) {
+  const ok_ = items.filter((i) => !i.error), st = ok_.map(dbStats);
+  const n = st.reduce((a, s) => a + s.n, 0), wins = st.reduce((a, s) => a + s.wins, 0), pnl = st.reduce((a, s) => a + s.pnl, 0);
+  const todayN = st.reduce((a, s) => a + s.todayN, 0), todayPnl = st.reduce((a, s) => a + s.todayPnl, 0);
+  const running = ok_.filter((i) => i.status === 'rodando').length, inPos = ok_.filter((i) => dbPosition(i)).length;
+  const traded = st.filter((s) => s.n), pos = traded.filter((s) => s.pnl > 0).length;
+  return h('div', { class: 'kpis' },
+    kpi(`Robôs no ${mk}`, nf0.format(ok_.length), `${nf0.format(running)} rodando agora`),
+    kpi('Em operação agora', nf0.format(inPos), inPos ? 'veja a lista acima' : 'todos zerados'),
+    kpi('Operações', nf0.format(n), `hoje ${nf0.format(todayN)}`),
+    kpi('Acerto geral', n ? h('span', { class: wins / n >= 0.5 ? 'pos' : 'neg' }, dbWr(wins / n * 100)) : dash, `${nf0.format(wins)} ganhos, ${nf0.format(n - wins)} perdas`),
+    kpi('Resultado fechado', h('span', { class: tone(pnl) }, dbBrl(pnl)), `hoje `, h('span', { class: tone(todayPnl) }, dbBrl(todayPnl))),
+    kpi('Robôs no positivo', traded.length ? `${nf0.format(pos)} de ${nf0.format(traded.length)}` : dash, 'entre os que já operaram'));
+}
+/* every robot in a trade right now, both markets (owner 2026-11-24: "quais estão comprados ou vendidos ... no meio da operação") */
+function dbOpen(all) {
+  const rows = all.filter((i) => !i.error && dbPosition(i)).map((i) => ({ it: i, pos: dbPosition(i), key: i.id }));
+  if (!rows.length) return card('Em operação agora', 'Robôs comprados ou vendidos neste momento, nos dois ativos.', emptyState('Nenhum robô posicionado agora.', 'Todos estão zerados; quando um entrar, ele aparece aqui com o resultado aberto ao vivo.'));
+  const name = (i) => String(i.id).replace(/^(demo|live)-b3-/, '').toUpperCase();
+  const entryAt = (r) => r.it.open_entry ? (r.it.open_entry.fill_time || r.it.open_entry.ts) : (r.pos.entry_time || null);
+  const longs = rows.filter((r) => r.pos.volume > 0).length;
+  const table = dataTable({ id: 'db-open', label: 'Robôs em operação agora', rows, sort0: { key: 'mk', dir: 1 },
+    cols: [{ key: 'mk', label: 'Ativo', val: (r) => r.it.market + r.it.id, cell: (r) => r.it.market },
+      { key: 'id', label: 'Robô', val: (r) => r.it.id, cell: (r) => h('button', { type: 'button', class: 'linkbtn', 'data-fkey': 'db-open:' + r.it.id, onclick: () => { DB.mk = r.it.market; DB.sel = r.it.id; render(); } }, name(r.it)) },
+      { key: 'side', label: 'Lado', val: (r) => r.pos.volume, cell: (r) => h('span', { class: r.pos.volume > 0 ? 'pos' : 'neg' }, r.pos.volume > 0 ? '▲ comprado' : '▼ vendido') },
+      { key: 'q', label: 'Contratos', num: true, val: (r) => Math.abs(r.pos.volume), cell: (r) => nf0.format(Math.abs(r.pos.volume)) },
+      { key: 'at', label: 'Entrou às', val: entryAt, cell: (r) => dbTime(entryAt(r)) },
+      { key: 'in', label: 'Entrada', num: true, val: (r) => r.pos.entry_price, cell: (r) => dbPx(r.it, r.pos.entry_price) },
+      { key: 'stop', label: 'Stop', num: true, val: (r) => r.pos.stop, cell: (r) => dbPx(r.it, r.pos.stop) },
+      { key: 'last', label: 'Preço agora', num: true, val: (r) => dbLast(r.it), cell: (r) => { const e = h('span', null, dbPx(r.it, dbLast(r.it))); (DB.els[r.it.id + ':openrow'] = DB.els[r.it.id + ':openrow'] || {}).last = e; return e; } },
+      { key: 'res', label: 'Resultado aberto', num: true, val: (r) => r.pos.open_result_brl, cell: (r) => { const e = h('span', { class: tone(r.pos.open_result_brl) }, dbBrl(r.pos.open_result_brl)); (DB.els[r.it.id + ':openrow'] = DB.els[r.it.id + ':openrow'] || {}).res = e; return e; } }] });
+  return card('Em operação agora', `${nf0.format(rows.length)} ${plural(rows.length, 'robô posicionado', 'robôs posicionados')} nos dois ativos: ${nf0.format(longs)} comprado(s), ${nf0.format(rows.length - longs)} vendido(s). Resultado aberto atualizado a cada 5 segundos; clique no nome para abrir o gráfico.`, table);
 }
 function dbItem(it) {
   if (it.error) return card(it.id, null, notAvailable('Demonstração', it.error));
@@ -224,10 +284,14 @@ function pageDemoB3() {
   const items = all.filter((i) => i.market === DB.mk);
   const tabs = segmented('Ativo', 'db-mk', DB.mk, [['WIN', `WIN · mini índice (${count('WIN')})`], ['WDO', `WDO · mini dólar (${count('WDO')})`]], (v) => { DB.mk = v; DB.sel = null; render(); });
   if (!DB.sel || !items.some((i) => i.id === DB.sel)) DB.sel = items[0].id;
-  return h('div', { class: 'rx rx-stack' }, head, tabs, dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
+  return h('div', { class: 'rx rx-stack' }, head, dbOpen(all), tabs, dbOverview(items, DB.mk), dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
 }
 const DB_STYLE = `.db-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
 .db-tile{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);cursor:pointer;font:inherit}
 .db-tile[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}.db-tile-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.db-tile-p{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}`;
+.db-tile-p{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.db-pos{font-size:13px;font-weight:600;color:var(--ink2)}.db-pos.long{color:var(--good)}.db-pos.short{color:var(--bad)}
+.db-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;padding-top:8px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.db-k{font-size:11px;color:var(--ink2);white-space:nowrap}.db-v{font-size:13px;font-weight:600}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}`;
 (() => { const st = document.createElement('style'); st.textContent = DB_STYLE; document.head.append(st); })();

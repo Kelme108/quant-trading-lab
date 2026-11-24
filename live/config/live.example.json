@@ -1,12 +1,29 @@
 {
-  "_note": "Copy to live/config/live.json. Never put credentials here: login, password and server go in the environment or an untracked .env.",
+  "_note": "Copy to live/config/live.json. Never put credentials here: login, password and server go in the environment or an untracked .env. B3 target config: the Clear demo and real accounts are HEDGING (margin_mode 2); the demo robots attach to the logged-in terminal (see b3/config/broker_mt5.json) and do not use credentials.",
   "mode": "demo",
   "allow_real": false,
-  "symbols": ["WINZ26", "WDOX26"],
+  "symbols": [
+    "WINZ26",
+    "WDOZ26"
+  ],
   "timeframe_min": 5,
   "volume": 1,
+  "calendar": "b3",
+  "broker": {
+    "magic": 260611,
+    "server_utc_offset_hours": null,
+    "deviation_points": 20,
+    "_note": "server_utc_offset_hours: hours the MT5 server clock is ahead of UTC (B3 brokers usually -3). Confirm with --check."
+  },
+  "strategy": {
+    "name": "smoke",
+    "stop_ticks": 50
+  },
+  "poll_seconds": 5,
   "killswitch_file": "live/STOP",
   "journal_db": "live/journal.sqlite",
+  "log_file": "live/logs/live.log",
+  "sha_file": "live/config/live.sha256",
   "risk": {
     "max_contracts_per_symbol": 2,
     "max_entries_per_day": 10,

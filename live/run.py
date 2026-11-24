@@ -30,6 +30,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Callable
@@ -38,6 +39,7 @@ from live.brokers.mt5 import MT5Broker, MT5Unavailable
 from live.core.clock import AlwaysOpenCalendar, B3Calendar, Clock, SessionConfig, SystemClock
 from live.core.engine import Engine
 from live.core.journal import Journal
+from live.core.control import Control
 from live.core.killswitch import KillSwitch
 from live.core.realguard import trading_blockers
 from live.core.risk import RiskConfig, RiskManager
@@ -65,14 +67,45 @@ def load_config(path: str | Path) -> dict:
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     if cfg.get("allow_real") and os.environ.get("LIVE_MODE", "demo") != "real":
         raise SystemExit("allow_real=true in the config but LIVE_MODE is not 'real'; refusing")
+    override = owner_override(cfg)
     if cfg.get("strategy", {}).get("name") == "b3_rule":
-        if cfg.get("allow_real") or cfg.get("mode") != "demo":
-            raise SystemExit("a b3_rule demonstration runs only with mode=demo and allow_real=false")
-        if not cfg.get("broker", {}).get("attach"):
-            raise SystemExit("a b3_rule demonstration attaches to the broker terminal (broker.attach)")
-    if not cfg.get("risk", {}).get("long_only", True) and cfg.get("mode") != "demo":
+        if override:                    # real account: the owner's recorded decision, sha-pinned with the config
+            if cfg.get("mode") != "live" or not cfg.get("allow_real") or cfg.get("broker", {}).get("attach"):
+                raise SystemExit("owner_override needs mode=live, allow_real=true and NO broker.attach (credentials from env_file)")
+        else:
+            if cfg.get("allow_real") or cfg.get("mode") != "demo":
+                raise SystemExit("a b3_rule demonstration runs only with mode=demo and allow_real=false")
+            if not cfg.get("broker", {}).get("attach"):
+                raise SystemExit("a b3_rule demonstration attaches to the broker terminal (broker.attach)")
+    if not cfg.get("risk", {}).get("long_only", True) and cfg.get("mode") != "demo" and not override:
         raise SystemExit("risk.long_only=false (shorts) is allowed only with mode=demo")
     return cfg
+
+
+def owner_override(cfg: dict) -> bool:
+    """The owner's explicit decision to run a rule the research did not approve on the REAL account (2026-11-17).
+    Lives inside the config, so the config's SHA-256 pin (live/config/<name>.sha256) covers it: any edit blocks the robot
+    until the owner records the new hash. The account id, LIVE_MODE=real and allow_real checks stay in realguard."""
+    o = cfg.get("owner_override")
+    return isinstance(o, dict) and o.get("approved") is True and bool(o.get("date")) and bool(o.get("reason"))
+
+
+def other_real_robot_on_symbol(cfg: dict, config_path: str | Path, now: float | None = None) -> str | None:
+    """On a NETTING account two robots on the same contract share ONE position. Name another live-b3 robot of the same
+    symbol whose live feed is fresh (written in the last 60 s), or None."""
+    me, symbol = Path(config_path).resolve(), (cfg.get("symbols") or [""])[0]
+    for other in sorted(Path(config_path).resolve().parent.glob("live-b3-*.json")):
+        if other.resolve() == me:
+            continue
+        try:
+            o = json.loads(other.read_text(encoding="utf-8"))
+            feed = json.loads(Path(o["feed_file"]).read_text(encoding="utf-8"))
+            age = (datetime.now(timezone.utc) if now is None else datetime.fromtimestamp(now, timezone.utc))                 - datetime.fromisoformat(feed["updated_at"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if (o.get("symbols") or [""])[0] == symbol and age.total_seconds() <= 60:
+            return other.stem
+    return None
 
 
 def attach_config(cfg: dict) -> dict | None:
@@ -125,7 +158,7 @@ def build_strategy(cfg: dict, broker: MT5Broker):
     s = cfg.get("strategy", {"name": "smoke"})
     if s.get("name") == "b3_rule":
         st = B3RuleStrategy(str(s["rule"]), str(s["market"]), cfg.get("snapshot_file"), cfg["symbols"][0],
-                           cfg.get("take_profit"))
+                           cfg.get("take_profit"), s.get("esteira"))
         if len(cfg["symbols"]) != 1 or not cfg["symbols"][0].upper().startswith(st.market):
             raise SystemExit(f"a b3_rule runs on exactly one {st.market} contract (e.g. {st.market}Z26)")
         if int(cfg.get("timeframe_min", st.timeframe_min)) != st.timeframe_min:
@@ -142,14 +175,19 @@ def build_strategy(cfg: dict, broker: MT5Broker):
 
 def guard(cfg: dict, config_path: str | Path, broker: MT5Broker, strategy) -> list[str]:
     acc = broker.account()
+    override = owner_override(cfg)
     why = trading_blockers(os.environ, config_path, cfg.get("sha_file", "live/config/live.sha256"),
-                           acc.is_demo, acc.account_id, strategy_approved=False)
+                           acc.is_demo, acc.account_id, strategy_approved=override)
     if strategy.name == "smoke" and not acc.is_demo:
         why.append("smoke_strategy_on_non_demo_account")
-    if isinstance(strategy, B3RuleStrategy) and not acc.is_demo:
+    if isinstance(strategy, B3RuleStrategy) and not acc.is_demo and not override:
         why.append("b3_demonstration_on_non_demo_account")
-    if not cfg.get("risk", {}).get("long_only", True) and not acc.is_demo:
+    if not cfg.get("risk", {}).get("long_only", True) and not acc.is_demo and not override:
         why.append("shorts_on_non_demo_account")
+    if override and not acc.is_demo and not broker.is_hedging():
+        clash = other_real_robot_on_symbol(cfg, config_path)
+        if clash:                      # netting: both robots would share one position
+            why.append(f"netting_account_symbol_in_use_by_{clash}")
     att = attach_config(cfg)
     if att is not None:
         info = broker.mt5.account_info()
@@ -196,7 +234,8 @@ def run(cfg: dict, config_path: str | Path, broker: MT5Broker, clock: Clock | No
     risk = RiskManager(RiskConfig(**{k: v for k, v in r.items() if k in RiskConfig.__dataclass_fields__}))
     engine = Engine(broker, strategy, clock, build_calendar(cfg, strategy), journal, risk,
                     KillSwitch(cfg.get("killswitch_file", "live/STOP")), list(cfg["symbols"]),
-                    volume=float(cfg.get("volume", 1)), alert=lambda m: log.warning("ALERT %s", m))
+                    volume=float(cfg.get("volume", 1)), alert=lambda m: log.warning("ALERT %s", m),
+                    control=Control(cfg.get("command_file") or f"live/commands/{Path(config_path).stem}.json"))
     engine.start()
     poll, steps, errors = float(cfg.get("poll_seconds", 5)), 0, 0
     feed_file, feed_every, feed_at = cfg.get("feed_file"), float(cfg.get("feed_every_s", 5)), 0.0
@@ -209,6 +248,9 @@ def run(cfg: dict, config_path: str | Path, broker: MT5Broker, clock: Clock | No
                     return 3
                 acts = engine.step()
                 errors = 0
+                if engine.stopped:             # operator pressed "Desligar" in the portal: flattened, leave cleanly
+                    log.info("stopped by the operator's command (position flattened)")
+                    return 0
                 if acts:
                     log.info("step: %s", acts)
                 if feed_file and time.monotonic() - feed_at >= feed_every:
@@ -256,7 +298,9 @@ def main(argv: list[str] | None = None, mt5_module: Any = None) -> int:
     args = ap.parse_args(argv)
     raw = json.loads(Path(args.config).read_text(encoding="utf-8"))
     if not raw.get("broker", {}).get("attach"):
-        load_env_file(args.env)          # never for an attached terminal: live/.env is another account
+        # never for an attached terminal: live/.env is another account. A robot of the real account names its own
+        # file (config key "env_file", e.g. live/.env.real) so the demo credentials and the real ones never mix.
+        load_env_file(raw.get("env_file") or args.env)
     cfg = load_config(args.config)
     setup_logging(cfg.get("log_file", "live/logs/live.log"))
     if mt5_module is None:

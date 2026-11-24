@@ -2701,6 +2701,7 @@ costChartFor = guard(costChartFor, 'Retorno por cenário de custo'); drawdownCha
 
 /*__DEMO_B3__*/
 /*__ESTEIRA__*/
+/*__LIVE_B3__*/
 
 /* ==================== shell, router and render loop ==================== */
 const ROUTES = [
@@ -2711,6 +2712,7 @@ const ROUTES = [
   { id: 'strategy', hidden: true, title: 'Estratégia', ctx: 'Relatório de uma estratégia: provas, curva, queda, mês a mês, horários e regra', page: uxCrypto('strategy', (r) => pageEstrategia(r.arg)) },
   ...uxRoutes(),
   { id: 'indices', group: 'B3: WIN e WDO', title: 'Programa de agentes', ctx: 'Day trade em índices: conclusão, funil, programa de agentes e avisos', page: () => pageIndices() },
+  { id: 'b3-live', group: 'B3: WIN e WDO', title: 'Ao vivo (conta real)', ctx: 'Robôs da conta real da Clear, com botões para fechar posição e pausar entradas', page: () => pageRealB3() },
   { id: 'b3-demo', group: 'B3: WIN e WDO', title: 'Demo Clear (ao vivo)', ctx: 'WIN e WDO ao vivo na conta demo da Clear: candles de 1, 5 e 15 min, posição e operações', page: () => pageDemoB3() },
   { id: 'b3-esteira', group: 'B3: WIN e WDO', title: 'Esteira', ctx: 'Esteira de estratégias: ciclos, gasto da noite, triagem, melhores saídas (stop e alvo) e o portão', page: () => pageEsteira() },
   { id: 'indices-ciclos', group: 'B3: WIN e WDO', title: 'Ciclos dos agentes', ctx: 'O que cada ciclo de agentes fez, quanto custou e os erros', page: () => pageIndicesCiclos() },
@@ -2747,7 +2749,7 @@ function currentTheme() { return document.documentElement.dataset.theme || (matc
    that open and close; only the group of the page on screen opens by itself. Each universe page also has the
    Cripto / B3 / Substitutos tabs at its top, so the menu does not need every page of every universe expanded. */
 const NAV = [
-  { id: 'b3', label: 'B3: WIN e WDO', icon: 'indices', items: [['b3-demo', 'Ao vivo (demo Clear)', true], ['b3-esteira', 'Esteira'], ['b3', 'Início'], ['b3-leaderboard', 'Ranking'], ['b3-trades', 'Operações'], ['b3-compare', 'Comparar'], ['indices', 'Agentes'], ['indices-ciclos', 'Ciclos dos agentes']] },
+  { id: 'b3', label: 'B3: WIN e WDO', icon: 'indices', items: [['b3-live', 'Ao vivo (conta real)', true], ['b3-demo', 'Demo Clear'], ['b3-esteira', 'Esteira'], ['b3', 'Início'], ['b3-leaderboard', 'Ranking'], ['b3-trades', 'Operações'], ['b3-compare', 'Comparar'], ['indices', 'Agentes'], ['indices-ciclos', 'Ciclos dos agentes']] },
   { id: 'crypto', label: 'Cripto', icon: 'overview', items: [['overview', 'Início'], ['leaderboard', 'Ranking'], ['trades', 'Operações'], ['compare', 'Comparar'], ['dryrun', 'Dry-run', true], ['aovivo', 'Ao vivo', true]] },
   { id: 'proxies', label: 'Substitutos', icon: 'indices-mercados', note: 'Programa encerrado em 16/11/2026; fica como arquivo.', items: [['proxies', 'Início'], ['proxies-leaderboard', 'Ranking'], ['proxies-trades', 'Operações'], ['proxies-compare', 'Comparar'], ['indices-placar', 'Placar das regras'], ['indices-mercados', 'Mercados e medições']] },
   { id: 'lab', label: 'Laboratório', icon: 'research', items: [['data', 'Sistema'], ['research', 'Pesquisa com IA'], ['risk', 'Validação e risco']] },

@@ -11,6 +11,7 @@ Demonstration trades are NOT evidence and never enter the research ledger.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -86,6 +87,57 @@ def _research(rule: str, market: str, root: Path) -> list[dict]:
     return out
 
 
+def pid_path(name: str, root: Path = ROOT) -> Path:
+    return root / "live" / "state" / f"{name}.pid"
+
+
+def pid_alive(pid: int) -> bool:
+    """Is that process still running? (Windows: exit code STILL_ACTIVE; elsewhere signal 0.)"""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        handle = k32.OpenProcess(0x1000, False, int(pid))          # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        got = k32.GetExitCodeProcess(handle, ctypes.byref(code))
+        k32.CloseHandle(handle)
+        return bool(got) and code.value == 259
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    return True
+
+
+def started_by_portal(name: str, root: Path = ROOT) -> int | None:
+    """The pid the portal recorded when it started this robot (None if it never did, or the process is gone)."""
+    try:
+        pid = int(pid_path(name, root).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return pid if pid_alive(pid) else None
+
+
+def is_running(cfg: dict, name: str, root: Path = ROOT, now: datetime | None = None) -> bool:
+    """A robot is running if the portal's recorded process is alive or its live feed is fresh (started elsewhere)."""
+    if started_by_portal(name, root):
+        return True
+    feed = _read_json(root / cfg["feed_file"]) if cfg.get("feed_file") else None
+    try:
+        fed = datetime.fromisoformat(feed["updated_at"]) if feed and feed.get("updated_at") else None
+    except ValueError:
+        fed = None
+    return fed is not None and (now or datetime.now(UTC)) - fed <= timedelta(seconds=FEED_STALE_S)
+
+
+def command_path(cfg: dict, name: str, root: Path = ROOT) -> Path:
+    """Where the portal drops operator commands for this robot (the engine reads the same path, live/run.py)."""
+    return root / (cfg.get("command_file") or f"live/commands/{name}.json")
+
+
 def _phase(snapshot: dict | None, now: datetime) -> str:
     s = (snapshot or {}).get("session")
     if not s or (snapshot or {}).get("day") != now.astimezone(timezone(timedelta(hours=-3))).date().isoformat():
@@ -127,6 +179,12 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
     else:
         running = "rodando"
     today = now.astimezone(timezone(timedelta(hours=-3))).date().isoformat()
+    marks = [e["kind"] for e in events if e["kind"] in ("pause", "resume")]
+    power = [e["kind"] for e in events if e["kind"] in ("start", "stop")]
+    pid = started_by_portal(name, root)
+    fresh = fed is not None and now - fed <= timedelta(seconds=FEED_STALE_S)
+    cmds = [e for e in events if e["kind"] == "command"]
+    pending = _read_json(command_path(cfg, name, root))
     def local_day(t: str) -> str:
         return datetime.fromisoformat(t.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=-3))).date().isoformat()
     return {
@@ -141,13 +199,18 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
         "alerts": [{"ts": e["ts"], "message": e.get("message", "")} for e in events if e["kind"] == "alert"][-10:],
         "vetoes": [{"ts": e["ts"], "reasons": e.get("reasons", []), "side": e.get("side")} for e in events if e["kind"] == "veto"][-10:],
         "killswitch": (root / cfg.get("killswitch_file", "live/STOP")).exists(),
+        "mode": cfg.get("mode", "demo"), "process_alive": bool(pid) or fresh, "off": bool(power) and power[-1] == "stop" and not fresh,
+        "paused": bool(marks) and marks[-1] == "pause",
+        "command_pending": {"action": pending.get("action"), "at": pending.get("at")} if pending else None,
+        "last_command": {"ts": cmds[-1]["ts"], "action": cmds[-1].get("action"), "result": cmds[-1].get("result")} if cmds else None,
         "research": _research(st.get("rule"), st.get("market"), root),
     }
 
 
-def demo_state(root: Path = ROOT, now: datetime | None = None) -> dict:
+def demo_state(root: Path = ROOT, now: datetime | None = None, prefix: str = "demo-b3-") -> dict:
+    """prefix "demo-b3-" = the Clear DEMO demonstrations; "live-b3-" = the real-account robots (the live section)."""
     items = []
-    for p in sorted((root / "live" / "config").glob("demo-b3-*.json")):
+    for p in sorted((root / "live" / "config").glob(prefix + "*.json")):
         try:
             items.append(demo_one(p, root, now))
         except Exception as exc:           # one broken demonstration must not hide the others

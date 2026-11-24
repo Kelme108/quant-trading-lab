@@ -9,6 +9,11 @@ FreqUI's job, and only matters once a forward test is running.
 
 Read-only by construction: the registry is opened with SQLite `mode=ro`, nothing
 here writes to the project, and the server answers GET only, on loopback only.
+ONE exception (owner, 2026-11-17): POST /api/control, for the real-account section. It does not
+touch the broker: it drops a command file (live/commands/<robot>.json) that the robot's own
+engine executes and journals. It needs the loopback Host, the page's own Origin, a per-run token
+(only readable from a same-origin GET), JSON, a robot named live-b3-* that has a config, and
+one pending command at most.
 Text in the page comes from agents and from the web, so it is untrusted: the
 page inserts it with textContent, the state is embedded with `<` escaped, and a
 per-request nonce CSP forbids every script but the page's own.
@@ -46,6 +51,7 @@ INDICES_JS_PATH = ASSET_DIR / "indices.js"
 UNIVERSES_JS_PATH = ASSET_DIR / "universes.js"
 DEMO_B3_JS_PATH = ASSET_DIR / "demo_b3.js"
 ESTEIRA_JS_PATH = ASSET_DIR / "esteira.js"
+LIVE_B3_JS_PATH = ASSET_DIR / "live_b3.js"
 INDICES_TRADE_FILE = re.compile(r"[A-Za-z0-9/._-]{1,160}")
 BUDGET_PATH = Path(__file__).parent / "config" / "budget.json"
 DEFAULT_PORT = 8765
@@ -1168,6 +1174,7 @@ def render_page(state: dict, *, nonce: str | None, live: bool) -> str:
         .replace("/*__INDICES__*/", INDICES_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__DEMO_B3__*/", DEMO_B3_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__ESTEIRA__*/", ESTEIRA_JS_PATH.read_text(encoding="utf-8"))
+        .replace("/*__LIVE_B3__*/", LIVE_B3_JS_PATH.read_text(encoding="utf-8"))
         .replace("/*__VENDOR_CHARTS__*/", VENDOR_CHARTS_PATH.read_text(encoding="utf-8"))
         .replace("__NONCE_ATTR__", nonce_attr)
         .replace("__LIVE__", "true" if live else "false")
@@ -1196,6 +1203,33 @@ class _Server(ThreadingHTTPServer):
     daemon_threads = True
     provider: Callable[[], dict]
     trades: Callable[[str], tuple[int, dict]]
+    root: Path = ROOT
+    control_token: str = ""
+    spawn: Callable | None = None          # starts a robot process (tests inject a fake)
+
+
+def _spawn_robot(root: Path, rid: str):
+    """Start `python -m live.run --config live/config/<rid>.json` detached, its output in live/logs/<rid>-task.log."""
+    import subprocess
+
+    py = root / "live" / ".venv" / "Scripts" / "python.exe"
+    wpy = root / "ops" / "linux" / "wpy.sh"
+    if sys.platform != "win32" and wpy.is_file():
+        cmd = ["bash", str(wpy)]                 # Linux: MetaTrader5 only exists in the Windows Python inside Wine
+    else:
+        cmd = [str(py) if py.is_file() else sys.executable]
+    (root / "live" / "logs").mkdir(parents=True, exist_ok=True)
+    log = open(root / "live" / "logs" / f"{rid}-task.log", "ab")
+    flags = (0x00000008 | 0x00000200 | 0x08000000) if sys.platform == "win32" else 0   # DETACHED | NEW_GROUP | NO_WINDOW
+    try:
+        return subprocess.Popen([*cmd, "-m", "live.run", "--config", f"live/config/{rid}.json"], cwd=str(root),
+                                stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
+    finally:
+        log.close()
+
+
+CONTROL_ID = re.compile(r"live-b3-[a-z0-9][a-z0-9-]{0,60}")
+CONTROL_MAX_BODY = 512
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -1290,6 +1324,12 @@ class _Handler(BaseHTTPRequestHandler):
                 from lab import demo_b3  # the Clear demo demonstration (owner 2026-11-16); reads files only
 
                 self._send(200, _embed(demo_b3.demo_state(ROOT)).encode("utf-8"), "application/json; charset=utf-8")
+            elif path == "/api/real-b3":
+                from lab import demo_b3  # the real-account section: same reader, live-b3-*.json configs
+
+                state = demo_b3.demo_state(self.server.root, prefix="live-b3-")
+                state["control_token"] = self.server.control_token
+                self._send(200, _embed(state).encode("utf-8"), "application/json; charset=utf-8")
             elif path == "/api/universe":
                 from lab import universes
 
@@ -1335,16 +1375,127 @@ class _Handler(BaseHTTPRequestHandler):
     do_GET = do_HEAD = _handle
 
     def _refuse(self) -> None:
+        try:                                # read a small body first, so the client is not reset mid-send
+            n = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            n = 0
+        if 0 < n <= 4096:
+            self.rfile.read(n)
         self._send(405, b"read-only", "text/plain; charset=utf-8", {"Allow": "GET, HEAD"})
 
-    do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _refuse
+    def _json(self, status: int, obj: dict) -> None:
+        self._send(status, json.dumps(obj).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _post(self) -> None:
+        """The only write: POST /api/control {"id": "live-b3-...", "action": "close|pause|resume|close_stop"}."""
+        if self.path.partition("?")[0] != "/api/control":
+            self._refuse()
+            return
+        from live.core.control import ACTIONS, write_command
+        from lab import demo_b3
+
+        port = self.server.server_address[1]
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = -1
+        raw = self.rfile.read(length) if 0 < length <= CONTROL_MAX_BODY else b""   # always drain, so a refusal is never a reset
+        if not self._host_allowed():
+            self._json(403, {"error": "forbidden host"})
+            return
+        if self.headers.get("Origin", "") not in {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}:
+            self._json(403, {"error": "forbidden origin"})
+            return
+        token = self.headers.get("X-Control-Token", "")
+        if not self.server.control_token or not secrets.compare_digest(token, self.server.control_token):
+            self._json(403, {"error": "bad token"})
+            return
+        if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+            self._json(415, {"error": "json only"})
+            return
+        if not 0 < length <= CONTROL_MAX_BODY:
+            self._json(400, {"error": "bad body size"})
+            return
+        try:
+            body = json.loads(raw)
+            rid, action = body["id"], body["action"]
+        except (ValueError, KeyError, TypeError):
+            self._json(400, {"error": "bad body"})
+            return
+        if not isinstance(rid, str) or not CONTROL_ID.fullmatch(rid):
+            self._json(400, {"error": "unknown robot"})
+            return
+        if action not in ACTIONS + ("start",):
+            self._json(400, {"error": "unknown action"})
+            return
+        root = self.server.root
+        cfg_path = root / "live" / "config" / f"{rid}.json"
+        cfg = demo_b3._read_json(cfg_path)
+        if cfg is None:
+            self._json(404, {"error": "no such robot"})
+            return
+        target = demo_b3.command_path(cfg, rid, root).resolve()
+        if (root / "live" / "commands").resolve() not in target.parents:
+            self._json(400, {"error": "command file outside live/commands"})
+            return
+        running = demo_b3.is_running(cfg, rid, root)
+        if action == "start":
+            self._start(rid, root, target, running)
+            return
+        if not running:                     # a command for a robot that is off would wait and fire the moment it starts
+            self._json(409, {"error": "the robot is not running"})
+            return
+        if target.exists():
+            self._json(409, {"error": "a command is already pending for this robot"})
+            return
+        self._json(202, {"id": write_command(target, action, source="portal"), "action": action})
+
+    def _start(self, rid: str, root: Path, command_file: Path, running: bool) -> None:
+        """"Ligar": start the robot's process. The engine's own guards (demo/real account, kill switch, risk) still decide
+        whether it trades; if it dies in the first seconds the reason from its log goes back to the page."""
+        from lab import demo_b3
+
+        if running:
+            self._json(409, {"error": "the robot is already running"})
+            return
+        try:
+            command_file.unlink()           # a stale command must not fire on the fresh process
+        except OSError:
+            pass
+        try:
+            proc = (self.server.spawn or _spawn_robot)(root, rid)
+        except OSError as error:
+            self._json(500, {"error": "could not start", "detail": repr(error)})
+            return
+        demo_b3.pid_path(rid, root).parent.mkdir(parents=True, exist_ok=True)
+        demo_b3.pid_path(rid, root).write_text(str(proc.pid), encoding="utf-8")
+        deadline = time.monotonic() + 4.0
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                break
+            time.sleep(0.2)
+        if proc.poll() is not None:
+            try:
+                tail = (root / "live" / "logs" / f"{rid}-task.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-4:]
+            except OSError:
+                tail = []
+            demo_b3.pid_path(rid, root).unlink(missing_ok=True)
+            self._json(500, {"error": "the robot stopped right after starting", "detail": " | ".join(tail)[-600:]})
+            return
+        self._json(202, {"id": rid, "action": "start", "pid": proc.pid})
+
+    do_POST = _post
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _refuse
 
 
 def create_server(
-    provider: Callable[[], dict], port: int = DEFAULT_PORT, trades: Callable[[str], tuple[int, dict]] | None = None
+    provider: Callable[[], dict], port: int = DEFAULT_PORT, trades: Callable[[str], tuple[int, dict]] | None = None,
+    root: Path | None = None,
 ) -> _Server:
     """A server bound to loopback only; port 0 picks a free port (used by tests)."""
     server = _Server(("127.0.0.1", port), _Handler)
+    server.root = root or ROOT
+    server.control_token = secrets.token_urlsafe(24)       # new on every start; only a same-origin GET can read it
     server.provider = provider
     server.trades = trades or (lambda experiment_id: trades_payload(ROOT, DB_PATH, experiment_id))
     return server

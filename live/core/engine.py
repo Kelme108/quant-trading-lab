@@ -9,7 +9,9 @@ Safety properties (each one has a test):
   or an order of unknown outcome puts the engine in safe mode (no entries);
 - limit breaches lock entries for the rest of the day/week (persisted in the
   journal, so a restart does not unlock) and flatten;
-- the kill switch and the end-of-day flatten always win.
+- the kill switch and the end-of-day flatten always win;
+- operator commands (close / pause / resume) come through a file the ENGINE executes with its own broker, so the
+  fill is journalled like any exit and the journal never disagrees with the broker (see live/core/control.py).
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from typing import Callable, Protocol
 
 from live.core.broker import Broker
 from live.core.clock import B3Calendar, Clock
+from live.core.control import Control
 from live.core.journal import Journal
 from live.core.killswitch import KillSwitch
 from live.core.models import Bar, Fill, OrderRequest, Position, Signal
@@ -41,7 +44,11 @@ class Engine:
     def __init__(self, broker: Broker, strategy: Strategy, clock: Clock,
                  calendar: B3Calendar, journal: Journal, risk: RiskManager,
                  killswitch: KillSwitch, symbols: list[str], volume: float = 1.0,
-                 alert: Callable[[str], None] | None = None) -> None:
+                 alert: Callable[[str], None] | None = None,
+                 control: Control | None = None) -> None:
+        self.control = control
+        self._paused = False
+        self.stopped = False                 # set by the operator's `stop` command: run() leaves the loop
         self.broker, self.strategy, self.clock, self.cal = broker, strategy, clock, calendar
         self.journal, self.risk, self.ks = journal, risk, killswitch
         self.symbols, self.volume = list(symbols), volume
@@ -92,9 +99,54 @@ class Engine:
         """Call once at startup: reconcile with the broker before trading."""
         self.journal.log("start", strategy_hash=self.strategy.hash,
                          symbols=self.symbols, volume=self.volume)
+        # a pause survives a restart: the last pause/resume event in the journal decides
+        marks = [e["kind"] for e in self.journal.events() if e["kind"] in ("pause", "resume")]
+        self._paused = bool(marks) and marks[-1] == "pause"
         mm = self._mismatches()
         if mm:
             self._alert(f"reconciliation mismatch at start (journal, broker): {mm}")
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def _commands(self, acts: list[str]) -> None:
+        """Execute the operator's pending command, once. Runs before the safe-mode return so a close always works."""
+        cmd = self.control.peek() if self.control else None
+        if cmd is None:
+            return
+        cid, action = cmd["id"], cmd["action"]
+        if self.journal.has("command", cid):             # handled already (the engine died before deleting the file)
+            self.control.done(cmd)
+            return
+        result = ""
+        if action in ("close", "close_stop", "stop"):
+            if self.broker.positions():
+                self.broker.cancel_all()
+                self.broker.close_all("manual_close")
+                self._drain()
+                result = "closed" if not self.broker.positions() else "close_failed"
+            else:
+                result = "nothing_to_close"
+            if result == "close_failed":
+                self._alert("manual close did not flatten the position; check the terminal")
+        if action == "stop" and result == "close_failed":
+            pass                                   # never leave with an open position the engine could not close
+        elif action == "stop":
+            self.stopped = True
+            self.journal.log("stop", source=cmd.get("source", ""))
+            result = (result + "+stopped") if result else "stopped"
+        elif action in ("pause", "close_stop"):
+            self._paused = True
+            self.journal.log("pause", source=cmd.get("source", ""))
+            result = (result + "+paused") if result else "paused"
+        elif action == "resume":
+            self._paused = False
+            self.journal.log("resume", source=cmd.get("source", ""))
+            result = "resumed"
+        self.journal.log("command", key=cid, action=action, result=result, source=cmd.get("source", ""))
+        self.control.done(cmd)
+        acts.append("command:" + action)
 
     # ---------- main step ----------
     def step(self) -> list[str]:
@@ -111,6 +163,7 @@ class Engine:
             self._drain()
             return ["killswitch"]
 
+        self._commands(acts)
         phase = self.cal.phase(now)
         if phase == "closed":
             return acts
@@ -128,7 +181,7 @@ class Engine:
             self._mismatch_seen.add(sig)
             self._alert(f"reconciliation mismatch (journal, broker): {mm}")
         if self.safe_mode:
-            return ["safe_mode"]
+            return acts + ["safe_mode"]
 
         self._check_lockouts(now, acts)
         self._take_profit(acts)
@@ -221,6 +274,10 @@ class Engine:
                                     abs(pos.volume), reduce_only=True, reason=sig.reason),
                        self._ctx(symbol, now, phase, last, age, pos))
             acts.append("exit")
+        elif sig.action in ("enter", "enter_short") and not pos and self._paused:
+            self.journal.log("veto", symbol, key=self._cid(symbol, last, "E"), reasons=["paused"],
+                             side="buy" if sig.action == "enter" else "sell")
+            acts.append("veto")
         elif sig.action in ("enter", "enter_short") and not pos:
             # "enter_short" opens a short; RiskConfig.long_only (the default) vetoes it
             side = "buy" if sig.action == "enter" else "sell"
