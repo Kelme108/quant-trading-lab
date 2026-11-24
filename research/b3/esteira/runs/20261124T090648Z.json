@@ -1,0 +1,7001 @@
+{
+ "run": "20261124T090648Z",
+ "generated_at_utc": "2026-11-24T09:06:48+00:00",
+ "config": "b3/config/esteira_b3.json",
+ "split": "exploration",
+ "default_exit": {
+  "kind": "target_stop_time",
+  "target_brl": 30.0,
+  "stop_brl": 30.0,
+  "max_hold_min": 30,
+  "_why": "one exit for every family so rules compete on the same footing; the owner will decide the demo stop/take-profit later and this block changes then (a change = a new screen run, its variants counted again)",
+  "_fills": "signal at the close of bar t; market order at the open of the 1-minute bar that starts at t's close (+ slippage); every 1-minute bar from the entry minute on: stop first (fills at the stop or the gap open, - slippage), then the target (a limit: needs a trade 1 tick through, fills at the target); time exit at the open of the first minute at or after entry + max_hold_min; flat at the session's flatten time; one position at a time; at most max_entries_per_session entries per session"
+ },
+ "families": {
+  "E-1248": {
+   "title": "Seasonal same-minute forward drift",
+   "hypothesis": "Intraday flows (opening hedges, lunch, US open, closing auction) recur at the same clock minute; if the last 20 sessions' average forward return from this minute is large relative to its typical size, the same flow should recur: trade in that direction.",
+   "code_hash": "f2848b1a89ca",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=30,k=0.7",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 496,
+        "trades_per_year": 189.10647181628394,
+        "mean_net_brl": -0.04879032258064491,
+        "total_net_brl": -24.199999999999875,
+        "hit_rate": 0.5262096774193549,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         148.5,
+         -55.9,
+         -171.8,
+         -86.0,
+         -77.4,
+         7.1,
+         41.3,
+         170.0
+        ],
+        "exit_reasons": {
+         "target": 199,
+         "stop": 187,
+         "time": 108,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 496,
+        "mean_net_brl": -1.5080645161290323,
+        "hit_rate": 0.5141129032258065
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=15,k=0.3",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6296,
+        "trades_per_year": 2400.4321503131523,
+        "mean_net_brl": -1.273506988564168,
+        "total_net_brl": -8018.000000000002,
+        "hit_rate": 0.49221728081321475,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1172.5,
+         -326.9,
+         -1489.1,
+         -221.4,
+         -1999.8,
+         -294.6,
+         -1050.5,
+         -1463.2
+        ],
+        "exit_reasons": {
+         "stop": 2835,
+         "target": 2797,
+         "time": 660,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 6296,
+        "mean_net_brl": -2.706956797966963,
+        "hit_rate": 0.4866581956797967
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=15,k=0.3",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -1.2846592709984153,
+        "total_net_brl": -8106.200000000001,
+        "hit_rate": 0.49508716323296353,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -208.0,
+         -583.0,
+         -1683.2,
+         -916.0,
+         -1147.2,
+         -780.6,
+         -1325.6,
+         -1462.6
+        ],
+        "exit_reasons": {
+         "stop": 2999,
+         "target": 2952,
+         "time": 359
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.703961965134707,
+        "hit_rate": 0.4919175911251981
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=15,k=0.5",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 4077,
+        "trades_per_year": 1554.4094467640919,
+        "mean_net_brl": -1.3822663723325979,
+        "total_net_brl": -5635.500000000002,
+        "hit_rate": 0.49080206033848417,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -56.2,
+         -1773.8,
+         -378.9,
+         -1020.2,
+         -290.5,
+         -608.7,
+         -1165.2,
+         -342.0
+        ],
+        "exit_reasons": {
+         "stop": 1750,
+         "target": 1689,
+         "time": 604,
+         "flatten": 34
+        }
+       },
+       "measured_p90": {
+        "trades": 4077,
+        "mean_net_brl": -2.833701250919794,
+        "hit_rate": 0.48148148148148145
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=15,k=0.7",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 733,
+        "trades_per_year": 279.46581419624215,
+        "mean_net_brl": -1.6585266030013643,
+        "total_net_brl": -1215.7,
+        "hit_rate": 0.48840381991814463,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -176.6,
+         -141.0,
+         -166.7,
+         -334.7,
+         -116.4,
+         47.3,
+         -353.8,
+         26.2
+        ],
+        "exit_reasons": {
+         "stop": 310,
+         "target": 293,
+         "time": 103,
+         "flatten": 27
+        }
+       },
+       "measured_p90": {
+        "trades": 733,
+        "mean_net_brl": -3.1186903137789903,
+        "hit_rate": 0.4733969986357435
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=30,k=0.7",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 979,
+        "trades_per_year": 373.25652400835077,
+        "mean_net_brl": -1.7533197139938714,
+        "total_net_brl": -1716.5000000000002,
+        "hit_rate": 0.4811031664964249,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -519.3,
+         -432.6,
+         -952.4,
+         300.8,
+         11.6,
+         -393.7,
+         -167.9,
+         437.0
+        ],
+        "exit_reasons": {
+         "stop": 412,
+         "target": 388,
+         "time": 165,
+         "flatten": 14
+        }
+       },
+       "measured_p90": {
+        "trades": 979,
+        "mean_net_brl": -3.2155260469867213,
+        "hit_rate": 0.473953013278856
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=15,k=0.5",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 5872,
+        "trades_per_year": 2238.776617954071,
+        "mean_net_brl": -1.7887942779291555,
+        "total_net_brl": -10503.800000000001,
+        "hit_rate": 0.48467302452316074,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -604.8,
+         -1963.2,
+         -300.8,
+         -1769.2,
+         -649.9,
+         -2317.3,
+         -1853.6,
+         -1045.0
+        ],
+        "exit_reasons": {
+         "stop": 2625,
+         "target": 2477,
+         "time": 737,
+         "flatten": 33
+        }
+       },
+       "measured_p90": {
+        "trades": 5872,
+        "mean_net_brl": -3.2356948228882834,
+        "hit_rate": 0.47854223433242504
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=30,k=0.3",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6305,
+        "trades_per_year": 2403.863517745303,
+        "mean_net_brl": -1.8863283108643936,
+        "total_net_brl": -11893.300000000001,
+        "hit_rate": 0.48406026962727994,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1020.2,
+         -2546.5,
+         -1766.3,
+         -839.4,
+         -1410.0,
+         -1973.2,
+         -998.4,
+         -1339.3
+        ],
+        "exit_reasons": {
+         "stop": 2940,
+         "target": 2763,
+         "time": 599,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 6305,
+        "mean_net_brl": -3.3233941316415545,
+        "hit_rate": 0.4778747026169707
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=15,k=0.7",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 1704,
+        "trades_per_year": 649.6722338204593,
+        "mean_net_brl": -2.238145539906103,
+        "total_net_brl": -3813.8,
+        "hit_rate": 0.4794600938967136,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -426.9,
+         -561.4,
+         -373.9,
+         -402.6,
+         -459.9,
+         -174.5,
+         -917.9,
+         -496.7
+        ],
+        "exit_reasons": {
+         "stop": 757,
+         "target": 691,
+         "time": 237,
+         "flatten": 19
+        }
+       },
+       "measured_p90": {
+        "trades": 1704,
+        "mean_net_brl": -3.6948356807511735,
+        "hit_rate": 0.47007042253521125
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=30,k=0.5",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 2754,
+        "trades_per_year": 1049.9984342379958,
+        "mean_net_brl": -2.4140885984023237,
+        "total_net_brl": -6648.4,
+        "hit_rate": 0.4760348583877996,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -885.6,
+         -1205.5,
+         -902.5,
+         -229.6,
+         -1062.5,
+         -888.3,
+         -992.0,
+         -482.4
+        ],
+        "exit_reasons": {
+         "stop": 1214,
+         "target": 1082,
+         "time": 449,
+         "flatten": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 2754,
+        "mean_net_brl": -3.8783587509077706,
+        "hit_rate": 0.46405228758169936
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|5m|horizon_min=30,k=0.3",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6061,
+        "trades_per_year": 2310.8353340292274,
+        "mean_net_brl": -2.458818676786009,
+        "total_net_brl": -14902.900000000001,
+        "hit_rate": 0.47104438211516253,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -2260.5,
+         -1466.7,
+         -1338.4,
+         -2530.2,
+         -1532.4,
+         -1545.8,
+         -2486.0,
+         -1742.9
+        ],
+        "exit_reasons": {
+         "stop": 2752,
+         "target": 2491,
+         "time": 807,
+         "flatten": 11
+        }
+       },
+       "measured_p90": {
+        "trades": 6061,
+        "mean_net_brl": -3.9122257053291536,
+        "hit_rate": 0.4642798218115822
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WIN|1m|horizon_min=30,k=0.5",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 4590,
+        "trades_per_year": 1749.9973903966597,
+        "mean_net_brl": -2.665490196078431,
+        "total_net_brl": -12234.599999999999,
+        "hit_rate": 0.46949891067538124,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1554.1,
+         -1887.6,
+         -1392.3,
+         -1745.5,
+         -1859.1,
+         -2177.3,
+         -1364.7,
+         -254.0
+        ],
+        "exit_reasons": {
+         "stop": 2083,
+         "target": 1826,
+         "time": 650,
+         "flatten": 31
+        }
+       },
+       "measured_p90": {
+        "trades": 4590,
+        "mean_net_brl": -4.1267973856209155,
+        "hit_rate": 0.46122004357298474
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    },
+    "WDO": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=30,k=0.7",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 609,
+        "trades_per_year": 232.1891962421712,
+        "mean_net_brl": -6.2167487684700715,
+        "total_net_brl": -3785.999999998274,
+        "hit_rate": 0.47619047619047616,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -158.0,
+         -624.0,
+         -994.0,
+         -451.0,
+         17.0,
+         -598.0,
+         -590.0,
+         -388.0
+        ],
+        "exit_reasons": {
+         "stop": 298,
+         "target": 269,
+         "time": 42
+        }
+       },
+       "measured_p90": {
+        "trades": 609,
+        "mean_net_brl": -11.891625615763546,
+        "hit_rate": 0.47126436781609193
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=30,k=0.3",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6206,
+        "trades_per_year": 2366.118475991649,
+        "mean_net_brl": -7.2202707057657864,
+        "total_net_brl": -44808.99999998247,
+        "hit_rate": 0.4589107315501128,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4749.0,
+         -6391.0,
+         -6454.0,
+         -6447.0,
+         -5425.0,
+         -5455.0,
+         -4324.0,
+         -5564.0
+        ],
+        "exit_reasons": {
+         "stop": 3232,
+         "target": 2776,
+         "time": 198
+        }
+       },
+       "measured_p90": {
+        "trades": 6206,
+        "mean_net_brl": -12.878343538511118,
+        "hit_rate": 0.4545601031260071
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=30,k=0.7",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 1373,
+        "trades_per_year": 523.4741649269312,
+        "mean_net_brl": -7.229424617622789,
+        "total_net_brl": -9925.99999999609,
+        "hit_rate": 0.4588492352512746,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -697.0,
+         -2034.0,
+         -1660.0,
+         -1749.0,
+         -584.0,
+         -879.0,
+         -1207.0,
+         -1116.0
+        ],
+        "exit_reasons": {
+         "stop": 701,
+         "target": 596,
+         "time": 76
+        }
+       },
+       "measured_p90": {
+        "trades": 1373,
+        "mean_net_brl": -12.927166788055354,
+        "hit_rate": 0.4479242534595776
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=30,k=0.5",
+       "tf": 5,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 3168,
+        "trades_per_year": 1207.8413361169103,
+        "mean_net_brl": -7.232007575754726,
+        "total_net_brl": -22910.99999999097,
+        "hit_rate": 0.45233585858585856,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -2161.0,
+         -3089.0,
+         -3120.0,
+         -2900.0,
+         -3119.0,
+         -2367.0,
+         -3150.0,
+         -3005.0
+        ],
+        "exit_reasons": {
+         "stop": 1603,
+         "target": 1371,
+         "time": 193,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 3168,
+        "mean_net_brl": -12.933712121212121,
+        "hit_rate": 0.4460227272727273
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=15,k=0.7",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 733,
+        "trades_per_year": 279.46581419624215,
+        "mean_net_brl": -7.392905866300014,
+        "total_net_brl": -5418.99999999791,
+        "hit_rate": 0.451568894952251,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -520.0,
+         -1186.0,
+         -660.0,
+         -1038.0,
+         -222.0,
+         -280.0,
+         -922.0,
+         -591.0
+        ],
+        "exit_reasons": {
+         "stop": 374,
+         "target": 317,
+         "time": 42
+        }
+       },
+       "measured_p90": {
+        "trades": 733,
+        "mean_net_brl": -13.09549795361528,
+        "hit_rate": 0.4433833560709413
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=15,k=0.5",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 4215,
+        "trades_per_year": 1607.0237473903967,
+        "mean_net_brl": -7.415658362986477,
+        "total_net_brl": -31256.999999988002,
+        "hit_rate": 0.45005931198102017,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -3032.0,
+         -4850.0,
+         -4021.0,
+         -4163.0,
+         -2931.0,
+         -4193.0,
+         -3548.0,
+         -4519.0
+        ],
+        "exit_reasons": {
+         "stop": 2168,
+         "target": 1834,
+         "time": 205,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 4215,
+        "mean_net_brl": -13.11032028469751,
+        "hit_rate": 0.4460260972716489
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=15,k=0.5",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 6181,
+        "trades_per_year": 2356.5868997912316,
+        "mean_net_brl": -7.597152564307145,
+        "total_net_brl": -46957.999999982465,
+        "hit_rate": 0.4510596990778191,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4606.0,
+         -7204.0,
+         -6938.0,
+         -6256.0,
+         -4581.0,
+         -5717.0,
+         -6273.0,
+         -5383.0
+        ],
+        "exit_reasons": {
+         "stop": 3243,
+         "target": 2724,
+         "time": 203,
+         "flatten": 11
+        }
+       },
+       "measured_p90": {
+        "trades": 6181,
+        "mean_net_brl": -13.275036401876719,
+        "hit_rate": 0.44733861834654587
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|5m|horizon_min=15,k=0.3",
+       "tf": 5,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -7.7526148969860795,
+        "total_net_brl": -48918.99999998216,
+        "hit_rate": 0.4530903328050713,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -6088.0,
+         -5992.0,
+         -6104.0,
+         -6158.0,
+         -7474.0,
+         -5424.0,
+         -4965.0,
+         -6714.0
+        ],
+        "exit_reasons": {
+         "stop": 3376,
+         "target": 2813,
+         "time": 121
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -13.415213946117275,
+        "hit_rate": 0.451188589540412
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=30,k=0.5",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.5
+       },
+       "measured": {
+        "trades": 5398,
+        "trades_per_year": 2058.0579331941544,
+        "mean_net_brl": -7.937939977766692,
+        "total_net_brl": -42848.999999984604,
+        "hit_rate": 0.443312337902927,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4156.0,
+         -6317.0,
+         -6066.0,
+         -5942.0,
+         -4434.0,
+         -4733.0,
+         -5505.0,
+         -5696.0
+        ],
+        "exit_reasons": {
+         "stop": 2841,
+         "target": 2332,
+         "time": 222,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 5398,
+        "mean_net_brl": -13.641904409040386,
+        "hit_rate": 0.4394220081511671
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=15,k=0.3",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -8.153248811407634,
+        "total_net_brl": -51446.999999982174,
+        "hit_rate": 0.44849445324881143,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -5406.0,
+         -7870.0,
+         -7510.0,
+         -4174.0,
+         -7549.0,
+         -5786.0,
+         -7072.0,
+         -6080.0
+        ],
+        "exit_reasons": {
+         "stop": 3462,
+         "target": 2819,
+         "time": 29
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -13.812995245641838,
+        "hit_rate": 0.44786053882725835
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=30,k=0.3",
+       "tf": 1,
+       "params": {
+        "horizon_min": 30,
+        "k": 0.3
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -8.189064976225374,
+        "total_net_brl": -51672.999999982116,
+        "hit_rate": 0.44675118858954044,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4689.0,
+         -8718.0,
+         -6456.0,
+         -7088.0,
+         -5867.0,
+         -6602.0,
+         -5432.0,
+         -6821.0
+        ],
+        "exit_reasons": {
+         "stop": 3448,
+         "target": 2791,
+         "time": 71
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -13.862123613312203,
+        "hit_rate": 0.44532488114104596
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1248|WDO|1m|horizon_min=15,k=0.7",
+       "tf": 1,
+       "params": {
+        "horizon_min": 15,
+        "k": 0.7
+       },
+       "measured": {
+        "trades": 1935,
+        "trades_per_year": 737.7439979123174,
+        "mean_net_brl": -8.376744186043643,
+        "total_net_brl": -16208.999999994448,
+        "hit_rate": 0.43669250645994834,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1137.0,
+         -2750.0,
+         -2188.0,
+         -3165.0,
+         -952.0,
+         -1637.0,
+         -2504.0,
+         -1876.0
+        ],
+        "exit_reasons": {
+         "stop": 1028,
+         "target": 818,
+         "time": 82,
+         "flatten": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 1935,
+        "mean_net_brl": -14.108527131782946,
+        "hit_rate": 0.42997416020671836
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1249": {
+   "title": "Autocorrelation-regime bar follow/fade",
+   "hypothesis": "When recent bar returns show positive lag-1 autocorrelation, participants are chasing and a large bar is followed; when negative, liquidity providers dominate and a large bar is faded.",
+   "code_hash": "11cbc714a80f",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1249|WIN|1m|win_min=60,th=0.35",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 616,
+        "trades_per_year": 234.8580375782881,
+        "mean_net_brl": 0.7077922077922078,
+        "total_net_brl": 436.0,
+        "hit_rate": 0.525974025974026,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         37.0,
+         -86.0,
+         -48.3,
+         57.7,
+         771.9,
+         34.3,
+         -124.4,
+         -206.2
+        ],
+        "exit_reasons": {
+         "target": 302,
+         "stop": 263,
+         "time": 49,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 616,
+        "mean_net_brl": -0.698051948051948,
+        "hit_rate": 0.5227272727272727
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|1m|win_min=60,th=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 2887,
+        "trades_per_year": 1100.7064196242172,
+        "mean_net_brl": -0.9675441634915141,
+        "total_net_brl": -2793.300000000001,
+        "hit_rate": 0.49774852788361623,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -583.5,
+         -295.9,
+         -233.6,
+         -1076.7,
+         374.3,
+         391.1,
+         -1091.4,
+         -277.6
+        ],
+        "exit_reasons": {
+         "target": 1312,
+         "stop": 1298,
+         "time": 262,
+         "flatten": 15
+        }
+       },
+       "measured_p90": {
+        "trades": 2887,
+        "mean_net_brl": -2.394873571181157,
+        "hit_rate": 0.49255282299965364
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=30,th=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.9755309033280508,
+        "total_net_brl": -6155.6,
+        "hit_rate": 0.49904912836767035,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -704.8,
+         575.2,
+         -976.8,
+         -3037.8,
+         -10.8,
+         -1595.0,
+         -409.8,
+         4.2
+        ],
+        "exit_reasons": {
+         "target": 2961,
+         "stop": 2919,
+         "time": 430
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.393977812995246,
+        "hit_rate": 0.4968304278922345
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|1m|win_min=60,th=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6034,
+        "trades_per_year": 2300.541231732777,
+        "mean_net_brl": -1.015744116672191,
+        "total_net_brl": -6129.0,
+        "hit_rate": 0.4985084521047398,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -1465.4,
+         -1109.0,
+         -1615.9,
+         -836.2,
+         722.0,
+         -601.4,
+         -194.1,
+         -1029.0
+        ],
+        "exit_reasons": {
+         "target": 2803,
+         "stop": 2787,
+         "time": 436,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 6034,
+        "mean_net_brl": -2.4370235333112364,
+        "hit_rate": 0.49453099105071263
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|1m|win_min=30,th=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -1.0583518225039623,
+        "total_net_brl": -6678.200000000002,
+        "hit_rate": 0.4977812995245642,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         343.8,
+         -1976.5,
+         -1623.7,
+         -1253.4,
+         -670.6,
+         155.0,
+         -405.8,
+         -1247.0
+        ],
+        "exit_reasons": {
+         "target": 3012,
+         "stop": 2998,
+         "time": 300
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.4719492868462756,
+        "hit_rate": 0.49635499207606976
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|1m|win_min=30,th=0.35",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 2951,
+        "trades_per_year": 1125.107254697286,
+        "mean_net_brl": -1.092477126397831,
+        "total_net_brl": -3223.8999999999996,
+        "hit_rate": 0.49271433412402577,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -137.1,
+         -64.2,
+         -1186.6,
+         -654.0,
+         243.4,
+         -592.0,
+         -73.1,
+         -760.3
+        ],
+        "exit_reasons": {
+         "target": 1316,
+         "stop": 1310,
+         "time": 305,
+         "flatten": 20
+        }
+       },
+       "measured_p90": {
+        "trades": 2951,
+        "mean_net_brl": -2.5249068112504234,
+        "hit_rate": 0.48559810233819045
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=30,th=0.35",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 5738,
+        "trades_per_year": 2187.687369519833,
+        "mean_net_brl": -1.168142209829209,
+        "total_net_brl": -6702.8,
+        "hit_rate": 0.4952945277100035,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -334.1,
+         -1367.2,
+         -689.8,
+         -1342.2,
+         -755.6,
+         -1266.0,
+         -346.3,
+         -601.6
+        ],
+        "exit_reasons": {
+         "stop": 2540,
+         "target": 2524,
+         "time": 662,
+         "flatten": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 5738,
+        "mean_net_brl": -2.6042174973858487,
+        "hit_rate": 0.4890205646566748
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|1m|win_min=30,th=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 5838,
+        "trades_per_year": 2225.813674321503,
+        "mean_net_brl": -1.1771497088043854,
+        "total_net_brl": -6872.200000000002,
+        "hit_rate": 0.49194929770469337,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -128.6,
+         -1083.8,
+         -1781.5,
+         -1562.5,
+         -734.3,
+         -251.1,
+         471.8,
+         -1802.2
+        ],
+        "exit_reasons": {
+         "target": 2633,
+         "stop": 2626,
+         "time": 565,
+         "flatten": 14
+        }
+       },
+       "measured_p90": {
+        "trades": 5838,
+        "mean_net_brl": -2.606543336759164,
+        "hit_rate": 0.48732442617334704
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=60,th=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6268,
+        "trades_per_year": 2389.7567849686848,
+        "mean_net_brl": -1.291352903637524,
+        "total_net_brl": -8094.200000000001,
+        "hit_rate": 0.49393746011486916,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1889.5,
+         -624.9,
+         -1136.1,
+         -2172.1,
+         -386.6,
+         -576.2,
+         -490.7,
+         -818.1
+        ],
+        "exit_reasons": {
+         "stop": 2857,
+         "target": 2818,
+         "time": 585,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 6268,
+        "mean_net_brl": -2.721601786853861,
+        "hit_rate": 0.4872367581365667
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=30,th=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 6277,
+        "trades_per_year": 2393.188152400835,
+        "mean_net_brl": -1.3247251871913337,
+        "total_net_brl": -8315.300000000001,
+        "hit_rate": 0.49354787318782856,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -638.2,
+         -486.3,
+         -657.3,
+         -2587.8,
+         -838.9,
+         -2288.2,
+         -842.8,
+         24.2
+        ],
+        "exit_reasons": {
+         "stop": 2873,
+         "target": 2832,
+         "time": 568,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 6277,
+        "mean_net_brl": -2.754022622271786,
+        "hit_rate": 0.4881312729010674
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=60,th=0.35",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 3519,
+        "trades_per_year": 1341.6646659707724,
+        "mean_net_brl": -1.4976697925547031,
+        "total_net_brl": -5270.3,
+        "hit_rate": 0.4936061381074169,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -575.7,
+         -402.4,
+         -975.8,
+         -2021.3,
+         -1284.9,
+         250.8,
+         129.2,
+         -390.2
+        ],
+        "exit_reasons": {
+         "stop": 1579,
+         "target": 1536,
+         "time": 390,
+         "flatten": 14
+        }
+       },
+       "measured_p90": {
+        "trades": 3519,
+        "mean_net_brl": -2.9357772094344985,
+        "hit_rate": 0.4833759590792839
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WIN|5m|win_min=60,th=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 5454,
+        "trades_per_year": 2079.40866388309,
+        "mean_net_brl": -1.7293729372937294,
+        "total_net_brl": -9432.0,
+        "hit_rate": 0.48404840484048406,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1653.4,
+         -823.1,
+         -1397.9,
+         -2971.5,
+         -556.7,
+         -319.7,
+         -596.2,
+         -1113.5
+        ],
+        "exit_reasons": {
+         "stop": 2462,
+         "target": 2363,
+         "time": 612,
+         "flatten": 17
+        }
+       },
+       "measured_p90": {
+        "trades": 5454,
+        "mean_net_brl": -3.1694169416941693,
+        "hit_rate": 0.47598093142647596
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    },
+    "WDO": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1249|WDO|1m|win_min=60,th=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6234,
+        "trades_per_year": 2376.793841336117,
+        "mean_net_brl": -7.120468399098889,
+        "total_net_brl": -44388.99999998247,
+        "hit_rate": 0.46342637151106836,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4271.0,
+         -4475.0,
+         -5343.0,
+         -5922.0,
+         -7214.0,
+         -5882.0,
+         -5348.0,
+         -5934.0
+        ],
+        "exit_reasons": {
+         "stop": 3270,
+         "target": 2830,
+         "time": 132,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 6234,
+        "mean_net_brl": -12.758581969842798,
+        "hit_rate": 0.46085980109079244
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=30,th=0.35",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 5910,
+        "trades_per_year": 2253.2646137787056,
+        "mean_net_brl": -7.124196277492943,
+        "total_net_brl": -42103.999999983294,
+        "hit_rate": 0.460575296108291,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4299.0,
+         -5292.0,
+         -6039.0,
+         -6212.0,
+         -5994.0,
+         -4909.0,
+         -5161.0,
+         -4198.0
+        ],
+        "exit_reasons": {
+         "stop": 3052,
+         "target": 2633,
+         "time": 220,
+         "flatten": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 5910,
+        "mean_net_brl": -12.787648054145516,
+        "hit_rate": 0.4548223350253807
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|1m|win_min=30,th=0.35",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 3638,
+        "trades_per_year": 1387.0349686847599,
+        "mean_net_brl": -7.437603078611775,
+        "total_net_brl": -27057.99999998964,
+        "hit_rate": 0.4518966465090709,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -2069.0,
+         -3274.0,
+         -4387.0,
+         -2755.0,
+         -3559.0,
+         -2002.0,
+         -3837.0,
+         -5175.0
+        ],
+        "exit_reasons": {
+         "stop": 1870,
+         "target": 1580,
+         "time": 176,
+         "flatten": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 3638,
+        "mean_net_brl": -13.134689389774602,
+        "hit_rate": 0.44667399670148433
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=30,th=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 6291,
+        "trades_per_year": 2398.5258350730687,
+        "mean_net_brl": -7.622953425525707,
+        "total_net_brl": -47955.999999982225,
+        "hit_rate": 0.4554124940391035,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4756.0,
+         -5526.0,
+         -7588.0,
+         -7088.0,
+         -5513.0,
+         -6688.0,
+         -5860.0,
+         -4937.0
+        ],
+        "exit_reasons": {
+         "stop": 3353,
+         "target": 2810,
+         "time": 128
+        }
+       },
+       "measured_p90": {
+        "trades": 6291,
+        "mean_net_brl": -13.282943888094103,
+        "hit_rate": 0.4527102209505643
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|1m|win_min=60,th=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 3565,
+        "trades_per_year": 1359.2027661795407,
+        "mean_net_brl": -7.651893408131777,
+        "total_net_brl": -27278.999999989785,
+        "hit_rate": 0.44600280504908835,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4350.0,
+         -2808.0,
+         -4352.0,
+         -3623.0,
+         -2211.0,
+         -3002.0,
+         -3496.0,
+         -3437.0
+        ],
+        "exit_reasons": {
+         "stop": 1825,
+         "target": 1513,
+         "time": 216,
+         "flatten": 11
+        }
+       },
+       "measured_p90": {
+        "trades": 3565,
+        "mean_net_brl": -13.378681626928472,
+        "hit_rate": 0.4375876577840112
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=30,th=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -8.043898573689724,
+        "total_net_brl": -50756.99999998215,
+        "hit_rate": 0.4497622820919176,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -5282.0,
+         -6068.0,
+         -7556.0,
+         -6592.0,
+         -6092.0,
+         -7081.0,
+         -6970.0,
+         -5116.0
+        ],
+        "exit_reasons": {
+         "stop": 3429,
+         "target": 2809,
+         "time": 72
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -13.708399366085578,
+        "hit_rate": 0.44770206022187004
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|1m|win_min=30,th=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 6135,
+        "trades_per_year": 2339.0487995824637,
+        "mean_net_brl": -8.191687041561947,
+        "total_net_brl": -50255.99999998254,
+        "hit_rate": 0.4444987775061125,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -3529.0,
+         -6232.0,
+         -7570.0,
+         -7064.0,
+         -6556.0,
+         -5764.0,
+         -6513.0,
+         -7028.0
+        ],
+        "exit_reasons": {
+         "stop": 3313,
+         "target": 2672,
+         "time": 150
+        }
+       },
+       "measured_p90": {
+        "trades": 6135,
+        "mean_net_brl": -13.885085574572127,
+        "hit_rate": 0.44205378973105136
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|1m|win_min=60,th=0.35",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 776,
+        "trades_per_year": 295.86012526096033,
+        "mean_net_brl": -8.195876288656866,
+        "total_net_brl": -6359.999999997728,
+        "hit_rate": 0.42783505154639173,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -820.0,
+         -912.0,
+         -1232.0,
+         -905.0,
+         -363.0,
+         -231.0,
+         -1351.0,
+         -546.0
+        ],
+        "exit_reasons": {
+         "stop": 387,
+         "target": 303,
+         "time": 83,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 776,
+        "mean_net_brl": -14.024484536082474,
+        "hit_rate": 0.41494845360824745
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|1m|win_min=30,th=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -8.69698890649478,
+        "total_net_brl": -54877.99999998207,
+        "hit_rate": 0.43882725832012676,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -4910.0,
+         -7808.0,
+         -6766.0,
+         -9320.0,
+         -6971.0,
+         -6208.0,
+         -6138.0,
+         -6757.0
+        ],
+        "exit_reasons": {
+         "stop": 3511,
+         "target": 2761,
+         "time": 38
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -14.38431061806656,
+        "hit_rate": 0.438351822503962
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=60,th=0.35",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.35
+       },
+       "measured": {
+        "trades": 3462,
+        "trades_per_year": 1319.9326722338205,
+        "mean_net_brl": -8.731946851528022,
+        "total_net_brl": -30229.99999999001,
+        "hit_rate": 0.43154246100519933,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -3982.0,
+         -3930.0,
+         -4236.0,
+         -4202.0,
+         -4088.0,
+         -3284.0,
+         -3160.0,
+         -3348.0
+        ],
+        "exit_reasons": {
+         "stop": 1852,
+         "target": 1431,
+         "time": 173,
+         "flatten": 6
+        }
+       },
+       "measured_p90": {
+        "trades": 3462,
+        "mean_net_brl": -14.491912189485847,
+        "hit_rate": 0.426054303870595
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=60,th=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.25
+       },
+       "measured": {
+        "trades": 5450,
+        "trades_per_year": 2077.883611691023,
+        "mean_net_brl": -8.771559633024644,
+        "total_net_brl": -47804.999999984306,
+        "hit_rate": 0.4315596330275229,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -5240.0,
+         -7754.0,
+         -5651.0,
+         -6201.0,
+         -6612.0,
+         -5397.0,
+         -5348.0,
+         -5602.0
+        ],
+        "exit_reasons": {
+         "stop": 2940,
+         "target": 2270,
+         "time": 235,
+         "flatten": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 5450,
+        "mean_net_brl": -14.522018348623853,
+        "hit_rate": 0.4262385321100917
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1249|WDO|5m|win_min=60,th=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.15
+       },
+       "measured": {
+        "trades": 6290,
+        "trades_per_year": 2398.144572025052,
+        "mean_net_brl": -9.128457869631466,
+        "total_net_brl": -57417.99999998193,
+        "hit_rate": 0.4298887122416534,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -6328.0,
+         -8244.0,
+         -6885.0,
+         -8866.0,
+         -6307.0,
+         -6630.0,
+         -7388.0,
+         -6770.0
+        ],
+        "exit_reasons": {
+         "stop": 3483,
+         "target": 2641,
+         "time": 165,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 6290,
+        "mean_net_brl": -14.868839427662957,
+        "hit_rate": 0.42480127186009536
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1250": {
+   "title": "Absorption bar at a rolling extreme",
+   "hypothesis": "A heavy-volume bar with a small range at a rolling high/low means aggressive orders were absorbed by passive liquidity; the aggressor is trapped, so fade.",
+   "code_hash": "edab7d189b95",
+   "markets": {
+    "WIN": {
+     "variants": 18,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=15,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 1,
+        "trades_per_year": 0.38126304801670147,
+        "mean_net_brl": 29.1,
+        "total_net_brl": 29.1,
+        "hit_rate": 1.0,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         29.1,
+         0.0,
+         0.0
+        ],
+        "exit_reasons": {
+         "target": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1,
+        "mean_net_brl": 28.0,
+        "hit_rate": 1.0
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=30,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 1,
+        "trades_per_year": 0.38126304801670147,
+        "mean_net_brl": 29.1,
+        "total_net_brl": 29.1,
+        "hit_rate": 1.0,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         29.1,
+         0.0,
+         0.0
+        ],
+        "exit_reasons": {
+         "target": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1,
+        "mean_net_brl": 28.0,
+        "hit_rate": 1.0
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.6666666666666666,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=60,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 1,
+        "trades_per_year": 0.38126304801670147,
+        "mean_net_brl": 29.1,
+        "total_net_brl": 29.1,
+        "hit_rate": 1.0,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         29.1,
+         0.0,
+         0.0
+        ],
+        "exit_reasons": {
+         "target": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1,
+        "mean_net_brl": 28.0,
+        "hit_rate": 1.0
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=60,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 9,
+        "trades_per_year": 3.431367432150313,
+        "mean_net_brl": 8.144444444444446,
+        "total_net_brl": 73.30000000000001,
+        "hit_rate": 0.6666666666666666,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -9.6,
+         -33.5,
+         0.0,
+         0.0,
+         29.1,
+         29.1,
+         58.2,
+         0.0
+        ],
+        "exit_reasons": {
+         "target": 5,
+         "stop": 3,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 9,
+        "mean_net_brl": 6.777777777777778,
+        "hit_rate": 0.6666666666666666
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=30,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 15,
+        "trades_per_year": 5.718945720250522,
+        "mean_net_brl": -0.566666666666665,
+        "total_net_brl": -8.499999999999975,
+        "hit_rate": 0.5333333333333333,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -40.9,
+         -33.5,
+         0.0,
+         -31.3,
+         11.8,
+         25.5,
+         59.9,
+         0.0
+        ],
+        "exit_reasons": {
+         "time": 5,
+         "stop": 5,
+         "target": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 15,
+        "mean_net_brl": -2.066666666666667,
+        "hit_rate": 0.4666666666666667
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=15,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 50,
+        "trades_per_year": 19.063152400835072,
+        "mean_net_brl": -1.6879999999999993,
+        "total_net_brl": -84.39999999999996,
+        "hit_rate": 0.48,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         66.5,
+         -33.5,
+         -2.2,
+         -163.1,
+         11.8,
+         89.8,
+         26.0,
+         -79.7
+        ],
+        "exit_reasons": {
+         "stop": 22,
+         "target": 19,
+         "time": 8,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 50,
+        "mean_net_brl": -3.16,
+        "hit_rate": 0.48
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=30,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 555,
+        "trades_per_year": 211.6009916492693,
+        "mean_net_brl": -2.4077477477477474,
+        "total_net_brl": -1336.2999999999997,
+        "hit_rate": 0.47387387387387386,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -56.5,
+         -517.0,
+         -136.0,
+         -463.0,
+         -203.2,
+         116.4,
+         27.6,
+         -104.6
+        ],
+        "exit_reasons": {
+         "stop": 246,
+         "target": 218,
+         "time": 88,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 555,
+        "mean_net_brl": -3.872072072072072,
+        "hit_rate": 0.45765765765765765
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=15,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 697,
+        "trades_per_year": 265.7403444676409,
+        "mean_net_brl": -2.708034433285509,
+        "total_net_brl": -1887.4999999999998,
+        "hit_rate": 0.46771879483500717,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -184.8,
+         -682.3,
+         -158.2,
+         -607.8,
+         -120.0,
+         94.8,
+         73.7,
+         -302.9
+        ],
+        "exit_reasons": {
+         "stop": 307,
+         "target": 269,
+         "time": 116,
+         "flatten": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 697,
+        "mean_net_brl": -4.176470588235294,
+        "hit_rate": 0.45050215208034433
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=60,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 370,
+        "trades_per_year": 141.06732776617955,
+        "mean_net_brl": -3.2405405405405405,
+        "total_net_brl": -1199.0,
+        "hit_rate": 0.4594594594594595,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -90.7,
+         -370.7,
+         -156.3,
+         -389.2,
+         -130.8,
+         39.1,
+         151.6,
+         -252.0
+        ],
+        "exit_reasons": {
+         "stop": 171,
+         "target": 140,
+         "time": 57,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 370,
+        "mean_net_brl": -4.713513513513513,
+        "hit_rate": 0.44054054054054054
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=30,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 41,
+        "trades_per_year": 15.63178496868476,
+        "mean_net_brl": -3.724390243902439,
+        "total_net_brl": -152.7,
+        "hit_rate": 0.4634146341463415,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         37.4,
+         -33.5,
+         -2.2,
+         -192.2,
+         -17.3,
+         75.3,
+         -3.1,
+         -17.1
+        ],
+        "exit_reasons": {
+         "stop": 20,
+         "target": 14,
+         "time": 6,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 41,
+        "mean_net_brl": -5.219512195121951,
+        "hit_rate": 0.4634146341463415
+       },
+       "neighbours": 4,
+       "positive_neighbour_share": 0.25,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=15,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 18,
+        "trades_per_year": 6.862734864300626,
+        "mean_net_brl": -5.688888888888888,
+        "total_net_brl": -102.39999999999999,
+        "hit_rate": 0.4444444444444444,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -40.9,
+         -33.5,
+         -31.3,
+         -31.3,
+         -19.5,
+         25.5,
+         28.6,
+         0.0
+        ],
+        "exit_reasons": {
+         "stop": 8,
+         "time": 5,
+         "target": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 18,
+        "mean_net_brl": -7.222222222222222,
+        "hit_rate": 0.3888888888888889
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|1m|lookback_min=60,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 26,
+        "trades_per_year": 9.912839248434238,
+        "mean_net_brl": -8.5,
+        "total_net_brl": -221.0,
+        "hit_rate": 0.38461538461538464,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -2.2,
+         -62.6,
+         -2.2,
+         -127.4,
+         -17.3,
+         48.4,
+         -16.8,
+         -40.9
+        ],
+        "exit_reasons": {
+         "stop": 15,
+         "target": 7,
+         "time": 3,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 26,
+        "mean_net_brl": -10.038461538461538,
+        "hit_rate": 0.38461538461538464
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=15,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=15,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=30,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 4,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=30,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=60,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WIN|5m|lookback_min=60,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    },
+    "WDO": {
+     "variants": 18,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=60,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 10,
+        "trades_per_year": 3.8126304801670146,
+        "mean_net_brl": 4.700000000002547,
+        "total_net_brl": 47.000000000025466,
+        "hit_rate": 0.6,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         0.0,
+         -36.0,
+         0.0,
+         0.0,
+         26.0,
+         -20.0,
+         51.0,
+         26.0
+        ],
+        "exit_reasons": {
+         "target": 6,
+         "stop": 3,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 10,
+        "mean_net_brl": -0.5,
+        "hit_rate": 0.6
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=30,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 19,
+        "trades_per_year": 7.243997912317328,
+        "mean_net_brl": -1.5263157894710035,
+        "total_net_brl": -28.99999999994907,
+        "hit_rate": 0.5263157894736842,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -10.0,
+         -36.0,
+         0.0,
+         -10.0,
+         26.0,
+         -92.0,
+         77.0,
+         16.0
+        ],
+        "exit_reasons": {
+         "target": 10,
+         "stop": 8,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 19,
+        "mean_net_brl": -6.947368421052632,
+        "hit_rate": 0.5263157894736842
+       },
+       "neighbours": 4,
+       "positive_neighbour_share": 0.25,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=15,vol_k=2.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 29,
+        "trades_per_year": 11.056628392484342,
+        "mean_net_brl": -4.413793103445453,
+        "total_net_brl": -127.99999999991815,
+        "hit_rate": 0.4827586206896552,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         16.0,
+         -36.0,
+         -36.0,
+         -10.0,
+         26.0,
+         -128.0,
+         50.0,
+         -10.0
+        ],
+        "exit_reasons": {
+         "target": 13,
+         "stop": 13,
+         "time": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 29,
+        "mean_net_brl": -10.068965517241379,
+        "hit_rate": 0.4482758620689655
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=30,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 1171,
+        "trades_per_year": 446.45902922755744,
+        "mean_net_brl": -6.988898377452315,
+        "total_net_brl": -8183.99999999666,
+        "hit_rate": 0.45858240819812124,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -532.0,
+         -1095.0,
+         -826.0,
+         -586.0,
+         -1125.0,
+         -1504.0,
+         -1606.0,
+         -910.0
+        ],
+        "exit_reasons": {
+         "stop": 585,
+         "target": 506,
+         "time": 72,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 1171,
+        "mean_net_brl": -12.692570452604611,
+        "hit_rate": 0.45089666951323654
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=30,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 385,
+        "trades_per_year": 146.78627348643008,
+        "mean_net_brl": -7.249350649347777,
+        "total_net_brl": -2790.999999998894,
+        "hit_rate": 0.44935064935064933,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -332.0,
+         -316.0,
+         -244.0,
+         232.0,
+         -545.0,
+         -575.0,
+         -744.0,
+         -267.0
+        ],
+        "exit_reasons": {
+         "stop": 192,
+         "target": 162,
+         "time": 28,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 385,
+        "mean_net_brl": -12.987012987012987,
+        "hit_rate": 0.44415584415584414
+       },
+       "neighbours": 4,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=15,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 1550,
+        "trades_per_year": 590.9577244258872,
+        "mean_net_brl": -7.705806451610026,
+        "total_net_brl": -11943.99999999554,
+        "hit_rate": 0.4458064516129032,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -722.0,
+         -1321.0,
+         -1030.0,
+         -823.0,
+         -1960.0,
+         -2572.0,
+         -1983.0,
+         -1533.0
+        ],
+        "exit_reasons": {
+         "stop": 791,
+         "target": 648,
+         "time": 102,
+         "flatten": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 1550,
+        "mean_net_brl": -13.451612903225806,
+        "hit_rate": 0.43806451612903224
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=60,vol_k=1.5",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 779,
+        "trades_per_year": 297.00391440501045,
+        "mean_net_brl": -7.795892169445127,
+        "total_net_brl": -6072.999999997754,
+        "hit_rate": 0.4428754813863928,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -244.0,
+         -864.0,
+         -758.0,
+         -128.0,
+         -993.0,
+         -1058.0,
+         -1322.0,
+         -706.0
+        ],
+        "exit_reasons": {
+         "stop": 400,
+         "target": 323,
+         "time": 48,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 779,
+        "mean_net_brl": -13.55198973042362,
+        "hit_rate": 0.4338896020539153
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=15,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 499,
+        "trades_per_year": 190.25026096033403,
+        "mean_net_brl": -8.47294589178065,
+        "total_net_brl": -4227.999999998545,
+        "hit_rate": 0.42685370741482964,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -418.0,
+         -418.0,
+         -300.0,
+         378.0,
+         -987.0,
+         -1034.0,
+         -954.0,
+         -495.0
+        ],
+        "exit_reasons": {
+         "stop": 255,
+         "target": 198,
+         "time": 43,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 499,
+        "mean_net_brl": -14.28256513026052,
+        "hit_rate": 0.4188376753507014
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=60,vol_k=2.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 2.0
+       },
+       "measured": {
+        "trades": 292,
+        "trades_per_year": 111.32881002087683,
+        "mean_net_brl": -8.578767123284756,
+        "total_net_brl": -2504.9999999991487,
+        "hit_rate": 0.4246575342465753,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -338.0,
+         -214.0,
+         -188.0,
+         216.0,
+         -485.0,
+         -469.0,
+         -755.0,
+         -272.0
+        ],
+        "exit_reasons": {
+         "stop": 151,
+         "target": 116,
+         "time": 22,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 292,
+        "mean_net_brl": -14.386986301369863,
+        "hit_rate": 0.4178082191780822
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=60,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 53,
+        "trades_per_year": 20.20694154488518,
+        "mean_net_brl": -9.528301886789468,
+        "total_net_brl": -504.99999999984175,
+        "hit_rate": 0.41509433962264153,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -82.0,
+         0.0,
+         -10.0,
+         -10.0,
+         -88.0,
+         -158.0,
+         -156.0,
+         -1.0
+        ],
+        "exit_reasons": {
+         "stop": 28,
+         "target": 19,
+         "time": 6
+        }
+       },
+       "measured_p90": {
+        "trades": 53,
+        "mean_net_brl": -15.452830188679245,
+        "hit_rate": 0.39622641509433965
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=30,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 64,
+        "trades_per_year": 24.400835073068894,
+        "mean_net_brl": -9.921874999996987,
+        "total_net_brl": -634.9999999998072,
+        "hit_rate": 0.40625,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -82.0,
+         0.0,
+         -10.0,
+         -26.0,
+         -88.0,
+         -142.0,
+         -250.0,
+         -37.0
+        ],
+        "exit_reasons": {
+         "stop": 34,
+         "target": 22,
+         "time": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 64,
+        "mean_net_brl": -15.890625,
+        "hit_rate": 0.390625
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=15,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 153,
+        "trades_per_year": 58.33324634655533,
+        "mean_net_brl": -10.862745098036207,
+        "total_net_brl": -1661.9999999995398,
+        "hit_rate": 0.38562091503267976,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -8.0,
+         -226.0,
+         22.0,
+         -132.0,
+         -180.0,
+         -504.0,
+         -261.0,
+         -373.0
+        ],
+        "exit_reasons": {
+         "stop": 85,
+         "target": 53,
+         "time": 15
+        }
+       },
+       "measured_p90": {
+        "trades": 153,
+        "mean_net_brl": -16.823529411764707,
+        "hit_rate": 0.37254901960784315
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=15,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 10,
+        "trades_per_year": 3.8126304801670146,
+        "mean_net_brl": -11.19999999999709,
+        "total_net_brl": -111.9999999999709,
+        "hit_rate": 0.4,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         -108.0,
+         32.0,
+         -36.0
+        ],
+        "exit_reasons": {
+         "stop": 6,
+         "target": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 10,
+        "mean_net_brl": -17.0,
+        "hit_rate": 0.4
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=30,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 122,
+        "trades_per_year": 46.51409185803758,
+        "mean_net_brl": -11.950819672128135,
+        "total_net_brl": -1457.9999999996326,
+        "hit_rate": 0.36885245901639346,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -14.0,
+         -226.0,
+         58.0,
+         -122.0,
+         -206.0,
+         -390.0,
+         -305.0,
+         -253.0
+        ],
+        "exit_reasons": {
+         "stop": 71,
+         "target": 42,
+         "time": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 122,
+        "mean_net_brl": -17.918032786885245,
+        "hit_rate": 0.36885245901639346
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|1m|lookback_min=15,vol_k=3.0",
+       "tf": 1,
+       "params": {
+        "lookback_min": 15,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 83,
+        "trades_per_year": 31.644832985386223,
+        "mean_net_brl": -12.421686746984884,
+        "total_net_brl": -1030.9999999997453,
+        "hit_rate": 0.3614457831325301,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -118.0,
+         0.0,
+         -10.0,
+         -26.0,
+         -124.0,
+         -332.0,
+         -328.0,
+         -93.0
+        ],
+        "exit_reasons": {
+         "stop": 47,
+         "target": 26,
+         "time": 10
+        }
+       },
+       "measured_p90": {
+        "trades": 83,
+        "mean_net_brl": -18.481927710843372,
+        "hit_rate": 0.3493975903614458
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=60,vol_k=1.5",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 1.5
+       },
+       "measured": {
+        "trades": 92,
+        "trades_per_year": 35.07620041753653,
+        "mean_net_brl": -13.010869565214346,
+        "total_net_brl": -1196.9999999997199,
+        "hit_rate": 0.34782608695652173,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -4.0,
+         -226.0,
+         68.0,
+         -76.0,
+         -62.0,
+         -298.0,
+         -356.0,
+         -243.0
+        ],
+        "exit_reasons": {
+         "stop": 55,
+         "target": 30,
+         "time": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 92,
+        "mean_net_brl": -19.032608695652176,
+        "hit_rate": 0.34782608695652173
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=30,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 30,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 6,
+        "trades_per_year": 2.287578288100209,
+        "mean_net_brl": -15.333333333330302,
+        "total_net_brl": -91.99999999998181,
+        "hit_rate": 0.3333333333333333,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         -108.0,
+         52.0,
+         -36.0
+        ],
+        "exit_reasons": {
+         "stop": 4,
+         "target": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 6,
+        "mean_net_brl": -21.333333333333332,
+        "hit_rate": 0.3333333333333333
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1250|WDO|5m|lookback_min=60,vol_k=3.0",
+       "tf": 5,
+       "params": {
+        "lookback_min": 60,
+        "vol_k": 3.0
+       },
+       "measured": {
+        "trades": 3,
+        "trades_per_year": 1.1437891440501045,
+        "mean_net_brl": -15.333333333330302,
+        "total_net_brl": -45.999999999990905,
+        "hit_rate": 0.3333333333333333,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         -72.0,
+         26.0,
+         0.0
+        ],
+        "exit_reasons": {
+         "stop": 2,
+         "target": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 3,
+        "mean_net_brl": -21.333333333333332,
+        "hit_rate": 0.3333333333333333
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1251": {
+   "title": "Session-max volume bar with extreme close",
+   "hypothesis": "The largest volume bar of the session closing near its high or low shows a decisive aggressor with no immediate rejection; follow it.",
+   "code_hash": "5bf9459473d8",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1251|WIN|1m|warm_min=60,close_q=0.4",
+       "tf": 1,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.4
+       },
+       "measured": {
+        "trades": 1338,
+        "trades_per_year": 510.1299582463466,
+        "mean_net_brl": -1.3100149476831093,
+        "total_net_brl": -1752.8000000000002,
+        "hit_rate": 0.4962630792227205,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         23.3,
+         -57.4,
+         -135.2,
+         -1525.8,
+         -128.9,
+         -21.7,
+         176.3,
+         -83.4
+        ],
+        "exit_reasons": {
+         "stop": 670,
+         "target": 659,
+         "time": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 1338,
+        "mean_net_brl": -2.7144992526158447,
+        "hit_rate": 0.49551569506726456
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|1m|warm_min=60,close_q=0.2",
+       "tf": 1,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.2
+       },
+       "measured": {
+        "trades": 858,
+        "trades_per_year": 327.12369519832987,
+        "mean_net_brl": -1.463170163170164,
+        "total_net_brl": -1255.4000000000005,
+        "hit_rate": 0.493006993006993,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         327.4,
+         -114.4,
+         -344.3,
+         -945.8,
+         44.7,
+         -322.5,
+         257.7,
+         -158.2
+        ],
+        "exit_reasons": {
+         "stop": 431,
+         "target": 420,
+         "time": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 858,
+        "mean_net_brl": -2.8694638694638694,
+        "hit_rate": 0.49184149184149184
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|1m|warm_min=60,close_q=0.3",
+       "tf": 1,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.3
+       },
+       "measured": {
+        "trades": 1134,
+        "trades_per_year": 432.3522964509395,
+        "mean_net_brl": -1.5178130511463843,
+        "total_net_brl": -1721.1999999999998,
+        "hit_rate": 0.4929453262786596,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -75.5,
+         -31.0,
+         -283.4,
+         -1331.9,
+         101.2,
+         -415.9,
+         240.6,
+         74.7
+        ],
+        "exit_reasons": {
+         "stop": 572,
+         "target": 555,
+         "time": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 1134,
+        "mean_net_brl": -2.924162257495591,
+        "hit_rate": 0.49206349206349204
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=60,close_q=0.3",
+       "tf": 5,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.3
+       },
+       "measured": {
+        "trades": 1165,
+        "trades_per_year": 444.1714509394572,
+        "mean_net_brl": -1.7387982832618025,
+        "total_net_brl": -2025.6999999999998,
+        "hit_rate": 0.4901287553648069,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         227.8,
+         -672.9,
+         -496.1,
+         -16.8,
+         -8.5,
+         -1147.3,
+         76.2,
+         11.9
+        ],
+        "exit_reasons": {
+         "stop": 593,
+         "target": 567,
+         "time": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 1165,
+        "mean_net_brl": -3.1467811158798282,
+        "hit_rate": 0.4901287553648069
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=60,close_q=0.4",
+       "tf": 5,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.4
+       },
+       "measured": {
+        "trades": 1380,
+        "trades_per_year": 526.143006263048,
+        "mean_net_brl": -1.9349275362318845,
+        "total_net_brl": -2670.2000000000007,
+        "hit_rate": 0.48695652173913045,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         205.8,
+         -605.4,
+         -491.2,
+         -279.9,
+         -254.0,
+         -1200.6,
+         23.4,
+         -68.3
+        ],
+        "exit_reasons": {
+         "stop": 707,
+         "target": 667,
+         "time": 6
+        }
+       },
+       "measured_p90": {
+        "trades": 1380,
+        "mean_net_brl": -3.344927536231884,
+        "hit_rate": 0.48695652173913045
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=60,close_q=0.2",
+       "tf": 5,
+       "params": {
+        "warm_min": 60,
+        "close_q": 0.2
+       },
+       "measured": {
+        "trades": 855,
+        "trades_per_year": 325.97990605427975,
+        "mean_net_brl": -1.9512280701754388,
+        "total_net_brl": -1668.3000000000002,
+        "hit_rate": 0.4865497076023392,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         356.9,
+         -378.5,
+         -519.1,
+         -118.3,
+         66.8,
+         -995.7,
+         -219.2,
+         138.8
+        ],
+        "exit_reasons": {
+         "stop": 438,
+         "target": 413,
+         "time": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 855,
+        "mean_net_brl": -3.3614035087719296,
+        "hit_rate": 0.4865497076023392
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|1m|warm_min=30,close_q=0.4",
+       "tf": 1,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.4
+       },
+       "measured": {
+        "trades": 1616,
+        "trades_per_year": 616.1210855949896,
+        "mean_net_brl": -2.0434405940594065,
+        "total_net_brl": -3302.2000000000007,
+        "hit_rate": 0.484529702970297,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -427.5,
+         -349.6,
+         -966.6,
+         -1648.3,
+         -163.8,
+         233.7,
+         190.1,
+         -170.2
+        ],
+        "exit_reasons": {
+         "stop": 826,
+         "target": 774,
+         "time": 16
+        }
+       },
+       "measured_p90": {
+        "trades": 1616,
+        "mean_net_brl": -3.4560643564356437,
+        "hit_rate": 0.4832920792079208
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=30,close_q=0.3",
+       "tf": 5,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.3
+       },
+       "measured": {
+        "trades": 1357,
+        "trades_per_year": 517.3739561586639,
+        "mean_net_brl": -2.1135593220338986,
+        "total_net_brl": -2868.1000000000004,
+        "hit_rate": 0.4834193072955048,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         168.6,
+         -915.0,
+         -602.7,
+         -155.2,
+         -173.3,
+         -1198.4,
+         132.2,
+         -124.3
+        ],
+        "exit_reasons": {
+         "stop": 695,
+         "target": 650,
+         "time": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 1357,
+        "mean_net_brl": -3.5261606484893147,
+        "hit_rate": 0.48268238761974946
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|1m|warm_min=30,close_q=0.3",
+       "tf": 1,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.3
+       },
+       "measured": {
+        "trades": 1365,
+        "trades_per_year": 520.4240605427975,
+        "mean_net_brl": -2.2958974358974364,
+        "total_net_brl": -3133.900000000001,
+        "hit_rate": 0.4805860805860806,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -504.4,
+         -345.7,
+         -927.0,
+         -1358.3,
+         -12.2,
+         -245.6,
+         267.0,
+         -7.7
+        ],
+        "exit_reasons": {
+         "stop": 704,
+         "target": 649,
+         "time": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 1365,
+        "mean_net_brl": -3.7106227106227108,
+        "hit_rate": 0.47912087912087914
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=30,close_q=0.2",
+       "tf": 5,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.2
+       },
+       "measured": {
+        "trades": 1000,
+        "trades_per_year": 381.2630480167015,
+        "mean_net_brl": -2.347000000000001,
+        "total_net_brl": -2347.000000000001,
+        "hit_rate": 0.48,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         321.8,
+         -459.7,
+         -648.2,
+         -252.3,
+         -145.7,
+         -1100.6,
+         -131.9,
+         69.6
+        ],
+        "exit_reasons": {
+         "stop": 516,
+         "target": 475,
+         "time": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 1000,
+        "mean_net_brl": -3.762,
+        "hit_rate": 0.479
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|5m|warm_min=30,close_q=0.4",
+       "tf": 5,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.4
+       },
+       "measured": {
+        "trades": 1625,
+        "trades_per_year": 619.5524530271399,
+        "mean_net_brl": -2.401907692307693,
+        "total_net_brl": -3903.1000000000013,
+        "hit_rate": 0.4787692307692308,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         169.1,
+         -887.6,
+         -763.1,
+         -364.5,
+         -483.6,
+         -1316.5,
+         16.8,
+         -273.7
+        ],
+        "exit_reasons": {
+         "stop": 841,
+         "target": 771,
+         "time": 13
+        }
+       },
+       "measured_p90": {
+        "trades": 1625,
+        "mean_net_brl": -3.817230769230769,
+        "hit_rate": 0.47815384615384615
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1251|WIN|1m|warm_min=30,close_q=0.2",
+       "tf": 1,
+       "params": {
+        "warm_min": 30,
+        "close_q": 0.2
+       },
+       "measured": {
+        "trades": 1029,
+        "trades_per_year": 392.31967640918583,
+        "mean_net_brl": -2.5229348882410116,
+        "total_net_brl": -2596.100000000001,
+        "hit_rate": 0.47619047619047616,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -48.7,
+         -514.2,
+         -856.1,
+         -992.5,
+         4.9,
+         -181.4,
+         255.0,
+         -263.1
+        ],
+        "exit_reasons": {
+         "stop": 533,
+         "target": 484,
+         "time": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 1029,
+        "mean_net_brl": -3.9407191448007777,
+        "hit_rate": 0.4742468415937804
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1252": {
+   "title": "Volatility expansion bar follow",
+   "hypothesis": "When short-term range jumps relative to the longer average, a new information flow has arrived; the direction of the expansion bar is followed.",
+   "code_hash": "edac7a445c38",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1252|WIN|1m|long_min=30,k=2.5",
+       "tf": 1,
+       "params": {
+        "long_min": 30,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 61,
+        "trades_per_year": 23.25704592901879,
+        "mean_net_brl": -0.6049180327868857,
+        "total_net_brl": -36.90000000000003,
+        "hit_rate": 0.5081967213114754,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         85.1,
+         -37.9,
+         15.9,
+         -127.4,
+         -160.9,
+         56.0,
+         143.3,
+         -11.0
+        ],
+        "exit_reasons": {
+         "target": 31,
+         "stop": 30
+        }
+       },
+       "measured_p90": {
+        "trades": 61,
+        "mean_net_brl": -2.0,
+        "hit_rate": 0.5081967213114754
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|1m|long_min=30,k=2.0",
+       "tf": 1,
+       "params": {
+        "long_min": 30,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 278,
+        "trades_per_year": 105.991127348643,
+        "mean_net_brl": -1.0784172661870501,
+        "total_net_brl": -299.79999999999995,
+        "hit_rate": 0.49280575539568344,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         -126.2,
+         -303.7,
+         150.4,
+         -224.1,
+         43.3,
+         -185.1,
+         161.7,
+         183.9
+        ],
+        "exit_reasons": {
+         "target": 134,
+         "stop": 132,
+         "time": 12
+        }
+       },
+       "measured_p90": {
+        "trades": 278,
+        "mean_net_brl": -2.4892086330935252,
+        "hit_rate": 0.4892086330935252
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=30,k=2.5",
+       "tf": 5,
+       "params": {
+        "long_min": 30,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 2,
+        "trades_per_year": 0.7625260960334029,
+        "mean_net_brl": -1.0999999999999996,
+        "total_net_brl": -2.1999999999999993,
+        "hit_rate": 0.5,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         0.0,
+         29.1,
+         -31.3
+        ],
+        "exit_reasons": {
+         "target": 1,
+         "stop": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 2,
+        "mean_net_brl": -2.5,
+        "hit_rate": 0.5
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|1m|long_min=60,k=1.5",
+       "tf": 1,
+       "params": {
+        "long_min": 60,
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 2991,
+        "trades_per_year": 1140.3577766179542,
+        "mean_net_brl": -1.9345035105315949,
+        "total_net_brl": -5786.1,
+        "hit_rate": 0.48144433299899697,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1292.7,
+         -1090.3,
+         -1060.5,
+         -276.2,
+         -1016.7,
+         -365.2,
+         -79.8,
+         -604.7
+        ],
+        "exit_reasons": {
+         "stop": 1418,
+         "target": 1338,
+         "time": 220,
+         "flatten": 15
+        }
+       },
+       "measured_p90": {
+        "trades": 2991,
+        "mean_net_brl": -3.366098294884654,
+        "hit_rate": 0.47810096957539283
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=60,k=1.5",
+       "tf": 5,
+       "params": {
+        "long_min": 60,
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 1738,
+        "trades_per_year": 662.6351774530272,
+        "mean_net_brl": -2.1018411967779063,
+        "total_net_brl": -3653.000000000001,
+        "hit_rate": 0.47468354430379744,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -89.2,
+         191.5,
+         -300.6,
+         -442.2,
+         -1097.6,
+         -460.0,
+         -763.1,
+         -691.8
+        ],
+        "exit_reasons": {
+         "stop": 813,
+         "target": 766,
+         "time": 156,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 1738,
+        "mean_net_brl": -3.5373993095512084,
+        "hit_rate": 0.4718066743383199
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|1m|long_min=30,k=1.5",
+       "tf": 1,
+       "params": {
+        "long_min": 30,
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 2424,
+        "trades_per_year": 924.1816283924844,
+        "mean_net_brl": -2.288613861386138,
+        "total_net_brl": -5547.599999999999,
+        "hit_rate": 0.4731848184818482,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -368.8,
+         -317.0,
+         -877.9,
+         -556.7,
+         -1339.8,
+         -922.0,
+         -841.3,
+         -324.1
+        ],
+        "exit_reasons": {
+         "stop": 1155,
+         "target": 1064,
+         "time": 190,
+         "flatten": 15
+        }
+       },
+       "measured_p90": {
+        "trades": 2424,
+        "mean_net_brl": -3.7252475247524752,
+        "hit_rate": 0.47112211221122113
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=60,k=2.5",
+       "tf": 5,
+       "params": {
+        "long_min": 60,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 42,
+        "trades_per_year": 16.01304801670146,
+        "mean_net_brl": -2.952380952380952,
+        "total_net_brl": -123.99999999999999,
+        "hit_rate": 0.47619047619047616,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         -33.5,
+         22.5,
+         -125.2,
+         56.0,
+         -6.6,
+         -62.6,
+         15.9,
+         9.5
+        ],
+        "exit_reasons": {
+         "stop": 22,
+         "target": 19,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 42,
+        "mean_net_brl": -4.380952380952381,
+        "hit_rate": 0.47619047619047616
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|1m|long_min=60,k=2.5",
+       "tf": 1,
+       "params": {
+        "long_min": 60,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 118,
+        "trades_per_year": 44.98903966597077,
+        "mean_net_brl": -3.4813559322033902,
+        "total_net_brl": -410.80000000000007,
+        "hit_rate": 0.4576271186440678,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -42.3,
+         -102.7,
+         -11.0,
+         -238.9,
+         11.5,
+         20.3,
+         60.9,
+         -108.6
+        ],
+        "exit_reasons": {
+         "stop": 63,
+         "target": 54,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 118,
+        "mean_net_brl": -4.906779661016949,
+        "hit_rate": 0.4576271186440678
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=60,k=2.0",
+       "tf": 5,
+       "params": {
+        "long_min": 60,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 267,
+        "trades_per_year": 101.7972338204593,
+        "mean_net_brl": -3.72621722846442,
+        "total_net_brl": -994.9000000000001,
+        "hit_rate": 0.45692883895131087,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -82.4,
+         -174.1,
+         -205.4,
+         -44.0,
+         -218.4,
+         -355.7,
+         153.7,
+         -68.6
+        ],
+        "exit_reasons": {
+         "stop": 139,
+         "target": 118,
+         "time": 10
+        }
+       },
+       "measured_p90": {
+        "trades": 267,
+        "mean_net_brl": -5.1610486891385765,
+        "hit_rate": 0.45318352059925093
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=30,k=1.5",
+       "tf": 5,
+       "params": {
+        "long_min": 30,
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 1077,
+        "trades_per_year": 410.6203027139875,
+        "mean_net_brl": -3.7653667595171774,
+        "total_net_brl": -4055.3,
+        "hit_rate": 0.44846796657381616,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -373.7,
+         -393.4,
+         -974.8,
+         -415.5,
+         -552.2,
+         -346.1,
+         -303.8,
+         -695.8
+        ],
+        "exit_reasons": {
+         "stop": 538,
+         "target": 452,
+         "time": 86,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1077,
+        "mean_net_brl": -5.21355617455896,
+        "hit_rate": 0.44661095636026
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|1m|long_min=60,k=2.0",
+       "tf": 1,
+       "params": {
+        "long_min": 60,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 531,
+        "trades_per_year": 202.45067849686848,
+        "mean_net_brl": -4.4088512241054625,
+        "total_net_brl": -2341.1000000000004,
+        "hit_rate": 0.4444444444444444,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -17.0,
+         -325.7,
+         -224.9,
+         -586.0,
+         -261.1,
+         -822.5,
+         151.7,
+         -255.6
+        ],
+        "exit_reasons": {
+         "stop": 284,
+         "target": 228,
+         "time": 19
+        }
+       },
+       "measured_p90": {
+        "trades": 531,
+        "mean_net_brl": -5.851224105461394,
+        "hit_rate": 0.4425612052730697
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1252|WIN|5m|long_min=30,k=2.0",
+       "tf": 5,
+       "params": {
+        "long_min": 30,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 33,
+        "trades_per_year": 12.58168058455115,
+        "mean_net_brl": -6.627272727272727,
+        "total_net_brl": -218.7,
+        "hit_rate": 0.3939393939393939,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         0.0,
+         26.9,
+         -221.3,
+         58.2,
+         -37.9,
+         -31.3,
+         24.7,
+         -38.0
+        ],
+        "exit_reasons": {
+         "stop": 19,
+         "target": 13,
+         "time": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 33,
+        "mean_net_brl": -8.090909090909092,
+        "hit_rate": 0.3939393939393939
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1253": {
+   "title": "Day-range traversal",
+   "hypothesis": "On a day with a wide range, price travelling from one end of the session range to its middle within a short time shows the other side has been overwhelmed; follow the traversal.",
+   "code_hash": "e1098b246f5c",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1253|WIN|5m|win_min=30,lo=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 630,
+        "trades_per_year": 240.19572025052193,
+        "mean_net_brl": -1.5390476190476192,
+        "total_net_brl": -969.6000000000001,
+        "hit_rate": 0.49047619047619045,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -66.0,
+         161.9,
+         -776.6,
+         -101.2,
+         388.6,
+         -447.8,
+         -94.0,
+         -34.5
+        ],
+        "exit_reasons": {
+         "stop": 316,
+         "target": 306,
+         "time": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 630,
+        "mean_net_brl": -2.947619047619048,
+        "hit_rate": 0.49047619047619045
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=60,lo=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 2338,
+        "trades_per_year": 891.393006263048,
+        "mean_net_brl": -1.7512403763900768,
+        "total_net_brl": -4094.3999999999996,
+        "hit_rate": 0.48502994011976047,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -276.9,
+         -836.8,
+         -709.1,
+         -376.4,
+         -1180.6,
+         -1167.4,
+         -15.1,
+         467.9
+        ],
+        "exit_reasons": {
+         "stop": 1148,
+         "target": 1105,
+         "time": 82,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 2338,
+        "mean_net_brl": -3.1676646706586826,
+        "hit_rate": 0.4828913601368691
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=90,lo=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 90,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 2384,
+        "trades_per_year": 908.9311064718163,
+        "mean_net_brl": -1.83255033557047,
+        "total_net_brl": -4368.8,
+        "hit_rate": 0.4836409395973154,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -197.7,
+         -595.6,
+         -1512.9,
+         -626.9,
+         -933.9,
+         -452.6,
+         -225.8,
+         176.6
+        ],
+        "exit_reasons": {
+         "stop": 1158,
+         "target": 1106,
+         "time": 116,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 2384,
+        "mean_net_brl": -3.254194630872483,
+        "hit_rate": 0.4815436241610738
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=30,lo=0.25",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 1838,
+        "trades_per_year": 700.7614822546973,
+        "mean_net_brl": -2.1027203482045707,
+        "total_net_brl": -3864.8000000000006,
+        "hit_rate": 0.47878128400435255,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -537.0,
+         -673.1,
+         -1004.3,
+         -259.3,
+         -587.5,
+         -832.7,
+         -139.9,
+         169.0
+        ],
+        "exit_reasons": {
+         "stop": 923,
+         "target": 869,
+         "time": 45,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1838,
+        "mean_net_brl": -3.5190424374319913,
+        "hit_rate": 0.47878128400435255
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=30,lo=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 1222,
+        "trades_per_year": 465.9034446764092,
+        "mean_net_brl": -2.1353518821603923,
+        "total_net_brl": -2609.3999999999996,
+        "hit_rate": 0.48117839607201307,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -49.6,
+         -302.0,
+         -949.3,
+         -334.2,
+         -562.0,
+         -308.5,
+         -189.4,
+         85.6
+        ],
+        "exit_reasons": {
+         "stop": 623,
+         "target": 583,
+         "time": 16
+        }
+       },
+       "measured_p90": {
+        "trades": 1222,
+        "mean_net_brl": -3.549099836333879,
+        "hit_rate": 0.48117839607201307
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=60,lo=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 1840,
+        "trades_per_year": 701.5240083507307,
+        "mean_net_brl": -2.3084782608695655,
+        "total_net_brl": -4247.6,
+        "hit_rate": 0.47608695652173916,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -148.7,
+         -865.2,
+         -565.8,
+         -524.4,
+         -1138.2,
+         -1187.8,
+         -96.1,
+         278.6
+        ],
+        "exit_reasons": {
+         "stop": 928,
+         "target": 861,
+         "time": 51
+        }
+       },
+       "measured_p90": {
+        "trades": 1840,
+        "mean_net_brl": -3.7277173913043478,
+        "hit_rate": 0.475
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|1m|win_min=90,lo=0.15",
+       "tf": 1,
+       "params": {
+        "win_min": 90,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 1991,
+        "trades_per_year": 759.0947286012527,
+        "mean_net_brl": -2.3717227523857365,
+        "total_net_brl": -4722.100000000001,
+        "hit_rate": 0.47513812154696133,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -316.9,
+         -513.8,
+         -1378.0,
+         -623.5,
+         -1223.3,
+         -421.4,
+         -190.4,
+         -54.8
+        ],
+        "exit_reasons": {
+         "stop": 993,
+         "target": 913,
+         "time": 82,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 1991,
+        "mean_net_brl": -3.7965846308387743,
+        "hit_rate": 0.4741336012054244
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|5m|win_min=60,lo=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 1093,
+        "trades_per_year": 416.7205114822547,
+        "mean_net_brl": -2.5525160109789566,
+        "total_net_brl": -2789.8999999999996,
+        "hit_rate": 0.47026532479414457,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         59.6,
+         -523.5,
+         -1030.5,
+         -124.0,
+         -160.8,
+         -605.3,
+         -345.4,
+         -60.0
+        ],
+        "exit_reasons": {
+         "stop": 554,
+         "target": 505,
+         "time": 34
+        }
+       },
+       "measured_p90": {
+        "trades": 1093,
+        "mean_net_brl": -3.9752973467520585,
+        "hit_rate": 0.4693504117108875
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|5m|win_min=90,lo=0.15",
+       "tf": 5,
+       "params": {
+        "win_min": 90,
+        "lo": 0.15
+       },
+       "measured": {
+        "trades": 1274,
+        "trades_per_year": 485.7291231732777,
+        "mean_net_brl": -2.6368916797488224,
+        "total_net_brl": -3359.3999999999996,
+        "hit_rate": 0.4686028257456829,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -101.6,
+         -540.0,
+         -897.5,
+         -434.3,
+         -160.0,
+         -362.7,
+         -345.4,
+         -517.9
+        ],
+        "exit_reasons": {
+         "stop": 639,
+         "target": 577,
+         "time": 58
+        }
+       },
+       "measured_p90": {
+        "trades": 1274,
+        "mean_net_brl": -4.065149136577708,
+        "hit_rate": 0.46703296703296704
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|5m|win_min=30,lo=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 1021,
+        "trades_per_year": 389.2695720250522,
+        "mean_net_brl": -2.7043095004897166,
+        "total_net_brl": -2761.100000000001,
+        "hit_rate": 0.4691478942213516,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -307.1,
+         -526.0,
+         -994.4,
+         159.5,
+         177.1,
+         -598.3,
+         -479.4,
+         -192.5
+        ],
+        "exit_reasons": {
+         "stop": 526,
+         "target": 473,
+         "time": 22
+        }
+       },
+       "measured_p90": {
+        "trades": 1021,
+        "mean_net_brl": -4.1263467189030365,
+        "hit_rate": 0.4691478942213516
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|5m|win_min=60,lo=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 1535,
+        "trades_per_year": 585.2387787056367,
+        "mean_net_brl": -2.9595439739413685,
+        "total_net_brl": -4542.900000000001,
+        "hit_rate": 0.4638436482084691,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -283.1,
+         -1380.9,
+         -1419.1,
+         -75.7,
+         -57.9,
+         -965.9,
+         -473.9,
+         113.6
+        ],
+        "exit_reasons": {
+         "stop": 780,
+         "target": 689,
+         "time": 65,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 1535,
+        "mean_net_brl": -4.390228013029316,
+        "hit_rate": 0.4631921824104234
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1253|WIN|5m|win_min=90,lo=0.25",
+       "tf": 5,
+       "params": {
+        "win_min": 90,
+        "lo": 0.25
+       },
+       "measured": {
+        "trades": 1680,
+        "trades_per_year": 640.5219206680584,
+        "mean_net_brl": -2.9601190476190475,
+        "total_net_brl": -4973.0,
+        "hit_rate": 0.4636904761904762,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -486.6,
+         -1464.0,
+         -1000.5,
+         -386.0,
+         -208.0,
+         -651.8,
+         -473.1,
+         -303.0
+        ],
+        "exit_reasons": {
+         "stop": 843,
+         "target": 740,
+         "time": 95,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 1680,
+        "mean_net_brl": -4.395833333333333,
+        "hit_rate": 0.46190476190476193
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1254": {
+   "title": "Late-session VWAP cross",
+   "hypothesis": "Late in the session, institutional benchmark traders chase the VWAP; a cross of the VWAP in the last hours drags price toward the close in that direction.",
+   "code_hash": "8177b80724e8",
+   "markets": {
+    "WIN": {
+     "variants": 6,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1254|WIN|5m|late_min=60",
+       "tf": 5,
+       "params": {
+        "late_min": 60
+       },
+       "measured": {
+        "trades": 697,
+        "trades_per_year": 265.7403444676409,
+        "mean_net_brl": -0.7272596843615489,
+        "total_net_brl": -506.8999999999996,
+        "hit_rate": 0.5050215208034433,
+        "positive_slices": 5,
+        "by_slice_brl": [
+         46.8,
+         -626.5,
+         27.0,
+         -303.2,
+         196.7,
+         420.2,
+         -281.4,
+         13.5
+        ],
+        "exit_reasons": {
+         "stop": 248,
+         "target": 248,
+         "time": 197,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 697,
+        "mean_net_brl": -2.2137733142037304,
+        "hit_rate": 0.4806312769010043
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1254|WIN|1m|late_min=60",
+       "tf": 1,
+       "params": {
+        "late_min": 60
+       },
+       "measured": {
+        "trades": 713,
+        "trades_per_year": 271.84055323590815,
+        "mean_net_brl": -0.8601683029453017,
+        "total_net_brl": -613.3000000000001,
+        "hit_rate": 0.4992987377279102,
+        "positive_slices": 5,
+        "by_slice_brl": [
+         48.0,
+         -835.2,
+         95.6,
+         -165.4,
+         69.0,
+         426.9,
+         -290.4,
+         38.2
+        ],
+        "exit_reasons": {
+         "stop": 255,
+         "target": 254,
+         "time": 196,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 713,
+        "mean_net_brl": -2.346423562412342,
+        "hit_rate": 0.47685834502103785
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1254|WIN|5m|late_min=90",
+       "tf": 5,
+       "params": {
+        "late_min": 90
+       },
+       "measured": {
+        "trades": 801,
+        "trades_per_year": 305.39170146137786,
+        "mean_net_brl": -1.8136079900124842,
+        "total_net_brl": -1452.6999999999998,
+        "hit_rate": 0.484394506866417,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -254.1,
+         -174.0,
+         -811.2,
+         155.3,
+         -229.7,
+         250.1,
+         -189.7,
+         -199.4
+        ],
+        "exit_reasons": {
+         "stop": 323,
+         "target": 299,
+         "time": 175,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 801,
+        "mean_net_brl": -3.2896379525593007,
+        "hit_rate": 0.4656679151061174
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1254|WIN|1m|late_min=90",
+       "tf": 1,
+       "params": {
+        "late_min": 90
+       },
+       "measured": {
+        "trades": 840,
+        "trades_per_year": 320.2609603340292,
+        "mean_net_brl": -1.968571428571428,
+        "total_net_brl": -1653.5999999999995,
+        "hit_rate": 0.4797619047619048,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -71.7,
+         -567.0,
+         -752.2,
+         118.0,
+         -427.6,
+         399.3,
+         -81.7,
+         -270.7
+        ],
+        "exit_reasons": {
+         "stop": 344,
+         "target": 316,
+         "time": 173,
+         "flatten": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 840,
+        "mean_net_brl": -3.442857142857143,
+        "hit_rate": 0.4642857142857143
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1254|WIN|5m|late_min=120",
+       "tf": 5,
+       "params": {
+        "late_min": 120
+       },
+       "measured": {
+        "trades": 955,
+        "trades_per_year": 364.1062108559499,
+        "mean_net_brl": -2.946282722513089,
+        "total_net_brl": -2813.7,
+        "hit_rate": 0.46282722513089003,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -433.1,
+         -164.3,
+         -213.0,
+         -286.8,
+         -635.5,
+         -74.9,
+         -348.8,
+         -657.3
+        ],
+        "exit_reasons": {
+         "stop": 416,
+         "target": 357,
+         "time": 178,
+         "flatten": 4
+        }
+       },
+       "measured_p90": {
+        "trades": 955,
+        "mean_net_brl": -4.4219895287958115,
+        "hit_rate": 0.45340314136125653
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1254|WIN|1m|late_min=120",
+       "tf": 1,
+       "params": {
+        "late_min": 120
+       },
+       "measured": {
+        "trades": 1011,
+        "trades_per_year": 385.4569415448852,
+        "mean_net_brl": -3.305341246290801,
+        "total_net_brl": -3341.7,
+        "hit_rate": 0.4530168150346192,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -329.9,
+         -735.9,
+         -358.6,
+         -422.7,
+         -523.8,
+         94.3,
+         -301.7,
+         -763.4
+        ],
+        "exit_reasons": {
+         "stop": 449,
+         "target": 379,
+         "time": 175,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 1011,
+        "mean_net_brl": -4.7804154302670625,
+        "hit_rate": 0.44510385756676557
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1255": {
+   "title": "EMA deviation z-score fade",
+   "hypothesis": "A close stretched several standard deviations from its short EMA, measured against its own recent deviations, is an overshoot by impatient flow; fade back toward the mean.",
+   "code_hash": "50f999f8fe57",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=20,k=2.5",
+       "tf": 5,
+       "params": {
+        "ema_bars": 20,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 232,
+        "trades_per_year": 88.45302713987473,
+        "mean_net_brl": 0.7318965517241384,
+        "total_net_brl": 169.8000000000001,
+        "hit_rate": 0.5301724137931034,
+        "positive_slices": 6,
+        "by_slice_brl": [
+         61.6,
+         36.7,
+         126.1,
+         141.2,
+         -211.3,
+         44.1,
+         -53.1,
+         24.5
+        ],
+        "exit_reasons": {
+         "target": 106,
+         "stop": 94,
+         "time": 30,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 232,
+        "mean_net_brl": -0.6939655172413793,
+        "hit_rate": 0.521551724137931
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=20,k=2.0",
+       "tf": 5,
+       "params": {
+        "ema_bars": 20,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 443,
+        "trades_per_year": 168.89953027139876,
+        "mean_net_brl": -0.5401805869074495,
+        "total_net_brl": -239.30000000000013,
+        "hit_rate": 0.5214446952595937,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         186.0,
+         348.7,
+         29.6,
+         -264.5,
+         -377.1,
+         -324.4,
+         -23.0,
+         185.4
+        ],
+        "exit_reasons": {
+         "stop": 189,
+         "target": 189,
+         "time": 60,
+         "flatten": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 443,
+        "mean_net_brl": -1.9841986455981941,
+        "hit_rate": 0.5124153498871332
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=20,k=2.5",
+       "tf": 1,
+       "params": {
+        "ema_bars": 20,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 4103,
+        "trades_per_year": 1564.322286012526,
+        "mean_net_brl": -0.8529612478674145,
+        "total_net_brl": -3499.7000000000016,
+        "hit_rate": 0.5037777236168657,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -298.2,
+         -838.2,
+         -806.3,
+         1026.0,
+         140.6,
+         -1321.9,
+         -432.2,
+         -969.5
+        ],
+        "exit_reasons": {
+         "target": 1848,
+         "stop": 1841,
+         "time": 401,
+         "flatten": 13
+        }
+       },
+       "measured_p90": {
+        "trades": 4103,
+        "mean_net_brl": -2.282719961004143,
+        "hit_rate": 0.4964660004874482
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=40,k=2.0",
+       "tf": 1,
+       "params": {
+        "ema_bars": 40,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 3385,
+        "trades_per_year": 1290.5754175365346,
+        "mean_net_brl": -1.0793205317577548,
+        "total_net_brl": -3653.5,
+        "hit_rate": 0.5022156573116692,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -221.7,
+         -344.7,
+         -1382.5,
+         235.7,
+         -191.2,
+         -1060.7,
+         -134.5,
+         -553.9
+        ],
+        "exit_reasons": {
+         "stop": 1481,
+         "target": 1465,
+         "time": 424,
+         "flatten": 15
+        }
+       },
+       "measured_p90": {
+        "trades": 3385,
+        "mean_net_brl": -2.519645494830133,
+        "hit_rate": 0.4933530280649926
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=20,k=2.0",
+       "tf": 1,
+       "params": {
+        "ema_bars": 20,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 5973,
+        "trades_per_year": 2277.2841858037577,
+        "mean_net_brl": -1.2857692951615602,
+        "total_net_brl": -7679.9,
+        "hit_rate": 0.49757240917461915,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -286.4,
+         -1428.2,
+         -1189.7,
+         -610.5,
+         -313.3,
+         -2027.3,
+         -740.8,
+         -1083.7
+        ],
+        "exit_reasons": {
+         "stop": 2728,
+         "target": 2650,
+         "time": 584,
+         "flatten": 11
+        }
+       },
+       "measured_p90": {
+        "trades": 5973,
+        "mean_net_brl": -2.7195714046542774,
+        "hit_rate": 0.4922149673530889
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=20,k=3.0",
+       "tf": 1,
+       "params": {
+        "ema_bars": 20,
+        "k": 3.0
+       },
+       "measured": {
+        "trades": 2269,
+        "trades_per_year": 865.0858559498956,
+        "mean_net_brl": -1.2978845306302333,
+        "total_net_brl": -2944.8999999999996,
+        "hit_rate": 0.49713530189510796,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -242.0,
+         344.4,
+         -1105.0,
+         909.1,
+         -612.0,
+         -872.8,
+         -1017.5,
+         -349.1
+        ],
+        "exit_reasons": {
+         "stop": 1037,
+         "target": 1012,
+         "time": 212,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 2269,
+        "mean_net_brl": -2.730277655354782,
+        "hit_rate": 0.4896430145438519
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=40,k=2.5",
+       "tf": 1,
+       "params": {
+        "ema_bars": 40,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 2019,
+        "trades_per_year": 769.7700939457203,
+        "mean_net_brl": -1.4999009410599307,
+        "total_net_brl": -3028.3,
+        "hit_rate": 0.4962852897473997,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -620.5,
+         -200.6,
+         -494.3,
+         -283.5,
+         -432.3,
+         -734.7,
+         195.3,
+         -457.7
+        ],
+        "exit_reasons": {
+         "stop": 924,
+         "target": 871,
+         "time": 216,
+         "flatten": 8
+        }
+       },
+       "measured_p90": {
+        "trades": 2019,
+        "mean_net_brl": -2.941059930658742,
+        "hit_rate": 0.4888558692421991
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=20,k=3.0",
+       "tf": 5,
+       "params": {
+        "ema_bars": 20,
+        "k": 3.0
+       },
+       "measured": {
+        "trades": 107,
+        "trades_per_year": 40.79514613778706,
+        "mean_net_brl": -1.5037383177570098,
+        "total_net_brl": -160.90000000000006,
+        "hit_rate": 0.4953271028037383,
+        "positive_slices": 4,
+        "by_slice_brl": [
+         -136.2,
+         169.1,
+         27.3,
+         -198.8,
+         -64.8,
+         2.1,
+         -40.1,
+         80.5
+        ],
+        "exit_reasons": {
+         "stop": 50,
+         "target": 48,
+         "time": 8,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 107,
+        "mean_net_brl": -2.9345794392523366,
+        "hit_rate": 0.4953271028037383
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.5,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|1m|ema_bars=40,k=3.0",
+       "tf": 1,
+       "params": {
+        "ema_bars": 40,
+        "k": 3.0
+       },
+       "measured": {
+        "trades": 1143,
+        "trades_per_year": 435.7836638830898,
+        "mean_net_brl": -1.5264216972878388,
+        "total_net_brl": -1744.6999999999998,
+        "hit_rate": 0.49606299212598426,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -62.1,
+         -451.1,
+         -835.8,
+         243.8,
+         73.9,
+         -404.8,
+         45.7,
+         -354.3
+        ],
+        "exit_reasons": {
+         "stop": 530,
+         "target": 508,
+         "time": 102,
+         "flatten": 3
+        }
+       },
+       "measured_p90": {
+        "trades": 1143,
+        "mean_net_brl": -2.959755030621172,
+        "hit_rate": 0.4881889763779528
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=40,k=2.0",
+       "tf": 5,
+       "params": {
+        "ema_bars": 40,
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=40,k=2.5",
+       "tf": 5,
+       "params": {
+        "ema_bars": 40,
+        "k": 2.5
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.3333333333333333,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1255|WIN|5m|ema_bars=40,k=3.0",
+       "tf": 5,
+       "params": {
+        "ema_bars": 40,
+        "k": 3.0
+       },
+       "measured": {
+        "trades": 0,
+        "trades_per_year": 0.0,
+        "mean_net_brl": null,
+        "positive_slices": 0
+       },
+       "measured_p90": {
+        "trades": 0,
+        "mean_net_brl": null
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1256": {
+   "title": "Impulse bar confirmation hold",
+   "hypothesis": "A strong closing bar followed by a smaller bar that holds above its midpoint and closes in the same direction shows buyers/sellers accepted the move; follow.",
+   "code_hash": "fbed6f31c9d9",
+   "markets": {
+    "WIN": {
+     "variants": 6,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1256|WIN|1m|k=1.0",
+       "tf": 1,
+       "params": {
+        "k": 1.0
+       },
+       "measured": {
+        "trades": 6256,
+        "trades_per_year": 2385.1816283924845,
+        "mean_net_brl": -1.7587915601023019,
+        "total_net_brl": -11003.0,
+        "hit_rate": 0.4884910485933504,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -952.5,
+         -832.9,
+         -1992.2,
+         -1155.0,
+         -2166.8,
+         -1319.4,
+         -783.8,
+         -1800.4
+        ],
+        "exit_reasons": {
+         "stop": 3039,
+         "target": 2887,
+         "time": 330
+        }
+       },
+       "measured_p90": {
+        "trades": 6256,
+        "mean_net_brl": -3.1819053708439897,
+        "hit_rate": 0.4844948849104859
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1256|WIN|5m|k=2.0",
+       "tf": 5,
+       "params": {
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 602,
+        "trades_per_year": 229.52035490605428,
+        "mean_net_brl": -2.145514950166113,
+        "total_net_brl": -1291.6,
+        "hit_rate": 0.48006644518272423,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -68.7,
+         -181.6,
+         -232.0,
+         -220.3,
+         -269.9,
+         -124.6,
+         -301.2,
+         106.7
+        ],
+        "exit_reasons": {
+         "stop": 289,
+         "target": 270,
+         "time": 41,
+         "flatten": 2
+        }
+       },
+       "measured_p90": {
+        "trades": 602,
+        "mean_net_brl": -3.5764119601328903,
+        "hit_rate": 0.47840531561461797
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "trades_per_year",
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1256|WIN|5m|k=1.5",
+       "tf": 5,
+       "params": {
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 1753,
+        "trades_per_year": 668.3541231732777,
+        "mean_net_brl": -2.3660581859669136,
+        "total_net_brl": -4147.7,
+        "hit_rate": 0.47290359383913294,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         58.1,
+         -588.9,
+         -743.9,
+         -1063.2,
+         -167.6,
+         -764.6,
+         -511.3,
+         -366.3
+        ],
+        "exit_reasons": {
+         "stop": 836,
+         "target": 768,
+         "time": 144,
+         "flatten": 5
+        }
+       },
+       "measured_p90": {
+        "trades": 1753,
+        "mean_net_brl": -3.803194523673702,
+        "hit_rate": 0.46833998859098686
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1256|WIN|5m|k=1.0",
+       "tf": 5,
+       "params": {
+        "k": 1.0
+       },
+       "measured": {
+        "trades": 4385,
+        "trades_per_year": 1671.838465553236,
+        "mean_net_brl": -2.3807753705815276,
+        "total_net_brl": -10439.699999999999,
+        "hit_rate": 0.47411630558722917,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         113.2,
+         -940.1,
+         -2101.5,
+         -1438.4,
+         -2044.1,
+         -1786.6,
+         -825.4,
+         -1416.8
+        ],
+        "exit_reasons": {
+         "stop": 2042,
+         "target": 1867,
+         "time": 467,
+         "flatten": 9
+        }
+       },
+       "measured_p90": {
+        "trades": 4385,
+        "mean_net_brl": -3.8253135689851767,
+        "hit_rate": 0.46841505131128847
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1256|WIN|1m|k=2.0",
+       "tf": 1,
+       "params": {
+        "k": 2.0
+       },
+       "measured": {
+        "trades": 2670,
+        "trades_per_year": 1017.9723382045929,
+        "mean_net_brl": -2.5042696629213483,
+        "total_net_brl": -6686.400000000001,
+        "hit_rate": 0.4745318352059925,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1118.8,
+         -1663.5,
+         -621.1,
+         -834.2,
+         -854.3,
+         -556.2,
+         -292.4,
+         -745.9
+        ],
+        "exit_reasons": {
+         "stop": 1307,
+         "target": 1189,
+         "time": 167,
+         "flatten": 7
+        }
+       },
+       "measured_p90": {
+        "trades": 2670,
+        "mean_net_brl": -3.9370786516853933,
+        "hit_rate": 0.47116104868913855
+       },
+       "neighbours": 1,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1256|WIN|1m|k=1.5",
+       "tf": 1,
+       "params": {
+        "k": 1.5
+       },
+       "measured": {
+        "trades": 5139,
+        "trades_per_year": 1959.3108037578288,
+        "mean_net_brl": -2.717513134851139,
+        "total_net_brl": -13965.300000000003,
+        "hit_rate": 0.4709087371083868,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -442.6,
+         -3165.5,
+         -2788.2,
+         -2139.0,
+         -1987.1,
+         -1592.4,
+         -522.7,
+         -1327.8
+        ],
+        "exit_reasons": {
+         "stop": 2521,
+         "target": 2251,
+         "time": 356,
+         "flatten": 11
+        }
+       },
+       "measured_p90": {
+        "trades": 5139,
+        "mean_net_brl": -4.154699357851722,
+        "hit_rate": 0.46643315820198483
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  },
+  "E-1257": {
+   "title": "Rolling close-rank extreme fade",
+   "hypothesis": "A close that ranks at the very top (bottom) of the closes of the last hour is an extension of short-term supply/demand; fade it as it mean-reverts.",
+   "code_hash": "6f1665ed1d3c",
+   "markets": {
+    "WIN": {
+     "variants": 12,
+     "passed_screen": 0,
+     "selected": null,
+     "rows": [
+      {
+       "variant": "E-1257|WIN|5m|win_min=60,th=0.95",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.95
+       },
+       "measured": {
+        "trades": 6274,
+        "trades_per_year": 2392.044363256785,
+        "mean_net_brl": -0.5819254064392733,
+        "total_net_brl": -3651.0000000000005,
+        "hit_rate": 0.5068536818616513,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -223.4,
+         -1340.2,
+         52.5,
+         -1027.4,
+         -481.5,
+         -207.2,
+         77.7,
+         -501.5
+        ],
+        "exit_reasons": {
+         "target": 2838,
+         "stop": 2758,
+         "time": 678
+        }
+       },
+       "measured_p90": {
+        "trades": 6274,
+        "mean_net_brl": -2.0105196047178833,
+        "hit_rate": 0.5006375518010838
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|5m|win_min=60,th=0.98",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 0.98
+       },
+       "measured": {
+        "trades": 6274,
+        "trades_per_year": 2392.044363256785,
+        "mean_net_brl": -0.5819254064392733,
+        "total_net_brl": -3651.0000000000005,
+        "hit_rate": 0.5068536818616513,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -223.4,
+         -1340.2,
+         52.5,
+         -1027.4,
+         -481.5,
+         -207.2,
+         77.7,
+         -501.5
+        ],
+        "exit_reasons": {
+         "target": 2838,
+         "stop": 2758,
+         "time": 678
+        }
+       },
+       "measured_p90": {
+        "trades": 6274,
+        "mean_net_brl": -2.0105196047178833,
+        "hit_rate": 0.5006375518010838
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|5m|win_min=60,th=1.0",
+       "tf": 5,
+       "params": {
+        "win_min": 60,
+        "th": 1.0
+       },
+       "measured": {
+        "trades": 6274,
+        "trades_per_year": 2392.044363256785,
+        "mean_net_brl": -0.5819254064392733,
+        "total_net_brl": -3651.0000000000005,
+        "hit_rate": 0.5068536818616513,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -223.4,
+         -1340.2,
+         52.5,
+         -1027.4,
+         -481.5,
+         -207.2,
+         77.7,
+         -501.5
+        ],
+        "exit_reasons": {
+         "target": 2838,
+         "stop": 2758,
+         "time": 678
+        }
+       },
+       "measured_p90": {
+        "trades": 6274,
+        "mean_net_brl": -2.0105196047178833,
+        "hit_rate": 0.5006375518010838
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|5m|win_min=30,th=0.95",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.95
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.7891283676703645,
+        "total_net_brl": -4979.400000000001,
+        "hit_rate": 0.5030110935023772,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -1552.4,
+         -1779.7,
+         -147.3,
+         -1853.6,
+         -423.6,
+         1244.8,
+         -828.0,
+         360.4
+        ],
+        "exit_reasons": {
+         "target": 2939,
+         "stop": 2884,
+         "time": 487
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.209667194928685,
+        "hit_rate": 0.49809825673534075
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|5m|win_min=30,th=0.98",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 0.98
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.7891283676703645,
+        "total_net_brl": -4979.400000000001,
+        "hit_rate": 0.5030110935023772,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -1552.4,
+         -1779.7,
+         -147.3,
+         -1853.6,
+         -423.6,
+         1244.8,
+         -828.0,
+         360.4
+        ],
+        "exit_reasons": {
+         "target": 2939,
+         "stop": 2884,
+         "time": 487
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.209667194928685,
+        "hit_rate": 0.49809825673534075
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|5m|win_min=30,th=1.0",
+       "tf": 5,
+       "params": {
+        "win_min": 30,
+        "th": 1.0
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.7891283676703645,
+        "total_net_brl": -4979.400000000001,
+        "hit_rate": 0.5030110935023772,
+        "positive_slices": 2,
+        "by_slice_brl": [
+         -1552.4,
+         -1779.7,
+         -147.3,
+         -1853.6,
+         -423.6,
+         1244.8,
+         -828.0,
+         360.4
+        ],
+        "exit_reasons": {
+         "target": 2939,
+         "stop": 2884,
+         "time": 487
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.209667194928685,
+        "hit_rate": 0.49809825673534075
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=30,th=0.95",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.95
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.8003169572107768,
+        "total_net_brl": -5050.000000000002,
+        "hit_rate": 0.503486529318542,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -1515.0,
+         -952.2,
+         -176.4,
+         -783.0,
+         717.4,
+         -233.4,
+         -1967.4,
+         -140.0
+        ],
+        "exit_reasons": {
+         "target": 3060,
+         "stop": 2999,
+         "time": 251
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.209350237717908,
+        "hit_rate": 0.5009508716323297
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=60,th=1.0",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 1.0
+       },
+       "measured": {
+        "trades": 6308,
+        "trades_per_year": 2405.007306889353,
+        "mean_net_brl": -0.9535510462904252,
+        "total_net_brl": -6015.000000000002,
+        "hit_rate": 0.5025364616360177,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -1669.2,
+         -1009.8,
+         -80.4,
+         752.6,
+         -623.4,
+         -400.0,
+         -977.1,
+         -2007.7
+        ],
+        "exit_reasons": {
+         "target": 2941,
+         "stop": 2925,
+         "time": 441,
+         "flatten": 1
+        }
+       },
+       "measured_p90": {
+        "trades": 6308,
+        "mean_net_brl": -2.3738110336081166,
+        "hit_rate": 0.49714648065948003
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=30,th=0.98",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 0.98
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.9834865293185422,
+        "total_net_brl": -6205.800000000001,
+        "hit_rate": 0.5006339144215531,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -1774.0,
+         -2148.0,
+         31.8,
+         572.2,
+         -23.6,
+         541.2,
+         -2254.2,
+         -1151.2
+        ],
+        "exit_reasons": {
+         "target": 3028,
+         "stop": 3008,
+         "time": 274
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.3955625990491285,
+        "hit_rate": 0.49841521394611726
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=30,th=1.0",
+       "tf": 1,
+       "params": {
+        "win_min": 30,
+        "th": 1.0
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -0.9834865293185422,
+        "total_net_brl": -6205.800000000001,
+        "hit_rate": 0.5006339144215531,
+        "positive_slices": 3,
+        "by_slice_brl": [
+         -1774.0,
+         -2148.0,
+         31.8,
+         572.2,
+         -23.6,
+         541.2,
+         -2254.2,
+         -1151.2
+        ],
+        "exit_reasons": {
+         "target": 3028,
+         "stop": 3008,
+         "time": 274
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.3955625990491285,
+        "hit_rate": 0.49841521394611726
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=60,th=0.98",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.98
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -1.031854199683043,
+        "total_net_brl": -6511.000000000002,
+        "hit_rate": 0.5012678288431062,
+        "positive_slices": 1,
+        "by_slice_brl": [
+         -1635.0,
+         -1583.6,
+         335.2,
+         -983.2,
+         -417.8,
+         -212.8,
+         -671.4,
+         -1342.4
+        ],
+        "exit_reasons": {
+         "stop": 2942,
+         "target": 2940,
+         "time": 428
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.45229793977813,
+        "hit_rate": 0.496513470681458
+       },
+       "neighbours": 3,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      },
+      {
+       "variant": "E-1257|WIN|1m|win_min=60,th=0.95",
+       "tf": 1,
+       "params": {
+        "win_min": 60,
+        "th": 0.95
+       },
+       "measured": {
+        "trades": 6310,
+        "trades_per_year": 2405.769832985386,
+        "mean_net_brl": -1.346814580031696,
+        "total_net_brl": -8498.400000000001,
+        "hit_rate": 0.4960380348652932,
+        "positive_slices": 0,
+        "by_slice_brl": [
+         -1524.6,
+         -2115.1,
+         -731.3,
+         -885.2,
+         -264.4,
+         -146.0,
+         -1804.8,
+         -1027.0
+        ],
+        "exit_reasons": {
+         "stop": 2974,
+         "target": 2909,
+         "time": 427
+        }
+       },
+       "measured_p90": {
+        "trades": 6310,
+        "mean_net_brl": -2.7702060221870046,
+        "hit_rate": 0.49160063391442155
+       },
+       "neighbours": 2,
+       "positive_neighbour_share": 0.0,
+       "fails": [
+        "mean_net_measured",
+        "positive_slices",
+        "plateau"
+       ],
+       "passed_screen": false
+      }
+     ]
+    }
+   }
+  }
+ },
+ "selected": [],
+ "conveyor_trials_so_far": 18408
+}
