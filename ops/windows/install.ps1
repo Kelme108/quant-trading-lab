@@ -76,7 +76,7 @@ if (-not (Test-Path "$Root\.venv\Scripts\python.exe")) { throw "Falha ao criar o
 Say "live\.venv (robôs e dados da B3: pacote MetaTrader5)"
 if (-not (Test-Path "$Root\live\.venv\Scripts\python.exe")) { & $pyExe @pyArgs -m venv "$Root\live\.venv" }
 & "$Root\live\.venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r "$Root\live\requirements.txt"
-& "$Root\live\.venv\Scripts\python.exe" -c "import MetaTrader5, numpy, pandas, zoneinfo; zoneinfo.ZoneInfo('America/Sao_Paulo'); print('ok  live\.venv:', MetaTrader5.__version__, 'numpy', numpy.__version__, 'pandas', pandas.__version__)"
+& "$Root\live\.venv\Scripts\python.exe" -c "import MetaTrader5, numpy, pandas, zoneinfo; zoneinfo.ZoneInfo('America/Sao_Paulo'); print('ok  live/.venv:', MetaTrader5.__version__, 'numpy', numpy.__version__, 'pandas', pandas.__version__)"
 
 # ---------------------------------------------------------------------------------------------- MT5
 if (-not $SemMT5) {
