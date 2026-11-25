@@ -1,3 +1,7 @@
+# Text files check out with CRLF on EVERY machine, as on the owner's Windows host and with core.autocrlf=true: rule
+# hashes (research/b3/ledger.jsonl) and the real-account configs' .sha256 files were taken on CRLF bytes, so an LF checkout
+# (the Linux CI, a clone without autocrlf) changes them and the tests and live guards fail. The rules below override this.
+* text=auto eol=crlf
 # Shell scripts and systemd units must keep LF on every machine. With core.autocrlf=true (this project's setting) git would
 # check them out with CRLF, and `#!/bin/sh` followed by CR does not run on Linux. Nothing else is affected: the frozen
 # dry-run files keep the line endings their hashes were taken on (docs/migracao-linux.md).
