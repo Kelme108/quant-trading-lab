@@ -95,7 +95,7 @@ def test_the_demo_config_attaches_without_credentials_and_only_on_demo(tmp_path,
     cfg = live_run.load_config(DEMO_CFG)
     assert cfg["mode"] == "demo" and cfg["allow_real"] is False and cfg["risk"]["long_only"] is False
     att = live_run.attach_config(cfg)
-    assert att["server"] == "ClearInvestimentos-DEMO" and "PRD" not in att["server"].upper()
+    assert att["server"] == "XPMT5-DEMO" and "PRD" not in att["server"].upper()
     monkeypatch.setenv("MT5_LOGIN", "123")
     monkeypatch.setenv("MT5_PASSWORD", "secret")
     broker = live_run.build_broker(cfg, object())

@@ -10,6 +10,7 @@ Demonstration trades are NOT evidence and never enter the research ledger.
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sqlite3
@@ -45,6 +46,33 @@ def _journal(path: Path) -> list[dict]:
             p = {}
         out.append({**p, "id": i, "ts": ts, "kind": kind, "symbol": symbol, "key": key})
     return out
+
+
+def _history_fills(name: str, root: Path) -> list[dict]:
+    """Fills this robot made before its current journal (e.g. on another machine), from live/history/fills.csv.
+
+    Display only: the engine never reads this file, so the history counts in the portal and nowhere else."""
+    path = root / "live" / "history" / "fills.csv"
+    if not path.is_file():
+        return []
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r.get("robo") == name]
+    return [{"kind": "fill", "ts": r["ts_utc"], "symbol": r["simbolo"], "side": r["lado"], "price": float(r["preco"]),
+             "volume": float(r["volume"]), "pnl": float(r["pnl"]) if r["pnl"] else None, "reason": r.get("motivo", "")}
+            for r in rows]
+
+def retired(root: Path = ROOT) -> dict:
+    """live/retirados.json: robots taken out of the demo (owner 2026-11-25: "retire todos os robos negativos da demo, e
+    junto disso o resultado deles deve ser desacoplado do resultado oficial geral"). Their journals stay; the portal shows
+    them apart, with the result frozen at retirement, and the start paths refuse them."""
+    return _read_json(root / "live" / "retirados.json") or {}
+
+
+def excluded(root: Path = ROOT) -> set[tuple[str, str]]:
+    """live/excluidos.json: (robot, exit time UTC) of trades left out of the score (owner 2026-11-25: positions closed by
+    hand to shut the PC down 'nao contem no score'). They stay in the journal; only the portal's numbers skip them."""
+    data = _read_json(root / "live" / "excluidos.json") or {}
+    return {(o["robo"], o["saida_utc"]) for o in data.get("operacoes", [])}
 
 
 def round_trips(fills: list[dict]) -> list[dict]:
@@ -161,7 +189,11 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
     feed = _read_json(root / cfg["feed_file"]) if cfg.get("feed_file") else None
     events = _journal(root / cfg.get("journal_db", f"live/journal.{name}.sqlite"))
     fills = [e for e in events if e["kind"] == "fill"]
-    trades = round_trips(fills)
+    history = [h for h in _history_fills(name, root) if not fills or h["ts"] < fills[0]["ts"]]
+    trades = round_trips(history) + round_trips(fills)   # paired apart: an unclosed old entry must not swallow today's
+    skip = excluded(root)
+    left_out = [t for t in trades if (name, t["exit_time"]) in skip]
+    trades = [t for t in trades if (name, t["exit_time"]) not in skip]
     starts = [e for e in events if e["kind"] == "start"]
     last_ts = events[-1]["ts"] if events else None
     updated = datetime.fromisoformat(snap["updated_at"]) if snap and snap.get("updated_at") else None
@@ -204,6 +236,8 @@ def demo_one(cfg_path: Path, root: Path = ROOT, now: datetime | None = None) -> 
         "command_pending": {"action": pending.get("action"), "at": pending.get("at")} if pending else None,
         "last_command": {"ts": cmds[-1]["ts"], "action": cmds[-1].get("action"), "result": cmds[-1].get("result")} if cmds else None,
         "research": _research(st.get("rule"), st.get("market"), root),
+        "retired": retired(root).get(name),
+        "excluded_trades": left_out,
     }
 
 

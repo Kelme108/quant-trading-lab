@@ -1458,6 +1458,9 @@ class _Handler(BaseHTTPRequestHandler):
         if running:
             self._json(409, {"error": "the robot is already running"})
             return
+        if rid in demo_b3.retired(root):
+            self._json(409, {"error": "robot retired from the demo (live/retirados.json)"})
+            return
         try:
             command_file.unlink()           # a stale command must not fire on the fresh process
         except OSError:

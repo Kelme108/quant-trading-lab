@@ -181,7 +181,7 @@ function dbTileStats(it) {
     cell('Hoje', s.todayN ? h('span', null, `${nf0.format(s.todayN)} op. `, h('span', { class: tone(s.todayPnl) }, dbBrl(s.todayPnl))) : '0 op.'));
 }
 /* the market tab's totals */
-function dbOverview(items, mk) {
+function dbOverview(items, mk, gone) {
   const ok_ = items.filter((i) => !i.error), st = ok_.map(dbStats);
   const n = st.reduce((a, s) => a + s.n, 0), wins = st.reduce((a, s) => a + s.wins, 0), pnl = st.reduce((a, s) => a + s.pnl, 0);
   const todayN = st.reduce((a, s) => a + s.todayN, 0), todayPnl = st.reduce((a, s) => a + s.todayPnl, 0);
@@ -193,11 +193,27 @@ function dbOverview(items, mk) {
     kpi('Operações', nf0.format(n), `hoje ${nf0.format(todayN)}`),
     kpi('Acerto geral', n ? h('span', { class: wins / n >= 0.5 ? 'pos' : 'neg' }, dbWr(wins / n * 100)) : dash, `${nf0.format(wins)} ganhos, ${nf0.format(n - wins)} perdas`),
     kpi('Resultado fechado', h('span', { class: tone(pnl) }, dbBrl(pnl)), `hoje `, h('span', { class: tone(todayPnl) }, dbBrl(todayPnl))),
-    kpi('Robôs no positivo', traded.length ? `${nf0.format(pos)} de ${nf0.format(traded.length)}` : dash, 'entre os que já operaram'));
+    kpi('Robôs no positivo', traded.length ? `${nf0.format(pos)} de ${nf0.format(traded.length)}` : dash, 'entre os ativos que já operaram'),
+    gone.length ? kpi('Retirados', h('span', { class: tone(dbGoneSum(gone)) }, dbBrl(dbGoneSum(gone))), `${nf0.format(gone.length)} ${plural(gone.length, 'robô', 'robôs')}, resultado líquido congelado na retirada`) : null,
+    gone.length ? kpi('Total geral (ativos + retirados)', h('span', { class: tone(pnl + dbGoneSum(gone)) }, dbBrl(pnl + dbGoneSum(gone))), 'o resultado real do experimento desde 16/11') : null);
+}
+/* robots taken out of the demo (owner 2026-11-25): kept apart, never in the active numbers above */
+const dbGoneSum = (gone) => gone.reduce((a, i) => a + (i.retired.resultado_liquido_brl || 0), 0);
+function dbRetired(gone, mk) {
+  if (!gone.length) return null;
+  const name = (i) => String(i.id).replace(/^(demo|live)-b3-/, '').toUpperCase();
+  const table = dataTable({ id: 'db-retired-' + mk, label: 'Robôs retirados', rows: gone.map((i) => ({ it: i, key: i.id })), sort0: { key: 'liq', dir: 1 },
+    cols: [{ key: 'id', label: 'Robô', val: (r) => r.it.id, cell: (r) => h('button', { type: 'button', class: 'linkbtn', 'data-fkey': 'db-gone:' + r.it.id, onclick: () => { DB.sel = r.it.id; render(); } }, name(r.it)) },
+      { key: 'at', label: 'Retirado em', val: (r) => r.it.retired.retirado_em, cell: (r) => dbDayTime(r.it.retired.retirado_em) },
+      { key: 'n', label: 'Operações', num: true, val: (r) => r.it.retired.operacoes, cell: (r) => nf0.format(r.it.retired.operacoes) },
+      { key: 'gross', label: 'Bruto', num: true, val: (r) => r.it.retired.resultado_bruto_brl, cell: (r) => h('span', { class: tone(r.it.retired.resultado_bruto_brl) }, dbBrl(r.it.retired.resultado_bruto_brl)) },
+      { key: 'cost', label: 'Custos', num: true, val: (r) => r.it.retired.custos_brl, cell: (r) => dbBrl(-r.it.retired.custos_brl) },
+      { key: 'liq', label: 'Líquido', num: true, val: (r) => r.it.retired.resultado_liquido_brl, cell: (r) => h('span', { class: tone(r.it.retired.resultado_liquido_brl) }, dbBrl(r.it.retired.resultado_liquido_brl)) }] });
+  return card(`Retirados do ${mk}`, `Robôs tirados da demo por resultado líquido negativo. Ficam fora dos números dos ativos, mas o prejuízo continua registrado aqui e entra no total geral. Soma: ${dbBrl(dbGoneSum(gone))}.`, table);
 }
 /* every robot in a trade right now, both markets (owner 2026-11-24: "quais estão comprados ou vendidos ... no meio da operação") */
 function dbOpen(all) {
-  const rows = all.filter((i) => !i.error && dbPosition(i)).map((i) => ({ it: i, pos: dbPosition(i), key: i.id }));
+  const rows = all.filter((i) => !i.error && !i.retired && dbPosition(i)).map((i) => ({ it: i, pos: dbPosition(i), key: i.id }));
   if (!rows.length) return card('Em operação agora', 'Robôs comprados ou vendidos neste momento, nos dois ativos.', emptyState('Nenhum robô posicionado agora.', 'Todos estão zerados; quando um entrar, ele aparece aqui com o resultado aberto ao vivo.'));
   const name = (i) => String(i.id).replace(/^(demo|live)-b3-/, '').toUpperCase();
   const entryAt = (r) => r.it.open_entry ? (r.it.open_entry.fill_time || r.it.open_entry.ts) : (r.pos.entry_time || null);
@@ -259,6 +275,7 @@ function dbItem(it) {
       h('div', { class: 'filters' }, tfs),
       hasBars ? h('div', null, chartEl, h('div', { class: 'sub', style: 'margin-top:6px' }, 'Candles do pregão de hoje, horário de Brasília, atualizados a cada 5 segundos (o último está em formação). Linha amarela: fechamento de ontem. Setas: entradas; círculos: saídas com o resultado. ', h('a', { href: 'https://www.tradingview.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Gráficos por TradingView Lightweight Charts™')))
         : loadingState('O gráfico aparece quando o robô gravar os primeiros candles.'),
+      it.retired ? h('div', { class: 'notice warn', role: 'note' }, h('b', null, 'Retirado da demo em ' + dbDayTime(it.retired.retirado_em) + ': '), `${it.retired.motivo}. Resultado líquido congelado em ${dbBrl(it.retired.resultado_liquido_brl)}; não entra nos números dos ativos.`) : null,
       it.killswitch ? h('div', { class: 'notice warn', role: 'note' }, h('b', null, 'Kill switch ligado: '), 'o arquivo live/STOP existe; o robô zera e não abre nada até ele ser apagado.') : null)),
     card('Operações', 'Todas as operações desta demonstração, com preços e resultados da conta demo da Clear, em reais.', table),
     card('O que a pesquisa já disse desta regra neste contrato', 'A demonstração não muda nada disto: ela não entra nos critérios nem conta como teste.',
@@ -279,12 +296,12 @@ function pageDemoB3() {
   const all = (DB.data.items || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
   if (!all.length) return h('div', { class: 'rx rx-stack' }, head, emptyState('Nenhuma demonstração configurada.', 'Os arquivos ficam em live/config/demo-b3-*.json.'));
   /* one tab per contract (owner 2026-11-23: "precisamos fazer duas abas na demo para wdo e win") */
-  const count = (m) => all.filter((i) => i.market === m).length;
+  const count = (m) => all.filter((i) => i.market === m && !i.retired).length;
   if (!DB.mk || !count(DB.mk)) DB.mk = count('WIN') ? 'WIN' : 'WDO';
-  const items = all.filter((i) => i.market === DB.mk);
+  const mkAll = all.filter((i) => i.market === DB.mk), gone = mkAll.filter((i) => i.retired), items = mkAll.filter((i) => !i.retired);
   const tabs = segmented('Ativo', 'db-mk', DB.mk, [['WIN', `WIN · mini índice (${count('WIN')})`], ['WDO', `WDO · mini dólar (${count('WDO')})`]], (v) => { DB.mk = v; DB.sel = null; render(); });
-  if (!DB.sel || !items.some((i) => i.id === DB.sel)) DB.sel = items[0].id;
-  return h('div', { class: 'rx rx-stack' }, head, dbOpen(all), tabs, dbOverview(items, DB.mk), dbStrip(items), dbItem(items.find((i) => i.id === DB.sel)));
+  if (!DB.sel || !mkAll.some((i) => i.id === DB.sel)) DB.sel = (items[0] || mkAll[0]).id;
+  return h('div', { class: 'rx rx-stack' }, head, dbOpen(all), tabs, dbOverview(items, DB.mk, gone), dbStrip(items), dbItem(mkAll.find((i) => i.id === DB.sel)), dbRetired(gone, DB.mk));
 }
 const DB_STYLE = `.db-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
 .db-tile{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);cursor:pointer;font:inherit}
